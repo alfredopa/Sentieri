@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph.xml"
+    app:startDestination="@id/mappaFragment">
+
+    <fragment
+        android:id="@+id/mappaFragment"
+        android:name="com.apstudio.sentieri.MappaFragment"
+        android:label="Mappa sentieri"
+        tools:layout="@layout/fragment_mappa" >
+        <action
+            android:id="@+id/action_mappaFragment_to_sentieriFragment"
+            app:destination="@id/sentieriFragment"
+            app:popUpTo="@id/mappaFragment" />
+        <action
+            android:id="@+id/action_mappaFragment_to_salvaGpxFragment"
+            app:destination="@id/salvaGpxFragment"
+            app:popUpTo="@id/mappaFragment" />
+        <action
+            android:id="@+id/action_mappaFragment_to_barometro"
+            app:destination="@id/barometro" />
+        <action
+            android:id="@+id/action_mappaFragment_to_cameraFragment"
+            app:destination="@id/cameraFragment"
+            app:popUpTo="@id/mappaFragment" />
+        <action
+            android:id="@+id/action_mappaFragment_to_layerDialog"
+            app:destination="@id/layerDialog"
+            app:popUpTo="@id/mappaFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/sentieriFragment"
+        android:name="com.apstudio.sentieri.SentieriFragment"
+        android:label="Elenco sentieri"
+        tools:layout="@layout/fragment_sentieri" >
+        <action
+            android:id="@+id/action_sentieriFragment_to_schedaFragment"
+            app:destination="@id/schedaFragment"
+            app:popUpTo="@id/sentieriFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/schedaFragment"
+        android:name="com.apstudio.sentieri.SchedaFragment"
+        android:label="Dettaglio sentiero"
+        tools:layout="@layout/fragment_scheda" >
+        <argument
+            android:name="idSentiero"
+            app:argType="integer"
+            android:defaultValue="1" />
+        <action
+            android:id="@+id/action_schedaFragment_to_mappaFragment"
+            app:destination="@id/mappaFragment" />
+        <action
+            android:id="@+id/action_schedaFragment_to_altGrafFragment"
+            app:destination="@id/altGrafFragment"
+            app:popUpTo="@id/schedaFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/altGrafFragment"
+        android:name="com.apstudio.sentieri.AltGrafFragment"
+        android:label="Profilo altimetrico"
+        tools:layout="@layout/fragment_alt_graf">
+        <argument
+            android:name="idTrack"
+            android:defaultValue="0"
+            app:argType="integer" />
+    </fragment>
+    <fragment
+        android:id="@+id/salvaGpxFragment"
+        android:name="com.apstudio.sentieri.SalvaGpxFragment"
+        android:label="SalvaGpxFragment" />
+    <fragment
+        android:id="@+id/preferenze"
+        android:name="com.apstudio.sentieri.Preferenze"
+        android:label="Impostazioni" />
+    <fragment
+        android:id="@+id/barometro"
+        android:name="com.apstudio.sentieri.Barometro"
+        android:label="Calibrazione barometro" />
+    <dialog
+        android:id="@+id/dlgFragment"
+        android:name="com.apstudio.sentieri.DlgFragment"
+        android:label="DlgFragment" >
+        <action
+            android:id="@+id/action_dlgFragment_to_barometro"
+            app:destination="@id/barometro" />
+    </dialog>
+    <fragment
+        android:id="@+id/cameraFragment"
+        android:name="com.apstudio.sentieri.CameraFragment"
+        android:label="Immagine waypoint"
+        tools:layout="@layout/fragment_camera" >
+        <argument
+            android:name="uriFoto"
+            app:argType="string"
+            android:defaultValue="" />
+    </fragment>
+    <fragment
+        android:id="@+id/poiFragment"
+        android:name="com.apstudio.sentieri.PoiFragment"
+        android:label="Elenco waypoint"
+        tools:layout="@layout/fragment_poi" >
+        <action
+            android:id="@+id/action_poiFragment_to_mappaFragment"
+            app:destination="@id/mappaFragment" />
+        <action
+            android:id="@+id/action_poiFragment_to_cameraFragment"
+            app:destination="@id/cameraFragment"
+            app:popUpTo="@id/poiFragment" >
+        </action>
+    </fragment>
+    <fragment
+        android:id="@+id/layerDialog"
+        android:name="com.apstudio.sentieri.LayerDialog"
+        android:label="Elenco percorsi sulla mappa" >
+        <argument
+            android:name="idTrack"
+            app:argType="integer"
+            android:defaultValue="0" />
+        <argument
+            android:name="nomeTraccia"
+            app:argType="string"
+            app:nullable="true" />
+        <action
+            android:id="@+id/action_layerDialog_to_mappaFragment"
+            app:destination="@id/mappaFragment" />
+    </fragment>
+</navigation>

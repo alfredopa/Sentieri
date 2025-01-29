@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".AltGrafFragment">
+
+    <com.patrykandpatrick.vico.views.chart.ChartView
+        android:id="@+id/chart_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:chart="line"
+        app:chartZoomEnabled="true"
+        app:lineChartStyle="@style/Chart3Line1Style"
+        app:showBottomAxis="true"
+        app:showStartAxis="true"
+        app:startAxisStyle="@style/Chart3StartAxisStyle" />
+</FrameLayout>
