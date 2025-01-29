@@ -12,9 +12,9 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class GpsViewModel  : ViewModel(){
     private val _gpsStatus = MutableLiveData("started")
-    var mslAltitude : Double = -100.0
+    val zeroMsl : Double = -100.0
+    var mslAltitude : Double = zeroMsl
     val gpsStatus: LiveData<String> = _gpsStatus
-
     var numSat : Int = 0
     // aggiungere tutti i livedata utili
     //private val _numSat = MutableLiveData(0)
@@ -22,7 +22,7 @@ class GpsViewModel  : ViewModel(){
 
     fun updateGpsStatus(status: String) {
         _gpsStatus.value = status
-        Log.d("GpsView", "gps status $status")
+        //Log.d("GpsView", "gps status $status")
     }
 
 }

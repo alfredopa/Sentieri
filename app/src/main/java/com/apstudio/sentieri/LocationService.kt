@@ -61,6 +61,7 @@ class LocationService : Service() {
         }
         gnssCallback = object : GnssStatus.Callback() {
             override fun onSatelliteStatusChanged(status: GnssStatus) {
+                //gpsViewModel.updateGpsStatus("aggiornato")
                 val satelliteCount = status.satelliteCount
                 var usedSatellites = 0
                 for (i in 0 until satelliteCount) {
@@ -112,17 +113,20 @@ class LocationService : Service() {
             // velocità in metri/secondo
             //if (location.speed < 0.5f) return
 
-            // se assegna valore altitudine msl da NMEA
-            var mslAltitude: Float = 0F
-            var precMslAltitude : Float = 0F
-            if (Build.VERSION.SDK_INT >= 34 && location.hasMslAltitude()) {
-                mslAltitude = location.mslAltitudeAccuracyMeters
-                precMslAltitude = location.mslAltitudeAccuracyMeters
-            }
             posizione = location
-            Log.d("GGA", "Altitudine ${location.altitude} mslAltitudine $mslAltitude precMslAltitude $precMslAltitude" +
-                    "VerticalAccuracy ${location.verticalAccuracyMeters}")
-            //posizione.altitude = gpsViewModel.mslAltitude
+            // se assegna valore altitudine msl da NMEA
+            if (gpsViewModel.mslAltitude != gpsViewModel.zeroMsl)
+                posizione.altitude = gpsViewModel.mslAltitude
+
+            /*var mslAltitude = 0.0
+            var precMslAltitude : Float = 0.0F
+            if (Build.VERSION.SDK_INT >= 34 && location.hasMslAltitude()) {
+                mslAltitude = location.mslAltitudeMeters
+                precMslAltitude = location.mslAltitudeAccuracyMeters
+            }*/
+            Log.d("GGA", "Altitudine ${location.altitude} velocità ${location.speed} "  +
+                    "Accuracy ${location.accuracy}")
+
             if (haBaro && setBaro) {
                 // assegna valore altitudine da Barometro
                 milliBar = baroRepo.baroData.value!!
