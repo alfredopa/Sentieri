@@ -813,7 +813,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
             val currentGpsStatus = status.toString()
             val menuItem = menu?.findItem(R.id.gps)
-            Log.d("gpsStatus", "observe $currentGpsStatus")
+            //Log.d("gpsStatus", "observe $currentGpsStatus")
             val icon = when (currentGpsStatus) {
                 "started" -> R.drawable.gps_started
                 "fixed" -> R.drawable.gps_on
