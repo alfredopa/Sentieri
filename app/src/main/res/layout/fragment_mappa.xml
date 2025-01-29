@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#00FFFFFF"
+    android:backgroundTint="#00FFFFFF"
+    tools:context=".MappaFragment">
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center|right|top"
+        android:layout_marginTop="28dp"
+        android:contentDescription="@string/app_name"
+        android:outlineProvider="none"
+        android:src="@drawable/pin_rosso"
+        app:tint="@null"
+        app:fabCustomSize="36dp"
+        app:layout_anchorGravity="right|top"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/camera"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center|right|top"
+        android:layout_marginTop="68dp"
+        android:contentDescription="waypoint"
+        android:outlineProvider="none"
+        android:src="@drawable/camera"
+        app:fabCustomSize="36dp"
+        app:layout_anchorGravity="right|top"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <org.osmdroid.views.MapView
+        android:id="@+id/Mapview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:backgroundTint="@color/common_google_signin_btn_text_dark_disabled"
+        app:layout_anchorGravity="center" />
+
+    <include layout="@layout/cruscotto" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

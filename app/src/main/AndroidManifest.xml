@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-feature android:name="android.hardware.camera.any" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <application
+        android:name=".AppSentieri"
+        android:enableOnBackInvokedCallback="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@drawable/quattromori"
+        android:label="@string/app_name"
+        android:requestLegacyExternalStorage="true"
+        android:roundIcon="@drawable/quattromori"
+        android:supportsRtl="true"
+        android:theme="@style/Base.Theme.MyApplication"
+        >
+        <meta-data
+            android:name="MAPBOX_MAPID"
+            android:value="mapbox.satellite" />
+        <meta-data
+            android:name="MAPBOX_ACCESS_TOKEN"
+            android:value="pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNrd29tYXJiZjAwd24ydnJ0Yno3NGJ4aHUifQ.4QyOTn9AYZhWCyWSs36R_w" />
+        <service
+            android:name=".LocationService"
+            android:launchMode="singleTask"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <activity
+            android:name=".MainActivity"
+            android:launchMode="singleInstance"
+            android:windowIsTranslucent="false"
+            android:screenOrientation="portrait"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- apertura Files da filemanager e da link web -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.gpx" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

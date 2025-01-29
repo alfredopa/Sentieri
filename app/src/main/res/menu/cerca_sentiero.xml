@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:tools="http://schemas.android.com/tools"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item android:id="@+id/menu_search"
+        android:title="Cerca"
+        android:icon="@drawable/ic_search"
+        android:iconTint="@color/white"
+        android:hint="Ricerca sentiero"
+        app:showAsAction="collapseActionView|ifRoom"
+        android:voiceSearchMode="showVoiceSearchButton|launchRecognizer"
+        app:actionViewClass="android.widget.SearchView"/>
+    <!-- con widget da androidx restituisce errore in passaggio a scheda dettaglio -->
+</menu>

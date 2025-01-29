@@ -1,0 +1,118 @@
+BUG
+- dopo installazione deve rileggere le Preferences (forse in onResume di MappaFragment?)
+DA FARE
+-aggiungere marker inizio e fine percorso
+-pausa e ripresa registrazione traccia
+-waypoint nota vocale
+-dark mode
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+per creare una cartella visibile all'utente nella memoria esterna privata in modo che possa visualizzare i file che ci scrivi, puoi utilizzare il metodo getExternalFilesDir() con un tipo di file specifico e impostare l'attributo visibility su VISIBLE. Spiegazione:
+Tipi di file: Android definisce diversi tipi di file standard, come Environment.DIRECTORY_PICTURES, Environment.DIRECTORY_MUSIC, Environment.DIRECTORY_DOCUMENTS, ecc. Quando utilizzi getExternalFilesDir() con un tipo di file specifico, Android crea una sottocartella con quel nome all'interno della cartella privata dell'app nella memoria esterna.
+Visibilità: L'attributo visibility controlla la visibilità della cartella per l'utente. Impostandolo su VISIBLE, la cartella sarà visibile all'utente tramite un file manager standard. Come creare una cartella visibile all'utente:
+Ottieni il percorso della cartella:
+Chiama getExternalFilesDir() con il tipo di file desiderato, ad esempio getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS).
+Crea la cartella:
+Crea un nuovo oggetto File utilizzando il percorso ottenuto al passaggio precedente.
+Chiama mkdirs() per creare la cartella se non esiste.
+Imposta la visibilità:
+Chiama setExecutable(true, false) e setReadable(true, false) sull'oggetto File per rendere la cartella eseguibile e leggibile da altri utenti.
+Chiama setWritable(true, false) sull'oggetto File per rendere la cartella scrivibile da altri utenti. Esempio completo:
+val publicDocumentsDir = getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
+
+if (publicDocumentsDir != null) {
+    publicDocumentsDir.mkdirs() // Crea la cartella se non esiste
+
+    publicDocumentsDir.setExecutable(true, false)
+    publicDocumentsDir.setReadable(true, false)
+    publicDocumentsDir.setWritable(true, false)
+
+    // ... scrivi i file nella cartella publicDocumentsDir ...
+}
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------------------------------------------------
+SHP ESRI:
+per visualizzare shp:
+implementation 'org.osmdroid:osmdroid-shape:VERSION'
+
+val folder: List<Overlay> = ShapeConverter.convert(mapView, File(myshape))
+mapView.overlayManager.addAll(folder)
+mapView.invalidate()
+----------------------------------------------------------------------------------------------------------------------------------------------
+Per stabilire quale Fragment ha richiamato MappaFragment durante la sua ricreazione, puoi utilizzare una combinazione di SharedPreferences e il Navigation Component. Ecco come:
+val sharedPreferences = requireActivity().getPreferences(Context.MODE_PRIVATE)
+with(sharedPreferences.edit()) {
+    putInt("fragmentChiamanteId", R.id.mioFragmentId) // Sostituisci con l'ID del tuo Fragment
+    apply()
+}
+findNavController().navigate(R.id.action_mioFragment_to_mappaFragment) // Esegui la navigazione
+
+2. Recupera l'ID del Fragment chiamante in MappaFragment:
+Nel metodo onCreate() di MappaFragment, recupera l'ID del Fragment chiamante dalle SharedPreferences.
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    val sharedPreferences = requireActivity().getPreferences(Context.MODE_PRIVATE)
+    val fragmentChiamanteId = sharedPreferences.getInt("fragmentChiamanteId", -1)
+    // Utilizza fragmentChiamanteId per determinare quale Fragment ha richiamato MappaFragment
+}
+Assicurati di cancellare il valore in SharedPreferences quando MappaFragment viene distrutto o quando non è più necessario tenere traccia del Fragment chiamante.
+----------------------------------------------------------------------------------------------------------------------------------------------
+COPIA FILE DA ASSET
+La classe MyApplication estende Application e esegue il codice di copia nel metodo onCreate().
+getSharedPreferences viene utilizzato per accedere alle preferenze condivise dell'app.
+!prefs.getBoolean("first_run", false) controlla se è il primo avvio dell'app.
+copyAssetToExternalStorage copia il file dagli asset alla memoria esterna utilizzando MediaStore.
+prefs.edit().putBoolean("first_run", true).apply() imposta il flag "first_run" a true dopo la copia. Note:
+Assicurati di dichiarare la classe MyApplication nel tuo AndroidManifest.xml.
+Sostituisci "my_file.txt" e "MyDirectory" con il nome del tuo file e della tua cartella.
+Assicurati di avere i permessi necessari nel tuo AndroidManifest.xml.
+Questo codice funziona solo su Android 10 e superiori a causa di Scoped Storage.
+Questo approccio simula la copia del file durante l'installazione eseguendola al primo avvio dell'app. Ricorda che l'accesso alla memoria esterna è un'area in continua evoluzione in Android. Consulta la documentazione ufficiale per le ultime best practice e restrizioni.
+
+import android.app.Application
+import android.content.ContentValues
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import java.io.FileOutputStream
+
+class MyApplication : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+
+        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        if (!prefs.getBoolean("first_run", false)) {
+            copyAssetToExternalStorage("my_file.txt", "MyDirectory")
+            prefs.edit().putBoolean("first_run", true).apply()
+        }
+    }
+
+    private fun copyAssetToExternalStorage(assetFileName: String, directoryName: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, assetFileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain") // o il MIME type appropriato
+                put(
+                    MediaStore.MediaColumns.RELATIVE_PATH,
+                    Environment.DIRECTORY_DOCUMENTS + "/$directoryName"
+                )
+            }
+
+            val resolver = contentResolver
+            val uri: Uri? =
+                resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
+
+            uri?.let {
+                assets.open(assetFileName).use { inputStream ->
+                    resolver.openOutputStream(it)?.use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+            }
+        }
+    }
+}

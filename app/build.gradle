@@ -1,0 +1,92 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id("com.google.devtools.ksp")
+    id 'androidx.navigation.safeargs.kotlin'
+    id("kotlin-kapt") // Add this line
+}
+
+android {
+    namespace 'com.apstudio.sentieri'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.apstudio.sentieri"
+        minSdk 31
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.1'
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            debuggable true
+            minifyEnabled true
+            // ... altre configurazioni per debug ...
+        }
+    }
+
+    buildFeatures{
+        dataBinding true
+        viewBinding true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
+    implementation 'androidx.preference:preference-ktx:1.2.1'
+    implementation 'androidx.camera:camera-lifecycle:1.4.1'
+    implementation 'com.google.firebase:firebase-firestore:25.1.1'
+    def room_version = '2.6.1'
+    implementation "androidx.room:room-runtime:$room_version"
+    ksp("androidx.room:room-compiler:$room_version")
+    implementation "androidx.room:room-ktx:$room_version"
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1'
+    // ViewModel
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
+    // LiveData
+    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.8.7'
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.8.5'
+    implementation 'androidx.navigation:navigation-ui-ktx:2.8.5'
+    implementation 'androidx.fragment:fragment-ktx:1.8.5'
+    implementation 'androidx.core:core-ktx:1.15.0'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.2.0'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+    implementation 'org.osmdroid:osmdroid-android:6.1.20'
+    implementation 'org.osmdroid:osmdroid-mapsforge:6.1.20'
+    implementation 'org.mapsforge:mapsforge-map-android:0.23.0'
+    implementation 'org.mapsforge:mapsforge-map:0.23.0'
+    implementation 'org.mapsforge:mapsforge-themes:0.23.0'
+    // Includes the core logic for charts and other elements.
+    implementation('com.patrykandpatrick.vico:core:1.15.0')
+    // For the view system.
+    implementation('com.patrykandpatrick.vico:views:1.15.0')
+    implementation("javax.xml.stream:stax-api:1.0-2")
+    //implementation 'com.google.android.gms:play-services-maps:18.2.0'
+    implementation 'com.google.android.gms:play-services-location:21.3.0'
+    implementation 'androidx.activity:activity-ktx:1.10.0'
+
+    implementation 'com.github.bumptech.glide:glide:4.16.0'
+    implementation("androidx.vectordrawable:vectordrawable:1.2.0")
+    kapt("androidx.databinding:databinding-compiler:8.8.0")
+
+}
