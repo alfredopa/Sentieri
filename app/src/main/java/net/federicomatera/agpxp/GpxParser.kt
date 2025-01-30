@@ -218,8 +218,8 @@ class GpxParser {
                     TIME_NODE -> time = dateFormat.parse(currentNode.firstChild.nodeValue)
                     NAME_NODE -> name = currentNode.firstChild.nodeValue
                     SPEED_NODE -> speed = currentNode.firstChild.nodeValue.toFloat()
-                    CMT_NODE -> comment = currentNode.firstChild.nodeValue
-                    DESC_NODE -> description = currentNode.firstChild.nodeValue
+                    CMT_NODE -> comment = currentNode.firstChild?.nodeValue ?: ""
+                    DESC_NODE -> description = currentNode.firstChild?.nodeValue ?: ""
                     SRC_NODE -> src = currentNode.firstChild.nodeValue
                     MAGVAR_NODE -> magneticDeclination = currentNode.firstChild.nodeValue.toDouble()
                     GEOIDHEIGHT_NODE -> geoIdHeight = currentNode.firstChild.nodeValue.toDouble()
