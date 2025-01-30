@@ -477,9 +477,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // Mappe MapsForge estensione .map il path del rendertheme è hard coded, da cambiare
         val forgeMappa: MapsForgeTileProvider
         val offlineMappa: OfflineTileProvider
+        var theme: XmlRenderTheme?  = null
         if (f.name.contains(".map")) {
-            val theme: XmlRenderTheme =
-                ExternalRenderTheme(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe/4UMaps/4UMaps.xml")
+            val folderTema = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe/4UMaps/4UMaps.xml")
+            if (folderTema.exists()) {
+                theme = ExternalRenderTheme(
+                    Environment.getExternalStorageDirectory().absolutePath +
+                            "/Sentieri/Mappe/4UMaps/4UMaps.xml"
+                )
+            }
             val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, null)
             forgeMappa = MapsForgeTileProvider(
                 SimpleRegisterReceiver(activity),

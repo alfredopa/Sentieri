@@ -14,8 +14,8 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.location.OnNmeaMessageListener
-import android.os.Build
 import android.os.IBinder
+import android.renderscript.ScriptGroup
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -134,11 +134,6 @@ class LocationService : Service() {
             }
             sendBroadcast()
         }
-        // Crea e registra NMEA listener
-        nmeaListener = OnNmeaMessageListener { message, _ ->
-            // Do something with NMEA message $GPGGA
-            loggaNMEA(message)
-        }
 
         // Richiedi aggiornamenti della posizione
         if ((ActivityCompat.checkSelfPermission(
@@ -154,8 +149,15 @@ class LocationService : Service() {
 
         locationManager.registerGnssStatusCallback(
             ContextCompat.getMainExecutor(context), gnssCallback)
-        // aggiunge il listener di NMEA
+
+        // Crea NMEA listener
+        nmeaListener = OnNmeaMessageListener { message, _ ->
+            // Do something with NMEA message $GPGGA
+            loggaNMEA(message)
+        }
+        // registra il listener di NMEA
         locationManager.addNmeaListener(nmeaListener, null)
+
         locationManager.requestLocationUpdates(
             LocationManager.GPS_PROVIDER,
             1500,
@@ -209,6 +211,7 @@ class LocationService : Service() {
             Quota sul livello del mare
             Ondulazione del geoide rispetto all’ellissoide WGS84
          */
+
         if (message.startsWith('$'+"GPGGA") or message.startsWith('$'+"GNGGA")) {
             val nmeaSplit = message.split(",")
             val valido = nmeaSplit[6]
@@ -224,7 +227,30 @@ class LocationService : Service() {
             //bearing = nmeaSplit[7].toFloatOrNull() ?: 0.0f
             Log.d("GGA", "vDop, $message")
         }*/
-        //Log.d("NMEA", message)
+        val message = message.split(",")
+
+        if (message[0].equals("\$GPGSA", ignoreCase = true)) {
+            if (message.size > 15 && message[15].isNotEmpty()) {
+                val latestPdop = message[15]
+                Log.d("GSA", "NMEA Pdop $latestPdop  ")
+            }
+
+            if (message.size > 16 && message[16].isNotEmpty()) {
+                val latestHdop = message[16]
+                Log.d("GSA", "NMEA Hdop $latestHdop  ")
+            }
+
+            if (message.size > 17 && message[17].isNotEmpty() && !message[17].startsWith(
+                    "*"
+                )
+            ) {
+                val latestVdop = message[17].split("\\*".toRegex()).dropLastWhile { it.isEmpty() }
+                        .toTypedArray()[0]
+                Log.d("GSA", "NMEA Vdop $latestVdop  ")
+            }
+            Log.d("GSA", "NMEA $message")
+        }
+
     }
 
     override fun onDestroy() {
