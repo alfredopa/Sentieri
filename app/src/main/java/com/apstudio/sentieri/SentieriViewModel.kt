@@ -71,7 +71,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private var dislivelloPiu: Double = 0.0
     private var dislivelloMeno: Double = 0.0
     private val altitudeHistory = mutableListOf<Double>()
-    private val movingAverageWindowSize = 10 // Regola secondo necessità
+    private val movingAverageWindowSize = 15 // Regola secondo necessità
     // valori di riferimento della traccia da seguire
     var trackDistanza = 0f
     var trackAscesa = 0
@@ -240,7 +240,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         if (previousAltitude != null) {
             val altitudeDifference = (filteredAltitude - previousAltitude!!)
             // Accumula le differenze positive
-            if (altitudeDifference > 0) {
+            if (altitudeDifference > 1) {
                 dislivPiu.value = dislivPiu.value?.plus(altitudeDifference)
             } else {
                 dislivMeno.value = dislivMeno.value?.plus(altitudeDifference)
