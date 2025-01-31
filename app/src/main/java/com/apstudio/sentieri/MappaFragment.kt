@@ -171,11 +171,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (preferenze.contains("setBaro")) {
             viewModel.setBaro = preferenze.getBoolean("setBaro", false)
         }
-        // isMapOnline indica se è stata memorizzata la mappa online o offline
-        if (preferenze.contains("isMapOnline")) {
-            viewModel.isMapOnline = preferenze.getBoolean("isMapOnline", true)
-        }
-        Log.d("Mappa", "onCreate ")
+        //Log.d("Mappa", "onCreate ")
     }
 
     override fun onCreateView(
@@ -188,7 +184,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         view.isFocusableInTouchMode = true
         view.requestFocus()
         view.setOnKeyListener(this)
-        Log.d("Mappa", "onCreateView ")
+        //Log.d("Mappa", "onCreateView ")
         return view
     }
 
@@ -196,8 +192,40 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         super.onViewCreated(view, savedInstanceState)
         mapView = view.findViewById(R.id.Mapview)
         mapView.setDestroyMode(false)
-        // se non mappe online usa mappa locale
-        if (!viewModel.isMapOnline) {
+        // verifica se è stata memorizzato in MenuMap l'indice della mappa da usare
+        if (preferenze.contains("MenuMap")) {
+            viewModel.menuMap = preferenze.getInt("MenuMap", 0)
+            // Era selezionata mappa offline
+            if (viewModel.menuMap == 0) {
+                mapView.isTilesScaledToDpi = false
+                mapView.setUseDataConnection(false)
+                // recupera Uri della mappa offline da preferenze
+                if (preferenze.contains("URIMappa")) {
+                    apreMappa(Uri.parse(preferenze.getString("URIMappa", "")!!))
+                    menu?.findItem(0)?.setChecked(true)
+                } else
+                {
+                    // se non trova stringa mappa carica OpenStreetMap
+                    mapView.isTilesScaledToDpi = true
+                    mapView.setUseDataConnection(true)
+                    //if (preferenze.contains("URLMappa")) {
+                    online(viewModel.menuMap)
+                }
+            } else {
+                // era selezionata mappa online
+                mapView.isTilesScaledToDpi = true
+                mapView.setUseDataConnection(true)
+                online(viewModel.menuMap)
+            }
+        } else
+        {
+            // nessuna mappa selezionata apre OpenStreetMap
+            mapView.isTilesScaledToDpi = true
+            mapView.setUseDataConnection(true)
+            online(1)
+        }
+
+        /*if (!viewModel.isMapOnline) {
             mapView.isTilesScaledToDpi = false
             mapView.setUseDataConnection(false)
             if (preferenze.contains("URIMappa"))
@@ -208,9 +236,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             mapView.isTilesScaledToDpi = true
             mapView.setUseDataConnection(true)
             //if (preferenze.contains("URLMappa")) {
-            online(preferenze.getString("URLMappa", "MAPNIK")!!)
+
             //preferenze.getString("URLMappa", "MAPNIK")?.let { online(it)
-        }
+        }*/
 
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
@@ -415,7 +443,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // riavvia gli observer per aggiornamento dati cruscotto
             avviaObserver()
             val toast =
-                Toast.makeText(requireActivity(), "Registrazione in corso", Toast.LENGTH_LONG)
+                Toast.makeText(requireActivity(), "Registrazione in corso", Toast.LENGTH_SHORT)
             toast.view?.setBackgroundColor(getColor(requireActivity(), R.color.purple_500))
             toast.show()
         }
@@ -506,23 +534,23 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
         viewModel.connessione = (false)
-        viewModel.isMapOnline = false
         mapView.setUseDataConnection(false)
         mapView.invalidate()
     }
 
-    private fun online(mappa: String) {
+    private fun online(mappa: Int) {
         var scarica: MapTileProviderBasic? = null
         viewModel.connessione = (true)
-        viewModel.isMapOnline = true
+        // salvo indice menu selezionato
+        viewModel.menuMap = mappa
         mapView.setUseDataConnection(true)
         when (mappa) {
-            "MAPNIK" -> scarica = MapTileProviderBasic(context, TileSourceFactory.MAPNIK)
-            "OpenTopo" -> scarica = MapTileProviderBasic(context, TileSourceFactory.OpenTopo)
-            "MapBox" -> scarica = MappaMapBox()
+            1 -> scarica = MapTileProviderBasic(context, TileSourceFactory.MAPNIK)  // OpenStreetmap
+            2 -> scarica = MapTileProviderBasic(context, TileSourceFactory.OpenTopo) // OpenTopo
+            3 -> scarica = MappaMapBox() // MapBox
         }
 // salva la mappa scelta nelle preferenze
-        preferenze.edit().putString("URLMappa", mappa).apply()
+        preferenze.edit().putInt("MenuMap", mappa).apply()
         mapView.tileProvider = scarica
         mapView.invalidate()
     }
@@ -689,6 +717,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 apreMappa(uri!!)
 // salva la mappa offline scelta nelle preferenze
                 preferenze.edit().putString("URIMappa", uri.toString()).apply()
+                preferenze.edit().putInt("MenuMap", 0).apply()
             }
         }
     }
@@ -1253,17 +1282,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
             R.id.Online -> {
                 menuItem.isChecked = !menuItem.isChecked
-                online("MAPNIK")
+                online(1 )
             }
 
             R.id.Mapquest -> {
                 menuItem.isChecked = !menuItem.isChecked
-                online("OpenTopo")
+                online(2)
             }
 
             R.id.MapBox -> {
                 menuItem.isChecked = !menuItem.isChecked
-                online("MapBox")
+                online(3)
             }
 
             R.id.lista -> {
@@ -1402,8 +1431,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onSharedPreferenceChanged(p0: SharedPreferences?, p1: String?) {
         when (p1) {
-            "isMapOnline" -> {
-                viewModel.isMapOnline = p0!!.getBoolean(p1, true)
+            "MenuMap" -> {
+                viewModel.menuMap = p0!!.getInt(p1, 1)
             }
             "setBaro" -> {
                 viewModel.setBaro = p0!!.getBoolean(p1, false)

@@ -109,9 +109,9 @@ class LocationService : Service() {
             // COMMENTA PER TEST troppo restrittiva
             if (location.verticalAccuracyMeters > 50) return@LocationListener
             //if (BuildConfig.DEBUG)
-            //if (location.accuracy > 50) return
+            if (location.accuracy > 40) return@LocationListener
             // velocità in metri/secondo
-            //if (location.speed < 0.5f) return
+            if (location.speed < 0.5f) return@LocationListener
 
             posizione = location
             // se assegna valore altitudine msl da NMEA
@@ -124,8 +124,8 @@ class LocationService : Service() {
                 mslAltitude = location.mslAltitudeMeters
                 precMslAltitude = location.mslAltitudeAccuracyMeters
             }*/
-            Log.d("GGA", "Altitudine ${location.altitude} velocità ${location.speed} "  +
-                    "Accuracy ${location.accuracy}")
+//            Log.d("GGA", "Altitudine ${location.altitude} velocità ${location.speed} "  +
+//                    "Accuracy ${location.accuracy}")
 
             if (haBaro && setBaro) {
                 // assegna valore altitudine da Barometro
@@ -219,7 +219,7 @@ class LocationService : Service() {
                 gpsViewModel.updateGpsStatus("fixed")
                 gpsViewModel.mslAltitude = nmeaSplit[9].toDoubleOrNull() ?: -1.0
             }
-            Log.d("GGA", "NMEA $valido ${gpsViewModel.mslAltitude} ")
+            //Log.d("GGA", "NMEA $valido ${gpsViewModel.mslAltitude} ")
         }
         /*if (message.startsWith('$'+"GPGSA") or message.startsWith('$'+"GNGSA")) {
             val nmeaSplit = message.split(",")
@@ -232,12 +232,12 @@ class LocationService : Service() {
         if (message[0].equals("\$GPGSA", ignoreCase = true)) {
             if (message.size > 15 && message[15].isNotEmpty()) {
                 val latestPdop = message[15]
-                Log.d("GSA", "NMEA Pdop $latestPdop  ")
+//                Log.d("GSA", "NMEA Pdop $latestPdop  ")
             }
 
             if (message.size > 16 && message[16].isNotEmpty()) {
                 val latestHdop = message[16]
-                Log.d("GSA", "NMEA Hdop $latestHdop  ")
+//                Log.d("GSA", "NMEA Hdop $latestHdop  ")
             }
 
             if (message.size > 17 && message[17].isNotEmpty() && !message[17].startsWith(
@@ -246,9 +246,9 @@ class LocationService : Service() {
             ) {
                 val latestVdop = message[17].split("\\*".toRegex()).dropLastWhile { it.isEmpty() }
                         .toTypedArray()[0]
-                Log.d("GSA", "NMEA Vdop $latestVdop  ")
+//                Log.d("GSA", "NMEA Vdop $latestVdop  ")
             }
-            Log.d("GSA", "NMEA $message")
+//            Log.d("GSA", "NMEA $message")
         }
 
     }
