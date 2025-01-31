@@ -1,7 +1,6 @@
 package com.apstudio.sentieri
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
@@ -120,7 +119,7 @@ class MainActivity :
         navigationView.setupWithNavController(navController)
 
         // inizializza le preferenze
-        initPreferenze()
+        //initPreferenze()
         // Le preferenze vanno caricate dal main e sono indispensabili per il
         // corretto caricamento delle mappe
         AndroidGraphicFactory.createInstance(this)
@@ -168,9 +167,6 @@ class MainActivity :
             haBaro = preferenze.getBoolean("haBaro", false)
         } else {
             navController.navigate(R.id.preferenze)
-        }
-        if (preferenze.contains("isMapOnline")) {
-            viewModel.isMapOnline = preferenze.getBoolean("isMapOnline", true)
         }
     }
 

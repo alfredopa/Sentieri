@@ -6,11 +6,11 @@
         <item
             android:id="@+id/mappaFragment"
             android:icon="@android:drawable/ic_dialog_map"
-            android:title="Mappa" />
+            android:title="Vista Mappa" />
         <item
             android:id="@+id/sentieriFragment"
             android:icon="@android:drawable/ic_dialog_map"
-            android:title="Sentieri" />
+            android:title="Elenco percorsi" />
         <item
             android:id="@id/poiFragment"
             android:icon="@drawable/ic_start"

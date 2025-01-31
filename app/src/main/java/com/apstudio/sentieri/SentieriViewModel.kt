@@ -44,7 +44,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var poi = GeoPoint(0.0, 0.0)
     var bloccaMappa = true
     var connessione = false
-    var isMapOnline = false
+    var menuMap = 0
     var isFixed = false
     var running = true
     var isRecording = false
