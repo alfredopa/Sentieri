@@ -1,9 +1,12 @@
 package com.apstudio.sentieri
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -75,14 +78,15 @@ class MainActivity :
                     finishAffinity()
             }
         }
-
+        // inizializza le preferenze
+        initPreferenze()
         // verifica se tutti i permessi standard sono stati concessi
         if (!hasPermissions(this, PERMISSIONS)) {
             ActivityCompat.requestPermissions(this, PERMISSIONS.toTypedArray(), PERMISSION_ALL)
         }
         // verifica accesso a tutti i file
         checkAndRequestStoragePermission()
-        if (allPermissionsGranted) {
+           if (allPermissionsGranted) {
             initApp()
         }
     }
@@ -118,8 +122,6 @@ class MainActivity :
         }*/
         navigationView.setupWithNavController(navController)
 
-        // inizializza le preferenze
-        //initPreferenze()
         // Le preferenze vanno caricate dal main e sono indispensabili per il
         // corretto caricamento delle mappe
         AndroidGraphicFactory.createInstance(this)
@@ -160,14 +162,25 @@ class MainActivity :
     }
 
     private fun initPreferenze() {
-        // Gestione delle impostazioni se non trova la stringa barometro apre impostazioni iniziali e crea il
+        // Gestione delle impostazioni default dopo installazione  crea il
         // file preferences.xml
         preferenze = getDefaultSharedPreferences(this)
-        if (preferenze.contains("haBaro")) {
+        // TEST SENSORE BAROMETRO
+        val sensorManager: SensorManager = this.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        if (sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null) {
+            haBaro = true
+            preferenze.edit().putBoolean("haBaro", haBaro).apply()
+            preferenze.edit().putBoolean("setBaro", true).apply()
+        } else {
+            haBaro = false
+            preferenze.edit().putBoolean("haBaro", haBaro).apply()
+            preferenze.edit().putBoolean("setBaro", false).apply()
+        }
+        /*if (preferenze.contains("haBaro")) {
             haBaro = preferenze.getBoolean("haBaro", false)
         } else {
             navController.navigate(R.id.preferenze)
-        }
+        }*/
     }
 
     override fun onSupportNavigateUp(): Boolean {

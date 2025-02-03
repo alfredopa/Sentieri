@@ -20,16 +20,16 @@ import java.io.File
 
 class Preferenze : PreferenceFragmentCompat() {
     private lateinit var preferenze : SharedPreferences
-    private lateinit var sensorManager: SensorManager
-    private var haBaro = false
-    private var isMapOnline = true
+    //private lateinit var sensorManager: SensorManager
+    //private var haBaro = false
+    //private var isMapOnline = true
 
     // all' installazione app deve settare le mappe online in quanto non dovrebbero essere sempre presenti quelle offline
     // e creare il percorso Sentieri da usare per mappe offline, foto e tracce
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         preferenze = PreferenceManager.getDefaultSharedPreferences(requireContext())
-        isMapOnline = preferenze.getBoolean("isMapOnline", true)
+        /*isMapOnline = preferenze.getBoolean("isMapOnline", true)
         // TEST SENSORE BAROMETRO
         sensorManager = requireActivity().getSystemService(Context.SENSOR_SERVICE) as SensorManager
         if (sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null) {
@@ -40,7 +40,7 @@ class Preferenze : PreferenceFragmentCompat() {
             haBaro = false
             preferenze.edit().putBoolean("haBaro", haBaro).apply()
         }
-        preferenze.edit().putBoolean("isMapOnline", isMapOnline).apply()
+        preferenze.edit().putBoolean("isMapOnline", isMapOnline).apply()*/
 
         setPreferencesFromResource(R.xml.preferenze, rootKey)
     }
