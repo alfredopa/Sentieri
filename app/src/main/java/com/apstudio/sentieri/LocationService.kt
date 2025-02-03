@@ -14,6 +14,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.location.OnNmeaMessageListener
+import android.os.Build
 import android.os.IBinder
 import android.renderscript.ScriptGroup
 import android.util.Log
@@ -42,6 +43,7 @@ class LocationService : Service() {
     private var haBaro = false
     private var setBaro = false
     private var milliBar = 0.0F
+    private var haMslAltitude = false
 
     private val gpsViewModel: GpsViewModel by lazy {
         ViewModelProvider(application as ViewModelStoreOwner)[GpsViewModel::class.java]
@@ -59,6 +61,11 @@ class LocationService : Service() {
         val gpsViewModel: GpsViewModel by lazy {
             ViewModelProvider(application)[GpsViewModel::class.java]
         }
+        // dalla versione Android con valori di mslAltitude
+        if (Build.VERSION.SDK_INT >= 34) {
+            haMslAltitude = true
+        }
+
         gnssCallback = object : GnssStatus.Callback() {
             override fun onSatelliteStatusChanged(status: GnssStatus) {
                 //gpsViewModel.updateGpsStatus("aggiornato")
@@ -89,7 +96,7 @@ class LocationService : Service() {
             override fun onFirstFix(ttffMillis: Int) {
                 super.onFirstFix(ttffMillis)
                 gpsViewModel.updateGpsStatus("fixed")
-                //Log.d("gpservice", "Primmo fix in $ttffMillis ms")
+                Log.d("GGA" ,"gpservice Primo fix in $ttffMillis ms")
             }
             override fun onStarted() {
                 gpsViewModel.updateGpsStatus("started")
@@ -107,26 +114,19 @@ class LocationService : Service() {
         locationListener = LocationListener { location -> // invia posizione solo con velocità maggiore di 0.5 m/s, in futuro considerare valore utente di velocità minima da registrare
             // altitudine msl valorizzata da stringa  NMEA e corretta
             // COMMENTA PER TEST troppo restrittiva
-            if (location.verticalAccuracyMeters > 50) return@LocationListener
+            //if (location.verticalAccuracyMeters > 50) return@LocationListener
             //if (BuildConfig.DEBUG)
-            if (location.accuracy > 40) return@LocationListener
+            //if (location.accuracy > 40) return@LocationListener
             // velocità in metri/secondo
             if (location.speed < 0.5f) return@LocationListener
 
             posizione = location
-            // se assegna valore altitudine msl da NMEA
-            if (gpsViewModel.mslAltitude != gpsViewModel.zeroMsl)
+            // NON ha msl - API < 34 assegna valore altitudine msl da NMEA
+            if (!haMslAltitude) {
                 posizione.altitude = gpsViewModel.mslAltitude
-
-            /*var mslAltitude = 0.0
-            var precMslAltitude : Float = 0.0F
-            if (Build.VERSION.SDK_INT >= 34 && location.hasMslAltitude()) {
-                mslAltitude = location.mslAltitudeMeters
-                precMslAltitude = location.mslAltitudeAccuracyMeters
-            }*/
-//            Log.d("GGA", "Altitudine ${location.altitude} velocità ${location.speed} "  +
-//                    "Accuracy ${location.accuracy}")
-
+            }
+            Log.d("GGA", "Altitudine ${location.altitude} MslAltitudine ${posizione.altitude} NMEA ${gpsViewModel.mslAltitude} "  +
+                    "Accuracy ${location.accuracy}")
             if (haBaro && setBaro) {
                 // assegna valore altitudine da Barometro
                 milliBar = baroRepo.baroData.value!!
@@ -150,13 +150,15 @@ class LocationService : Service() {
         locationManager.registerGnssStatusCallback(
             ContextCompat.getMainExecutor(context), gnssCallback)
 
-        // Crea NMEA listener
-        nmeaListener = OnNmeaMessageListener { message, _ ->
-            // Do something with NMEA message $GPGGA
-            loggaNMEA(message)
+        // Crea NMEA listener solo se versione SDK >= 34 non ha mslAltitude
+        if (!haMslAltitude) {
+            nmeaListener = OnNmeaMessageListener { message, _ ->
+                // Do something with NMEA message $GPGGA
+                loggaNMEA(message)
+            }
+            // registra il listener di NMEA
+            locationManager.addNmeaListener(nmeaListener, null)
         }
-        // registra il listener di NMEA
-        locationManager.addNmeaListener(nmeaListener, null)
 
         locationManager.requestLocationUpdates(
             LocationManager.GPS_PROVIDER,
@@ -194,22 +196,32 @@ class LocationService : Service() {
 
     private fun loggaNMEA(message : String) {
         //  $GPGGA,113951.00,3913.488983,N,00906.041103,E,1,03,1.6,0.0,M,46.8,M,,*6A
-        /*   Ora UTC in cui è stata calcolata la posizione
-             Latitudine espressa in gradi
-             Longitudine espressa in gradi
-             Qualità del posizionamento
-                0= invalido
-                1= GNSS fix
-                2= DGPS fix
-                3= PPS
-                4= Posizionamento RTK
-                6= posizione stimata (dead reckoning)
-                7= Posizione inserita manualmente
-                8= Posizione ottenuta da osservazioni simulate
-             Numero di satelliti utilizzato
-            HDOP
-            Quota sul livello del mare
-            Ondulazione del geoide rispetto all’ellissoide WGS84
+        /*  1 UTC of position fix in HHMMSS.SS format
+            2 Latitude in DD MM,MMMM format (0-7 decimal places)
+            3 Direction of latitude
+                N: North
+                S: South
+            4 Longitude in DDD MM,MMMM format (0-7 decimal places)
+            5 Direction of longitude
+                E: East
+                W: West
+            6 GPS Quality indicator
+                0: fix not valid 4: Real-time kinematic, fixed integers
+                1: GPS fix 5: Real-time kinematic, float integers
+                2: DGPS fix
+                3: PPS
+                4: Posizionamento RTK
+                6: posizione stimata (dead reckoning)
+                7: Posizione inserita manualmente
+                8: Posizione ottenuta da osservazioni simulate
+            7 Number of SVs in use, 00-12
+            8 HDOP
+            9 Antenna height, MSL reference
+            10 “M” indicates that the altitude is in meters
+            11 Geoidal separation
+            12 “M” indicates that the geoidal separation is in meters
+            13 Correction age of GPS data record, Type 1; Null when DGPS not used
+            14 Base station ID, 0000-1023
          */
 
         if (message.startsWith('$'+"GPGGA") or message.startsWith('$'+"GNGGA")) {
@@ -217,17 +229,17 @@ class LocationService : Service() {
             val valido = nmeaSplit[6]
             if (valido == "1") {
                 gpsViewModel.updateGpsStatus("fixed")
-                gpsViewModel.mslAltitude = nmeaSplit[9].toDoubleOrNull() ?: -1.0
+                gpsViewModel.mslAltitude = nmeaSplit[9].toDoubleOrNull() ?: gpsViewModel.zeroMsl
             }
-            //Log.d("GGA", "NMEA $valido ${gpsViewModel.mslAltitude} ")
+            Log.d("GGA", "NMEA $valido ${gpsViewModel.mslAltitude} ")
         }
-        /*if (message.startsWith('$'+"GPGSA") or message.startsWith('$'+"GNGSA")) {
-            val nmeaSplit = message.split(",")
-            val vDop = nmeaSplit[15].toFloatOrNull() ?: 0.0f
-            //bearing = nmeaSplit[7].toFloatOrNull() ?: 0.0f
-            Log.d("GGA", "vDop, $message")
+        /*if (message.startsWith('$'+"GPGNS") or message.startsWith('$'+"GNGNS")) {
+            Log.d("GGA", "GPGNS, $message")
+        }
+        if (message.startsWith('$'+"GPRMC") or message.startsWith('$'+"GNRMC")) {
+            Log.d("GGA", "GPRMC, $message")
         }*/
-        val message = message.split(",")
+        /*val message = message.split(",")
 
         if (message[0].equals("\$GPGSA", ignoreCase = true)) {
             if (message.size > 15 && message[15].isNotEmpty()) {
@@ -249,7 +261,7 @@ class LocationService : Service() {
 //                Log.d("GSA", "NMEA Vdop $latestVdop  ")
             }
 //            Log.d("GSA", "NMEA $message")
-        }
+        }*/
 
     }
 
@@ -260,8 +272,9 @@ class LocationService : Service() {
             //Log.d("baroRepo", "stop barometro")
             baroRepo.stopSensorUpdates()
         }
-        // Rimuovi il LocationListener
-        locationManager.removeNmeaListener(nmeaListener)
+        // Rimuovi il LocationListener se esiste
+        if (!haMslAltitude)
+            locationManager.removeNmeaListener(nmeaListener)
         locationManager.removeUpdates(locationListener)
         // CALLBACK
         gpsViewModel.updateGpsStatus("stopped")

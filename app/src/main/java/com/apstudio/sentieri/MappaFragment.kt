@@ -165,13 +165,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         //haBaro indica se esiste sensore barometrico fisico
         if (preferenze.contains("haBaro")) {
             viewModel.haBaro = preferenze.getBoolean("haBaro", false)
+            // setBaro indica se si preferisce usare il sensore barometrico fisico oppure no
+            // in mancanza del sensore utilizza solo gps per altitudine
+            if (preferenze.contains("setBaro")) {
+                viewModel.setBaro = preferenze.getBoolean("setBaro", false)
+            }
         }
-        // setBaro indica se si preferisce usare il sensore barometrico fisico oppure no
-        // in mancanza del sensore utilizza solo gps per altitudine
-        if (preferenze.contains("setBaro")) {
-            viewModel.setBaro = preferenze.getBoolean("setBaro", false)
-        }
-        //Log.d("Mappa", "onCreate ")
     }
 
     override fun onCreateView(
@@ -578,7 +577,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         (MAPBOXSATELLITELABELLED as MapBoxTileSource).retrieveAccessToken(requireContext())
         MAPBOXSATELLITELABELLED.setMapboxMapid("mapbox.satellite")
         MAPBOXSATELLITELABELLED.accessToken =
-            "pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNrd29tYXJiZjAwd24ydnJ0Yno3NGJ4aHUifQ.4QyOTn9AYZhWCyWSs36R_w"
+            "pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNtMDBzMmQ3ODBoMWIya3NuejJ5NnNzMG0ifQ.kXnCG27oE6go9msYdp3pkA"
+            //"pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNrd29tYXJiZjAwd24ydnJ0Yno3NGJ4aHUifQ.4QyOTn9AYZhWCyWSs36R_w"
         TileSourceFactory.addTileSource(MAPBOXSATELLITELABELLED)
         val bitmapProvider = MapTileProviderBasic(requireContext(), MAPBOXSATELLITELABELLED)
         return bitmapProvider
@@ -1071,11 +1071,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             var milliBar : Float = 0.0F
             if (Build.VERSION.SDK_INT >= 34) {
                 loc = intent.getParcelableExtra<Location?>("posizione", Location::class.java)
-                milliBar = intent.getFloatExtra("milliBar", 0.0F)
             } else {
+                @Suppress("DEPRECATION")
                 loc = intent.getParcelableExtra<Location?>("posizione")
-                milliBar = intent.getFloatExtra("milliBar", 0.0F)
             }
+            milliBar = intent.getFloatExtra("milliBar", 0.0F)
+
     // aggiorna posizione ed inserisce nuovo punto
     // riceve il valore in millibar letti da barometro e lo passa al viewModel
     // aggiorna dati nel viewModel

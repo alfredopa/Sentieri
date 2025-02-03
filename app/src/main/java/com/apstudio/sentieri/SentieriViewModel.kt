@@ -114,24 +114,27 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     fun aggiornaDati(loc: Location, milliBar: Float) {
         locDaGPS = loc
-        newPunto = GeoPoint(loc.latitude, loc.longitude, loc.altitude)
+        if (Build.VERSION.SDK_INT >= 34 && locDaGPS.hasMslAltitude())
+            newPunto = GeoPoint(loc.latitude, loc.longitude, loc.mslAltitudeMeters)
+        else
+            newPunto = GeoPoint(loc.latitude, loc.longitude, loc.altitude)
 
         // al primo aggiornamento di posizione valorizza isFixed true
         if (!isFixed) {
             // al primo fix gps oldPunto e newPunto coincidono
             oldPunto = GeoPoint(loc.latitude, loc.longitude, loc.altitude)
             isFixed = true
-            Log.d("Mappa", "fixed true")
+            Log.d("GGA", "ViewModel primo  fixed true")
             return
         }
 
-        if (newPunto.latitude == oldPunto.latitude && newPunto.longitude == oldPunto.longitude) return
+        //if (newPunto.latitude == oldPunto.latitude && newPunto.longitude == oldPunto.longitude) return
         velocita.value = (loc.speed * 3.6).toInt()
         // determina se calcolare altitudine da Gps o barometro
         if (haBaro && setBaro) {
             millibar = milliBar
             dislivelloBaro()
-            quotaIpso.value = newQuotaIpso
+            //quotaIpso.value = newQuotaIpso
         } else
             dislivelloGPS()
 
@@ -144,7 +147,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         salvaPuntoGPS(newPunto)
         // memorizza punto come oldpunto per confronto col prossimo aggiornamento
         oldPunto = newPunto
-        // assegnata nuova quota al LiveData
+        // assegnata nuova altitudine al LiveData
         quota.value = newQuota
         quotaIpso.value = newQuotaIpso
     }
@@ -249,6 +252,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         // Aggiorna l'altitudine precedente
         previousAltitude = filteredAltitude
         newQuota = filteredAltitude
+        Log.d("addLocation",  "quota da GPS $newQuota")
     }
 
     private fun applyMovingAverage(altitude: Double): Int {
