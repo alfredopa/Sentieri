@@ -1067,20 +1067,20 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     // riceve aggiornamento posizione da servizio in Broadcast
     private val mReceiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            var loc: Location? = null
-            var milliBar : Float = 0.0F
+            var loc: Location
             if (Build.VERSION.SDK_INT >= 34) {
-                loc = intent.getParcelableExtra<Location?>("posizione", Location::class.java)
+                loc = intent.getParcelableExtra("posizione", Location::class.java)!!
             } else {
                 @Suppress("DEPRECATION")
-                loc = intent.getParcelableExtra<Location?>("posizione")
+                loc = intent.getParcelableExtra("posizione")!!
             }
-            milliBar = intent.getFloatExtra("milliBar", 0.0F)
+            var altitudine: Double = intent.getDoubleExtra("altitudine", 0.0)
+            var milliBar = intent.getFloatExtra("milliBar", 0.0F)
 
     // aggiorna posizione ed inserisce nuovo punto
     // riceve il valore in millibar letti da barometro e lo passa al viewModel
     // aggiorna dati nel viewModel
-            viewModel.aggiornaDati(loc!!, milliBar)
+            viewModel.aggiornaDati(loc, altitudine, milliBar)
     //se non è visualizzata la mappa non aggiorna dati cruscotto
             if (!viewModel.running)
                 return

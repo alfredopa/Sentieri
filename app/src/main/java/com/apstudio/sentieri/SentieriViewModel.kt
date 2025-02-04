@@ -2,7 +2,6 @@ package com.apstudio.sentieri
 
 import android.location.Location
 import android.net.Uri
-import android.os.Build
 import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LiveData
@@ -50,7 +49,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var isRecording = false
     var ricerca = String()
     var ultPosizione = GeoPoint(40.120875, 9.012893, 40.0)
-    private var locDaGPS = Location("")
     var newPunto =  GeoPoint(0.0,0.0,0.0)
     private var oldPunto =  GeoPoint(0.0,0.0,0.0)
     //var puntiPostFix = 0    // deve incrementare almeno 6 punti letti per migliorare altitudine GPS
@@ -68,10 +66,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var quotaIpso = MutableLiveData(0)
     // valori per il calcolo del dislivello con GPS con filtro MovingAverage
     private var previousAltitude: Int? = null
-    private var dislivelloPiu: Double = 0.0
-    private var dislivelloMeno: Double = 0.0
     private val altitudeHistory = mutableListOf<Double>()
-    private val movingAverageWindowSize = 15 // Regola secondo necessità
+    private val movingAverageWindowSize = 5 // Regola secondo necessità
     // valori di riferimento della traccia da seguire
     var trackDistanza = 0f
     var trackAscesa = 0
@@ -112,17 +108,18 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         _traccia.value = traccia
     }
 
-    fun aggiornaDati(loc: Location, milliBar: Float) {
-        locDaGPS = loc
-        if (Build.VERSION.SDK_INT >= 34 && locDaGPS.hasMslAltitude())
-            newPunto = GeoPoint(loc.latitude, loc.longitude, loc.mslAltitudeMeters)
-        else
-            newPunto = GeoPoint(loc.latitude, loc.longitude, loc.altitude)
-
+    fun aggiornaDati(loc: Location?, altitudine: Double, milliBar: Float) {
+        if (loc == null || altitudine == 0.0) {
+            Log.w("GGA", "Location is null, cannot update data")
+            return
+        }
+        // locazione con quota impostata su quella ricavata dal LocationService
+        //locDaGPS = GeoPoint(loc.latitude, loc.longitude, altitudine)
+        newPunto = GeoPoint(loc!!.latitude, loc.longitude, altitudine)
         // al primo aggiornamento di posizione valorizza isFixed true
         if (!isFixed) {
             // al primo fix gps oldPunto e newPunto coincidono
-            oldPunto = GeoPoint(loc.latitude, loc.longitude, loc.altitude)
+            oldPunto = newPunto
             isFixed = true
             Log.d("GGA", "ViewModel primo  fixed true")
             return
@@ -203,10 +200,10 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         // CALCOLO DISLIVELLO CON QUOTA DA GPS
         // attende 10 misurazioni prima di stimare altitudine
         if (altitudeHistory.size < movingAverageWindowSize) {
-            altitudeHistory.add(locDaGPS.altitude)
+            altitudeHistory.add(newPunto.altitude)
             return
         }
-        addLocation(locDaGPS)
+        addLocation(newPunto)
         /*if (puntiPostFix < 6) {
             puntiPostFix++
             //Log.d("aggiornaDati", "puntiPostFix $puntiPostFix")
@@ -230,29 +227,24 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     }
 
-    private fun addLocation(location: Location) {
-        var currentAltitude: Double
-        if (Build.VERSION.SDK_INT >= 34 && location.hasMslAltitude())
-             currentAltitude = location.mslAltitudeMeters
-        else
-             currentAltitude = location.altitude
-
+    private fun addLocation(location: GeoPoint) {
+        val currentAltitude = location.altitude
         // Filtra i dati di altitudine usando una media mobile
         val filteredAltitude = applyMovingAverage(currentAltitude)
         // Calcola la differenza di altitudine
         if (previousAltitude != null) {
             val altitudeDifference = (filteredAltitude - previousAltitude!!)
             // Accumula le differenze positive
-            if (altitudeDifference > 1) {
+            if (altitudeDifference > 0) {
                 dislivPiu.value = dislivPiu.value?.plus(altitudeDifference)
             } else {
                 dislivMeno.value = dislivMeno.value?.plus(altitudeDifference)
             }
+            Log.d("addLocation",  "quota da GPS $filteredAltitude altitudeDifference $altitudeDifference")
         }
         // Aggiorna l'altitudine precedente
         previousAltitude = filteredAltitude
         newQuota = filteredAltitude
-        Log.d("addLocation",  "quota da GPS $newQuota")
     }
 
     private fun applyMovingAverage(altitude: Double): Int {
@@ -266,7 +258,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         val newWayPoint = WayPoint(
             latitude = punto.latitude,
             longitude = punto.longitude,
-            elevation = newQuota!!.toDouble(),
+            elevation = punto.altitude,
             time = Timestamp(System.currentTimeMillis()),
         )
         puntiGPS.add(newWayPoint)
