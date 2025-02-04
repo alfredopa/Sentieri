@@ -118,20 +118,23 @@ class LocationService : Service() {
             //if (BuildConfig.DEBUG)
             //if (location.accuracy > 40) return@LocationListener
             // velocità in metri/secondo
-            if (location.speed < 0.5f) return@LocationListener
-
+            //if (location.speed < 0.5f) return@LocationListener
+            // API > 34 assegna valore altitudine msl
             posizione = location
-            // NON ha msl - API < 34 assegna valore altitudine msl da NMEA
-            if (!haMslAltitude) {
-                posizione.altitude = gpsViewModel.mslAltitude
+            if (Build.VERSION.SDK_INT >= 34 )
+                gpsViewModel.mslAltitude = location.mslAltitudeMeters
+            else {
+                // se non ha registrato valori NMEA usa altitudine di default
+                if (gpsViewModel.mslAltitude == gpsViewModel.zeroMsl)
+                    gpsViewModel.mslAltitude = location.altitude
             }
-            Log.d("GGA", "Altitudine ${location.altitude} MslAltitudine ${posizione.altitude} NMEA ${gpsViewModel.mslAltitude} "  +
-                    "Accuracy ${location.accuracy}")
+            Log.d("GGA", "Altitudine  ${gpsViewModel.mslAltitude}  Accuracy ${location.accuracy}")
             if (haBaro && setBaro) {
                 // assegna valore altitudine da Barometro
                 milliBar = baroRepo.baroData.value!!
                 //Log.d("service", "barometro millibar $milliBar")
             }
+
             sendBroadcast()
         }
 
@@ -187,6 +190,7 @@ class LocationService : Service() {
         val broadcastIntent = Intent()
         broadcastIntent.action = SEND_LOCATION_ACTION
         broadcastIntent.putExtra("posizione", posizione)
+        broadcastIntent.putExtra("altitudine", gpsViewModel.mslAltitude)
         if (haBaro && setBaro) {
             broadcastIntent.putExtra("milliBar", milliBar)
         }
