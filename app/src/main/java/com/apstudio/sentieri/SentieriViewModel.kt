@@ -67,7 +67,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     // valori per il calcolo del dislivello con GPS con filtro MovingAverage
     private var previousAltitude: Int? = null
     private val altitudeHistory = mutableListOf<Double>()
-    private val movingAverageWindowSize = 5 // Regola secondo necessità
+    private val movingAverageWindowSize = 15 // Regola secondo necessità
     // valori di riferimento della traccia da seguire
     var trackDistanza = 0f
     var trackAscesa = 0
@@ -108,14 +108,14 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         _traccia.value = traccia
     }
 
-    fun aggiornaDati(loc: Location?, altitudine: Double, milliBar: Float) {
+    fun aggiornaDati(loc: Location?, altitudine: Double, baroPress: Float) {
         if (loc == null || altitudine == 0.0) {
-            Log.w("GGA", "Location is null, cannot update data")
+            //Log.w("GGA", "Location is null, cannot update data")
             return
         }
         // locazione con quota impostata su quella ricavata dal LocationService
         //locDaGPS = GeoPoint(loc.latitude, loc.longitude, altitudine)
-        newPunto = GeoPoint(loc!!.latitude, loc.longitude, altitudine)
+
         // al primo aggiornamento di posizione valorizza isFixed true
         if (!isFixed) {
             // al primo fix gps oldPunto e newPunto coincidono
@@ -124,19 +124,24 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             Log.d("GGA", "ViewModel primo  fixed true")
             return
         }
-
+        val altitudineCorretta: Double
         //if (newPunto.latitude == oldPunto.latitude && newPunto.longitude == oldPunto.longitude) return
         velocita.value = (loc.speed * 3.6).toInt()
         // determina se calcolare altitudine da Gps o barometro
         if (haBaro && setBaro) {
-            millibar = milliBar
-            dislivelloBaro()
+            millibar = baroPress
+            altitudineCorretta = MapUtils.calcolaAltitudineIpso(millibar, NORMAL_PRESSURE).toDouble()
+            newPunto = GeoPoint(loc.latitude, loc.longitude, altitudineCorretta)
+            dislivelloBaro(altitudineCorretta.toInt())
             //quotaIpso.value = newQuotaIpso
-        } else
+        } else {
+            newPunto = GeoPoint(loc.latitude, loc.longitude, altitudine)
             dislivelloGPS()
+        }
 
-        distanzaMetri.value = (distanzaMetri.value ?: 0) + MapUtils.getDistanceInMeters(oldPunto, newPunto)
-        //distanzaH.value = (distanzaH.value ?: 0) + MapUtils.distance(oldPunto, newPunto)
+        if (oldPunto.latitude != 0.0 && oldPunto.longitude != 0.0) {
+            distanzaMetri.value = (distanzaMetri.value ?: 0) + MapUtils.getDistanceInMeters(oldPunto, newPunto)
+        }
 
         // aggiunge il punto alla traccia
         _traccia.value?.addPoint(newPunto)
@@ -144,14 +149,15 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         salvaPuntoGPS(newPunto)
         // memorizza punto come oldpunto per confronto col prossimo aggiornamento
         oldPunto = newPunto
-        // assegnata nuova altitudine al LiveData
-        quota.value = newQuota
+        // assegnata nuova altitudine rilevata da LocationService al LiveData
+        quota.value = newPunto.altitude.toInt()
+        quota.value = altitudine.toInt()
         quotaIpso.value = newQuotaIpso
     }
 
-    private fun dislivelloBaro() {
+    private fun dislivelloBaro(altitudine: Int) {
         // trova la quota attuale col valore millibar
-        if (millibar == 0.0F)
+        /*if (millibar == 0.0F)
             return
         newQuota = MapUtils.calcolaAltitudine(millibar, NORMAL_PRESSURE).toInt()
         newQuotaIpso = MapUtils.calcolaAltitudineIpso(millibar, NORMAL_PRESSURE).toInt()
@@ -161,10 +167,12 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         //formula ipsometrica
         if (oldQuotaIpso == 0) {
             oldQuotaIpso = newQuotaIpso
+        }*/
+        if (oldQuota == 0) {
+            oldQuota = altitudine
         }
-
         // Filtro passa basso
-        val quotaFiltrata  = ((alfa * newQuota!!) + ((1 - alfa) * oldQuota!!)).toInt()
+        val quotaFiltrata  = ((alfa * altitudine) + ((1 - alfa) * oldQuota!!)).toInt()
         val quotaFiltrataIpso = ((alfa * newQuotaIpso!!) + ((1 - alfa) * oldQuotaIpso!!)).toInt()
 
         // Calcola il dislivello positivo
@@ -193,7 +201,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         // Imposta quota come media filtrata
         newQuotaIpso = quotaFiltrataIpso
         // FINE Calcola il dislivello positivo formula IPSOMETRICA
-        Log.d("viewmodel", "aggiornadati ${quotaIpso.value}  new $newQuotaIpso  d+ ${dislivPiuIpso.value} d- ${dislivMenoIpso.value}")
+        //Log.d("viewmodel", "aggiornadati ${quotaIpso.value}  new $newQuotaIpso  d+ ${dislivPiuIpso.value} d- ${dislivMenoIpso.value}")
     }
 
     private fun dislivelloGPS() {
@@ -204,27 +212,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             return
         }
         addLocation(newPunto)
-        /*if (puntiPostFix < 6) {
-            puntiPostFix++
-            //Log.d("aggiornaDati", "puntiPostFix $puntiPostFix")
-            return
-        }
-        val diffQuota: Int
-        // deve calcolare se oldPunto < newPunto = salita aumenta dislivello
-        if (oldPunto.altitude < newPunto.altitude) {
-            diffQuota = (newPunto.altitude - oldPunto.altitude).toInt()
-            if (diffQuota > 1)
-                dislivPiu.value = dislivPiu.value?.plus(diffQuota)
-        } else {
-            diffQuota = (oldPunto.altitude - newPunto.altitude).toInt()
-            // è negativo
-            if (diffQuota > 1)
-                dislivMeno.value = dislivMeno.value?.plus(diffQuota)
-        }
-        newQuota = newPunto.altitude.toInt()
-        //Log.d("aggiornaDati",  "quota da GPS $newQuota")
-         */
-
     }
 
     private fun addLocation(location: GeoPoint) {
@@ -244,7 +231,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
         // Aggiorna l'altitudine precedente
         previousAltitude = filteredAltitude
-        newQuota = filteredAltitude
+        //newQuota = filteredAltitude
     }
 
     private fun applyMovingAverage(altitude: Double): Int {

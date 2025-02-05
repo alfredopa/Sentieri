@@ -24,12 +24,10 @@ android {
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            applicationIdSuffix '.release'
         }
         debug {
             debuggable true
             minifyEnabled false
-            applicationIdSuffix '.debug'
             // ... altre configurazioni per debug ...
         }
     }
