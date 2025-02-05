@@ -116,7 +116,7 @@ class LocationService : Service() {
             // COMMENTA PER TEST troppo restrittiva
             //if (location.verticalAccuracyMeters > 50) return@LocationListener
             //if (BuildConfig.DEBUG)
-            //if (location.accuracy > 40) return@LocationListener
+            if (location.accuracy > 40) return@LocationListener
             // velocità in metri/secondo
             //if (location.speed < 0.5f) return@LocationListener
             // API > 34 assegna valore altitudine msl

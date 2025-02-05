@@ -669,6 +669,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 return
             }
         }
+        viewModel.isFixed = false
 // Cambia stato GPS ON
         gpsMarker.setVisible(true)
 // imposta schermo sempre acceso
