@@ -132,7 +132,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private lateinit var dist: TextView
     private lateinit var quota: TextView
-    private lateinit var quotaIpso: TextView
+    //private lateinit var quotaIpso: TextView
     private lateinit var velo: TextView
     private lateinit var disliv: TextView
     private lateinit var dMeno: TextView
@@ -294,12 +294,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         dist = view.findViewById(R.id.tvDist)
         //distH = view.findViewById(R.id.tvDistH)
         quota = view.findViewById(R.id.tvQuota)
-        quotaIpso = view.findViewById(R.id.tvDistH)
+        //quotaIpso = view.findViewById(R.id.tvDistH)
         velo = view.findViewById(R.id.tvVelo)
         disliv = view.findViewById(R.id.tvDPiu)
         dMeno = view.findViewById(R.id.tvDMeno)
-        dislivIpso = view.findViewById(R.id.tvDisIpso)
-        dMenoIpso = view.findViewById(R.id.tvDisMenoIpso)
+        //dislivIpso = view.findViewById(R.id.tvDisIpso)
+        //dMenoIpso = view.findViewById(R.id.tvDisMenoIpso)
         tempo = view.findViewById(R.id.tvTempo)
         blocMappa = view.findViewById(R.id.fab)
         flCamera = view.findViewById(R.id.camera)
@@ -632,8 +632,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun fermaRecording() {
 // ferma aggiornamenti posizione ui e ferma servizio LocationService
-//if (LocationService. isInitialized????) {
-// Log.d("Posizione","Stop servizio")
+        // Log.d("Posizione","Stop servizio")
         requireActivity().stopService(Intent(context, LocationService::class.java))
         stopUpdates()
         gpsMarker.setVisible(false)
@@ -641,6 +640,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 // azzera valori da visualizzare in Cruscotto
         viewModel.isRecording = false
+// aggiunge marker fine percorso
+        MapUtils.markInizioFine(requireContext(), viewModel.newPunto, mapView, viewModel.recTraccia, 1)
 //setBaro indica se si preferisce usare il sensore barometrico fisico oppure no
 // a fine registrazione ripristina preferenza barometro
         if (viewModel.haBaro)
@@ -831,21 +832,21 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.quota.observe(viewLifecycleOwner) {
             quota.text = viewModel.quota.value.toString()
         }
-        viewModel.quotaIpso.observe(viewLifecycleOwner) {
-            quotaIpso.text = viewModel.quotaIpso.value.toString()
-        }
+        //viewModel.quotaIpso.observe(viewLifecycleOwner) {
+        //    quotaIpso.text = viewModel.quotaIpso.value.toString()
+        //}
         viewModel.dislivPiu.observe(viewLifecycleOwner) {
             disliv.text = viewModel.dislivPiu.value.toString()
         }
         viewModel.dislivMeno.observe(viewLifecycleOwner) {
             dMeno.text = viewModel.dislivMeno.value.toString()
         }
-        viewModel.dislivPiuIpso.observe(viewLifecycleOwner) {
+        /*viewModel.dislivPiuIpso.observe(viewLifecycleOwner) {
             dislivIpso.text = viewModel.dislivPiuIpso.value.toString()
         }
         viewModel.dislivMenoIpso.observe(viewLifecycleOwner) {
             dMenoIpso.text = viewModel.dislivMenoIpso.value.toString()
-        }
+        }*/
         gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
             val currentGpsStatus = status.toString()
             val menuItem = menu?.findItem(R.id.gps)
@@ -1085,6 +1086,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     //se non è visualizzata la mappa non aggiorna dati cruscotto
             if (!viewModel.running)
                 return
+    // al primo punto aggiunge il marker d'inizio
+            if (viewModel.traccia.value?.actualPoints?.size == 1)
+                MapUtils.markInizioFine(requireContext(), viewModel.newPunto, mapView, viewModel.recTraccia, 0)
+
     //Log.d("BroadcastReceiver ",  "numsat ${gpsViewModel.numSat}")
     // sposta il marker su nuova posizione con animazione
             gpsMarker.position = (viewModel.newPunto)

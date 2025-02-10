@@ -79,7 +79,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private var newQuota: Int? = 0
     private var oldQuota: Int? = 0
     private var newQuotaIpso: Int? = 0
-    private var oldQuotaIpso: Int? = 0
+
     // coefficiente per filtro passa basso quota barometro da 0 ad 1
     // con 0.1 da valori troppo bassi (-200 dislivello)
     private val alfa: Double = 0.25
@@ -109,13 +109,11 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     }
 
     fun aggiornaDati(loc: Location?, altitudine: Double, baroPress: Float) {
-        if (loc == null || altitudine == 0.0) {
+        if (loc == null) {
             //Log.w("GGA", "Location is null, cannot update data")
             return
         }
-        // locazione con quota impostata su quella ricavata dal LocationService
-        //locDaGPS = GeoPoint(loc.latitude, loc.longitude, altitudine)
-
+        newPunto = GeoPoint(loc.latitude, loc.longitude, loc.altitude)
         // al primo aggiornamento di posizione valorizza isFixed true
         if (!isFixed) {
             // al primo fix gps oldPunto e newPunto coincidono
@@ -124,18 +122,20 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             Log.d("GGA", "ViewModel primo  fixed true")
             return
         }
-        val altitudineCorretta: Double
+
         //if (newPunto.latitude == oldPunto.latitude && newPunto.longitude == oldPunto.longitude) return
         velocita.value = (loc.speed * 3.6).toInt()
-        // determina se calcolare altitudine da Gps o barometro
+        // determina se calcolare altitudine da Gps o barometro assegna nuova altitudine al LiveData
         if (haBaro && setBaro) {
+            val altitudineBaro: Double
             millibar = baroPress
-            altitudineCorretta = MapUtils.calcolaAltitudineIpso(millibar, NORMAL_PRESSURE).toDouble()
-            newPunto = GeoPoint(loc.latitude, loc.longitude, altitudineCorretta)
-            dislivelloBaro(altitudineCorretta.toInt())
-            //quotaIpso.value = newQuotaIpso
+            altitudineBaro = MapUtils.calcolaAltitudineIpso(millibar, NORMAL_PRESSURE).toDouble()
+            newPunto = GeoPoint(loc.latitude, loc.longitude, altitudineBaro)
+            dislivelloBaro(altitudineBaro.toInt())
+            quota.value = altitudineBaro.toInt()
         } else {
             newPunto = GeoPoint(loc.latitude, loc.longitude, altitudine)
+            quota.value = altitudine.toInt()
             dislivelloGPS()
         }
 
@@ -150,32 +150,19 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         // memorizza punto come oldpunto per confronto col prossimo aggiornamento
         oldPunto = newPunto
         // assegnata nuova altitudine rilevata da LocationService al LiveData
-        quota.value = newPunto.altitude.toInt()
-        quota.value = altitudine.toInt()
         quotaIpso.value = newQuotaIpso
     }
 
-    private fun dislivelloBaro(altitudine: Int) {
-        // trova la quota attuale col valore millibar
-        /*if (millibar == 0.0F)
+    private fun dislivelloBaro(altitudineBaro: Int) {
+        if (oldQuota == 0) {
+            oldQuota = altitudineBaro
             return
-        newQuota = MapUtils.calcolaAltitudine(millibar, NORMAL_PRESSURE).toInt()
-        newQuotaIpso = MapUtils.calcolaAltitudineIpso(millibar, NORMAL_PRESSURE).toInt()
-        if (oldQuota == 0) {
-            oldQuota = newQuota
-        }
-        //formula ipsometrica
-        if (oldQuotaIpso == 0) {
-            oldQuotaIpso = newQuotaIpso
-        }*/
-        if (oldQuota == 0) {
-            oldQuota = altitudine
         }
         // Filtro passa basso
-        val quotaFiltrata  = ((alfa * altitudine) + ((1 - alfa) * oldQuota!!)).toInt()
-        val quotaFiltrataIpso = ((alfa * newQuotaIpso!!) + ((1 - alfa) * oldQuotaIpso!!)).toInt()
+        val quotaFiltrata  = ((alfa * altitudineBaro) + ((1 - alfa) * oldQuota!!)).toInt()
+        //val quotaFiltrataIpso = ((alfa * newQuotaIpso!!) + ((1 - alfa) * oldQuotaIpso!!)).toInt()
 
-        // Calcola il dislivello positivo
+        // Calcola il dislivello positivo formula IPSOMETRICA
         if (quotaFiltrata > oldQuota!!) {
             val diffPiu = quotaFiltrata - oldQuota!!
             dislivPiu.value = dislivPiu.value?.plus(diffPiu)
@@ -189,7 +176,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         newQuota = quotaFiltrata
 
         // Calcola il dislivello positivo formula IPSOMETRICA
-        if (quotaFiltrataIpso > oldQuotaIpso!!) {
+        /*if (quotaFiltrataIpso > oldQuotaIpso!!) {
             val diffPiu = quotaFiltrataIpso - oldQuotaIpso!!
             dislivPiuIpso.value = dislivPiuIpso.value?.plus(diffPiu)
         } else {
@@ -199,14 +186,13 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         // Aggiorna la quota precedente
         oldQuotaIpso = quotaFiltrataIpso
         // Imposta quota come media filtrata
-        newQuotaIpso = quotaFiltrataIpso
-        // FINE Calcola il dislivello positivo formula IPSOMETRICA
+        newQuotaIpso = quotaFiltrataIpso*/
         //Log.d("viewmodel", "aggiornadati ${quotaIpso.value}  new $newQuotaIpso  d+ ${dislivPiuIpso.value} d- ${dislivMenoIpso.value}")
     }
 
     private fun dislivelloGPS() {
         // CALCOLO DISLIVELLO CON QUOTA DA GPS
-        // attende 10 misurazioni prima di stimare altitudine
+        // attende il numero di altitudeHistory punti prima di stimare altitudine
         if (altitudeHistory.size < movingAverageWindowSize) {
             altitudeHistory.add(newPunto.altitude)
             return
@@ -227,7 +213,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             } else {
                 dislivMeno.value = dislivMeno.value?.plus(altitudeDifference)
             }
-            Log.d("addLocation",  "quota da GPS $filteredAltitude altitudeDifference $altitudeDifference")
+            //Log.d("addLocation",  "quota da GPS $filteredAltitude altitudeDifference $altitudeDifference ${dislivPiu.value} ${dislivMeno.value}")
         }
         // Aggiorna l'altitudine precedente
         previousAltitude = filteredAltitude

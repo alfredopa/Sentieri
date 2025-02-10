@@ -16,6 +16,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContentProviderCompat.requireContext
+import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getColor
 import androidx.core.view.setPadding
 import androidx.fragment.app.activityViewModels
@@ -29,6 +30,7 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.advancedpolyline.ColorMappingForScalarContainer
@@ -237,196 +239,221 @@ object MapUtils  {
         return line
     }
 
-    fun alertSegui(context: Context, viewModel: SentieriViewModel, line: Polyline) {
-        val allarme = EditText(context)
-        val builder =
-            AlertDialog.Builder(context, R.style.AlertDialogCustom)
-        with(builder)
-        {
-            setTitle("Importa traccia")
-            val layout = LinearLayout(context)
-            layout.orientation = LinearLayout.VERTICAL
-            val distanza = String.format("%,d", viewModel.trackDistanza.toInt())
-            val ascesa = String.format("%,d", viewModel.trackAscesa)
-            val discesa = String.format("%,d", viewModel.trackDiscesa)
-            allarme.setText("\nDistanza: $distanza\nAscesa: $ascesa\nDiscesa: $discesa\n\nSeguire la traccia selezionata?")
-            allarme.setPadding(20, 10, 20, 30) // Aggiungi padding per una migliore leggibilità
-            layout.addView(allarme)
-            // Set the LinearLayout as the view for the dialog
-            builder.setView(layout)
-
-            setPositiveButton(
-                "Segui"
-            ) { _, _ ->
-                if (viewModel.tracciaDaSeguire != "") {
-                    alertVerificaSegui(context) { segui ->
-                        if (segui) {
-                            // resetta tracce con flag segui true
-                            viewModel.layerItems.forEach {
-                                it.segui = false
-                            }
-                            // aggiunge traccia con flag segui true alla lista layerItems
-                            viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, true,
-                                viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
-                            // L'utente ha premuto "Segui"
-                            // Esegui le azioni per seguire la traccia
-                        } else {
-                            // aggiunge traccia con flag segui false alla lista layerItems
-                            viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, false,
-                                viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
-                            // L'utente ha premuto "Annulla"
-                            // Esegui le azioni per annullare l'operazione
-                        }
-                    }
-                } else
-                    viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, true,
-                        viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
-                viewModel.tracciaDaSeguire = line.title
-                viewModel.alertFuoriTraccia = true
+    fun markInizioFine(contesto: Context,  punto: GeoPoint, mappa : MapView, overTraccia: FolderOverlay, tipo : Int ) {
+        // aggiunge marker inizio oppure fine percorso in base al valore tipo 0 = inizio, 1 = fine
+        val marker = Marker(mappa)
+        if (tipo == 0) {
+            marker.icon = contesto.let {
+                AppCompatResources.getDrawable(
+                    it,
+                    R.drawable.ic_start
+                )
             }
-            setNegativeButton(android.R.string.cancel) { _, _ ->
+        } else
+        {
+            marker.icon = contesto.let {
+                AppCompatResources.getDrawable(
+                    it,
+                    R.drawable.ic_finish
+                )
+            }
+        }
+
+        marker.title = "Inizio"
+        marker.position = punto
+        overTraccia.add(marker)
+    }
+
+fun alertSegui(context: Context, viewModel: SentieriViewModel, line: Polyline) {
+val allarme = EditText(context)
+val builder =
+AlertDialog.Builder(context, R.style.AlertDialogCustom)
+with(builder)
+{
+setTitle("Importa traccia")
+val layout = LinearLayout(context)
+layout.orientation = LinearLayout.VERTICAL
+val distanza = String.format("%,d", viewModel.trackDistanza.toInt())
+val ascesa = String.format("%,d", viewModel.trackAscesa)
+val discesa = String.format("%,d", viewModel.trackDiscesa)
+allarme.setText("\nDistanza: $distanza\nAscesa: $ascesa\nDiscesa: $discesa\n\nSeguire la traccia selezionata?")
+allarme.setPadding(20, 10, 20, 30) // Aggiungi padding per una migliore leggibilità
+layout.addView(allarme)
+// Set the LinearLayout as the view for the dialog
+builder.setView(layout)
+
+setPositiveButton(
+    "Segui"
+) { _, _ ->
+    if (viewModel.tracciaDaSeguire != "") {
+        alertVerificaSegui(context) { segui ->
+            if (segui) {
+                // resetta tracce con flag segui true
+                viewModel.layerItems.forEach {
+                    it.segui = false
+                }
+                // aggiunge traccia con flag segui true alla lista layerItems
+                viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, true,
+                    viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
+                // L'utente ha premuto "Segui"
+                // Esegui le azioni per seguire la traccia
+            } else {
                 // aggiunge traccia con flag segui false alla lista layerItems
                 viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, false,
-                        viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
-            }
-            //create()
-            show()
-        }
-    }
-
-    fun alertVerificaSegui(context: Context, callback: (Boolean) -> Unit) {
-        val builder = AlertDialog.Builder(context, R.style.AlertDialogCustom)
-        with(builder)
-        {
-            setTitle("Segui traccia")
-            setMessage("E' già stata selezionata una traccia da seguire. Vuoi sostituirla con questa?")
-            setPositiveButton(
-                "Segui"
-            ) { _, _ ->
-                callback(true)
-            }
-            setNegativeButton(android.R.string.cancel) { _, _ ->
-                callback(false)
-            }
-            create()
-            show()
-        }
-
-    }
-
-    fun getDistanceInMeters(p1: GeoPoint, p2: GeoPoint): Int {
-        val output = FloatArray(1)
-        Location.distanceBetween(
-            p1.latitude,
-            p1.longitude,
-            p2.latitude,
-            p2.longitude,
-            output)
-        return output[0].roundToInt()
-    }
-
-    fun distance(geoPoint1: GeoPoint, geoPoint2: GeoPoint): Int {
-        val r = 6371e3 // Raggio medio della Terra in metri
-        val lat1 = Math.toRadians(geoPoint1.latitude)
-        val lon1 = Math.toRadians(geoPoint1.longitude)
-        val lat2 = Math.toRadians(geoPoint2.latitude)
-        val lon2 = Math.toRadians(geoPoint2.longitude)
-
-        val dLat = lat2 - lat1
-        val dLon = lon2 - lon1
-
-        val a = sin(dLat / 2) * sin(dLat / 2) +
-                cos(lat1) * cos(lat2) *
-                sin(dLon / 2) * sin(dLon / 2)
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-
-        return (r * c).roundToInt()
-    }
-
-    // funzioni per altitudine barometrica
-    // restituisce il valore della pressione livello mare a partire da quota conosciuta
-    fun getSealevelPressure(alt: Float, p: Float): Float {
-        // P0 = P * (1 - 0,0065 * h)^(-5,2556)
-        //return p * ((1 -0.0065 *(alt/1000)).pow(-5.2556).toFloat())
-        return (p / (1 - alt / 44330.0f).toDouble().pow(5.255)).toFloat()
-    }
-
-    fun calcolaAltitudine(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
-        // metodo con gradiente barometrico
-        val gradienteBarometrico = 0.125f
-        return (pressioneRiferimento - pressioneAttuale) / gradienteBarometrico
-   }
-
-    fun calcolaAltitudineIpso(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
-        // metodo con formula ipsometrica
-        val BAROMETRIC_CONSTANT = 44330.0F
-        val EXPONENTIAL_COEFFICIENT = 1 / 5.256F
-        return ( BAROMETRIC_CONSTANT * (1 - (pressioneAttuale / pressioneRiferimento).pow(
-            EXPONENTIAL_COEFFICIENT)))
-    }
-
-    fun formatDecimal(value: Float): String {
-        val decimalFormat = DecimalFormat("#.##")
-        return decimalFormat.format(value)
-    }
-
-    fun dataOraIso8601(): String {
-        val now = LocalDateTime.now()
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
-            .withZone(ZoneOffset.UTC)
-        return formatter.format(now)
-    }
-
-    fun extractFileName(input: String): String {
-        if (input.isNullOrEmpty()) {
-            return "" // Restituisci una stringa vuota se l'input è nullo o vuoto
-        }
-        val startIndex = input.lastIndexOf('/') + 1 // Trova l'ultimo '/'
-        val endIndex = input.lastIndexOf('.')
-
-        return if (startIndex > -1 && endIndex > startIndex) {
-            input.substring(startIndex, endIndex)
-        } else {
-            input.substring(startIndex) // Restituisci l'intera stringa se non viene trovato '.'
-        }
-        /*val startIndex = input.indexOf('/') + 1 // Trova l'indice del carattere '/' e aggiungi 1 per iniziare dopo di esso
-        val endIndex = input.lastIndexOf('.') // Trova l'indice dell'ultimo '.'
-        return if (startIndex in 0..<endIndex) {
-            input.substring(startIndex, endIndex)
-        } else {
-            "" // Restituisci una stringa vuota se non viene trovato '/' o '.'
-        }*/
-    }
-
-    // restituisce il nome del file dall'URI
-    // questo metodo si applica per gli URI con schema content
-    fun getFileNameFromUri(context: Context, uri: Uri): String {
-        if (uri.scheme == "content") {
-            val cursor = context.contentResolver.query(uri, null, null, null, null)
-            cursor?.use {
-                if (cursor.moveToFirst()) {
-                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    return cursor.getString(nameIndex)
-                }
+                    viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
+                // L'utente ha premuto "Annulla"
+                // Esegui le azioni per annullare l'operazione
             }
         }
-        return uri.path!!.lastIndexOf('/').plus(1).let { uri.path!!.substring(it) }
+    } else
+        viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, true,
+            viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
+    viewModel.tracciaDaSeguire = line.title
+    viewModel.alertFuoriTraccia = true
+}
+setNegativeButton(android.R.string.cancel) { _, _ ->
+    // aggiunge traccia con flag segui false alla lista layerItems
+    viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, false,
+            viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
+}
+//create()
+show()
+}
+}
+
+fun alertVerificaSegui(context: Context, callback: (Boolean) -> Unit) {
+val builder = AlertDialog.Builder(context, R.style.AlertDialogCustom)
+with(builder)
+{
+setTitle("Segui traccia")
+setMessage("E' già stata selezionata una traccia da seguire. Vuoi sostituirla con questa?")
+setPositiveButton(
+    "Segui"
+) { _, _ ->
+    callback(true)
+}
+setNegativeButton(android.R.string.cancel) { _, _ ->
+    callback(false)
+}
+create()
+show()
+}
+
+}
+
+fun getDistanceInMeters(p1: GeoPoint, p2: GeoPoint): Int {
+val output = FloatArray(1)
+Location.distanceBetween(
+p1.latitude,
+p1.longitude,
+p2.latitude,
+p2.longitude,
+output)
+return output[0].roundToInt()
+}
+
+fun distance(geoPoint1: GeoPoint, geoPoint2: GeoPoint): Int {
+val r = 6371e3 // Raggio medio della Terra in metri
+val lat1 = Math.toRadians(geoPoint1.latitude)
+val lon1 = Math.toRadians(geoPoint1.longitude)
+val lat2 = Math.toRadians(geoPoint2.latitude)
+val lon2 = Math.toRadians(geoPoint2.longitude)
+
+val dLat = lat2 - lat1
+val dLon = lon2 - lon1
+
+val a = sin(dLat / 2) * sin(dLat / 2) +
+    cos(lat1) * cos(lat2) *
+    sin(dLon / 2) * sin(dLon / 2)
+val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+return (r * c).roundToInt()
+}
+
+// funzioni per altitudine barometrica
+// restituisce il valore della pressione livello mare a partire da quota conosciuta
+fun getSealevelPressure(alt: Float, p: Float): Float {
+// P0 = P * (1 - 0,0065 * h)^(-5,2556)
+//return p * ((1 -0.0065 *(alt/1000)).pow(-5.2556).toFloat())
+return (p / (1 - alt / 44330.0f).toDouble().pow(5.255)).toFloat()
+}
+
+fun calcolaAltitudine(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
+// metodo con gradiente barometrico
+val gradienteBarometrico = 0.125f
+return (pressioneRiferimento - pressioneAttuale) / gradienteBarometrico
+}
+
+fun calcolaAltitudineIpso(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
+// metodo con formula ipsometrica
+val BAROMETRIC_CONSTANT = 44330.0F
+val EXPONENTIAL_COEFFICIENT = 1 / 5.256F
+return ( BAROMETRIC_CONSTANT * (1 - (pressioneAttuale / pressioneRiferimento).pow(
+EXPONENTIAL_COEFFICIENT)))
+}
+
+fun formatDecimal(value: Float): String {
+val decimalFormat = DecimalFormat("#.##")
+return decimalFormat.format(value)
+}
+
+fun dataOraIso8601(): String {
+val now = LocalDateTime.now()
+val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
+.withZone(ZoneOffset.UTC)
+return formatter.format(now)
+}
+
+fun extractFileName(input: String): String {
+if (input.isNullOrEmpty()) {
+return "" // Restituisci una stringa vuota se l'input è nullo o vuoto
+}
+val startIndex = input.lastIndexOf('/') + 1 // Trova l'ultimo '/'
+val endIndex = input.lastIndexOf('.')
+
+return if (startIndex > -1 && endIndex > startIndex) {
+input.substring(startIndex, endIndex)
+} else {
+input.substring(startIndex) // Restituisci l'intera stringa se non viene trovato '.'
+}
+/*val startIndex = input.indexOf('/') + 1 // Trova l'indice del carattere '/' e aggiungi 1 per iniziare dopo di esso
+val endIndex = input.lastIndexOf('.') // Trova l'indice dell'ultimo '.'
+return if (startIndex in 0..<endIndex) {
+input.substring(startIndex, endIndex)
+} else {
+"" // Restituisci una stringa vuota se non viene trovato '/' o '.'
+}*/
+}
+
+// restituisce il nome del file dall'URI
+// questo metodo si applica per gli URI con schema content
+fun getFileNameFromUri(context: Context, uri: Uri): String {
+if (uri.scheme == "content") {
+val cursor = context.contentResolver.query(uri, null, null, null, null)
+cursor?.use {
+    if (cursor.moveToFirst()) {
+        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+        return cursor.getString(nameIndex)
     }
+}
+}
+return uri.path!!.lastIndexOf('/').plus(1).let { uri.path!!.substring(it) }
+}
 
-    // da BikeRoutes...
-    /*fun getFormattedRideTime(rideTimeMinutes: Int): String {
-        val rideTimeRemainedMinutes = rideTimeMinutes % 60
-        val rideTimeHours = (rideTimeMinutes - rideTimeRemainedMinutes) / 60
-        return if (rideTimeHours > 0)
-            String.format("%d h %d min", rideTimeHours, rideTimeRemainedMinutes)
-        else {
-            if (rideTimeMinutes > 0)
-                String.format("%d min", rideTimeRemainedMinutes)
-            else
-                String.format("1 min", rideTimeRemainedMinutes)
+// da BikeRoutes...
+/*fun getFormattedRideTime(rideTimeMinutes: Int): String {
+val rideTimeRemainedMinutes = rideTimeMinutes % 60
+val rideTimeHours = (rideTimeMinutes - rideTimeRemainedMinutes) / 60
+return if (rideTimeHours > 0)
+String.format("%d h %d min", rideTimeHours, rideTimeRemainedMinutes)
+else {
+if (rideTimeMinutes > 0)
+    String.format("%d min", rideTimeRemainedMinutes)
+else
+    String.format("1 min", rideTimeRemainedMinutes)
 
-        }
-    }*/
+}
+}*/
 }
 
 

@@ -1,8 +1,6 @@
 BUG
 - dopo installazione deve rileggere le Preferences (forse in onResume di MappaFragment?)
 DA FARE
--aggiungere marker inizio e fine percorso
--pausa e ripresa registrazione traccia
 -waypoint nota vocale
 -dark mode
 
