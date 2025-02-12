@@ -50,6 +50,8 @@ import java.io.FileOutputStream
 import java.text.DecimalFormat
 import java.util.Date
 
+// Fragment che visualizza il dettaglio della traccia selezionata dall'elenco delle tracce
+// su una mappa ridotta e principali dati di riepilogo
 class SchedaFragment : Fragment(), MenuProvider {
 
     private val args: SchedaFragmentArgs by navArgs()
