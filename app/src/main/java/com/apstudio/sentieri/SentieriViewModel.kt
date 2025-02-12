@@ -17,7 +17,9 @@ import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import net.federicomatera.agpxp.models.WayPoint
+import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.sql.Timestamp
@@ -43,15 +45,15 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var poi = GeoPoint(0.0, 0.0)
     var bloccaMappa = true
     var connessione = false
-    var menuMap = 0
+    var menuMap = 0             // indica mappa online o offline
+    lateinit var MappaTileProvider: MapTileProviderBasic
     var isFixed = false
     var running = true
     var isRecording = false
     var ricerca = String()
-    var ultPosizione = GeoPoint(40.120875, 9.012893, 40.0)
+    var ultPosizione = GeoPoint(40.120875, 9.012893, 40.0)   // posizione iniziale mappa
     var newPunto =  GeoPoint(0.0,0.0,0.0)
     private var oldPunto =  GeoPoint(0.0,0.0,0.0)
-    //var puntiPostFix = 0    // deve incrementare almeno 6 punti letti per migliorare altitudine GPS
     var ultZoom = (9)
     var oraInizio: Long = 0
     //var tempoMovimento : Date? = null
@@ -88,21 +90,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var is_Calibrato = false
     var BottomState = 0
 
-    // USARE CODICE PER CONVERTIRE I VALORI IN LIVEDATA DA MODIFICA DELLE PREFERENZE
-    /*privateval _isMapOnline = MutableLiveData<Boolean>()
-    val isMapOnline: LiveData<Boolean> = _isMapOnline
-
-    private val _setBaro = MutableLiveData<Boolean>()
-    val setBaro: LiveData<Boolean> = _setBaro
-
-    fun updateIsMapOnline(isMapOnline: Boolean) {
-        _isMapOnline.value = isMapOnline
-    }
-
-    fun updateSetBaro(setBaro: Boolean) {
-        _setBaro.value = setBaro
-    }*/
-
     init {
         val traccia = Polyline()
         _traccia.value = traccia
@@ -129,6 +116,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         if (haBaro && setBaro) {
             val altitudineBaro: Double
             millibar = baroPress
+            // utilizza formula ispometrica per calcolare altitudine
             altitudineBaro = MapUtils.calcolaAltitudineIpso(millibar, NORMAL_PRESSURE).toDouble()
             newPunto = GeoPoint(loc.latitude, loc.longitude, altitudineBaro)
             dislivelloBaro(altitudineBaro.toInt())
@@ -160,8 +148,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
         // Filtro passa basso
         val quotaFiltrata  = ((alfa * altitudineBaro) + ((1 - alfa) * oldQuota!!)).toInt()
-        //val quotaFiltrataIpso = ((alfa * newQuotaIpso!!) + ((1 - alfa) * oldQuotaIpso!!)).toInt()
-
         // Calcola il dislivello positivo formula IPSOMETRICA
         if (quotaFiltrata > oldQuota!!) {
             val diffPiu = quotaFiltrata - oldQuota!!
@@ -174,19 +160,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         oldQuota = quotaFiltrata
         // Imposta quota come media filtrata
         newQuota = quotaFiltrata
-
-        // Calcola il dislivello positivo formula IPSOMETRICA
-        /*if (quotaFiltrataIpso > oldQuotaIpso!!) {
-            val diffPiu = quotaFiltrataIpso - oldQuotaIpso!!
-            dislivPiuIpso.value = dislivPiuIpso.value?.plus(diffPiu)
-        } else {
-            val diffMeno = oldQuotaIpso!! - quotaFiltrataIpso
-            dislivMenoIpso.value = dislivMenoIpso.value?.plus(diffMeno)
-        }
-        // Aggiorna la quota precedente
-        oldQuotaIpso = quotaFiltrataIpso
-        // Imposta quota come media filtrata
-        newQuotaIpso = quotaFiltrataIpso*/
         //Log.d("viewmodel", "aggiornadati ${quotaIpso.value}  new $newQuotaIpso  d+ ${dislivPiuIpso.value} d- ${dislivMenoIpso.value}")
     }
 
@@ -276,22 +249,11 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         return percorso
     }
 
-    /*fun tempoTrascorso() : String {
-        // Tempo da inizio
-        var millisecondi = System.currentTimeMillis()
-        val tempo_trascorso = millisecondi - oraInizio
-        val ore = tempo_trascorso / (1000 * 60 * 60)
-        val minuti = (tempo_trascorso / (1000 * 60)) % 60
-        val secondi = (tempo_trascorso / (1000 )) % 60
-        //return ("${ore}:${minuti}:${secondi}")
-        return String.format("%d h %d min %d s", ore, minuti, secondi)
-    }*/
-
     fun tempoTrascorso(): String {
         // Converti millisecondi in unità di tempo
         val millisecondi = System.currentTimeMillis()
-        val tempo_trascorso = millisecondi - oraInizio
-        val seconds = TimeUnit.MILLISECONDS.toSeconds(tempo_trascorso)
+        val tempoTrascorso = millisecondi - oraInizio
+        val seconds = TimeUnit.MILLISECONDS.toSeconds(tempoTrascorso)
         val minutes = TimeUnit.SECONDS.toMinutes(seconds)
         val hours = TimeUnit.MINUTES.toHours(minutes)
 

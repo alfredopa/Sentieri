@@ -83,6 +83,7 @@ import org.mapsforge.map.rendertheme.XmlRenderTheme
 import org.osmdroid.api.IMapController
 import org.osmdroid.mapsforge.MapsForgeTileProvider
 import org.osmdroid.mapsforge.MapsForgeTileSource
+import org.osmdroid.tileprovider.MapTileProviderBase
 import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.tileprovider.modules.ArchiveFileFactory
 import org.osmdroid.tileprovider.modules.OfflineTileProvider
@@ -200,7 +201,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.setUseDataConnection(false)
                 // recupera Uri della mappa offline da preferenze
                 if (preferenze.contains("URIMappa")) {
-                    apreMappa(Uri.parse(preferenze.getString("URIMappa", "")!!))
+                    val uriMappa = Uri.parse(preferenze.getString("URIMappa", "")!!)
+                    apreMappa(uriMappa)
+                    //viewModel.uriMappa = uriMappa
                     menu?.findItem(0)?.setChecked(true)
                 } else
                 {
@@ -526,6 +529,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 ), maps
             )
             mapView.tileProvider = offlineMappa
+            viewModel.MappaTileProvider = offlineMappa as MapTileProviderBasic
             val archives = offlineMappa.archives
 // importante setIgnoreTileSource consente apertura rapida della mappa evitando il controllo del tipo di sorgente presente nel file tiles
             archives[0].setIgnoreTileSource(true)
