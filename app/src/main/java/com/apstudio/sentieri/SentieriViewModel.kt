@@ -17,9 +17,7 @@ import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import net.federicomatera.agpxp.models.WayPoint
-import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.sql.Timestamp
@@ -46,7 +44,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var bloccaMappa = true
     var connessione = false
     var menuMap = 0             // indica mappa online o offline
-    lateinit var MappaTileProvider: MapTileProviderBasic
+    var uriMappa = Uri.EMPTY
     var isFixed = false
     var running = true
     var isRecording = false

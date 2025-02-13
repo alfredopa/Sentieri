@@ -1,5 +1,6 @@
 package com.apstudio.sentieri
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -22,6 +23,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
+import com.apstudio.mytestmapsforgegit.URIPathHelper
 import com.apstudio.sentieri.MapUtils.alertVerificaSegui
 import com.apstudio.sentieri.databinding.FragmentSchedaBinding
 import com.apstudio.sentieri.db.LayerItem
@@ -40,6 +42,17 @@ import net.federicomatera.agpxp.models.GpxMetadata
 import net.federicomatera.agpxp.models.Link
 import net.federicomatera.agpxp.models.Track
 import net.federicomatera.agpxp.models.WayPoint
+import org.mapsforge.map.rendertheme.ExternalRenderTheme
+import org.mapsforge.map.rendertheme.XmlRenderTheme
+import org.osmdroid.mapsforge.MapsForgeTileProvider
+import org.osmdroid.mapsforge.MapsForgeTileSource
+import org.osmdroid.tileprovider.MapTileProviderBasic
+import org.osmdroid.tileprovider.modules.ArchiveFileFactory
+import org.osmdroid.tileprovider.modules.OfflineTileProvider
+import org.osmdroid.tileprovider.tilesource.MapBoxTileSource
+import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapController
 import org.osmdroid.views.MapView
@@ -173,7 +186,11 @@ class SchedaFragment : Fragment(), MenuProvider {
         mapView.setUseDataConnection(false)
 
         // DA VERIFICARE cartella Mappa usa quella di default Osmdroid
-        MapUtils.setMapOfflineSource(activity, mapView)
+        if (viewModel.menuMap ==0 )
+            apreMappa(viewModel.uriMappa)
+        else
+            online(viewModel.menuMap)
+        //MapUtils.setMapOfflineSource(activity, mapView)
         mapView.setMultiTouchControls(true)
         mapView.minZoomLevel = 9.0
         mapView.maxZoomLevel = 19.0
@@ -334,4 +351,90 @@ class SchedaFragment : Fragment(), MenuProvider {
                 findNavController().navigate(directions)
             }
         }
+
+    // apertura mappa offline locale da Uri
+    private fun apreMappa(uri: Uri) {
+        val uriPathHelper = URIPathHelper()
+        val filePath = uriPathHelper.getPath(requireContext(), uri)
+
+        val maps: Array<File?> = arrayOfNulls(1)
+        val f = File(filePath)
+        if (f.exists()) {
+            maps[0] = f
+        }
+
+// estensioni registrate: zip, gemf, sqlite, mbtiles e map
+        val extension = f.extension
+        if (!ArchiveFileFactory.isFileExtensionRegistered(extension) && extension != "map") {
+            val context: Context = requireActivity().application
+            Toast.makeText(
+                context,
+                "Il file selezionato non contiene dati mappa",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+// Mappe MapsForge estensione .map il path del rendertheme è hard coded, da cambiare
+        val forgeMappa: MapsForgeTileProvider
+        val offlineMappa: OfflineTileProvider
+        var theme: XmlRenderTheme?  = null
+        if (f.name.contains(".map")) {
+            val folderTema = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe/4UMaps/4UMaps.xml")
+            if (folderTema.exists()) {
+                theme = ExternalRenderTheme(
+                    Environment.getExternalStorageDirectory().absolutePath +
+                            "/Sentieri/Mappe/4UMaps/4UMaps.xml"
+                )
+            }
+            val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, null)
+            forgeMappa = MapsForgeTileProvider(
+                SimpleRegisterReceiver(activity),
+                fromFiles, null
+            )
+            mapView.tileProvider = forgeMappa
+        } else {
+            offlineMappa = OfflineTileProvider(
+                SimpleRegisterReceiver(
+                    requireContext()
+                ), maps
+            )
+            mapView.tileProvider = offlineMappa
+            val archives = offlineMappa.archives
+// importante setIgnoreTileSource consente apertura rapida della mappa evitando il controllo del tipo di sorgente presente nel file tiles
+            archives[0].setIgnoreTileSource(true)
+        }
+
+        mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
+        viewModel.connessione = (false)
+        mapView.setUseDataConnection(false)
+        mapView.invalidate()
+    }
+
+    private fun online(mappa: Int) {
+        var scarica: MapTileProviderBasic? = null
+        viewModel.connessione = (true)
+        // salvo indice menu selezionato
+        viewModel.menuMap = mappa
+        mapView.setUseDataConnection(true)
+        when (mappa) {
+            1 -> scarica = MapTileProviderBasic(context, TileSourceFactory.MAPNIK)  // OpenStreetmap
+            2 -> scarica = MapTileProviderBasic(context, TileSourceFactory.OpenTopo) // OpenTopo
+            3 -> scarica = MappaMapBox() // MapBox
+        }
+        mapView.tileProvider = scarica
+        mapView.invalidate()
+    }
+
+    private fun MappaMapBox(): MapTileProviderBasic {
+        val MAPBOXSATELLITELABELLED: OnlineTileSourceBase =
+            MapBoxTileSource("MapBox", 1, 19, 256, ".png")
+        (MAPBOXSATELLITELABELLED as MapBoxTileSource).retrieveAccessToken(requireContext())
+        MAPBOXSATELLITELABELLED.setMapboxMapid("mapbox.satellite")
+        MAPBOXSATELLITELABELLED.accessToken =
+            "pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNtMDBzMmQ3ODBoMWIya3NuejJ5NnNzMG0ifQ.kXnCG27oE6go9msYdp3pkA"
+        //"pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNrd29tYXJiZjAwd24ydnJ0Yno3NGJ4aHUifQ.4QyOTn9AYZhWCyWSs36R_w"
+        TileSourceFactory.addTileSource(MAPBOXSATELLITELABELLED)
+        val bitmapProvider = MapTileProviderBasic(requireContext(), MAPBOXSATELLITELABELLED)
+        return bitmapProvider
+    }
 }

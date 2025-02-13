@@ -1,8 +1,10 @@
-BUG
-- dopo installazione deve rileggere le Preferences (forse in onResume di MappaFragment?)
 DA FARE
 -waypoint nota vocale
+-visualizzare riepilogo del percorso aggiungere tempo in movimento, velocità
 -dark mode
+MIGLIORAMENTI
+- il codice per la gestione dell'apertura della mappa è duplicato di MappaFragment e SchedaFragment è duplicato, prevedere un repository da cui accedere dai fragment
+
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 per creare una cartella visibile all'utente nella memoria esterna privata in modo che possa visualizzare i file che ci scrivi, puoi utilizzare il metodo getExternalFilesDir() con un tipo di file specifico e impostare l'attributo visibility su VISIBLE. Spiegazione:

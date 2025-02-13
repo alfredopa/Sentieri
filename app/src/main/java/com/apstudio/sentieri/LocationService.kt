@@ -118,7 +118,7 @@ class LocationService : Service() {
             //if (BuildConfig.DEBUG)
             if (location.accuracy > 40) return@LocationListener
             // velocità in metri/secondo
-            //if (location.speed < 0.5f) return@LocationListener
+            if (location.speed < 0.5f) return@LocationListener
             // API > 34 assegna valore altitudine msl
             posizione = location
             if (Build.VERSION.SDK_INT >= 34 )

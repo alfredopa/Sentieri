@@ -203,7 +203,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 if (preferenze.contains("URIMappa")) {
                     val uriMappa = Uri.parse(preferenze.getString("URIMappa", "")!!)
                     apreMappa(uriMappa)
-                    //viewModel.uriMappa = uriMappa
+                    viewModel.uriMappa = uriMappa
                     menu?.findItem(0)?.setChecked(true)
                 } else
                 {
@@ -225,6 +225,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             mapView.isTilesScaledToDpi = true
             mapView.setUseDataConnection(true)
             online(1)
+            viewModel.menuMap = 1 // indica mappa OpenStreetMap
         }
 
         /*if (!viewModel.isMapOnline) {
@@ -529,7 +530,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 ), maps
             )
             mapView.tileProvider = offlineMappa
-            viewModel.MappaTileProvider = offlineMappa as MapTileProviderBasic
             val archives = offlineMappa.archives
 // importante setIgnoreTileSource consente apertura rapida della mappa evitando il controllo del tipo di sorgente presente nel file tiles
             archives[0].setIgnoreTileSource(true)
@@ -724,6 +724,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // salva la mappa offline scelta nelle preferenze
                 preferenze.edit().putString("URIMappa", uri.toString()).apply()
                 preferenze.edit().putInt("MenuMap", 0).apply()
+                viewModel.uriMappa = uri
             }
         }
     }
