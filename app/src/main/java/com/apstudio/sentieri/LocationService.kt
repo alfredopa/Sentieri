@@ -28,6 +28,23 @@ import androidx.navigation.NavDeepLinkBuilder
 import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.MappaFragment.Companion.SEND_LOCATION_ACTION
 
+/**
+ * LocationService is a foreground service responsible for tracking the device's location
+ * and providing location updates. It utilizes the GPS provider and optionally a barometer
+ * sensor if available.
+ *
+ * <p>
+ * Key features:
+ * <ul>
+ *   <li><b>GPS Location Tracking:</b> Continuously monitors the device's GPS location.</li>
+ *   <li><b>Barometer Integration (Optional):</b> Integrates with a barometer sensor to
+ *       provide altitude data when available and enabled.</li>
+ *   <li><b>NMEA Message Handling:</b> Parses NMEA messages to obtain accurate altitude information.</li>
+ *   <li><b>Foreground Service:</b> Runs as a foreground service with a persistent notification
+ *       to ensure uninterrupted operation.</li>
+ *   <li><b>Location Update Broadcasting:</b> Sends location updates to registered receivers
+ *       via LocalBroadcastManager.</li>
+ *   <li><b>GNSS Status Monitoring:</b> Tracks GN */
 // attualmente il sensore barometro se esiste viene utlizzato all'interno del servizio
 //creando il repository BaroRepo. Andrebbe spostato nel ViewModel o comunque utilizzato con un observer
 // il Repository BaroRepo è iniettato nel servizio per recuperare i dati pressione
@@ -118,7 +135,7 @@ class LocationService : Service() {
             //if (BuildConfig.DEBUG)
             if (location.accuracy > 40) return@LocationListener
             // velocità in metri/secondo
-            if (location.speed < 0.5f) return@LocationListener
+            //if (location.speed < 0.5f) return@LocationListener
             // API > 34 assegna valore altitudine msl
             posizione = location
             if (Build.VERSION.SDK_INT >= 34 )
@@ -128,7 +145,7 @@ class LocationService : Service() {
                 if (gpsViewModel.mslAltitude == gpsViewModel.zeroMsl)
                     gpsViewModel.mslAltitude = location.altitude
             }
-            Log.d("GGA", "Altitudine  ${gpsViewModel.mslAltitude}  Accuracy ${location.accuracy}")
+            //Log.d("GGA", "Altitudine  ${gpsViewModel.mslAltitude}  Accuracy ${location.accuracy}")
             if (haBaro && setBaro) {
                 // assegna valore altitudine da Barometro
                 milliBar = baroRepo.baroData.value!!

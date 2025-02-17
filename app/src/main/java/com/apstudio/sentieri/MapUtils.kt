@@ -40,11 +40,15 @@ import org.osmdroid.views.overlay.advancedpolyline.PolychromaticPaintList
 import org.osmdroid.views.overlay.milestones.MilestoneManager
 import org.osmdroid.views.overlay.milestones.MilestonePathDisplayer
 import org.osmdroid.views.overlay.milestones.MilestonePixelDistanceLister
+import org.w3c.dom.Node
+import org.w3c.dom.NodeList
 import java.io.File
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.Instant
 import java.util.Locale
+import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.pow
@@ -553,6 +557,15 @@ object MapUtils {
         return r * c
     }
 
+    fun formatSeconds(totalSeconds: Long): String {
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+
+        // Use String.format to add leading zeros
+        return String.format(Locale.ITALY,"%02d:%02d:%02d", hours, minutes, seconds)
+    }
+
 // da BikeRoutes...
     /*fun getFormattedRideTime(rideTimeMinutes: Int): String {
     val rideTimeRemainedMinutes = rideTimeMinutes % 60
@@ -566,6 +579,61 @@ object MapUtils {
         String.format("1 min", rideTimeRemainedMinutes)
 
     }
+    }*/
+
+
+    /*fun NodeList.toList(): List<Node> {
+        return (0 until this.length).map { this.item(it) }
+    }
+
+    class GpxAnalyzer {
+        private val calculator = GeodeticCalculator()
+        private val factory = DocumentBuilderFactory.newInstance()
+
+        fun calculateMovingTime(gpxFile: File): Long {
+            // Load the GPX file
+            val document = factory.newDocumentBuilder().parse(gpxFile)
+
+            // Extract the track points
+            val trackPoints = document.getElementsByTagName("trkpt")
+
+            // Filter the track points
+            val trackPointsList = trackPoints.toList()
+            val filteredPoints = trackPointsList.filter {
+                it.attributes.getNamedItem("lat")?.textContent?.isNotEmpty() == true &&
+                        it.attributes.getNamedItem("lon")?.textContent?.isNotEmpty() == true
+            }
+
+            // Calculate the moving time
+            var movingTime = 0L
+            var previousPoint: GlobalCoordinates? = null
+            var previousTime: String = ""
+            for (point in filteredPoints) {
+                val lat = point.attributes.getNamedItem("lat").textContent.toDouble()
+                val lon = point.attributes.getNamedItem("lon").textContent.toDouble()
+                val time = point.getElementsByTagName("time").item(0).textContent
+
+                // Convert the coordinates to GlobalCoordinates objects
+                val currentPoint = GlobalCoordinates(lat, lon)
+
+                // Calculate the distance between the current point and the previous point
+                if (previousPoint != null) {
+                    val distance = calculator.calculateGeodeticCurve(Ellipsoid.WGS84, previousPoint, currentPoint).ellipsoidalDistance
+                    val timeDiff = Instant.parse(time).toEpochMilli() - Instant.parse(previousTime).toEpochMilli()
+
+                    // If the distance is greater than 0 and the time difference is less than 12 hours, add the time difference to the moving time
+                    if (distance > 0 && timeDiff < 12 * 60 * 60 * 1000) {
+                        movingTime += timeDiff
+                    }
+                }
+
+                // Update the previous point
+                previousPoint = currentPoint
+                previousTime = time
+            }
+
+            return movingTime
+        }
     }*/
 }
 

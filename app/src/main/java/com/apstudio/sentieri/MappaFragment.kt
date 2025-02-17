@@ -55,6 +55,7 @@ import androidx.preference.PreferenceManager
 import com.apstudio.mytestmapsforgegit.URIPathHelper
 import com.apstudio.sentieri.MapUtils.dataOraIso8601
 import com.apstudio.sentieri.MapUtils.disegnaLine
+import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.MapUtils.getFileNameFromUri
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
@@ -83,7 +84,6 @@ import org.mapsforge.map.rendertheme.XmlRenderTheme
 import org.osmdroid.api.IMapController
 import org.osmdroid.mapsforge.MapsForgeTileProvider
 import org.osmdroid.mapsforge.MapsForgeTileSource
-import org.osmdroid.tileprovider.MapTileProviderBase
 import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.tileprovider.modules.ArchiveFileFactory
 import org.osmdroid.tileprovider.modules.OfflineTileProvider
@@ -133,14 +133,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private lateinit var dist: TextView
     private lateinit var quota: TextView
-    //private lateinit var quotaIpso: TextView
     private lateinit var velo: TextView
     private lateinit var disliv: TextView
     private lateinit var dMeno: TextView
-    private lateinit var dislivIpso: TextView
-    private lateinit var dMenoIpso: TextView
-
     private lateinit var tempo: TextView
+    private lateinit var tempoMov: TextView
     private lateinit var blocMappa: FloatingActionButton
     private lateinit var flCamera: FloatingActionButton
     private lateinit var osservaMappa: Observer<Polyline>
@@ -298,13 +295,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         dist = view.findViewById(R.id.tvDist)
         //distH = view.findViewById(R.id.tvDistH)
         quota = view.findViewById(R.id.tvQuota)
-        //quotaIpso = view.findViewById(R.id.tvDistH)
         velo = view.findViewById(R.id.tvVelo)
         disliv = view.findViewById(R.id.tvDPiu)
         dMeno = view.findViewById(R.id.tvDMeno)
-        //dislivIpso = view.findViewById(R.id.tvDisIpso)
-        //dMenoIpso = view.findViewById(R.id.tvDisMenoIpso)
         tempo = view.findViewById(R.id.tvTempo)
+        tempoMov = view.findViewById(R.id.tvTempoMov)
         blocMappa = view.findViewById(R.id.fab)
         flCamera = view.findViewById(R.id.camera)
         btnAllarme = view.findViewById(R.id.button)
@@ -846,10 +841,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.dislivMeno.observe(viewLifecycleOwner) {
             dMeno.text = viewModel.dislivMeno.value.toString()
         }
-        /*viewModel.dislivPiuIpso.observe(viewLifecycleOwner) {
-            dislivIpso.text = viewModel.dislivPiuIpso.value.toString()
+        viewModel.secondiMovimento.observe(viewLifecycleOwner) {
+            tempoMov.text = formatSeconds(viewModel.secondiMovimento.value!!)
         }
-        viewModel.dislivMenoIpso.observe(viewLifecycleOwner) {
+        /*viewModel.dislivMenoIpso.observe(viewLifecycleOwner) {
             dMenoIpso.text = viewModel.dislivMenoIpso.value.toString()
         }*/
         gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
@@ -1243,6 +1238,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             while (true) {
                 if (viewModel.running) {
                     tempo.text = viewModel.tempoTrascorso()
+                    if (viewModel.velocita.value !=0) {
+                        viewModel.secondiMovimento.postValue(viewModel.secondiMovimento.value?.plus(1))
+                        Log.d("secondiMovimento", "${viewModel.secondiMovimento.value}")
+                    }
                     delay(1000)
                 } else
                     delay(1000)

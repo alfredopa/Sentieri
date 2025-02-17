@@ -10,6 +10,16 @@
     app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
     <ImageView
+        android:id="@+id/imageView4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        android:layout_marginTop="12dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/imageView3"
+        app:srcCompat="@drawable/ic_time" />
+
+    <ImageView
         android:id="@+id/imageView7"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -94,10 +104,10 @@
         android:id="@+id/tvTempo"
         android:layout_width="149dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="40dp"
+        android:layout_marginStart="12dp"
         android:text="Tempo"
         android:textSize="28sp"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/imageView3"
         app:layout_constraintTop_toTopOf="@+id/imageView3" />
 
     <TextView
@@ -133,7 +143,7 @@
     <Button
         android:id="@+id/button"
         android:layout_width="wrap_content"
-        android:layout_height="38dp"
+        android:layout_height="40dp"
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="4dp"
         android:backgroundTint="@color/red"
@@ -142,5 +152,15 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="@+id/imageView3"
         app:layout_constraintVertical_bias="0.0" />
+
+    <TextView
+        android:id="@+id/tvTempoMov"
+        android:layout_width="149dp"
+        android:layout_height="38dp"
+        android:layout_marginStart="12dp"
+        android:text="0"
+        android:textSize="28sp"
+        app:layout_constraintStart_toEndOf="@id/imageView4"
+        app:layout_constraintTop_toTopOf="@id/imageView4" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

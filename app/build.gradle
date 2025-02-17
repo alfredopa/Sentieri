@@ -3,7 +3,7 @@ plugins {
     id 'org.jetbrains.kotlin.android'
     id("com.google.devtools.ksp")
     id 'androidx.navigation.safeargs.kotlin'
-    id("kotlin-kapt") // Add this line
+    id("kotlin-kapt")
 }
 
 android {
@@ -87,6 +87,6 @@ dependencies {
 
     implementation 'com.github.bumptech.glide:glide:4.16.0'
     implementation("androidx.vectordrawable:vectordrawable:1.2.0")
-    kapt("androidx.databinding:databinding-compiler:8.8.0")
+    //kapt("androidx.databinding:databinding-compiler:8.8.0")
 
 }
