@@ -21,7 +21,9 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.sql.Timestamp
+import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.text.format
 
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
@@ -54,7 +56,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private var oldPunto =  GeoPoint(0.0,0.0,0.0)
     var ultZoom = (9)
     var oraInizio: Long = 0
-    //var tempoMovimento : Date? = null
+    var secondiMovimento = MutableLiveData(0L)
     // valori visualizzati nel cruscotto
     val distanzaMetri = MutableLiveData(0)
     val dislivPiu = MutableLiveData(0)
@@ -82,7 +84,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     // coefficiente per filtro passa basso quota barometro da 0 ad 1
     // con 0.1 da valori troppo bassi (-200 dislivello)
-    private val alfa: Double = 0.25
+    private val alfa: Double = 0.24
     private var millibar = 0F
     var NORMAL_PRESSURE = 1013.25F
     var is_Calibrato = false
@@ -251,23 +253,22 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         // Converti millisecondi in unità di tempo
         val millisecondi = System.currentTimeMillis()
         val tempoTrascorso = millisecondi - oraInizio
-        val seconds = TimeUnit.MILLISECONDS.toSeconds(tempoTrascorso)
-        val minutes = TimeUnit.SECONDS.toMinutes(seconds)
-        val hours = TimeUnit.MINUTES.toHours(minutes)
+        val hours = TimeUnit.SECONDS.toHours(tempoTrascorso)
+        val minutes = TimeUnit.SECONDS.toMinutes(tempoTrascorso) % 60
+        val seconds = tempoTrascorso % 60
+        // Crea la stringa formattata
+        return String.format(Locale.getDefault(),"%02d:%02d:%02d", hours, minutes, seconds)
 
-        // Formatta le ore, minuti e secondi
-        //val formattedHours = if (hours > 0) "%02d:" else ""
-        val formattedHours = "%02d:"
+        /*val formattedHours = "%02d:"
         val formattedMinutes = "%02d:"
         val formattedSeconds = "%02d"
-
-        // Crea la stringa formattata
         return String.format(
             formattedHours + formattedMinutes + formattedSeconds,
             hours,
             minutes % 60,
             seconds % 60
-        )
+        )*/
+
     }
 
     /*// filtro basato su velocità ascensionale in m/sec
