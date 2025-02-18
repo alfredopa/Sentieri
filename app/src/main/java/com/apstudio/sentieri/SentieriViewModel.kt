@@ -65,7 +65,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val dislivMenoIpso = MutableLiveData(0)
     val velocita = MutableLiveData(0)
     val quota = MutableLiveData(0)
-    var quotaIpso = MutableLiveData(0)
     // valori per il calcolo del dislivello con GPS con filtro MovingAverage
     private var previousAltitude: Int? = null
     private val altitudeHistory = mutableListOf<Double>()
@@ -106,12 +105,13 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             // al primo fix gps oldPunto e newPunto coincidono
             oldPunto = newPunto
             isFixed = true
-            Log.d("GGA", "ViewModel primo  fixed true")
+            //Log.d("aggiornaDati", "ViewModel primo  fixed true")
             return
         }
 
         //if (newPunto.latitude == oldPunto.latitude && newPunto.longitude == oldPunto.longitude) return
         velocita.value = (loc.speed * 3.6).toInt()
+        //Log.d("aggiornaDati", "Velocità ${velocita.value}")
         // determina se calcolare altitudine da Gps o barometro assegna nuova altitudine al LiveData
         if (haBaro && setBaro) {
             val altitudineBaro: Double
@@ -137,8 +137,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         salvaPuntoGPS(newPunto)
         // memorizza punto come oldpunto per confronto col prossimo aggiornamento
         oldPunto = newPunto
-        // assegnata nuova altitudine rilevata da LocationService al LiveData
-        quotaIpso.value = newQuotaIpso
     }
 
     private fun dislivelloBaro(altitudineBaro: Int) {
@@ -250,25 +248,10 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     }
 
     fun tempoTrascorso(): String {
-        // Converti millisecondi in unità di tempo
+        // Calcolo del tempo trascorso da inizio registrazione
         val millisecondi = System.currentTimeMillis()
         val tempoTrascorso = millisecondi - oraInizio
-        val hours = TimeUnit.SECONDS.toHours(tempoTrascorso)
-        val minutes = TimeUnit.SECONDS.toMinutes(tempoTrascorso) % 60
-        val seconds = tempoTrascorso % 60
-        // Crea la stringa formattata
-        return String.format(Locale.getDefault(),"%02d:%02d:%02d", hours, minutes, seconds)
-
-        /*val formattedHours = "%02d:"
-        val formattedMinutes = "%02d:"
-        val formattedSeconds = "%02d"
-        return String.format(
-            formattedHours + formattedMinutes + formattedSeconds,
-            hours,
-            minutes % 60,
-            seconds % 60
-        )*/
-
+        return MapUtils.formatSeconds(tempoTrascorso/1000)
     }
 
     /*// filtro basato su velocità ascensionale in m/sec

@@ -5,6 +5,51 @@ DA FARE
 MIGLIORAMENTI
 - il codice per la gestione dell'apertura della mappa è duplicato di MappaFragment e SchedaFragment è duplicato, prevedere un repository da cui accedere dai fragment
 
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+bottomSheet:
+
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        val bottomSheet = findViewById<View>(R.id.bottom_sheet)
+        val bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet)
+
+        // Set the peek height (e.g., 100dp)
+        val peekHeightInDp = 100
+        val density = resources.displayMetrics.density
+        val peekHeightInPixels = (peekHeightInDp * density).toInt()
+        bottomSheetBehavior.peekHeight = peekHeightInPixels
+
+        // Set the state to half expanded
+        bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
+    }
+}
+
+
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        val bottomSheet = findViewById<View>(R.id.bottom_sheet)
+        val bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet)
+
+        // Get the screen height
+        val displayMetrics = resources.displayMetrics
+        val screenHeight = displayMetrics.heightPixels
+
+        // Calculate the desired height (e.g., 60% of the screen height)
+        val desiredHeight = (screenHeight * 0.6).toInt()
+
+        // Set the expanded offset
+        bottomSheetBehavior.expandedOffset = desiredHeight
+
+        // Set the state to half expanded
+        bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
+    }
+}
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 per creare una cartella visibile all'utente nella memoria esterna privata in modo che possa visualizzare i file che ci scrivi, puoi utilizzare il metodo getExternalFilesDir() con un tipo di file specifico e impostare l'attributo visibility su VISIBLE. Spiegazione:
