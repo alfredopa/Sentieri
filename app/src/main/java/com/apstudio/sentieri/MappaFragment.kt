@@ -143,6 +143,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private lateinit var osservaMappa: Observer<Polyline>
     private var alertDialog: AlertDialog? = null
     private lateinit var btnAllarme: Button
+    // prova
+    //private lateinit var speed : TextView
 
     // memorizza istanza del menu per aggiornare icone
     private var menu: Menu? = null
@@ -288,8 +290,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val layoutSheet = view.findViewById<ConstraintLayout>(R.id.cruscotto)
         bottomSheetBehavior = BottomSheetBehavior.from(layoutSheet)
         bottomSheetBehavior.isHideable = true
+        // Disable snapping
+        //bottomSheetBehavior.isFitToContents = false
         //bottomSheetBehavior.skipCollapsed = true
-        //bottomSheetBehavior.peekHeight = 160
+        //bottomSheetBehavior.peekHeight = 80
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
         // Textview dei valori da visualizzare in Cruscotto
         dist = view.findViewById(R.id.tvDist)
@@ -303,7 +307,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         blocMappa = view.findViewById(R.id.fab)
         flCamera = view.findViewById(R.id.camera)
         btnAllarme = view.findViewById(R.id.button)
-        //Log.d("Mappa", "onViewCreated ${bottomSheetBehavior.state}")
+        //speed = view.findViewById(R.id.textView4)
+
         // Bottone per bloccare ancoraggio mappa al gps
         blocMappa.setOnClickListener {
             bloccaMappa()
@@ -371,7 +376,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.onResume()
 
         // Controlli per verificare valori da altri fragment da scheda sentieri e visualizzazione waypoint
-        // verifica se è valorizzata line, quindi è stato passsata dal pulsante Segui
+        // verifica se è valorizzata line, quindi è stato passata dal pulsante Segui
         // e lo mostra sulla mappa
         // qui carica traccia dal db con waypoint e lista foto
         if (viewModel.line.actualPoints.size > 0) {
@@ -828,6 +833,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         viewModel.velocita.observe(viewLifecycleOwner) {
             velo.text = viewModel.velocita.value?.toInt().toString() + " km/h"
+            //speed.text = viewModel.velocita.value.toString()
         }
         viewModel.quota.observe(viewLifecycleOwner) {
             quota.text = viewModel.quota.value.toString()
@@ -842,7 +848,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             dMeno.text = viewModel.dislivMeno.value.toString()
         }
         viewModel.secondiMovimento.observe(viewLifecycleOwner) {
-            tempoMov.text = formatSeconds(viewModel.secondiMovimento.value!!)
+            val tmov = formatSeconds(viewModel.secondiMovimento.value!!)
+            tempoMov.text = tmov
         }
         /*viewModel.dislivMenoIpso.observe(viewLifecycleOwner) {
             dMenoIpso.text = viewModel.dislivMenoIpso.value.toString()
@@ -1240,8 +1247,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     tempo.text = viewModel.tempoTrascorso()
                     if (viewModel.velocita.value !=0) {
                         viewModel.secondiMovimento.postValue(viewModel.secondiMovimento.value?.plus(1))
-                        Log.d("secondiMovimento", "${viewModel.secondiMovimento.value}")
                     }
+                    //Log.d("secondiMovimento", "${tempo.text}  ${viewModel.secondiMovimento.value}")
                     delay(1000)
                 } else
                     delay(1000)

@@ -133,7 +133,7 @@ class LocationService : Service() {
             // COMMENTA PER TEST troppo restrittiva
             //if (location.verticalAccuracyMeters > 50) return@LocationListener
             //if (BuildConfig.DEBUG)
-            if (location.accuracy > 40) return@LocationListener
+            //if (location.accuracy > 40) return@LocationListener
             // velocità in metri/secondo
             //if (location.speed < 0.5f) return@LocationListener
             // API > 34 assegna valore altitudine msl
@@ -145,7 +145,7 @@ class LocationService : Service() {
                 if (gpsViewModel.mslAltitude == gpsViewModel.zeroMsl)
                     gpsViewModel.mslAltitude = location.altitude
             }
-            //Log.d("GGA", "Altitudine  ${gpsViewModel.mslAltitude}  Accuracy ${location.accuracy}")
+            Log.d("service", "velocità  ${location.speed} ")
             if (haBaro && setBaro) {
                 // assegna valore altitudine da Barometro
                 milliBar = baroRepo.baroData.value!!
@@ -183,7 +183,7 @@ class LocationService : Service() {
         locationManager.requestLocationUpdates(
             LocationManager.GPS_PROVIDER,
             1500,
-            2f,    // ATTENZIONE RIPORTA a 2M
+            0f,    // ATTENZIONE RIPORTA a 2M
             locationListener
         )
         val preferenze = PreferenceManager.getDefaultSharedPreferences(context)
