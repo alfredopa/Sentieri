@@ -61,8 +61,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val distanzaMetri = MutableLiveData(0)
     val dislivPiu = MutableLiveData(0)
     val dislivMeno = MutableLiveData(0)
-    val dislivPiuIpso = MutableLiveData(0)
-    val dislivMenoIpso = MutableLiveData(0)
     val velocita = MutableLiveData(0)
     val quota = MutableLiveData(0)
     // valori per il calcolo del dislivello con GPS con filtro MovingAverage
@@ -116,7 +114,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         if (haBaro && setBaro) {
             val altitudineBaro: Double
             millibar = baroPress
-            // utilizza formula ispometrica per calcolare altitudine
+            // utilizza formula ipsometrica per calcolare altitudine
             altitudineBaro = MapUtils.calcolaAltitudineIpso(millibar, NORMAL_PRESSURE).toDouble()
             newPunto = GeoPoint(loc.latitude, loc.longitude, altitudineBaro)
             dislivelloBaro(altitudineBaro.toInt())

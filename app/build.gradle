@@ -19,7 +19,9 @@ android {
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
-
+    buildFeatures {
+        buildConfig = true
+    }
     buildTypes {
         release {
             minifyEnabled true
@@ -73,6 +75,7 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
     implementation 'org.osmdroid:osmdroid-android:6.1.20'
     implementation 'org.osmdroid:osmdroid-mapsforge:6.1.20'
+    //implementation 'org.osmdroid:osmdroid-geopackage:6.1.20'
     implementation 'org.mapsforge:mapsforge-map-android:0.21.0'
     implementation 'org.mapsforge:mapsforge-map:0.21.0'
     implementation 'org.mapsforge:mapsforge-themes:0.21.0'

@@ -130,12 +130,12 @@ class LocationService : Service() {
         // Crea un LocationListener
         locationListener = LocationListener { location -> // invia posizione solo con velocità maggiore di 0.5 m/s, in futuro considerare valore utente di velocità minima da registrare
             // altitudine msl valorizzata da stringa  NMEA e corretta
-            // COMMENTA PER TEST troppo restrittiva
-            //if (location.verticalAccuracyMeters > 50) return@LocationListener
-            //if (BuildConfig.DEBUG)
-            //if (location.accuracy > 40) return@LocationListener
-            // velocità in metri/secondo
-            //if (location.speed < 0.5f) return@LocationListener
+
+            if (!BuildConfig.DEBUG) {
+                if (location.accuracy > 40) return@LocationListener
+                // velocità in metri/secondo
+                if (location.speed < 0.5f) return@LocationListener
+            }
             // API > 34 assegna valore altitudine msl
             posizione = location
             if (Build.VERSION.SDK_INT >= 34 )
@@ -145,13 +145,12 @@ class LocationService : Service() {
                 if (gpsViewModel.mslAltitude == gpsViewModel.zeroMsl)
                     gpsViewModel.mslAltitude = location.altitude
             }
-            Log.d("service", "velocità  ${location.speed} ")
+            //Log.d("GGA", "Altitudine  ${gpsViewModel.mslAltitude}  Accuracy ${location.accuracy}")
             if (haBaro && setBaro) {
                 // assegna valore altitudine da Barometro
                 milliBar = baroRepo.baroData.value!!
                 //Log.d("service", "barometro millibar $milliBar")
             }
-
             sendBroadcast()
         }
 
@@ -183,7 +182,7 @@ class LocationService : Service() {
         locationManager.requestLocationUpdates(
             LocationManager.GPS_PROVIDER,
             1500,
-            0f,    // ATTENZIONE RIPORTA a 2M
+            0f,    // ATTENZIONE se 0 legge meglio variazioni velocità
             locationListener
         )
         val preferenze = PreferenceManager.getDefaultSharedPreferences(context)
