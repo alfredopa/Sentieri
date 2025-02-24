@@ -32,6 +32,8 @@
             android:title="Mappa OpenTopo" />
         <item android:id="@+id/MapBox"
             android:title="Mappa satellitare" />
+        <item android:id="@+id/Geopackage"
+            android:title="Apre Geopackage" />
     </group>
 
 </menu>

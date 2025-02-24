@@ -104,6 +104,7 @@ import java.io.File
 import java.sql.Timestamp
 import java.util.Date
 
+
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener, View.OnKeyListener {
     val viewModel: SentieriViewModel by activityViewModels {
         SentieriFactory(
@@ -143,8 +144,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private lateinit var osservaMappa: Observer<Polyline>
     private var alertDialog: AlertDialog? = null
     private lateinit var btnAllarme: Button
-    // prova
-    //private lateinit var speed : TextView
 
     // memorizza istanza del menu per aggiornare icone
     private var menu: Menu? = null
@@ -290,10 +289,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val layoutSheet = view.findViewById<ConstraintLayout>(R.id.cruscotto)
         bottomSheetBehavior = BottomSheetBehavior.from(layoutSheet)
         bottomSheetBehavior.isHideable = true
-        // Disable snapping
         //bottomSheetBehavior.isFitToContents = false
-        //bottomSheetBehavior.skipCollapsed = true
-        //bottomSheetBehavior.peekHeight = 80
+        bottomSheetBehavior.halfExpandedRatio = 0.6f
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
         // Textview dei valori da visualizzare in Cruscotto
         dist = view.findViewById(R.id.tvDist)
@@ -307,8 +304,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         blocMappa = view.findViewById(R.id.fab)
         flCamera = view.findViewById(R.id.camera)
         btnAllarme = view.findViewById(R.id.button)
-        //speed = view.findViewById(R.id.textView4)
-
+        //Log.d("Mappa", "onViewCreated ${bottomSheetBehavior.state}")
         // Bottone per bloccare ancoraggio mappa al gps
         blocMappa.setOnClickListener {
             bloccaMappa()
@@ -376,7 +372,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.onResume()
 
         // Controlli per verificare valori da altri fragment da scheda sentieri e visualizzazione waypoint
-        // verifica se è valorizzata line, quindi è stato passata dal pulsante Segui
+        // verifica se è valorizzata line, quindi è stato passsata dal pulsante Segui
         // e lo mostra sulla mappa
         // qui carica traccia dal db con waypoint e lista foto
         if (viewModel.line.actualPoints.size > 0) {
@@ -833,14 +829,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         viewModel.velocita.observe(viewLifecycleOwner) {
             velo.text = viewModel.velocita.value?.toInt().toString() + " km/h"
-            //speed.text = viewModel.velocita.value.toString()
         }
         viewModel.quota.observe(viewLifecycleOwner) {
             quota.text = viewModel.quota.value.toString()
         }
-        //viewModel.quotaIpso.observe(viewLifecycleOwner) {
-        //    quotaIpso.text = viewModel.quotaIpso.value.toString()
-        //}
         viewModel.dislivPiu.observe(viewLifecycleOwner) {
             disliv.text = viewModel.dislivPiu.value.toString()
         }
@@ -848,12 +840,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             dMeno.text = viewModel.dislivMeno.value.toString()
         }
         viewModel.secondiMovimento.observe(viewLifecycleOwner) {
-            val tmov = formatSeconds(viewModel.secondiMovimento.value!!)
-            tempoMov.text = tmov
+            tempoMov.text = formatSeconds(viewModel.secondiMovimento.value!!)
         }
-        /*viewModel.dislivMenoIpso.observe(viewLifecycleOwner) {
-            dMenoIpso.text = viewModel.dislivMenoIpso.value.toString()
-        }*/
         gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
             val currentGpsStatus = status.toString()
             val menuItem = menu?.findItem(R.id.gps)
@@ -888,7 +876,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             TempMin = 0.0,
             DataFine = "",
             TempoTot = 0.0,
-            TempoInMov = 0.0,
+            TempoInMov = viewModel.secondiMovimento.value!!.toDouble(),
             MediaVel = 0.0
         )
 
@@ -1068,8 +1056,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.dislivPiu.value = 0
         viewModel.dislivMeno.value = 0
         viewModel.quota.value = 0
-        viewModel.dislivPiuIpso.value = 0
-        viewModel.dislivMenoIpso.value = 0
+        //viewModel.dislivPiuIpso.value = 0
+        //viewModel.dislivMenoIpso.value = 0
+        viewModel.secondiMovimento.value = 0
     }
 
 
@@ -1247,8 +1236,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     tempo.text = viewModel.tempoTrascorso()
                     if (viewModel.velocita.value !=0) {
                         viewModel.secondiMovimento.postValue(viewModel.secondiMovimento.value?.plus(1))
+                        Log.d("secondiMovimento", "${viewModel.secondiMovimento.value}")
                     }
-                    //Log.d("secondiMovimento", "${tempo.text}  ${viewModel.secondiMovimento.value}")
                     delay(1000)
                 } else
                     delay(1000)
@@ -1371,6 +1360,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
                 startActivityForResult(intent, SELECT_GPX_FILE)
             }
+            R.id.Geopackage -> {
+                //geoPackage()
+            }
         }
         return false
     }
@@ -1457,6 +1449,45 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
     }
+
+/*    private fun geoPackage() {
+        val currentSource: XYTileSource? = null
+        val geoMappa = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
+        // val f = activity?.getExternalFilesDir(null)
+
+        if (geoMappa.exists()) {
+            val list = geoMappa.listFiles()
+            if (list != null) {
+                for (aList in list) {
+                    if (aList.isDirectory) {
+                        continue
+                    }
+                    var name = aList.name.lowercase(Locale.getDefault())
+                    if (aList.name.contains(".gpkg")) {
+                        val maps: Array<File?> = arrayOfNulls(1)
+                        maps[0] = aList
+                        var geoPackageProvider: GeoPackageProvider? = null
+                        geoPackageProvider = GeoPackageProvider(maps, requireContext())
+                        mapView.setTileProvider(geoPackageProvider)
+
+                        //get the list of sources
+                       // val tileSources = geoPackageProvider.geoPackageMapTileModuleProvider().tileSources
+
+                        var sourceSet = false
+
+                        val tileSources = geoPackageProvider.geoPackageMapTileModuleProvider().tileSources
+                        if (!tileSources.isEmpty()) {
+                            mapView.setTileSource(tileSources[0])
+                            mapView.zoomToBoundingBox(tileSources[0].bounds, true)
+                            mapView.getController().setZoom(tileSources[0].minimumZoomLevel)
+                            sourceSet = true
+                        }
+
+                    }
+                }
+            }
+        }
+    }*/
 }
 
 /*----------------------------------------------------------------------------------------------------
