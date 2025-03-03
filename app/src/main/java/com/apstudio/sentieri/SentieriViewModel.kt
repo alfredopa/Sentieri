@@ -51,14 +51,17 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var newPunto =  GeoPoint(0.0,0.0,0.0)
     private var oldPunto =  GeoPoint(0.0,0.0,0.0)
     var ultZoom = (9)
-    var oraInizio: Long = 0
-    var secondiMovimento = MutableLiveData(0L)
+
     // valori visualizzati nel cruscotto
     val distanzaMetri = MutableLiveData(0)
     val dislivPiu = MutableLiveData(0)
     val dislivMeno = MutableLiveData(0)
     val velocita = MutableLiveData(0)
     val quota = MutableLiveData(0)
+    var oraInizio: Long = 0
+    //var secondiMovimento = MutableLiveData(0L)
+    private val _secondiMovimento = MutableLiveData<Int>(0)
+    val secondiMovimento: LiveData<Int> = _secondiMovimento
     // valori per il calcolo del dislivello con GPS con filtro MovingAverage
     private var previousAltitude: Int? = null
     private val altitudeHistory = mutableListOf<Double>()
@@ -118,7 +121,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         } else {
             newPunto = GeoPoint(loc.latitude, loc.longitude, altitudine)
             dislivelloGPS()
-            quota.value = altitudine.toInt()
+            // la quota deve essere quella media calcolata con MovingAverage
+            //quota.value = altitudine.toInt()
         }
 
         if (oldPunto.latitude != 0.0 && oldPunto.longitude != 0.0) {
@@ -182,7 +186,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
         // Aggiorna l'altitudine precedente
         previousAltitude = filteredAltitude
-        //newQuota = filteredAltitude
+        quota.value = filteredAltitude
     }
 
     private fun applyMovingAverage(altitude: Double): Int {
@@ -192,6 +196,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
         return altitudeHistory.average().toInt()
     }
+
     private fun salvaPuntoGPS(punto: GeoPoint) {
         val newWayPoint = WayPoint(
             latitude = punto.latitude,
@@ -245,7 +250,11 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         // Calcolo del tempo trascorso da inizio registrazione
         val millisecondi = System.currentTimeMillis()
         val tempoTrascorso = millisecondi - oraInizio
-        return MapUtils.formatSeconds(tempoTrascorso/1000)
+        return MapUtils.formatSeconds(tempoTrascorso.toInt()/1000)
+    }
+
+    fun incrementMovementSeconds() {
+        _secondiMovimento.value = (_secondiMovimento.value ?: 0) + 1
     }
 
     /*// filtro basato su velocità ascensionale in m/sec
