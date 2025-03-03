@@ -72,6 +72,8 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import mil.nga.geopackage.GeoPackageFactory
+import mil.nga.proj.ProjectionFactory
 import net.federicomatera.agpxp.GpxParser
 import net.federicomatera.agpxp.GpxWriter
 import net.federicomatera.agpxp.models.Gpx
@@ -82,6 +84,8 @@ import net.federicomatera.agpxp.models.WayPoint
 import org.mapsforge.map.rendertheme.ExternalRenderTheme
 import org.mapsforge.map.rendertheme.XmlRenderTheme
 import org.osmdroid.api.IMapController
+import org.osmdroid.gpkg.tiles.raster.GeoPackageProvider
+import org.osmdroid.gpkg.tiles.raster.GeopackageRasterTileSource
 import org.osmdroid.mapsforge.MapsForgeTileProvider
 import org.osmdroid.mapsforge.MapsForgeTileSource
 import org.osmdroid.tileprovider.MapTileProviderBasic
@@ -90,19 +94,23 @@ import org.osmdroid.tileprovider.modules.OfflineTileProvider
 import org.osmdroid.tileprovider.tilesource.MapBoxTileSource
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
+import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
+import org.osmdroid.views.overlay.TilesOverlay
 import org.osmdroid.views.overlay.compass.CompassOverlay
 import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider
 import org.osmdroid.views.overlay.infowindow.BasicInfoWindow
 import java.io.File
 import java.sql.Timestamp
 import java.util.Date
+import java.util.Locale
 
 
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener, View.OnKeyListener {
@@ -827,8 +835,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.distanzaMetri.observe(viewLifecycleOwner) {
             dist.text = formattastring(viewModel.distanzaMetri.value!!)
         }
-        viewModel.velocita.observe(viewLifecycleOwner) {
-            velo.text = viewModel.velocita.value?.toInt().toString() + " km/h"
+        viewModel.velocita.observe(viewLifecycleOwner) { velocita ->
+            velo.text = getString(R.string.kmh, velocita.toInt())
         }
         viewModel.quota.observe(viewLifecycleOwner) {
             quota.text = viewModel.quota.value.toString()
@@ -1235,8 +1243,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 if (viewModel.running) {
                     tempo.text = viewModel.tempoTrascorso()
                     if (viewModel.velocita.value !=0) {
-                        viewModel.secondiMovimento.postValue(viewModel.secondiMovimento.value?.plus(1))
-                        Log.d("secondiMovimento", "${viewModel.secondiMovimento.value}")
+                        //viewModel.secondiMovimento.postValue(viewModel.secondiMovimento.value?.plus(1))
+                        viewModel.secondiMovimento.value = viewModel.secondiMovimento.value?.plus(1)
+                        //Log.d("secondiMovimento", "${viewModel.secondiMovimento.value}")
                     }
                     delay(1000)
                 } else
@@ -1361,6 +1370,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 startActivityForResult(intent, SELECT_GPX_FILE)
             }
             R.id.Geopackage -> {
+                addGeopackageTiles()
                 //geoPackage()
             }
         }
@@ -1450,8 +1460,30 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-/*    private fun geoPackage() {
-        val currentSource: XYTileSource? = null
+    private fun geoPackage() {
+        /*val mapFiles: MutableSet<File> = HashSet()
+        mapFiles.add(File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe/prova.gpkg"))
+        //var maps: Array<File?> = arrayOfNulls(mapFiles.size)
+        var maps: Array<File?> = arrayOfNulls(1)
+
+        if (Build.VERSION.SDK_INT >= 34) {
+            maps = mapFiles.toArray(maps)
+        }
+        val geoPackageProvider = GeoPackageProvider(maps, this)
+        val sources = geoPackageProvider.geoPackageMapTileModuleProvider().tileSources
+
+        val tileSource: XYTileSource = geoPackageProvider.getTileSource(
+            sources[0].database,
+            sources[0].tableDao
+        )
+        val bbox: BoundingBox = sources[0].bounds
+        mapView.setTileProvider(geoPackageProvider)
+        mapView.setTileSource(tileSource)*/
+
+
+        //-----------------------------------------------------------------------------------------------------------------------
+        // altra soluzione
+        //val currentSource: XYTileSource? = null
         val geoMappa = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
         // val f = activity?.getExternalFilesDir(null)
 
@@ -1466,29 +1498,127 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     if (aList.name.contains(".gpkg")) {
                         val maps: Array<File?> = arrayOfNulls(1)
                         maps[0] = aList
-                        var geoPackageProvider: GeoPackageProvider? = null
-                        geoPackageProvider = GeoPackageProvider(maps, requireContext())
+                        val geoPackageProvider = GeoPackageProvider(maps, requireContext())
+                        val sources = geoPackageProvider.geoPackageMapTileModuleProvider().tileSources
+                        val tileSource: XYTileSource = geoPackageProvider.getTileSource(
+                            sources[0].database,
+                            sources[0].tableDao
+                        )
+                        val bbox: BoundingBox = sources[0].bounds
                         mapView.setTileProvider(geoPackageProvider)
+                        mapView.setTileSource(tileSource)
+                        val mapController: IMapController = MapController(mapView)
+                        mapController.setCenter(viewModel.ultPosizione)
+                        mapView.invalidate()
 
+                        /*mapView.setTileProvider(geoPackageProvider)
                         //get the list of sources
                        // val tileSources = geoPackageProvider.geoPackageMapTileModuleProvider().tileSources
-
                         var sourceSet = false
-
                         val tileSources = geoPackageProvider.geoPackageMapTileModuleProvider().tileSources
                         if (!tileSources.isEmpty()) {
                             mapView.setTileSource(tileSources[0])
                             mapView.zoomToBoundingBox(tileSources[0].bounds, true)
-                            mapView.getController().setZoom(tileSources[0].minimumZoomLevel)
+                            mapView.getController().setZoom(tileSources[0].maximumZoomLevel)
                             sourceSet = true
-                        }
+
+                        }*/
 
                     }
                 }
             }
         }
-    }*/
+    }
+
+    fun addGeopackageTiles() {
+
+    try {
+        val f = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
+
+        val geoPackageFile = File(f, "prova.gpkg")
+
+        val manager = GeoPackageFactory.getManager(requireContext())
+
+        try {
+            val imported = manager.importGeoPackage(geoPackageFile)
+            Log.d("packgage","is imported ? $imported")
+        } catch (ex: Exception) {
+            Log.d("packgage","import exception " + ex.message)
+        }
+
+        val databases = manager.databases()
+
+        // Open database     val f = File(Environment.getExternalStorageDirectory(), "osmdroid")
+
+        val geoPackage = manager.open(databases[0])
+
+        var tileTables = geoPackage.tileTables
+
+        if (tileTables != null) {
+
+            for (tableName in tileTables) {
+                var tileDao = geoPackage.getTileDao(tableName)
+
+                val boundingBox = tileDao.boundingBox
+
+                Log.d("packgage",tileDao.projection.crs.name + " , " + tileDao.projection.code)
+                //Log.d("packgage","isGoogleTiles " + tileDao.isGoogleTiles)
+
+                var projection = ProjectionFactory.getProjection(
+                    tileDao.projection.authority,
+                    tileDao.projection.code
+                );
+                //var bbox = transform(boundingBox, projection)
+
+                val bounds = BoundingBox(
+                    boundingBox.maxLatitude,
+                    boundingBox.maxLongitude,
+                    boundingBox.minLatitude,
+                    boundingBox.minLongitude
+                )
+                var geopackageRasterTileSource = GeopackageRasterTileSource(
+                    databases[0],
+                    tableName,
+                    tileDao.minZoom.toInt(),
+                    tileDao.maxZoom.toInt(),
+                    bounds
+                )
+
+                Log.d("packgage","absolutepath " + geoPackageFile.absolutePath)
+
+                val geoPackageProvider = GeoPackageProvider(arrayOf<File>(geoPackageFile), requireContext())
+                geoPackageProvider.tileSource = geopackageRasterTileSource
+
+
+                val tilesOverlay = TilesOverlay(geoPackageProvider, requireContext())
+
+                mapView.overlayManager.add(tilesOverlay)
+                mapView.minZoomLevel = tileDao.minZoom.toDouble()
+                mapView.maxZoomLevel = tileDao.maxZoom.toDouble()
+                mapView.zoomToBoundingBox(bounds, true)
+                mapView.controller.setZoom(tileDao.minZoom.toDouble())
+
+                mapView.invalidate()
+
+            }
+
+        }
+
+        geoPackage.close()
+
+    } catch (ex: Exception) {
+        Log.d("packgage","inside geopackage exception " + ex.message)
+    }
+
 }
+
+
+}
+
+
+
+
+
 
 /*----------------------------------------------------------------------------------------------------
 //  filtra i punti basandosi sulla velocità verticale
