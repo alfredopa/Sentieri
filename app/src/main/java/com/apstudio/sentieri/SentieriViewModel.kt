@@ -2,7 +2,6 @@ package com.apstudio.sentieri
 
 import android.location.Location
 import android.net.Uri
-import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -21,9 +20,6 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.sql.Timestamp
-import java.util.Locale
-import java.util.concurrent.TimeUnit
-import kotlin.text.format
 
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
@@ -121,8 +117,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             quota.value = altitudineBaro.toInt()
         } else {
             newPunto = GeoPoint(loc.latitude, loc.longitude, altitudine)
-            quota.value = altitudine.toInt()
             dislivelloGPS()
+            quota.value = altitudine.toInt()
         }
 
         if (oldPunto.latitude != 0.0 && oldPunto.longitude != 0.0) {
