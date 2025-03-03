@@ -1066,7 +1066,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.quota.value = 0
         //viewModel.dislivPiuIpso.value = 0
         //viewModel.dislivMenoIpso.value = 0
-        viewModel.secondiMovimento.value = 0
+        //viewModel.secondiMovimento.value = 0
     }
 
 
@@ -1242,15 +1242,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             while (true) {
                 if (viewModel.running) {
                     tempo.text = viewModel.tempoTrascorso()
-                    if (viewModel.velocita.value !=0) {
-                        //viewModel.secondiMovimento.postValue(viewModel.secondiMovimento.value?.plus(1))
-                        viewModel.secondiMovimento.value = viewModel.secondiMovimento.value?.plus(1)
+                    if (viewModel.velocita.value != 0) {
+                        viewModel.incrementMovementSeconds()
+                        //viewModel.secondiMovimento.value = viewModel.secondiMovimento.value?.plus(1)
                         //Log.d("secondiMovimento", "${viewModel.secondiMovimento.value}")
                     }
                     delay(1000)
-                } else
-                    delay(1000)
-
+                }
             }
         }
     }

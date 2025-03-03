@@ -557,7 +557,7 @@ object MapUtils {
         return r * c
     }
 
-    fun formatSeconds(totalSeconds: Long): String {
+    fun formatSeconds(totalSeconds: Int): String {
         val hours = totalSeconds / 3600
         val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
