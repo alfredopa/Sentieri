@@ -6,10 +6,12 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.icu.text.DecimalFormat
+import android.icu.text.SimpleDateFormat
 import android.location.Location
 import android.net.Uri
 import android.os.Environment
 import android.provider.OpenableColumns
+import android.util.Log
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
@@ -22,6 +24,7 @@ import androidx.core.view.setPadding
 import androidx.fragment.app.activityViewModels
 import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.SentieriRepo
+import com.google.type.Date
 import org.osmdroid.mapsforge.MapsForgeTileProvider
 import org.osmdroid.mapsforge.MapsForgeTileSource
 import org.osmdroid.tileprovider.modules.ArchiveFileFactory
@@ -55,6 +58,7 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
+import kotlin.text.format
 
 object MapUtils {
 
@@ -555,6 +559,13 @@ object MapUtils {
 
         val r = 6371e3 // Raggio medio della Terra in metri
         return r * c
+    }
+
+    fun formatElapsedTime(elapsedTime: Long): String {
+        val date = java.util.Date(elapsedTime)
+        val formatter = SimpleDateFormat("hh:mm:ss", Locale.ITALY)
+        //Log.d("Time", "$date")
+        return formatter.format(date)
     }
 
     fun formatSeconds(totalSeconds: Int): String {

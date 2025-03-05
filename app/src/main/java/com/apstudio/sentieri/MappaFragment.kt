@@ -16,6 +16,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
 import android.view.KeyEvent
@@ -45,6 +46,7 @@ import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
@@ -68,6 +70,7 @@ import com.apstudio.sentieri.db.TrackDao
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -122,7 +125,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     // viewModel del LocationService con scope Application
     private val gpsViewModel: GpsViewModel by lazy {
-        ViewModelProvider(requireActivity().application as ViewModelStoreOwner).get(GpsViewModel::class.java)
+        ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[GpsViewModel::class.java]
     }
 
     private lateinit var bottomSheetBehavior: BottomSheetBehavior<ConstraintLayout>
@@ -139,7 +142,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private var mContainer: ColorMappingForScalarContainer? = null
     private val paintBorder = Paint()
     private val paintMapping = Paint()*/
-
+    private var updatesJob: Job? = null
     private lateinit var dist: TextView
     private lateinit var quota: TextView
     private lateinit var velo: TextView
@@ -285,10 +288,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             mapView.overlayManager.add(compassOverlay)
         }
 
-        mapView.getZoomController()?.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
+        mapView.zoomController?.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
         mapView.setMultiTouchControls(true)
-        mapView.setMinZoomLevel(7.0)
-        mapView.setMaxZoomLevel(19.0)
+        mapView.minZoomLevel = 7.0
+        mapView.maxZoomLevel = 19.0
         val mapController: IMapController = MapController(mapView)
         mapController.setCenter(viewModel.ultPosizione)
         mapController.setZoom(viewModel.ultZoom)
@@ -351,6 +354,29 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             caricaGPX(data)
             intent.setData(null)
         }
+
+        // observer per gestire la coroutine di aggiornamento orario
+        /*viewLifecycleOwner.lifecycle.addObserver(object : LifecycleEventObserver {
+            override fun onStateChanged(source: androidx.lifecycle.LifecycleOwner, event: Lifecycle.Event) {
+                if (viewModel.isRecording) {
+                    when (event) {
+                        Lifecycle.Event.ON_START -> {
+
+                            Log.d("updates", "ON_START")
+                            startUpdates()
+
+                        }
+
+                        Lifecycle.Event.ON_STOP -> {
+                            Log.d("updates", "ON_STOP")
+                            stopUpdates()
+                        }
+
+                        else -> {}
+                    }
+                }
+            }
+        })*/
     }
 
     // aggiunge il click listener alla polyline per aprire l'info window
@@ -446,7 +472,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             bottomSheetBehavior.peekHeight = 90
             bottomSheetBehavior.state = viewModel.BottomState
             viewModel.running = true
-            startUpdates()
+            //startUpdates()
             // riavvia gli observer per aggiornamento dati cruscotto
             avviaObserver()
             val toast =
@@ -474,9 +500,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.BottomState = bottomSheetBehavior.state
 
         mapView.onPause() //needed for compass, my location overlays, v6.0.0 and up
-        if (viewModel.isRecording) {
+        /*if (viewModel.isRecording) {
             stopUpdates()
-        }
+        }*/
     }
 
     private fun offline() {
@@ -493,7 +519,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val filePath = uriPathHelper.getPath(requireContext(), uri)
 
         val maps: Array<File?> = arrayOfNulls(1)
-        val f = File(filePath)
+        val f = File(filePath!!)
         if (f.exists()) {
             maps[0] = f
         }
@@ -686,6 +712,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // inizio registrazione posizione
         viewModel.isRecording = true
         viewModel.oraInizio = System.currentTimeMillis()
+        //viewModel.oraInizio = SystemClock.elapsedRealtime()
 // crea observer per aggiornamento punti traccia
         osservaMappa = Observer {
             viewModel.traccia.observe(viewLifecycleOwner) { traccia ->
@@ -702,6 +729,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         viewModel.running = true
         startUpdates()
+        Log.d("updates", "run")
 // avvia il servizio per tracciare locazione in background
         requireActivity().startService(Intent(context, LocationService::class.java))
         bottomSheetBehavior.isHideable = false
@@ -716,7 +744,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == SELECT_GPX_FILE && resultCode == AppCompatActivity.RESULT_OK) {
             if (data != null) {
-                uri = data?.data
+                uri = data.data
                 caricaGPX(uri!!)
                 //uri?.run { caricaGPX(uri!!) }
             }
@@ -761,7 +789,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
 // carica i punti della traccia - da verificare con gpx multisegmento
 // usa altinulla per contare gli elementi con altitudine 0
-        gpx.tracks.get(0).trackPoints.forEach {
+        gpx.tracks[0].trackPoints.forEach {
 //Log.d("Punto","${it.latitude}${it.longitude}")
 // verifica esistenza valore altitudine
             if (it.elevation != null) {
@@ -784,7 +812,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 viewModel.trackDistanza += distToPunto
             }
 
-            oldPunto = GeoPoint(it.latitude, it.longitude, it.elevation?.toDouble() ?: 0.0)
+            oldPunto = GeoPoint(it.latitude, it.longitude, it.elevation ?: 0.0)
             line.addPoint(punto)
         }
         Log.d(
@@ -809,7 +837,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
 
 // verifica il numero dei punti con il valore altinulla se coincide tutti i punti hanno altitudine nulla
-        if (gpx.tracks.get(0).trackPoints.size == altiNulla) {
+        if (gpx.tracks[0].trackPoints.size == altiNulla) {
             val snackbar =
                 view?.let { it1 ->
                     Snackbar.make(
@@ -847,8 +875,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.dislivMeno.observe(viewLifecycleOwner) {
             dMeno.text = viewModel.dislivMeno.value.toString()
         }
-        viewModel.secondiMovimento.observe(viewLifecycleOwner) {
-            tempoMov.text = formatSeconds(viewModel.secondiMovimento.value!!)
+        viewModel.secondiMovimento.observe(viewLifecycleOwner) { secondiMovimento ->
+            tempoMov.text = formatSeconds(secondiMovimento)
         }
         gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
             val currentGpsStatus = status.toString()
@@ -865,7 +893,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun salvaTraccia(nomeTraccia: String) {
-        var tracciaDao: TrackDao
         var ultimoID: Int
 //var punto = WayPoint()
         val dateString = dataOraIso8601()
@@ -898,7 +925,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
 
 //ciclo caricamento punti GPS in lista punti db
-        tracciaDao = SentieriDB.getInstance(requireActivity().application).trackDao
+        val tracciaDao: TrackDao = SentieriDB.getInstance(requireActivity().application).trackDao
         viewModel.puntiGPS.forEach {
             val trackPoint = com.apstudio.sentieri.db.Track(
                 Id = 0,
@@ -1073,15 +1100,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     // riceve aggiornamento posizione da servizio in Broadcast
     private val mReceiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            var loc: Location
+            val loc: Location
             if (Build.VERSION.SDK_INT >= 34) {
                 loc = intent.getParcelableExtra("posizione", Location::class.java)!!
             } else {
                 @Suppress("DEPRECATION")
                 loc = intent.getParcelableExtra("posizione")!!
             }
-            var altitudine: Double = intent.getDoubleExtra("altitudine", 0.0)
-            var milliBar = intent.getFloatExtra("milliBar", 0.0F)
+            val altitudine: Double = intent.getDoubleExtra("altitudine", 0.0)
+            val milliBar = intent.getFloatExtra("milliBar", 0.0F)
 
     // aggiorna posizione ed inserisce nuovo punto
     // riceve il valore in millibar letti da barometro e lo passa al viewModel
@@ -1238,12 +1265,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     // coroutine per aggiornamento del tempo di registrazione sul cruscotto
     private fun startUpdates() {
-        viewLifecycleOwner.lifecycleScope.launch {
+        if (updatesJob?.isActive == true) {
+            // Coroutine is already running, no need to start a new one
+            return
+        }
+        updatesJob = viewLifecycleOwner.lifecycleScope.launch {
             while (true) {
                 if (viewModel.running) {
                     tempo.text = viewModel.tempoTrascorso()
                     if (viewModel.velocita.value != 0) {
                         viewModel.incrementMovementSeconds()
+                        tempoMov.text = formatSeconds(viewModel.secondiMovimento.value!!)
                         //viewModel.secondiMovimento.value = viewModel.secondiMovimento.value?.plus(1)
                         //Log.d("secondiMovimento", "${viewModel.secondiMovimento.value}")
                     }
@@ -1254,6 +1286,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun stopUpdates() {
+        updatesJob?.cancel()
+        updatesJob = null
         viewModel.running = false
 //Log.d("Mappa", "Stop running")
     }
@@ -1528,7 +1562,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    fun addGeopackageTiles() {
+    private fun addGeopackageTiles() {
 
     try {
         val f = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
@@ -1550,12 +1584,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         val geoPackage = manager.open(databases[0])
 
-        var tileTables = geoPackage.tileTables
+        val tileTables = geoPackage.tileTables
 
         if (tileTables != null) {
 
             for (tableName in tileTables) {
-                var tileDao = geoPackage.getTileDao(tableName)
+                val tileDao = geoPackage.getTileDao(tableName)
 
                 val boundingBox = tileDao.boundingBox
 
@@ -1565,7 +1599,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 var projection = ProjectionFactory.getProjection(
                     tileDao.projection.authority,
                     tileDao.projection.code
-                );
+                )
                 //var bbox = transform(boundingBox, projection)
 
                 val bounds = BoundingBox(
@@ -1574,7 +1608,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     boundingBox.minLatitude,
                     boundingBox.minLongitude
                 )
-                var geopackageRasterTileSource = GeopackageRasterTileSource(
+                val geopackageRasterTileSource = GeopackageRasterTileSource(
                     databases[0],
                     tableName,
                     tileDao.minZoom.toInt(),
@@ -1584,7 +1618,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
                 Log.d("packgage","absolutepath " + geoPackageFile.absolutePath)
 
-                val geoPackageProvider = GeoPackageProvider(arrayOf<File>(geoPackageFile), requireContext())
+                val geoPackageProvider = GeoPackageProvider(arrayOf(geoPackageFile), requireContext())
                 geoPackageProvider.tileSource = geopackageRasterTileSource
 
 

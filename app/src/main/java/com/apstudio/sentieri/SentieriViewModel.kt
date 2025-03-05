@@ -2,6 +2,8 @@ package com.apstudio.sentieri
 
 import android.location.Location
 import android.net.Uri
+import android.os.SystemClock
+import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -250,7 +252,10 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         // Calcolo del tempo trascorso da inizio registrazione
         val millisecondi = System.currentTimeMillis()
         val tempoTrascorso = millisecondi - oraInizio
+        //val tempoTrascorso = oraInizio - SystemClock.elapsedRealtime()
+        Log.d("viewmodel", "tempo trascorso $tempoTrascorso, $oraInizio")
         return MapUtils.formatSeconds(tempoTrascorso.toInt()/1000)
+        //return MapUtils.formatElapsedTime(tempoTrascorso)
     }
 
     fun incrementMovementSeconds() {
