@@ -130,21 +130,21 @@ class LocationService : Service() {
         // Crea un LocationListener
         locationListener = LocationListener { location -> // invia posizione solo con velocità maggiore di 0.5 m/s, in futuro considerare valore utente di velocità minima da registrare
             // altitudine msl valorizzata da stringa  NMEA e corretta
-
-            if (!BuildConfig.DEBUG) {
-                if (location.accuracy > 40) return@LocationListener
+            //Log.d("GGA", "onLocationChanged ${location.accuracy}")
+            if (location.accuracy > 40) return@LocationListener
+            /*if (!BuildConfig.DEBUG) {
                 // velocità in metri/secondo
                 if (location.speed < 0.5f) return@LocationListener
-            }
+            }*/
             // API > 34 assegna valore altitudine msl
             posizione = location
-            if (Build.VERSION.SDK_INT >= 35 )
+            if (Build.VERSION.SDK_INT >= 34 )
                 gpsViewModel.mslAltitude = location.mslAltitudeMeters
-            else {
+            /*else {
                 // se non ha registrato valori NMEA usa altitudine di default
-                if (gpsViewModel.mslAltitude == gpsViewModel.zeroMsl)
+                if (gpsViewModel.mslAltitude != gpsViewModel.zeroMsl)
                     gpsViewModel.mslAltitude = location.altitude
-            }
+            }*/
             //Log.d("GGA", "Altitudine  ${gpsViewModel.mslAltitude}  Accuracy ${location.accuracy}")
             if (haBaro && setBaro) {
                 // assegna valore altitudine da Barometro
@@ -251,7 +251,7 @@ class LocationService : Service() {
                 gpsViewModel.updateGpsStatus("fixed")
                 gpsViewModel.mslAltitude = nmeaSplit[9].toDoubleOrNull() ?: gpsViewModel.zeroMsl
             }
-            Log.d("GGA", "NMEA $valido ${gpsViewModel.mslAltitude} ")
+            //Log.d("GGA", "NMEA $valido ${gpsViewModel.mslAltitude} ")
         }
         /*if (message.startsWith('$'+"GPGNS") or message.startsWith('$'+"GNGNS")) {
             Log.d("GGA", "GPGNS, $message")

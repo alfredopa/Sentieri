@@ -16,7 +16,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
-import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
 import android.view.KeyEvent
@@ -46,7 +45,6 @@ import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
@@ -87,6 +85,10 @@ import net.federicomatera.agpxp.models.WayPoint
 import org.mapsforge.map.rendertheme.ExternalRenderTheme
 import org.mapsforge.map.rendertheme.XmlRenderTheme
 import org.osmdroid.api.IMapController
+import org.osmdroid.gpkg.overlay.OsmMapShapeConverter
+import org.osmdroid.gpkg.overlay.features.MarkerOptions
+import org.osmdroid.gpkg.overlay.features.PolygonOptions
+import org.osmdroid.gpkg.overlay.features.PolylineOptions
 import org.osmdroid.gpkg.tiles.raster.GeoPackageProvider
 import org.osmdroid.gpkg.tiles.raster.GeopackageRasterTileSource
 import org.osmdroid.mapsforge.MapsForgeTileProvider
@@ -116,7 +118,8 @@ import java.util.Date
 import java.util.Locale
 
 
-class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener, View.OnKeyListener {
+class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
+    View.OnKeyListener {
     val viewModel: SentieriViewModel by activityViewModels {
         SentieriFactory(
             SentieriRepo(requireActivity())
@@ -144,7 +147,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private val paintMapping = Paint()*/
     private var updatesJob: Job? = null
     private lateinit var dist: TextView
-    private lateinit var quota: TextView
+    private lateinit var tvQuota: TextView
     private lateinit var velo: TextView
     private lateinit var disliv: TextView
     private lateinit var dMeno: TextView
@@ -214,8 +217,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     apreMappa(uriMappa)
                     viewModel.uriMappa = uriMappa
                     menu?.findItem(0)?.setChecked(true)
-                } else
-                {
+                } else {
                     // se non trova stringa mappa carica OpenStreetMap
                     mapView.isTilesScaledToDpi = true
                     mapView.setUseDataConnection(true)
@@ -228,8 +230,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.setUseDataConnection(true)
                 online(viewModel.menuMap)
             }
-        } else
-        {
+        } else {
             // nessuna mappa selezionata apre OpenStreetMap
             mapView.isTilesScaledToDpi = true
             mapView.setUseDataConnection(true)
@@ -306,7 +307,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // Textview dei valori da visualizzare in Cruscotto
         dist = view.findViewById(R.id.tvDist)
         //distH = view.findViewById(R.id.tvDistH)
-        quota = view.findViewById(R.id.tvQuota)
+        tvQuota = view.findViewById(R.id.tvQuota)
         velo = view.findViewById(R.id.tvVelo)
         disliv = view.findViewById(R.id.tvDPiu)
         dMeno = view.findViewById(R.id.tvDMeno)
@@ -381,21 +382,21 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     // aggiunge il click listener alla polyline per aprire l'info window
     private fun setPolylineClickListener(polyline: Polyline) {
-        polyline.setOnClickListener { polyline, mapView, eventPos ->
+        polyline.setOnClickListener { mpolyline, mapView, eventPos ->
             // Il layout è stato copiato nelle risorse potrebbe differire dall'originale
-            polyline.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
-            polyline.infoWindowLocation = eventPos
-            polyline.showInfoWindow()
+            mpolyline.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
+            mpolyline.infoWindowLocation = eventPos
+            mpolyline.showInfoWindow()
             false // Ritorna true per indicare che l'evento è stato gestito
         }
     }
 
     // aggiunge il click listener al marker per aprire l'info window
     private fun setMarkerClickListener(marker: Marker) {
-        marker.setOnMarkerClickListener { marker, mapView ->
+        marker.setOnMarkerClickListener { mMarker, mapView ->
             // Apri la info window qui, usando eventPos come posizione
-            marker.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
-            marker.showInfoWindow()
+            mMarker.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
+            mMarker.showInfoWindow()
             mapView.controller.animateTo(marker.position)
             true // Ritorna true per indicare che l'evento è stato gestito
         }
@@ -538,9 +539,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // Mappe MapsForge estensione .map il path del rendertheme è hard coded, da cambiare
         val forgeMappa: MapsForgeTileProvider
         val offlineMappa: OfflineTileProvider
-        var theme: XmlRenderTheme?  = null
+        var theme: XmlRenderTheme? = null
         if (f.name.contains(".map")) {
-            val folderTema = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe/4UMaps/4UMaps.xml")
+            val folderTema =
+                File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe/4UMaps/4UMaps.xml")
             if (folderTema.exists()) {
                 theme = ExternalRenderTheme(
                     Environment.getExternalStorageDirectory().absolutePath +
@@ -612,7 +614,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         MAPBOXSATELLITELABELLED.setMapboxMapid("mapbox.satellite")
         MAPBOXSATELLITELABELLED.accessToken =
             "pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNtMDBzMmQ3ODBoMWIya3NuejJ5NnNzMG0ifQ.kXnCG27oE6go9msYdp3pkA"
-            //"pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNrd29tYXJiZjAwd24ydnJ0Yno3NGJ4aHUifQ.4QyOTn9AYZhWCyWSs36R_w"
+        //"pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNrd29tYXJiZjAwd24ydnJ0Yno3NGJ4aHUifQ.4QyOTn9AYZhWCyWSs36R_w"
         TileSourceFactory.addTileSource(MAPBOXSATELLITELABELLED)
         val bitmapProvider = MapTileProviderBasic(requireContext(), MAPBOXSATELLITELABELLED)
         return bitmapProvider
@@ -637,6 +639,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (!viewModel.isFixed) {
             azzeraCruscotto()
             fermaRecording()
+            stopObserver() // Arresta gli observer
             return
         }
 
@@ -653,10 +656,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 salvaTraccia(inputEditTextField.text.toString())
                 azzeraCruscotto()
                 fermaRecording()
+                stopObserver() // Arresta gli observer
             }
             setNegativeButton(android.R.string.cancel) { _, _ ->
                 azzeraCruscotto()
                 fermaRecording()
+                stopObserver() // Arresta gli observer
             }
             setNeutralButton("Continua") { _, _ -> }
             setCancelable(false) // Impedisce la chiusura tramite tocco esterno o tasto Indietro
@@ -675,7 +680,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // azzera valori da visualizzare in Cruscotto
         viewModel.isRecording = false
 // aggiunge marker fine percorso
-        MapUtils.markInizioFine(requireContext(), viewModel.newPunto, mapView, viewModel.recTraccia, 1)
+        MapUtils.markInizioFine(
+            requireContext(),
+            viewModel.newPunto,
+            mapView,
+            viewModel.recTraccia,
+            1
+        )
 //setBaro indica se si preferisce usare il sensore barometrico fisico oppure no
 // a fine registrazione ripristina preferenza barometro
         if (viewModel.haBaro)
@@ -684,6 +695,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         bottomSheetBehavior.isHideable = true
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
         mapView.invalidate()
+    }
+
+    private fun stopObserver() {
+        viewModel.distanzaMetri.removeObservers(viewLifecycleOwner)
+        viewModel.velocita.removeObservers(viewLifecycleOwner)
+        viewModel.quota.removeObservers(viewLifecycleOwner)
+        viewModel.dislivPiu.removeObservers(viewLifecycleOwner)
+        viewModel.dislivMeno.removeObservers(viewLifecycleOwner)
+        viewModel.secondiMovimento.removeObservers(viewLifecycleOwner)
+        gpsViewModel.gpsStatus.removeObservers(viewLifecycleOwner)
     }
 
     private fun attivaGps() {
@@ -860,20 +881,20 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun avviaObserver() {
-        viewModel.distanzaMetri.observe(viewLifecycleOwner) {
-            dist.text = formattastring(viewModel.distanzaMetri.value!!)
+        viewModel.distanzaMetri.observe(viewLifecycleOwner) { distanzaMetri ->
+            dist.text = formattastring(distanzaMetri)
         }
         viewModel.velocita.observe(viewLifecycleOwner) { velocita ->
             velo.text = getString(R.string.kmh, velocita.toInt())
         }
-        viewModel.quota.observe(viewLifecycleOwner) {
-            quota.text = viewModel.quota.value.toString()
+        viewModel.quota.observe(viewLifecycleOwner) { quota ->
+            tvQuota.text = quota.toString()
         }
-        viewModel.dislivPiu.observe(viewLifecycleOwner) {
-            disliv.text = viewModel.dislivPiu.value.toString()
+        viewModel.dislivPiu.observe(viewLifecycleOwner) { dislivPiu ->
+            disliv.text = dislivPiu.toString()
         }
-        viewModel.dislivMeno.observe(viewLifecycleOwner) {
-            dMeno.text = viewModel.dislivMeno.value.toString()
+        viewModel.dislivMeno.observe(viewLifecycleOwner) { dislivMeno ->
+            dMeno.text = dislivMeno.toString()
         }
         viewModel.secondiMovimento.observe(viewLifecycleOwner) { secondiMovimento ->
             tempoMov.text = formatSeconds(secondiMovimento)
@@ -1110,29 +1131,35 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val altitudine: Double = intent.getDoubleExtra("altitudine", 0.0)
             val milliBar = intent.getFloatExtra("milliBar", 0.0F)
 
-    // aggiorna posizione ed inserisce nuovo punto
-    // riceve il valore in millibar letti da barometro e lo passa al viewModel
-    // aggiorna dati nel viewModel
+            // aggiorna posizione ed inserisce nuovo punto
+            // riceve il valore in millibar letti da barometro e lo passa al viewModel
+            // aggiorna dati nel viewModel
             viewModel.aggiornaDati(loc, altitudine, milliBar)
-    //se non è visualizzata la mappa non aggiorna dati cruscotto
+            //se non è visualizzata la mappa non aggiorna dati cruscotto
             if (!viewModel.running)
                 return
-    // al primo punto aggiunge il marker d'inizio
+            // al primo punto aggiunge il marker d'inizio
             if (viewModel.traccia.value?.actualPoints?.size == 1)
-                MapUtils.markInizioFine(requireContext(), viewModel.newPunto, mapView, viewModel.recTraccia, 0)
+                MapUtils.markInizioFine(
+                    requireContext(),
+                    viewModel.newPunto,
+                    mapView,
+                    viewModel.recTraccia,
+                    0
+                )
 
-    //Log.d("BroadcastReceiver ",  "numsat ${gpsViewModel.numSat}")
-    // sposta il marker su nuova posizione con animazione
+            //Log.d("BroadcastReceiver ",  "numsat ${gpsViewModel.numSat}")
+            // sposta il marker su nuova posizione con animazione
             gpsMarker.position = (viewModel.newPunto)
             if (viewModel.bloccaMappa) {
                 mapView.controller?.animateTo(viewModel.newPunto)
             }
-    // Orienta display sorgente in OpenMap demo di Osmdroid: Location - SampleHeadingCompassUp
-    //Log.d("loc", "${loc.bearing} - ${loc.speed}")
+            // Orienta display sorgente in OpenMap demo di Osmdroid: Location - SampleHeadingCompassUp
+            //Log.d("loc", "${loc.bearing} - ${loc.speed}")
             val gpsbearing = loc.bearing
-    //val gpsspeed = loc.speed
+            //val gpsspeed = loc.speed
 
-    //use gps bearing instead of the compass
+            //use gps bearing instead of the compass
             var t: Float = 360 - gpsbearing
             if (t < 0) {
                 t += 360f
@@ -1330,7 +1357,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
             R.id.Online -> {
                 menuItem.isChecked = !menuItem.isChecked
-                online(1 )
+                online(1)
             }
 
             R.id.Mapquest -> {
@@ -1401,6 +1428,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
                 startActivityForResult(intent, SELECT_GPX_FILE)
             }
+
             R.id.Geopackage -> {
                 addGeopackageTiles()
                 //geoPackage()
@@ -1486,6 +1514,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             "MenuMap" -> {
                 viewModel.menuMap = p0!!.getInt(p1, 1)
             }
+
             "setBaro" -> {
                 viewModel.setBaro = p0!!.getBoolean(p1, false)
             }
@@ -1516,7 +1545,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         //-----------------------------------------------------------------------------------------------------------------------
         // altra soluzione
         //val currentSource: XYTileSource? = null
-        val geoMappa = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
+        val geoMappa =
+            File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
         // val f = activity?.getExternalFilesDir(null)
 
         if (geoMappa.exists()) {
@@ -1531,7 +1561,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         val maps: Array<File?> = arrayOfNulls(1)
                         maps[0] = aList
                         val geoPackageProvider = GeoPackageProvider(maps, requireContext())
-                        val sources = geoPackageProvider.geoPackageMapTileModuleProvider().tileSources
+                        val sources =
+                            geoPackageProvider.geoPackageMapTileModuleProvider().tileSources
                         val tileSource: XYTileSource = geoPackageProvider.getTileSource(
                             sources[0].database,
                             sources[0].tableDao
@@ -1564,92 +1595,123 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun addGeopackageTiles() {
 
-    try {
-        val f = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
-
-        val geoPackageFile = File(f, "prova.gpkg")
-
-        val manager = GeoPackageFactory.getManager(requireContext())
-
         try {
-            val imported = manager.importGeoPackage(geoPackageFile)
-            Log.d("packgage","is imported ? $imported")
-        } catch (ex: Exception) {
-            Log.d("packgage","import exception " + ex.message)
-        }
+            val f = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
 
-        val databases = manager.databases()
+            val geoPackageFile = File(f, "AreeTutelate.gpkg")
 
-        // Open database     val f = File(Environment.getExternalStorageDirectory(), "osmdroid")
+            val manager = GeoPackageFactory.getManager(requireContext())
 
-        val geoPackage = manager.open(databases[0])
-
-        val tileTables = geoPackage.tileTables
-
-        if (tileTables != null) {
-
-            for (tableName in tileTables) {
-                val tileDao = geoPackage.getTileDao(tableName)
-
-                val boundingBox = tileDao.boundingBox
-
-                Log.d("packgage",tileDao.projection.crs.name + " , " + tileDao.projection.code)
-                //Log.d("packgage","isGoogleTiles " + tileDao.isGoogleTiles)
-
-                var projection = ProjectionFactory.getProjection(
-                    tileDao.projection.authority,
-                    tileDao.projection.code
-                )
-                //var bbox = transform(boundingBox, projection)
-
-                val bounds = BoundingBox(
-                    boundingBox.maxLatitude,
-                    boundingBox.maxLongitude,
-                    boundingBox.minLatitude,
-                    boundingBox.minLongitude
-                )
-                val geopackageRasterTileSource = GeopackageRasterTileSource(
-                    databases[0],
-                    tableName,
-                    tileDao.minZoom.toInt(),
-                    tileDao.maxZoom.toInt(),
-                    bounds
-                )
-
-                Log.d("packgage","absolutepath " + geoPackageFile.absolutePath)
-
-                val geoPackageProvider = GeoPackageProvider(arrayOf(geoPackageFile), requireContext())
-                geoPackageProvider.tileSource = geopackageRasterTileSource
-
-
-                val tilesOverlay = TilesOverlay(geoPackageProvider, requireContext())
-
-                mapView.overlayManager.add(tilesOverlay)
-                mapView.minZoomLevel = tileDao.minZoom.toDouble()
-                mapView.maxZoomLevel = tileDao.maxZoom.toDouble()
-                mapView.zoomToBoundingBox(bounds, true)
-                mapView.controller.setZoom(tileDao.minZoom.toDouble())
-
-                mapView.invalidate()
-
+            try {
+                val imported = manager.importGeoPackage(geoPackageFile)
+                Log.d("packgage", "is imported ? $imported")
+            } catch (ex: Exception) {
+                Log.d("packgage", "import exception " + ex.message)
             }
 
+            val databases = manager.databases()
+
+            // Open database     val f = File(Environment.getExternalStorageDirectory(), "osmdroid")
+
+            val geoPackage = manager.open(databases[0])
+
+            val features = geoPackage.featureTables   //tileTables
+
+
+            val markerRenderingOptions = MarkerOptions()
+            val polylineRenderingOptions = PolylineOptions()
+            polylineRenderingOptions.width = 2f
+            polylineRenderingOptions.color = Color.argb(100, 255, 0, 0)
+            polylineRenderingOptions.title = databases[0] + ":" + features[1]
+
+            val polygonOptions = PolygonOptions()
+            polygonOptions.strokeWidth = 2f
+            polygonOptions.fillColor = Color.argb(100, 255, 0, 255)
+            polygonOptions.strokeColor = Color.argb(100, 0, 0, 255)
+            polygonOptions.title = databases[0] + ":" + features[1]
+
+            val converter = OsmMapShapeConverter(
+                null,
+                markerRenderingOptions,
+                polylineRenderingOptions,
+                polygonOptions
+            )
+
+            //val featureTable: String = features[1]
+            val featureTable: String = "IBA"
+            val featureDao = geoPackage.getFeatureDao(featureTable)
+            val featureCursor = featureDao.queryForAll()
+            try {
+                while (featureCursor.moveToNext()) {
+                    try {
+                        val featureRow = featureCursor.row
+                        val geometryData = featureRow.geometry
+                        val geometry = geometryData.geometry
+                        Log.d("packgage", "geometry $geometry")
+                        converter.addToMap(mapView, geometry)
+                    } catch (ex: java.lang.Exception) {
+                        ex.printStackTrace()
+                    }
+                    // ...
+                }
+            } finally {
+                featureCursor.close()
+            }
+            geoPackage.close()
+
+
+            /*if (features != null) {
+
+                for (tableName in features) {
+                    val tileDao = geoPackage.getTileDao(tableName)
+
+                    val boundingBox = tileDao.boundingBox
+
+                    Log.d("packgage",tileDao.projection.crs.name + " , " + tileDao.projection.code)
+                    //Log.d("packgage","isGoogleTiles " + tileDao.isGoogleTiles)
+
+                    var projection = ProjectionFactory.getProjection(
+                        tileDao.projection.authority,
+                        tileDao.projection.code
+                    )
+                    //var bbox = transform(boundingBox, projection)
+
+                    val bounds = BoundingBox(
+                        boundingBox.maxLatitude,
+                        boundingBox.maxLongitude,
+                        boundingBox.minLatitude,
+                        boundingBox.minLongitude
+                    )
+                    val geopackageRasterTileSource = GeopackageRasterTileSource(
+                        databases[0],
+                        tableName,
+                        tileDao.minZoom.toInt(),
+                        tileDao.maxZoom.toInt(),
+                        bounds
+                    )
+
+                    Log.d("packgage","absolutepath " + geoPackageFile.absolutePath)
+
+                    val geoPackageProvider = GeoPackageProvider(arrayOf(geoPackageFile), requireContext())
+                    geoPackageProvider.tileSource = geopackageRasterTileSource
+
+
+                    val tilesOverlay = TilesOverlay(geoPackageProvider, requireContext())
+
+                    mapView.overlayManager.add(tilesOverlay)
+                    mapView.minZoomLevel = tileDao.minZoom.toDouble()
+                    mapView.maxZoomLevel = tileDao.maxZoom.toDouble()
+                    mapView.zoomToBoundingBox(bounds, true)
+                    mapView.controller.setZoom(tileDao.minZoom.toDouble())
+                    mapView.invalidate()
+                }
+            }*/
+        } catch (ex: Exception) {
+            Log.d("packgage", "inside geopackage exception " + ex.message)
         }
-
-        geoPackage.close()
-
-    } catch (ex: Exception) {
-        Log.d("packgage","inside geopackage exception " + ex.message)
     }
 
 }
-
-
-}
-
-
-
-
 
 
 /*----------------------------------------------------------------------------------------------------
