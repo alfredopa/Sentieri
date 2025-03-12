@@ -2,7 +2,6 @@ package com.apstudio.sentieri
 
 import android.location.Location
 import android.net.Uri
-import android.os.SystemClock
 import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LiveData
@@ -78,11 +77,10 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var setBaro = false
     private var newQuota: Int? = 0
     private var oldQuota: Int? = 0
-    private var newQuotaIpso: Int? = 0
 
     // coefficiente per filtro passa basso quota barometro da 0 ad 1
     // con 0.1 da valori troppo bassi (-200 dislivello)
-    private val alfa: Double = 0.24
+    private val alfa: Double = 0.23
     private var millibar = 0F
     var NORMAL_PRESSURE = 1013.25F
     var is_Calibrato = false
