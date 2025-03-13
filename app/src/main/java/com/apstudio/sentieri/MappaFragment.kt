@@ -472,7 +472,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = 90
             bottomSheetBehavior.state = viewModel.BottomState
-            viewModel.running = true
+            //viewModel.running = true
             //startUpdates()
             // riavvia gli observer per aggiornamento dati cruscotto
             avviaObserver()
@@ -675,6 +675,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         requireActivity().stopService(Intent(context, LocationService::class.java))
         stopUpdates()
         gpsMarker.setVisible(false)
+        gpsViewModel.updateGpsStatus("stopped")
 // rimuove impostazione schermo sempre acceso
         requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 // azzera valori da visualizzare in Cruscotto
@@ -748,7 +749,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 //val menuItem = menu?.findItem(R.id.Offline)
 //val currentGpsStatus = gpsRepository.gpsStatus
 
-        viewModel.running = true
+        //viewModel.running = true
         startUpdates()
         Log.d("updates", "run")
 // avvia il servizio per tracciare locazione in background
@@ -1112,6 +1113,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.dislivPiu.value = 0
         viewModel.dislivMeno.value = 0
         viewModel.quota.value = 0
+        tempoMov.text = ""
         //viewModel.dislivPiuIpso.value = 0
         //viewModel.dislivMenoIpso.value = 0
         //viewModel.secondiMovimento.value = 0
@@ -1136,8 +1138,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // aggiorna dati nel viewModel
             viewModel.aggiornaDati(loc, altitudine, milliBar)
             //se non è visualizzata la mappa non aggiorna dati cruscotto
-            if (!viewModel.running)
+            if (!isFragmentVisibleAndActive())
                 return
+
+            //if (!viewModel.running)
+            //    return
+
             // al primo punto aggiunge il marker d'inizio
             if (viewModel.traccia.value?.actualPoints?.size == 1)
                 MapUtils.markInizioFine(
@@ -1232,6 +1238,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         return alertDialog?.isShowing == true
     }
 
+    fun isFragmentVisibleAndActive(): Boolean {
+        return isAdded && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+    }
+
     // i Wp sono caricati nelle liste wayPoint per quelli che sono caricati da dB e Gpx
 // e in poiDBList per quelli ripresi durante registrazione traccia e devono essere salvati nel db PoiDB
     private fun salvaWayPoint(nome: String, descr: String) {
@@ -1298,7 +1308,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         updatesJob = viewLifecycleOwner.lifecycleScope.launch {
             while (true) {
-                if (viewModel.running) {
+                //if (viewModel.running) {
                     tempo.text = viewModel.tempoTrascorso()
                     if (viewModel.velocita.value != 0) {
                         viewModel.incrementMovementSeconds()
@@ -1307,7 +1317,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         //Log.d("secondiMovimento", "${viewModel.secondiMovimento.value}")
                     }
                     delay(1000)
-                }
+                //}
             }
         }
     }
@@ -1315,7 +1325,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private fun stopUpdates() {
         updatesJob?.cancel()
         updatesJob = null
-        viewModel.running = false
+        //viewModel.running = false
 //Log.d("Mappa", "Stop running")
     }
 

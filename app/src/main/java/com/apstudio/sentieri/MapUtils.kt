@@ -6,25 +6,17 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.icu.text.DecimalFormat
-import android.icu.text.SimpleDateFormat
 import android.location.Location
 import android.net.Uri
 import android.os.Environment
 import android.provider.OpenableColumns
-import android.util.Log
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
-import androidx.core.content.ContentProviderCompat.requireContext
-import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getColor
-import androidx.core.view.setPadding
-import androidx.fragment.app.activityViewModels
 import com.apstudio.sentieri.db.LayerItem
-import com.apstudio.sentieri.db.SentieriRepo
-import com.google.type.Date
 import org.osmdroid.mapsforge.MapsForgeTileProvider
 import org.osmdroid.mapsforge.MapsForgeTileSource
 import org.osmdroid.tileprovider.modules.ArchiveFileFactory
@@ -43,15 +35,13 @@ import org.osmdroid.views.overlay.advancedpolyline.PolychromaticPaintList
 import org.osmdroid.views.overlay.milestones.MilestoneManager
 import org.osmdroid.views.overlay.milestones.MilestonePathDisplayer
 import org.osmdroid.views.overlay.milestones.MilestonePixelDistanceLister
-import org.w3c.dom.Node
-import org.w3c.dom.NodeList
 import java.io.File
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
-import java.time.Instant
+import java.time.Duration
 import java.util.Locale
-import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.pow
@@ -448,6 +438,28 @@ object MapUtils {
         return formatter.format(now)
     }
 
+    fun formatMillisToHHmmss(millis: Long): String {
+        val duration = Duration.ofMillis(millis)
+        val hours = duration.toHours()
+        val minutes = duration.toMinutesPart()
+        val seconds = duration.toSecondsPart()
+
+        return LocalTime.of(hours.toInt(), minutes, seconds)
+            .format(DateTimeFormatter.ofPattern("HH:mm:ss"))
+    }
+
+    // Da "HH:mm:ss" a secondi
+    fun timeStringToSeconds(timeString: String): Int {
+        val time = LocalTime.parse(timeString, DateTimeFormatter.ofPattern("HH:mm:ss"))
+        return time.toSecondOfDay()
+    }
+
+    // Da secondi a "HH:mm:ss"
+    fun secondsToTimeString(seconds: Int): String {
+        val time = LocalTime.ofSecondOfDay(seconds.toLong())
+        return time.format(DateTimeFormatter.ofPattern("HH:mm:ss"))
+    }
+
     fun extractFileName(input: String): String {
         if (input.isEmpty()) {
             return "" // Restituisci una stringa vuota se l'input è nullo o vuoto
@@ -561,18 +573,10 @@ object MapUtils {
         return r * c
     }
 
-    fun formatElapsedTime(elapsedTime: Long): String {
-        val date = java.util.Date(elapsedTime)
-        val formatter = SimpleDateFormat("hh:mm:ss", Locale.ITALY)
-        //Log.d("Time", "$date")
-        return formatter.format(date)
-    }
-
-    fun formatSeconds(totalSeconds: Int): String {
+    fun formatSeconds(totalSeconds: Long): String {
         val hours = totalSeconds / 3600
         val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
-
         // Use String.format to add leading zeros
         return String.format(Locale.ITALY,"%02d:%02d:%02d", hours, minutes, seconds)
     }

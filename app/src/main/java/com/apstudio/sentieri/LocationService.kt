@@ -138,7 +138,7 @@ class LocationService : Service() {
             }*/
             // API > 34 assegna valore altitudine msl
             posizione = location
-            if (Build.VERSION.SDK_INT >= 34 )
+            if (Build.VERSION.SDK_INT >= 35 )
                 gpsViewModel.mslAltitude = location.mslAltitudeMeters
             /*else {
                 // se non ha registrato valori NMEA usa altitudine di default
@@ -286,6 +286,7 @@ class LocationService : Service() {
     }
 
     override fun onDestroy() {
+        gpsViewModel.updateGpsStatus("stopped")
         super.onDestroy()
         // rimuovi il listener barometro
         if (haBaro && setBaro) {
@@ -297,7 +298,6 @@ class LocationService : Service() {
             locationManager.removeNmeaListener(nmeaListener)
         locationManager.removeUpdates(locationListener)
         // CALLBACK
-        gpsViewModel.updateGpsStatus("stopped")
         locationManager.unregisterGnssStatusCallback(gnssCallback)
         //Log.d("LocationService", "stop gps")
     }
