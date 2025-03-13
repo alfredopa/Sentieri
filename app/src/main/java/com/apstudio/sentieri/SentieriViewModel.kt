@@ -45,7 +45,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var menuMap = 0             // indica mappa online o offline
     var uriMappa = Uri.EMPTY
     var isFixed = false
-    var running = true
+    //var running = true
     var isRecording = false
     var ricerca = String()
     var ultPosizione = GeoPoint(40.120875, 9.012893, 40.0)   // posizione iniziale mappa
@@ -61,8 +61,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val quota = MutableLiveData(0)
     var oraInizio: Long = 0
     //var secondiMovimento = MutableLiveData(0L)
-    private val _secondiMovimento = MutableLiveData<Int>(0)
-    val secondiMovimento: LiveData<Int> = _secondiMovimento
+    private val _secondiMovimento = MutableLiveData<Long>(0)
+    val secondiMovimento: LiveData<Long> = _secondiMovimento
     // valori per il calcolo del dislivello con GPS con filtro MovingAverage
     private var previousAltitude: Int? = null
     private val altitudeHistory = mutableListOf<Double>()
@@ -251,9 +251,9 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         val millisecondi = System.currentTimeMillis()
         val tempoTrascorso = millisecondi - oraInizio
         //val tempoTrascorso = oraInizio - SystemClock.elapsedRealtime()
-        Log.d("viewmodel", "tempo trascorso $tempoTrascorso, $oraInizio")
-        return MapUtils.formatSeconds(tempoTrascorso.toInt()/1000)
-        //return MapUtils.formatElapsedTime(tempoTrascorso)
+        //Log.d("viewmodel", "tempo trascorso $tempoTrascorso, $oraInizio")
+        //return MapUtils.formatSeconds(tempoTrascorso.toInt()/1000)
+        return MapUtils.formatMillisToHHmmss(tempoTrascorso)
     }
 
     fun incrementMovementSeconds() {
