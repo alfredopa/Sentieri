@@ -60,7 +60,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val velocita = MutableLiveData(0)
     val quota = MutableLiveData(0)
     var oraInizio: Long = 0
-    //var secondiMovimento = MutableLiveData(0L)
+    var tempoTrascorso: Long = 0
     private val _secondiMovimento = MutableLiveData<Long>(0)
     val secondiMovimento: LiveData<Long> = _secondiMovimento
     // valori per il calcolo del dislivello con GPS con filtro MovingAverage
@@ -246,10 +246,10 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         return percorso
     }
 
-    fun tempoTrascorso(): String {
+    fun calctempoTrascorso(): String {
         // Calcolo del tempo trascorso da inizio registrazione
         val millisecondi = System.currentTimeMillis()
-        val tempoTrascorso = millisecondi - oraInizio
+        tempoTrascorso = millisecondi - oraInizio
         //val tempoTrascorso = oraInizio - SystemClock.elapsedRealtime()
         //Log.d("viewmodel", "tempo trascorso $tempoTrascorso, $oraInizio")
         //return MapUtils.formatSeconds(tempoTrascorso.toInt()/1000)

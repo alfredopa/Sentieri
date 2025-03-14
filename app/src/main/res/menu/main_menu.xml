@@ -34,7 +34,8 @@
             android:title="Mappa satellitare" />
         <item
             android:id="@+id/Geopackage"
-            android:title="Apre Geopackage" />
+            android:title="Apre Geopackage"
+            android:visible="false"/>
     </group>
 
 </menu>

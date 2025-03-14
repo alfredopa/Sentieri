@@ -5,7 +5,6 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -16,11 +15,11 @@ import android.location.LocationManager
 import android.location.OnNmeaMessageListener
 import android.os.Build
 import android.os.IBinder
-import android.renderscript.ScriptGroup
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -48,7 +47,7 @@ import com.apstudio.sentieri.MappaFragment.Companion.SEND_LOCATION_ACTION
 // attualmente il sensore barometro se esiste viene utlizzato all'interno del servizio
 //creando il repository BaroRepo. Andrebbe spostato nel ViewModel o comunque utilizzato con un observer
 // il Repository BaroRepo è iniettato nel servizio per recuperare i dati pressione
-class LocationService : Service() {
+class LocationService : LifecycleService() {
 
     private lateinit var posizione: Location
     private lateinit var locationManager: LocationManager
@@ -286,24 +285,25 @@ class LocationService : Service() {
     }
 
     override fun onDestroy() {
-        gpsViewModel.updateGpsStatus("stopped")
         super.onDestroy()
         // rimuovi il listener barometro
         if (haBaro && setBaro) {
             //Log.d("baroRepo", "stop barometro")
             baroRepo.stopSensorUpdates()
         }
+        gpsViewModel.updateGpsStatus("stopped")
         // Rimuovi il LocationListener se esiste
         if (!haMslAltitude)
             locationManager.removeNmeaListener(nmeaListener)
         locationManager.removeUpdates(locationListener)
-        // CALLBACK
+       // CALLBACK
         locationManager.unregisterGnssStatusCallback(gnssCallback)
         //Log.d("LocationService", "stop gps")
     }
 
-    override fun onBind(intent: Intent): IBinder {
-        TODO("Return the communication channel to the service.")
+    override fun onBind(intent: Intent): IBinder? {
+        super.onBind(intent)
+        return null
     }
 
     private fun createNotificationChannel() {
