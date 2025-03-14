@@ -635,7 +635,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun stopGPS() {
-// FINE REGISTRAZIONE TRACCIA se non ha fixato non chiede di salvare
+// FINE REGISTRAZIONE TRACCIA
+        // se non ha fixato non chiede di salvare
         if (!viewModel.isFixed) {
             azzeraCruscotto()
             fermaRecording()
@@ -643,6 +644,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             return
         }
 
+        // altrimenti chiede se salvare traccia
         var builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
         val inputEditTextField = EditText(requireActivity())
         inputEditTextField.setText("Traccia")
@@ -932,7 +934,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             TempMax = 0.0,
             TempMin = 0.0,
             DataFine = "",
-            TempoTot = 0.0,
+            TempoTot = viewModel.tempoTrascorso.toDouble(),
             TempoInMov = viewModel.secondiMovimento.value!!.toDouble(),
             MediaVel = 0.0
         )
@@ -1309,7 +1311,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         updatesJob = viewLifecycleOwner.lifecycleScope.launch {
             while (true) {
                 //if (viewModel.running) {
-                    tempo.text = viewModel.tempoTrascorso()
+                    tempo.text = viewModel.calctempoTrascorso()
                     if (viewModel.velocita.value != 0) {
                         viewModel.incrementMovementSeconds()
                         tempoMov.text = formatSeconds(viewModel.secondiMovimento.value!!)
