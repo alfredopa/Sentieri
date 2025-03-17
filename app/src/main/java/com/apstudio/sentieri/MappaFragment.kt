@@ -661,9 +661,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 stopObserver() // Arresta gli observer
             }
             setNegativeButton(android.R.string.cancel) { _, _ ->
+                // rimuove il marker inizio
+                for (overlay in viewModel.listaTracce.items) {
+                    if (overlay is Marker && overlay.id == "start") {
+                        viewModel.listaTracce.remove(overlay)
+                        //Log.d("marker", "rimuovi marker")
+                    }
+                }
                 azzeraCruscotto()
                 fermaRecording()
-                stopObserver() // Arresta gli observer
             }
             setNeutralButton("Continua") { _, _ -> }
             setCancelable(false) // Impedisce la chiusura tramite tocco esterno o tasto Indietro
@@ -1109,16 +1115,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun azzeraCruscotto() {
-// azzera i valori del viewModel
-// legati alla traccia visualizzati nel cruscotto
-        viewModel.distanzaMetri.value = 0
-        viewModel.dislivPiu.value = 0
-        viewModel.dislivMeno.value = 0
-        viewModel.quota.value = 0
+// azzera i valori del viewModel visualizzati nel cruscotto
         tempoMov.text = ""
-        //viewModel.dislivPiuIpso.value = 0
-        //viewModel.dislivMenoIpso.value = 0
-        //viewModel.secondiMovimento.value = 0
+        viewModel.resetCruscotto()
     }
 
 
@@ -1315,8 +1314,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     if (viewModel.velocita.value != 0) {
                         viewModel.incrementMovementSeconds()
                         tempoMov.text = formatSeconds(viewModel.secondiMovimento.value!!)
-                        //viewModel.secondiMovimento.value = viewModel.secondiMovimento.value?.plus(1)
-                        //Log.d("secondiMovimento", "${viewModel.secondiMovimento.value}")
                     }
                     delay(1000)
                 //}
@@ -1494,6 +1491,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             )
         }
         startMarker.title = "Inizio"
+        startMarker.id = "start"
         var punto: GeoPoint = line.actualPoints[0]
         startMarker.position = punto
         viewModel.listaTracce.add(startMarker)
