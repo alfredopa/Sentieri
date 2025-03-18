@@ -639,7 +639,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // se non ha fixato non chiede di salvare
         if (!viewModel.isFixed) {
             azzeraCruscotto()
-            fermaRecording()
+            fermaRecording(false)
             stopObserver() // Arresta gli observer
             return
         }
@@ -657,19 +657,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             ) { _, _ ->
                 salvaTraccia(inputEditTextField.text.toString())
                 azzeraCruscotto()
-                fermaRecording()
+                fermaRecording(true)
                 stopObserver() // Arresta gli observer
             }
             setNegativeButton(android.R.string.cancel) { _, _ ->
-                // rimuove il marker inizio
-                for (overlay in viewModel.listaTracce.items) {
-                    if (overlay is Marker && overlay.id == "start") {
-                        viewModel.listaTracce.remove(overlay)
-                        //Log.d("marker", "rimuovi marker")
-                    }
-                }
                 azzeraCruscotto()
-                fermaRecording()
+                fermaRecording(false)
             }
             setNeutralButton("Continua") { _, _ -> }
             setCancelable(false) // Impedisce la chiusura tramite tocco esterno o tasto Indietro
@@ -677,25 +670,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    private fun fermaRecording() {
+    private fun fermaRecording(fine : Boolean = false) {
 // ferma aggiornamenti posizione ui e ferma servizio LocationService
         // Log.d("Posizione","Stop servizio")
         requireActivity().stopService(Intent(context, LocationService::class.java))
         stopUpdates()
+        viewModel.isRecording = false
         gpsMarker.setVisible(false)
         gpsViewModel.updateGpsStatus("stopped")
 // rimuove impostazione schermo sempre acceso
         requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-// azzera valori da visualizzare in Cruscotto
-        viewModel.isRecording = false
 // aggiunge marker fine percorso
-        MapUtils.markInizioFine(
-            requireContext(),
-            viewModel.newPunto,
-            mapView,
-            viewModel.recTraccia,
-            1
-        )
+        if (fine) {
+                MapUtils.markInizioFine(
+                requireContext(),
+                viewModel.newPunto,
+                mapView,
+                viewModel.recTraccia,
+                1 )
+        }
 //setBaro indica se si preferisce usare il sensore barometrico fisico oppure no
 // a fine registrazione ripristina preferenza barometro
         if (viewModel.haBaro)
@@ -1141,10 +1134,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             //se non è visualizzata la mappa non aggiorna dati cruscotto
             if (!isFragmentVisibleAndActive())
                 return
-
-            //if (!viewModel.running)
-            //    return
-
             // al primo punto aggiunge il marker d'inizio
             if (viewModel.traccia.value?.actualPoints?.size == 1)
                 MapUtils.markInizioFine(
@@ -1154,8 +1143,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     viewModel.recTraccia,
                     0
                 )
-
-            //Log.d("BroadcastReceiver ",  "numsat ${gpsViewModel.numSat}")
             // sposta il marker su nuova posizione con animazione
             gpsMarker.position = (viewModel.newPunto)
             if (viewModel.bloccaMappa) {
@@ -1608,7 +1595,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         try {
             val f = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
 
-            val geoPackageFile = File(f, "AreeTutelate.gpkg")
+            val geoPackageFile = File(f, "IBA.gpkg")
 
             val manager = GeoPackageFactory.getManager(requireContext())
 
@@ -1667,6 +1654,18 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             } finally {
                 featureCursor.close()
             }
+            var projection = ProjectionFactory.getProjection(
+                featureDao.projection.authority,
+                featureDao.projection.code
+            )
+            val boundingBox = featureDao.boundingBox
+            //var bbox = transform(boundingBox, projection)
+            val bounds = BoundingBox(
+                boundingBox.maxLatitude,
+                boundingBox.maxLongitude,
+                boundingBox.minLatitude,
+                boundingBox.minLongitude
+            )
             geoPackage.close()
 
 

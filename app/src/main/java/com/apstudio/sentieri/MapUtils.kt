@@ -256,6 +256,8 @@ object MapUtils {
                     R.drawable.ic_start
                 )
             }
+            marker.title = "Inizio"
+            marker.id =  "Inizio"
         } else {
             marker.icon = contesto.let {
                 AppCompatResources.getDrawable(
@@ -263,9 +265,9 @@ object MapUtils {
                     R.drawable.ic_finish
                 )
             }
+            marker.title = "Fine"
+            marker.id =  "Fine"
         }
-
-        marker.title = "Inizio"
         marker.position = punto
         overTraccia.add(marker)
     }
