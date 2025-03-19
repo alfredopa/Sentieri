@@ -355,29 +355,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             caricaGPX(data)
             intent.setData(null)
         }
-
-        // observer per gestire la coroutine di aggiornamento orario
-        /*viewLifecycleOwner.lifecycle.addObserver(object : LifecycleEventObserver {
-            override fun onStateChanged(source: androidx.lifecycle.LifecycleOwner, event: Lifecycle.Event) {
-                if (viewModel.isRecording) {
-                    when (event) {
-                        Lifecycle.Event.ON_START -> {
-
-                            Log.d("updates", "ON_START")
-                            startUpdates()
-
-                        }
-
-                        Lifecycle.Event.ON_STOP -> {
-                            Log.d("updates", "ON_STOP")
-                            stopUpdates()
-                        }
-
-                        else -> {}
-                    }
-                }
-            }
-        })*/
     }
 
     // aggiunge il click listener alla polyline per aprire l'info window
@@ -472,8 +449,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = 90
             bottomSheetBehavior.state = viewModel.BottomState
-            //viewModel.running = true
-            //startUpdates()
             // riavvia gli observer per aggiornamento dati cruscotto
             avviaObserver()
             val toast =
@@ -501,9 +476,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.BottomState = bottomSheetBehavior.state
 
         mapView.onPause() //needed for compass, my location overlays, v6.0.0 and up
-        /*if (viewModel.isRecording) {
-            stopUpdates()
-        }*/
     }
 
     private fun offline() {
@@ -674,7 +646,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // ferma aggiornamenti posizione ui e ferma servizio LocationService
         // Log.d("Posizione","Stop servizio")
         requireActivity().stopService(Intent(context, LocationService::class.java))
-        stopUpdates()
+        viewModel.stopUpdates()
         viewModel.isRecording = false
         gpsMarker.setVisible(false)
         gpsViewModel.updateGpsStatus("stopped")
@@ -749,9 +721,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // crea observer sullo stato del GPS cambia colore icona
 //val menuItem = menu?.findItem(R.id.Offline)
 //val currentGpsStatus = gpsRepository.gpsStatus
-
-        //viewModel.running = true
-        startUpdates()
+        viewModel.startUpdates()
         Log.d("updates", "run")
 // avvia il servizio per tracciare locazione in background
         requireActivity().startService(Intent(context, LocationService::class.java))
@@ -898,6 +868,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.dislivMeno.observe(viewLifecycleOwner) { dislivMeno ->
             dMeno.text = dislivMeno.toString()
         }
+        viewModel.tempoTrascorso.observe(viewLifecycleOwner) { tempoTrascorso ->
+            tempo.text = tempoTrascorso
+        }
         viewModel.secondiMovimento.observe(viewLifecycleOwner) { secondiMovimento ->
             tempoMov.text = formatSeconds(secondiMovimento)
         }
@@ -933,7 +906,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             TempMax = 0.0,
             TempMin = 0.0,
             DataFine = "",
-            TempoTot = viewModel.tempoTrascorso.toDouble(),
+            TempoTot = viewModel.elapsedTime.toDouble(),
             TempoInMov = viewModel.secondiMovimento.value!!.toDouble(),
             MediaVel = 0.0
         )
@@ -1289,7 +1262,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     // coroutine per aggiornamento del tempo di registrazione sul cruscotto
-    private fun startUpdates() {
+    /*private fun startUpdates() {
         if (updatesJob?.isActive == true) {
             // Coroutine is already running, no need to start a new one
             return
@@ -1306,14 +1279,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 //}
             }
         }
-    }
-
-    private fun stopUpdates() {
-        updatesJob?.cancel()
-        updatesJob = null
-        //viewModel.running = false
-//Log.d("Mappa", "Stop running")
-    }
+    }*/
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
         menuInflater.inflate(R.menu.main_menu, menu)
@@ -1469,7 +1435,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun addMarker(line: Polyline) {
-// aggiunge marker inizio e fine percorso
+// aggiunge marker inizio e fine percorso su tracce caricate
         val startMarker = Marker(mapView)
         startMarker.icon = requireContext().let {
             AppCompatResources.getDrawable(

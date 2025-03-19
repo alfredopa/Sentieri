@@ -137,7 +137,7 @@ class LocationService : LifecycleService() {
             }*/
             // API > 34 assegna valore altitudine msl
             posizione = location
-            if (Build.VERSION.SDK_INT >= 35 )
+            if (Build.VERSION.SDK_INT >= 34 )
                 gpsViewModel.mslAltitude = location.mslAltitudeMeters
             /*else {
                 // se non ha registrato valori NMEA usa altitudine di default

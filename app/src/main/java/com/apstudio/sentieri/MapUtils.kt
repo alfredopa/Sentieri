@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.icu.text.DecimalFormat
+import android.icu.text.SimpleDateFormat
 import android.location.Location
 import android.net.Uri
 import android.os.Environment
@@ -17,6 +18,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat.getColor
 import com.apstudio.sentieri.db.LayerItem
+import com.google.type.Date
 import org.osmdroid.mapsforge.MapsForgeTileProvider
 import org.osmdroid.mapsforge.MapsForgeTileSource
 import org.osmdroid.tileprovider.modules.ArchiveFileFactory
@@ -52,7 +54,7 @@ import kotlin.text.format
 
 object MapUtils {
 
-    fun setMapOfflineSource(activity: Activity?, map: MapView?) {
+    /*fun setMapOfflineSource(activity: Activity?, map: MapView?) {
         // con permesso di accesso a tutti i  file, mantengo la cartella /storage/emulated/0/Sentieri/Mappe/
         // come base per le mappe offline
         val f = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
@@ -114,7 +116,7 @@ object MapUtils {
             toast.show()
             toast.view?.setBackgroundColor(getColor(context, R.color.purple_500))
         }
-    }
+    }*/
 
     fun disegnaLine(line: Polyline): Polyline {
         // min / max values used in the example
@@ -440,28 +442,6 @@ object MapUtils {
         return formatter.format(now)
     }
 
-    fun formatMillisToHHmmss(millis: Long): String {
-        val duration = Duration.ofMillis(millis)
-        val hours = duration.toHours()
-        val minutes = duration.toMinutesPart()
-        val seconds = duration.toSecondsPart()
-
-        return LocalTime.of(hours.toInt(), minutes, seconds)
-            .format(DateTimeFormatter.ofPattern("HH:mm:ss"))
-    }
-
-    // Da "HH:mm:ss" a secondi
-    fun timeStringToSeconds(timeString: String): Int {
-        val time = LocalTime.parse(timeString, DateTimeFormatter.ofPattern("HH:mm:ss"))
-        return time.toSecondOfDay()
-    }
-
-    // Da secondi a "HH:mm:ss"
-    fun secondsToTimeString(seconds: Int): String {
-        val time = LocalTime.ofSecondOfDay(seconds.toLong())
-        return time.format(DateTimeFormatter.ofPattern("HH:mm:ss"))
-    }
-
     fun extractFileName(input: String): String {
         if (input.isEmpty()) {
             return "" // Restituisci una stringa vuota se l'input è nullo o vuoto
@@ -582,6 +562,38 @@ object MapUtils {
         // Use String.format to add leading zeros
         return String.format(Locale.ITALY,"%02d:%02d:%02d", hours, minutes, seconds)
     }
+
+    fun formatElapsedTime(elapsedTime: Long): String {
+        val totalSeconds = elapsedTime / 1000
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+        // Use String.format to add leading zeros
+        return String.format(Locale.ITALY, "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+
+    fun formatMillisToHHmmss(millis: Long): String {
+        val duration = Duration.ofMillis(millis)
+        val hours = duration.toHours()
+        val minutes = duration.toMinutesPart()
+        val seconds = duration.toSecondsPart()
+
+        return LocalTime.of(hours.toInt(), minutes, seconds)
+            .format(DateTimeFormatter.ofPattern("HH:mm:ss"))
+    }
+
+    // Da "HH:mm:ss" a secondi
+    fun timeStringToSeconds(timeString: String): Int {
+        val time = LocalTime.parse(timeString, DateTimeFormatter.ofPattern("HH:mm:ss"))
+        return time.toSecondOfDay()
+    }
+
+    // Da secondi a "HH:mm:ss"
+    fun secondsToTimeString(seconds: Int): String {
+        val time = LocalTime.ofSecondOfDay(seconds.toLong())
+        return time.format(DateTimeFormatter.ofPattern("HH:mm:ss"))
+    }
+
 
 // da BikeRoutes...
     /*fun getFormattedRideTime(rideTimeMinutes: Int): String {
