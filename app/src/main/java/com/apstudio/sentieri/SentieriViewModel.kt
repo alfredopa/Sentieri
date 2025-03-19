@@ -2,20 +2,27 @@ package com.apstudio.sentieri
 
 import android.location.Location
 import android.net.Uri
+import android.text.format.DateUtils.formatElapsedTime
 import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asLiveData
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.liveData
+import androidx.lifecycle.viewModelScope
 import com.apstudio.sentieri.MapUtils.disegnaLine
+import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import net.federicomatera.agpxp.models.WayPoint
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.FolderOverlay
@@ -46,6 +53,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var uriMappa = Uri.EMPTY
     var isFixed = false
     //var running = true
+
+    var updatesJob: Job? = null
     var isRecording = false
     var ricerca = String()
     var ultPosizione = GeoPoint(40.120875, 9.012893, 40.0)   // posizione iniziale mappa
@@ -65,7 +74,9 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private val _quota = MutableLiveData(0)
     val quota : LiveData<Int> = _quota
     var oraInizio: Long = 0
-    var tempoTrascorso: Long = 0
+    var elapsedTime: Long = 0
+    private val _tempoTrascorso = MutableLiveData<String>()
+    val tempoTrascorso: LiveData<String> = _tempoTrascorso
     private val _secondiMovimento = MutableLiveData<Long>(0)
     val secondiMovimento: LiveData<Long> = _secondiMovimento
     // valori per il calcolo del dislivello con GPS con filtro MovingAverage
@@ -259,20 +270,46 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         return percorso
     }
 
-    fun calctempoTrascorso(): String {
+    /*fun calctempoTrascorso(): MutableLiveData<String> {
         // Calcolo del tempo trascorso da inizio registrazione
         val millisecondi = System.currentTimeMillis()
-        tempoTrascorso = millisecondi - oraInizio
+        _tempoTotale = millisecondi - oraInizio
         //val tempoTrascorso = oraInizio - SystemClock.elapsedRealtime()
         //Log.d("viewmodel", "tempo trascorso $tempoTrascorso, $oraInizio")
         //return MapUtils.formatSeconds(tempoTrascorso.toInt()/1000)
         return MapUtils.formatMillisToHHmmss(tempoTrascorso)
-    }
+    }*/
 
     fun incrementMovementSeconds() {
         _secondiMovimento.value = (_secondiMovimento.value ?: 0) + 1
     }
 
+    // coroutine per aggiornamento del tempo di registrazione sul cruscotto
+    fun startUpdates() {
+        if (updatesJob?.isActive == true) {
+            // Coroutine is already running, no need to start a new one
+            return
+        }
+        updatesJob = viewModelScope.launch {
+            while (true) {
+                val currentTime = System.currentTimeMillis()
+                elapsedTime = currentTime - oraInizio
+                _tempoTrascorso.value = MapUtils.formatElapsedTime(elapsedTime)
+                Log.d("Mappa", "Tempo trascorso: $elapsedTime  ${tempoTrascorso.value}")
+                if (velocita.value != 0) {
+                    incrementMovementSeconds()
+                }
+                delay(1000)
+            }
+        }
+    }
+
+    fun stopUpdates() {
+        updatesJob?.cancel()
+        updatesJob = null
+        //viewModel.running = false
+//Log.d("Mappa", "Stop running")
+    }
     /*// filtro basato su velocità ascensionale in m/sec
     velocità ascensionale media in bici, espressa in m/sec:
     Ciclista principiante su pendenza moderata (5-10%): 0.5 - 1.0 m/sec
