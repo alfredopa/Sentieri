@@ -350,8 +350,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         return repository.cercaNome(searchQuery).asLiveData()
     }
 
-    suspend fun salvaSentiero(sentiero: Sentieri) {
-        repository.insertDB(sentiero)
+    suspend fun salvaSentiero(sentiero: Sentieri): Long {
+        return repository.insertDB(sentiero)
     }
 
     fun cercaPoi(id: Int): List<PoiDB> {

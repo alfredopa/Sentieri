@@ -642,7 +642,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    private fun fermaRecording(fine : Boolean = false) {
+    private fun fermaRecording(fine: Boolean = false) {
 // ferma aggiornamenti posizione ui e ferma servizio LocationService
         // Log.d("Posizione","Stop servizio")
         requireActivity().stopService(Intent(context, LocationService::class.java))
@@ -654,12 +654,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 // aggiunge marker fine percorso
         if (fine) {
-                MapUtils.markInizioFine(
+            MapUtils.markInizioFine(
                 requireContext(),
                 viewModel.newPunto,
                 mapView,
                 viewModel.recTraccia,
-                1 )
+                1
+            )
         }
 //setBaro indica se si preferisce usare il sensore barometrico fisico oppure no
 // a fine registrazione ripristina preferenza barometro
@@ -889,7 +890,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun salvaTraccia(nomeTraccia: String) {
-        var ultimoID: Int
+        val ultimoID: Long
 //var punto = WayPoint()
         val dateString = dataOraIso8601()
         val sentiero = Sentieri(
@@ -913,25 +914,21 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         runBlocking {
             // salva il nuovo record in Tabella Sentiero
-            viewModel.run {
-                salvaSentiero(sentiero)
-            }
-            val dao = SentieriDB.getInstance(requireActivity().application).sentieriDao
-            ultimoID = dao.ultimoId()
+            ultimoID = viewModel.salvaSentiero(sentiero)
         }
 
 //ciclo caricamento punti GPS in lista punti db
         val tracciaDao: TrackDao = SentieriDB.getInstance(requireActivity().application).trackDao
-        viewModel.puntiGPS.forEach {
-            val trackPoint = com.apstudio.sentieri.db.Track(
-                Id = 0,
-                Trackid = ultimoID,
-                Latit = it.latitude.toFloat(),
-                Longit = it.longitude.toFloat(),
-                Ele = it.elevation!!.toFloat(),
-                Ora = it.time.toString()
-            )
-            MainScope().launch {
+        MainScope().launch {
+            viewModel.puntiGPS.forEach {
+                val trackPoint = com.apstudio.sentieri.db.Track(
+                    Id = 0,
+                    Trackid = ultimoID.toInt(),
+                    Latit = it.latitude.toFloat(),
+                    Longit = it.longitude.toFloat(),
+                    Ele = it.elevation!!.toFloat(),
+                    Ora = it.time.toString()
+                )
                 tracciaDao.insertDB(trackPoint)
                 //Log.d("Track","$trackPoint")
             }
@@ -942,37 +939,38 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (viewModel.poiDBList.size > 0) {
             val poiDao: PoiDao =
                 SentieriDB.getInstance(requireActivity().application).poiDao
-            viewModel.poiDBList.forEach {
-                val poi = PoiDB(
-                    Id = 0,
-                    Trackid = ultimoID,
-                    Latit = it.Latit,
-                    Longit = it.Longit,
-                    Ele = it.Ele,
-                    NomePOI = it.NomePOI,
-                    DescrPOI = it.DescrPOI,
-                    UriPath = "",
-                    Time = it.Time
-                )
-                MainScope().launch {
+            MainScope().launch {
+                viewModel.poiDBList.forEach {
+                    val poi = PoiDB(
+                        Id = 0,
+                        Trackid = ultimoID.toInt(),
+                        Latit = it.Latit,
+                        Longit = it.Longit,
+                        Ele = it.Ele,
+                        NomePOI = it.NomePOI,
+                        DescrPOI = it.DescrPOI,
+                        UriPath = "",
+                        Time = it.Time
+                    )
                     poiDao.insertDB(poi)
                     //Log.d("Track","$trackPoint")
                 }
             }
         }
 
-// memorizza uri e nome file delle foto scattate in regsitrazione traccia
+// memorizza uri e nome file delle foto scattate in registrazione traccia
         if (viewModel.fotoInPoiDB.size > 0) {
             val fotoDao: FotoPoiDao =
                 SentieriDB.getInstance(requireActivity().application).fotoPoiDao
-            viewModel.fotoInPoiDB.forEach {
-                val foto = FotoPoi(
-                    id = 0,
-                    trackid = ultimoID,
-                    uriPath = it.toString(),
-                    nomeFoto = getFileNameFromUri(requireContext(), it)
-                )
-                MainScope().launch {
+            MainScope().launch {
+                viewModel.fotoInPoiDB.forEach {
+                    val foto = FotoPoi(
+                        id = 0,
+                        trackid = ultimoID.toInt(),
+                        uriPath = it.toString(),
+                        nomeFoto = getFileNameFromUri(requireContext(), it)
+                    )
+
                     fotoDao.insertDB(foto)
                     //Log.d("Track","$trackPoint")
                 }
