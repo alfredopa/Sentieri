@@ -932,14 +932,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 tracciaDao.insertDB(trackPoint)
                 //Log.d("Track","$trackPoint")
             }
-        }
+
 
 // scrive waypoint se inseriti durante registrazione traccia
 // la lista è PoiDB
-        if (viewModel.poiDBList.size > 0) {
-            val poiDao: PoiDao =
-                SentieriDB.getInstance(requireActivity().application).poiDao
-            MainScope().launch {
+            if (viewModel.poiDBList.size > 0) {
+                val poiDao: PoiDao =
+                    SentieriDB.getInstance(requireActivity().application).poiDao
+                //MainScope().launch {
                 viewModel.poiDBList.forEach {
                     val poi = PoiDB(
                         Id = 0,
@@ -955,14 +955,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     poiDao.insertDB(poi)
                     //Log.d("Track","$trackPoint")
                 }
+                //}
             }
-        }
 
 // memorizza uri e nome file delle foto scattate in registrazione traccia
-        if (viewModel.fotoInPoiDB.size > 0) {
-            val fotoDao: FotoPoiDao =
-                SentieriDB.getInstance(requireActivity().application).fotoPoiDao
-            MainScope().launch {
+            if (viewModel.fotoInPoiDB.size > 0) {
+                val fotoDao: FotoPoiDao =
+                    SentieriDB.getInstance(requireActivity().application).fotoPoiDao
+                //MainScope().launch {
                 viewModel.fotoInPoiDB.forEach {
                     val foto = FotoPoi(
                         id = 0,
@@ -974,9 +974,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     fotoDao.insertDB(foto)
                     //Log.d("Track","$trackPoint")
                 }
+                //}
             }
         }
-
 // scrive file GPX in cartella Downloads
         if (nomeTraccia.isNotEmpty()) {
             val scriviGpx = GpxWriter()
@@ -1058,7 +1058,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             with(builder)
             {
                 setTitle("Percorso concluso")
-                setMessage("Distanza percorsa ${viewModel.distanzaMetri.value} con d+ ${viewModel.dislivPiu.value}")
+                val message = """
+                        Distanza percorsa: ${viewModel.distanzaMetri.value}
+                        Dislivello positivo (d+): ${viewModel.dislivPiu.value}
+                        Dislivello negativo (d-): ${viewModel.dislivMeno.value}
+                        Tempo trascorso: ${tempo.text}
+                        Tempo in movimento: ${tempoMov.text}
+                """.trimIndent()
+                setMessage(message)
                 setPositiveButton(
                     "Chiudi"
                 ) { dialog, _ ->
