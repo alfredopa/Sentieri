@@ -12,6 +12,7 @@ import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.liveData
 import androidx.lifecycle.viewModelScope
+import androidx.room.Database
 import com.apstudio.sentieri.MapUtils.disegnaLine
 import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.db.FotoPoi
@@ -31,6 +32,7 @@ import java.sql.Timestamp
 
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
+    private lateinit var database: SentieriDB
     private val _traccia = MutableLiveData<Polyline>()
     val traccia : LiveData<Polyline> = _traccia
     val listaTracce = FolderOverlay()
@@ -219,6 +221,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         _dislivMeno.value = 0
         _velocita.value = 0
         _distanzaMetri.value = 0
+        _tempoTrascorso.value = ""
+        _secondiMovimento.value = 0
     }
 
     private fun salvaPuntoGPS(punto: GeoPoint) {
@@ -295,7 +299,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
                 val currentTime = System.currentTimeMillis()
                 elapsedTime = currentTime - oraInizio
                 _tempoTrascorso.value = MapUtils.formatElapsedTime(elapsedTime)
-                Log.d("Mappa", "Tempo trascorso: $elapsedTime  ${tempoTrascorso.value}")
+                //Log.d("Mappa", "Tempo trascorso: $elapsedTime  ${tempoTrascorso.value}")
                 if (velocita.value != 0) {
                     incrementMovementSeconds()
                 }
@@ -365,6 +369,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     override fun onCleared() {
         //Log.d("viewmodel","viewmodel cleared")
         //stopSensorUpdates()
+        super.onCleared()
+        database.close()
         isRecording = false
     }
 
