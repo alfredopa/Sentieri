@@ -627,14 +627,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             setPositiveButton(
                 "Ok"
             ) { _, _ ->
-                salvaTraccia(inputEditTextField.text.toString())
-                azzeraCruscotto()
                 fermaRecording(true)
                 stopObserver() // Arresta gli observer
+                salvaTraccia(inputEditTextField.text.toString())
+                azzeraCruscotto()
             }
             setNegativeButton(android.R.string.cancel) { _, _ ->
-                azzeraCruscotto()
                 fermaRecording(false)
+                azzeraCruscotto()
             }
             setNeutralButton("Continua") { _, _ -> }
             setCancelable(false) // Impedisce la chiusura tramite tocco esterno o tasto Indietro
@@ -919,7 +919,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
 //ciclo caricamento punti GPS in lista punti db
         val tracciaDao: TrackDao = SentieriDB.getInstance(requireActivity().application).trackDao
-        MainScope().launch {
+        lifecycleScope.launch {
             viewModel.puntiGPS.forEach {
                 val trackPoint = com.apstudio.sentieri.db.Track(
                     Id = 0,
@@ -995,46 +995,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     )
                 )
             )
-            //  esempio di come formare il gpx per scrittura
-            /*val gpx = Gpx(
-            version = "1",
-            creator = "Sentieri",
-            tracks = listOf(
-                Track(
-                    name = "myGpx",
-                    trackPoints = listOf(
-                        WayPoint(
-                            latitude = 30.8,
-                            longitude = 9.11,
-                            elevation = 430.0
-                        ),
-                        WayPoint(
-                            latitude = 30.9,
-                            longitude = 9.12,
-                            elevation = 432.0
-                        ),
-                        WayPoint(
-                            latitude = 30.10,
-                            longitude = 9.113,
-                            elevation = 442.0
-                            )
-                        )
-                    )
-                )
-            )
-            */
-
-            // crea la cartella Documents però nella root
-            /*val publicDocumentsDir = requireContext().getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-            if (publicDocumentsDir != null) {
-                publicDocumentsDir.mkdirs() // Crea la cartella se non esiste
-
-                publicDocumentsDir.setExecutable(true, false)
-                publicDocumentsDir.setReadable(true, false)
-                publicDocumentsDir.setWritable(true, false)
-
-                // ... scrivi i file nella cartella publicDocumentsDir ...
-            }*/
 
             // METODO con ContentResolver
             val resolver = requireContext().contentResolver
