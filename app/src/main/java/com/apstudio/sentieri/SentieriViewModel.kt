@@ -2,19 +2,15 @@ package com.apstudio.sentieri
 
 import android.location.Location
 import android.net.Uri
-import android.text.format.DateUtils.formatElapsedTime
 import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asLiveData
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.liveData
 import androidx.lifecycle.viewModelScope
-import androidx.room.Database
 import com.apstudio.sentieri.MapUtils.disegnaLine
-import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.PoiDB
@@ -32,7 +28,6 @@ import java.sql.Timestamp
 
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
-    private lateinit var database: SentieriDB
     private val _traccia = MutableLiveData<Polyline>()
     val traccia : LiveData<Polyline> = _traccia
     val listaTracce = FolderOverlay()
@@ -200,7 +195,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             } else {
                 _dislivMeno.value = dislivMeno.value?.plus(altitudeDifference)
             }
-            //Log.d("addLocation",  "quota da GPS $filteredAltitude altitudeDifference $altitudeDifference ${dislivPiu.value} ${dislivMeno.value}")
+            Log.d("addLocation",  "quota da GPS $filteredAltitude prec $previousAltitude ${dislivPiu.value} ${dislivMeno.value}")
         }
         // Aggiorna l'altitudine precedente
         previousAltitude = filteredAltitude
@@ -367,10 +362,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     }
 
     override fun onCleared() {
-        //Log.d("viewmodel","viewmodel cleared")
-        //stopSensorUpdates()
         super.onCleared()
-        database.close()
         isRecording = false
     }
 

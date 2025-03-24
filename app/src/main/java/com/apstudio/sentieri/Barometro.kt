@@ -85,7 +85,6 @@ class Barometro : Fragment() , SensorEventListener {
             viewModel.NORMAL_PRESSURE = NORMAL_PRESSURE
             Log.d("barometro","pressione ${viewModel.NORMAL_PRESSURE}")
             viewModel.is_Calibrato = true
-            Log.d("barometro", "Calibrato ${viewModel.is_Calibrato}")
         }
         // pulsante Altitudine conosciuta  click listener calcola equivalente pressione a livello mare
         binding.btnAlti.setOnClickListener {
@@ -94,7 +93,6 @@ class Barometro : Fragment() , SensorEventListener {
             viewModel.NORMAL_PRESSURE = NORMAL_PRESSURE
             Log.d("barometro","pressione ${viewModel.NORMAL_PRESSURE}")
             viewModel.is_Calibrato = true
-            Log.d("barometro", "Calibrato ${viewModel.is_Calibrato}")
         }
         // Crea un LocationListener
         locationListener = LocationListener { p0 -> datiGPS(p0) }
