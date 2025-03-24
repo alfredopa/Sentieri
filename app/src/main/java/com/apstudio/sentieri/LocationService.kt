@@ -24,7 +24,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.NavDeepLinkBuilder
-import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.MappaFragment.Companion.SEND_LOCATION_ACTION
 
 /**
@@ -56,8 +55,6 @@ class LocationService : LifecycleService() {
     private lateinit var gnssCallback: GnssStatus.Callback
     private val NOTIFICATION_CHANNEL_ID = 1234
     private lateinit var baroRepo : BaroRepo
-    private var haBaro = false
-    private var setBaro = false
     private var milliBar = 0.0F
     private var haMslAltitude = false
 
@@ -69,8 +66,6 @@ class LocationService : LifecycleService() {
         super.onCreate()
         // Ottieni l'istanza del LocationManager
         locationManager = applicationContext.getSystemService(LOCATION_SERVICE) as LocationManager
-        //gpsRepository = GpsRepository()
-        // Legge se esiste e se attivare SENSORE BAROMETRO da Preferences
         //Log.d("service", "attiva service")
         val context = applicationContext
         val application = applicationContext as AppSentieri
@@ -127,7 +122,7 @@ class LocationService : LifecycleService() {
         }
 
         // Crea un LocationListener
-        locationListener = LocationListener { location -> // invia posizione solo con velocità maggiore di 0.5 m/s, in futuro considerare valore utente di velocità minima da registrare
+        locationListener = LocationListener { location ->
             // altitudine msl valorizzata da stringa  NMEA e corretta
             //Log.d("GGA", "onLocationChanged ${location.accuracy}")
             if (location.accuracy > 40) return@LocationListener
@@ -145,7 +140,7 @@ class LocationService : LifecycleService() {
                     gpsViewModel.mslAltitude = location.altitude
             }*/
             //Log.d("GGA", "Altitudine  ${gpsViewModel.mslAltitude}  Accuracy ${location.accuracy}")
-            if (haBaro && setBaro) {
+            if (gpsViewModel.is_Calibrato) {
                 // assegna valore altitudine da Barometro
                 milliBar = baroRepo.baroData.value!!
                 //Log.d("service", "barometro millibar $milliBar")
@@ -184,15 +179,8 @@ class LocationService : LifecycleService() {
             0f,    // ATTENZIONE se 0 legge meglio variazioni velocità
             locationListener
         )
-        val preferenze = PreferenceManager.getDefaultSharedPreferences(context)
-        //Log.d("service", "attiva pref")
-        if (preferenze.contains("haBaro")) {
-            haBaro = preferenze.getBoolean("haBaro", false)
-        }
-        if (preferenze.contains("setBaro")) {
-            setBaro = preferenze.getBoolean("setBaro", false)
-        }
-        if (haBaro && setBaro) {
+        // Legge se è calibrato il sensore barometrico e se attivarlo
+         if (gpsViewModel.is_Calibrato) {
             //Log.d("service", "startSensorUpdates")
             baroRepo = BaroRepo(context)
             //Log.d("baroRepo", "avvia barometro")
@@ -206,11 +194,12 @@ class LocationService : LifecycleService() {
         broadcastIntent.action = SEND_LOCATION_ACTION
         broadcastIntent.putExtra("posizione", posizione)
         broadcastIntent.putExtra("altitudine", gpsViewModel.mslAltitude)
-        if (haBaro && setBaro) {
+        if (gpsViewModel.is_Calibrato) {
             broadcastIntent.putExtra("milliBar", milliBar)
         }
         broadcastIntent.setClass(this, MainActivity::class.java)
         LocalBroadcastManager.getInstance(this).sendBroadcast(broadcastIntent)
+        Log.d("service", "${posizione.altitude}, $milliBar, ${gpsViewModel.mslAltitude}")
     }
 
     private fun loggaNMEA(message : String) {
@@ -287,7 +276,7 @@ class LocationService : LifecycleService() {
     override fun onDestroy() {
         super.onDestroy()
         // rimuovi il listener barometro
-        if (haBaro && setBaro) {
+        if (gpsViewModel.is_Calibrato) {
             //Log.d("baroRepo", "stop barometro")
             baroRepo.stopSensorUpdates()
         }

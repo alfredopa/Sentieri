@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 class GpsViewModel  : ViewModel(){
     private val _gpsStatus = MutableLiveData("started")
     val gpsStatus: LiveData<String> = _gpsStatus
+    var is_Calibrato : Boolean = false
     val zeroMsl : Double = 0.0
     var mslAltitude : Double = zeroMsl
     var numSat : Int = 0

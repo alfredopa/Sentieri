@@ -40,6 +40,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getColor
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
@@ -48,7 +49,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
-import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewModelScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.fragment.findNavController
 import androidx.preference.PreferenceManager
@@ -68,11 +69,8 @@ import com.apstudio.sentieri.db.TrackDao
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import mil.nga.geopackage.GeoPackageFactory
 import mil.nga.proj.ProjectionFactory
 import net.federicomatera.agpxp.GpxParser
@@ -90,7 +88,6 @@ import org.osmdroid.gpkg.overlay.features.MarkerOptions
 import org.osmdroid.gpkg.overlay.features.PolygonOptions
 import org.osmdroid.gpkg.overlay.features.PolylineOptions
 import org.osmdroid.gpkg.tiles.raster.GeoPackageProvider
-import org.osmdroid.gpkg.tiles.raster.GeopackageRasterTileSource
 import org.osmdroid.mapsforge.MapsForgeTileProvider
 import org.osmdroid.mapsforge.MapsForgeTileSource
 import org.osmdroid.tileprovider.MapTileProviderBasic
@@ -108,12 +105,12 @@ import org.osmdroid.views.MapController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
-import org.osmdroid.views.overlay.TilesOverlay
 import org.osmdroid.views.overlay.compass.CompassOverlay
 import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider
 import org.osmdroid.views.overlay.infowindow.BasicInfoWindow
 import java.io.File
 import java.sql.Timestamp
+import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
 
@@ -130,7 +127,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private val gpsViewModel: GpsViewModel by lazy {
         ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[GpsViewModel::class.java]
     }
-
+    private lateinit var database: SentieriDB
     private lateinit var bottomSheetBehavior: BottomSheetBehavior<ConstraintLayout>
 
     //private lateinit var intent: Intent
@@ -140,12 +137,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private lateinit var gpsMarker: Marker
     private var uri: Uri? = null
 
-    // valori per polyline scalar
-    /* private var mMapping: ColorMappingVariationHue? = null
-    private var mContainer: ColorMappingForScalarContainer? = null
-    private val paintBorder = Paint()
-    private val paintMapping = Paint()*/
-    private var updatesJob: Job? = null
     private lateinit var dist: TextView
     private lateinit var tvQuota: TextView
     private lateinit var velo: TextView
@@ -153,6 +144,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private lateinit var dMeno: TextView
     private lateinit var tempo: TextView
     private lateinit var tempoMov: TextView
+    private lateinit var calcQuota: TextView
     private lateinit var blocMappa: FloatingActionButton
     private lateinit var flCamera: FloatingActionButton
     private lateinit var osservaMappa: Observer<Polyline>
@@ -184,6 +176,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 viewModel.setBaro = preferenze.getBoolean("setBaro", false)
             }
         }
+        // Get the database instance (using the singleton)
+        database = SentieriDB.getInstance(requireContext())
     }
 
     override fun onCreateView(
@@ -238,21 +232,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             viewModel.menuMap = 1 // indica mappa OpenStreetMap
         }
 
-        /*if (!viewModel.isMapOnline) {
-            mapView.isTilesScaledToDpi = false
-            mapView.setUseDataConnection(false)
-            if (preferenze.contains("URIMappa"))
-                apreMappa(Uri.parse(preferenze.getString("URIMappa", "")!!))
-            else
-                MapUtils.setMapOfflineSource(activity, mapView)
-        } else {
-            mapView.isTilesScaledToDpi = true
-            mapView.setUseDataConnection(true)
-            //if (preferenze.contains("URLMappa")) {
-
-            //preferenze.getString("URLMappa", "MAPNIK")?.let { online(it)
-        }*/
-
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
         Log.d("Mappa", "onViewCreated ")
@@ -278,7 +257,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             gpsMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
             gpsMarker.setVisible(false)
             gpsMarker.title = "Gps"
-            gpsMarker.icon = resources.getDrawable((R.drawable.punto_gps), null)
+            gpsMarker.icon = ResourcesCompat.getDrawable(
+                requireContext().resources,
+                R.drawable.punto_gps,
+                requireContext().theme
+            )
             mapView.overlayManager.add(gpsMarker)
 
             // add compass to map
@@ -306,7 +289,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
         // Textview dei valori da visualizzare in Cruscotto
         dist = view.findViewById(R.id.tvDist)
-        //distH = view.findViewById(R.id.tvDistH)
         tvQuota = view.findViewById(R.id.tvQuota)
         velo = view.findViewById(R.id.tvVelo)
         disliv = view.findViewById(R.id.tvDPiu)
@@ -316,7 +298,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         blocMappa = view.findViewById(R.id.fab)
         flCamera = view.findViewById(R.id.camera)
         btnAllarme = view.findViewById(R.id.button)
-        //Log.d("Mappa", "onViewCreated ${bottomSheetBehavior.state}")
+        calcQuota = view.findViewById(R.id.tvCalcQuota)
         // Bottone per bloccare ancoraggio mappa al gps
         blocMappa.setOnClickListener {
             bloccaMappa()
@@ -324,12 +306,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         // Bottone per attivare la fotocamera
         flCamera.setOnClickListener {
-            //if (!viewModel.isRecording) {
             //Log.d("camera", "viemodel ${viewModel.traccia.points.size}")
             val directions =
                 MappaFragmentDirections.actionMappaFragmentToCameraFragment()
             this@MappaFragment.findNavController().navigate(directions)
-            //}
         }
 
         btnAllarme.setOnClickListener {
@@ -347,9 +327,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
 
         // l'intent contiene il nome del file GPX da caricare da Files
-        //intent = requireActivity().intent!!
         val intent = requireActivity().intent
-        //if (!viewModel.isRecording) {
         val data: Uri? = intent.data
         if (data != null) {
             caricaGPX(data)
@@ -417,7 +395,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 viewModel.wayPoint.forEach {
                     val poiMarker = Marker(mapView)
                     poiMarker.title = it.name
-                    poiMarker.icon = resources.getDrawable((R.drawable.ic_finish), null)
+                    poiMarker.icon = ResourcesCompat.getDrawable(
+                        requireContext().resources,
+                        R.drawable.ic_finish,
+                        requireContext().theme
+                    )
                     poiMarker.position.latitude = it.latitude
                     poiMarker.position.longitude = it.longitude
                     poiMarker.position.altitude = it.elevation ?: 0.0
@@ -450,7 +432,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             bottomSheetBehavior.peekHeight = 90
             bottomSheetBehavior.state = viewModel.BottomState
             // riavvia gli observer per aggiornamento dati cruscotto
-            avviaObserver()
+            //avviaObserver()
+            gpsViewModel.updateGpsStatus(gpsViewModel.gpsStatus.value!!)
             val toast =
                 Toast.makeText(requireActivity(), "Registrazione in corso", Toast.LENGTH_SHORT)
             toast.view?.setBackgroundColor(getColor(requireActivity(), R.color.purple_500))
@@ -458,13 +441,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    override fun onPrepareMenu(menu: Menu) {
+    /*override fun onPrepareMenu(menu: Menu) {
         super.onPrepareMenu(menu)
         // soluzione per aggiornare icona gps dopo cambio fragment in quanto observer non aggiorna
         if (viewModel.isRecording) {
             gpsViewModel.updateGpsStatus(gpsViewModel.gpsStatus.value!!)
         }
-    }
+    }*/
 
     override fun onPause() {
         super.onPause()
@@ -474,7 +457,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.ultPosizione = mapView.mapCenter as GeoPoint
         //memorizza stato del bottomSheet
         viewModel.BottomState = bottomSheetBehavior.state
-
         mapView.onPause() //needed for compass, my location overlays, v6.0.0 and up
     }
 
@@ -597,7 +579,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (viewModel.haBaro) {
             val dlgBaro = DlgFragment()
             dlgBaro.setOnclickCallback {
-// annulla calibrazione quindi utilizza solo GPS
+// annulla calibrazione quindi utilizza solo GPS, setBaro viene momentaneaente settato su false e riportato a true alla prossima registrazione
                 viewModel.setBaro = false
                 //viewModel.puntiPostFix = 0
                 attivaGps()
@@ -617,7 +599,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
 
         // altrimenti chiede se salvare traccia
-        var builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+        val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
         val inputEditTextField = EditText(requireActivity())
         inputEditTextField.setText("Traccia")
         with(builder)
@@ -712,18 +694,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // crea observer per aggiornamento punti traccia
         osservaMappa = Observer {
             viewModel.traccia.observe(viewLifecycleOwner) { traccia ->
-                Log.d("observer", "rectraccia ${viewModel.recTraccia.items.size}")
+                //Log.d("observer", "rectraccia ${viewModel.recTraccia.items.size}")
                 traccia.title = "Registrazione"
                 viewModel.recTraccia.add(traccia)
             }
         }
         viewModel.traccia.observe(viewLifecycleOwner, osservaMappa)
 
-// crea observer sullo stato del GPS cambia colore icona
-//val menuItem = menu?.findItem(R.id.Offline)
-//val currentGpsStatus = gpsRepository.gpsStatus
+        // determina se l'altitudine deve essere barometrica o dal GPS
+        // setta il flag is_Calibrato nel gpsViewModel, utilizzato da LocationService
+        if (viewModel.is_Calibrato) {
+            calcQuota.text = "BARO"
+            gpsViewModel.is_Calibrato = true
+        }
+        else {
+            gpsViewModel.is_Calibrato = false
+            calcQuota.text = "GPS"
+        }
+
         viewModel.startUpdates()
-        Log.d("updates", "run")
 // avvia il servizio per tracciare locazione in background
         requireActivity().startService(Intent(context, LocationService::class.java))
         bottomSheetBehavior.isHideable = false
@@ -822,7 +811,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             viewModel.wayPoint.add(it)
             val waymarker = Marker(mapView)
             waymarker.title = it.name
-            waymarker.icon = resources.getDrawable((R.drawable.ic_finish), null)
+            waymarker.icon = ResourcesCompat.getDrawable(
+                requireContext().resources,
+                R.drawable.ic_finish,
+                requireContext().theme
+            )
             waymarker.position.latitude = it.latitude
             waymarker.position.longitude = it.longitude
             waymarker.position.altitude = it.elevation ?: 0.0
@@ -854,6 +847,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun avviaObserver() {
+        val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
         viewModel.distanzaMetri.observe(viewLifecycleOwner) { distanzaMetri ->
             dist.text = formattastring(distanzaMetri)
         }
@@ -861,13 +855,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             velo.text = getString(R.string.kmh, velocita.toInt())
         }
         viewModel.quota.observe(viewLifecycleOwner) { quota ->
-            tvQuota.text = quota.toString()
+            //tvQuota.text = quota.toString()
+            tvQuota.text = numberFormat.format(quota)
         }
         viewModel.dislivPiu.observe(viewLifecycleOwner) { dislivPiu ->
-            disliv.text = dislivPiu.toString()
+            disliv.text = numberFormat.format(dislivPiu)
         }
         viewModel.dislivMeno.observe(viewLifecycleOwner) { dislivMeno ->
-            dMeno.text = dislivMeno.toString()
+            dMeno.text = numberFormat.format(dislivMeno)
         }
         viewModel.tempoTrascorso.observe(viewLifecycleOwner) { tempoTrascorso ->
             tempo.text = tempoTrascorso
@@ -885,12 +880,18 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 "stopped" -> R.drawable.gps_off
                 else -> R.drawable.gps_off
             }
-            menuItem?.setIcon(resources.getDrawable(icon))
+            menuItem?.setIcon(
+                ResourcesCompat.getDrawable(
+                    requireContext().resources,
+                    icon,
+                    requireContext().theme
+                )
+            )
         }
     }
 
     private fun salvaTraccia(nomeTraccia: String) {
-        val ultimoID: Long
+        var ultimoID: Long
 //var punto = WayPoint()
         val dateString = dataOraIso8601()
         val sentiero = Sentieri(
@@ -912,14 +913,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             MediaVel = 0.0
         )
 
-        runBlocking {
+        viewModel.viewModelScope.launch(Dispatchers.IO) {
+            //runBlocking {
             // salva il nuovo record in Tabella Sentiero
             ultimoID = viewModel.salvaSentiero(sentiero)
-        }
+            //}
 
 //ciclo caricamento punti GPS in lista punti db
-        val tracciaDao: TrackDao = SentieriDB.getInstance(requireActivity().application).trackDao
-        lifecycleScope.launch {
+            val tracciaDao: TrackDao =
+                SentieriDB.getInstance(requireActivity().application).trackDao
+
             viewModel.puntiGPS.forEach {
                 val trackPoint = com.apstudio.sentieri.db.Track(
                     Id = 0,
@@ -1196,7 +1199,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         val waymarker = Marker(mapView)
         waymarker.title = nome
-        waymarker.icon = resources.getDrawable((R.drawable.ic_finish), null)
+        waymarker.icon = ResourcesCompat.getDrawable(
+            requireContext().resources,
+            R.drawable.ic_finish,
+            requireContext().theme
+        )
         waymarker.position.latitude = newWayPoint.latitude
         waymarker.position.longitude = newWayPoint.longitude
 //mapView.overlays?.add(waymarker)
@@ -1211,6 +1218,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         super.onDestroy()
         preferenze.unregisterOnSharedPreferenceChangeListener(this)
+        database.close()
     }
 
     companion object {
@@ -1218,12 +1226,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun formattastring(distanza: Int): String {
-// visualizza distanza in metri o km
+        // visualizza distanza in metri o km
         return if (distanza < 1_000)
-            String.format("%d m", distanza)
-        else
-            String.format("%.1f km", (distanza / 1_000.0).toFloat())
-
+            String.format(Locale.getDefault(), "%d m", distanza)
+        else {
+            val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
+            val km = distanza / 1_000.0
+            String.format(Locale.getDefault(), "%.1f km", km)
+        }
     }
 
     // coroutine per aggiornamento del tempo di registrazione sul cruscotto
@@ -1250,29 +1260,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         menuInflater.inflate(R.menu.main_menu, menu)
 // viene richiamata alla creazione del menu, quindi  anche quando si cambia il fragment
         this.menu = menu
-// necessario ricaricare icona se il fragment viene messo in pausa e ricreato
-        /*if (viewModel.isRecording) {
-        val voceMenu = menu.findItem(R.id.gps) as MenuItem
-        voceMenu.setIcon(resources.getDrawable(R.drawable.gps_on))
-        }*/
     }
-
-    /*override fun onPrepareMenu(menu: Menu) {
-    // la funzione viene chiamata ogni volta che viene cambiato il fragment
-    // assegna il colore al pulsante GPS
-    val menuItem = menu.findItem(R.id.gps)
-    if (viewModel.isRecording) {
-    menuItem.setIcon(resources.getDrawable(R.drawable.gps_on))
-    } else
-    menuItem.setIcon(resources.getDrawable(R.drawable.gps_off))
-
-    /* Log.d("onPrepareMenu", currentGpsStatus)
-    when (currentGpsStatus) {
-    "started" -> menuItem.setIcon(R.drawable.gps_started)
-    "fixed" -> menuItem.setIcon(R.drawable.gps_on)
-    "stopped" -> menuItem.setIcon(R.drawable.gps_off)
-    }*/
-    }*/
 
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
 // Handle the menu selection
@@ -1484,7 +1472,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     if (aList.isDirectory) {
                         continue
                     }
-                    var name = aList.name.lowercase(Locale.getDefault())
+                    aList.name.lowercase(Locale.getDefault())
                     if (aList.name.contains(".gpkg")) {
                         val maps: Array<File?> = arrayOfNulls(1)
                         maps[0] = aList
@@ -1566,7 +1554,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             )
 
             //val featureTable: String = features[1]
-            val featureTable: String = "IBA"
+            val featureTable = "IBA"
             val featureDao = geoPackage.getFeatureDao(featureTable)
             val featureCursor = featureDao.queryForAll()
             try {
