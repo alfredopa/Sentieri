@@ -1514,7 +1514,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         try {
             val f = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
 
-            val geoPackageFile = File(f, "IBA.gpkg")
+            val geoPackageFile = File(f, "parchi.gpkg")
 
             val manager = GeoPackageFactory.getManager(requireContext())
 
@@ -1554,7 +1554,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             )
 
             //val featureTable: String = features[1]
-            val featureTable = "IBA"
+            val featureTable = "iba"
             val featureDao = geoPackage.getFeatureDao(featureTable)
             val featureCursor = featureDao.queryForAll()
             try {
@@ -1586,7 +1586,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 boundingBox.minLongitude
             )
             geoPackage.close()
-
+            mapView.invalidate()
 
             /*if (features != null) {
 
