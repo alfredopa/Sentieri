@@ -53,9 +53,11 @@ class MyViewHolder(private val binding: FragmentDettaglioSentieriBinding) : Recy
         binding.hrmediaText.text  = sentieri.HrMed.toString()
         binding.hrmaxText.text   = sentieri.HrMax.toString()
         binding.DataText.text = sentieri.prnData()
-        binding.tMediaText.text = DecimalFormat("##.#").format(sentieri.TempMedia)
-        binding.tMaxText.text = DecimalFormat("##.#").format(sentieri.TempMax)
-        binding.tMinText.text = DecimalFormat("##.#").format(sentieri.TempMin)
+        binding.tTempoTotText.text = MapUtils.formatSeconds(sentieri.TempoTot.toLong())
+        binding.tTempoMovText.text = MapUtils.formatSeconds(sentieri.TempoInMov.toLong())
+        //binding.tMediaText.text = DecimalFormat("##.#").format(sentieri.TempMedia)
+        //binding.tMaxText.text = DecimalFormat("##.#").format(sentieri.TempMax)
+        //binding.tMinText.text = DecimalFormat("##.#").format(sentieri.TempMin)
         binding.rigaDettaglio.setOnClickListener {
             clickListener(sentieri)
         }

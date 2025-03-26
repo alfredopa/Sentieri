@@ -1,10 +1,35 @@
+Errore in Sentieri il tempo totale è registrato in millisecondi e tempomov in secondi
 DA FARE
 -waypoint nota vocale
--visualizzare riepilogo del percorso aggiungere tempo in movimento, velocità
 -dark mode
 MIGLIORAMENTI
-- il codice per la gestione dell'apertura della mappa è duplicato di MappaFragment e SchedaFragment è duplicato, prevedere un repository da cui accedere dai fragment
+- private fun apreMappa(uri: Uri) il codice per la gestione dell'apertura della mappa di MappaFragment e SchedaFragment è duplicato, prevedere un repository da cui accedere dai fragment
 
+
+Gestione GPS
+ Location Interval:
+ Recommended: 3000 milliseconds (3 seconds) to 5000 milliseconds (5 seconds).
+ Reasoning: Walking is typically a slower activity. A 3-5 second interval provides a good balance between accuracy and battery consumption. You don't need updates every second because the user's position won't change dramatically in that time.
+ Min Distance:
+ Recommended: 2 meters to 5 meters.
+ Reasoning: A 2-5 meter minimum distance helps to filter out minor GPS inaccuracies and prevents the track from being too "jagged." It still captures changes in direction and movement. 2. Cycling
+ Location Interval:
+ Recommended: 1000 milliseconds (1 second) to 3000 milliseconds (3 seconds).
+ Reasoning: Cycling is a faster activity. A 1-3 second interval is better to capture changes in direction and speed.
+ Min Distance:
+ Recommended: 5 meters to 10 meters.
+ Reasoning: A slightly larger minimum distance (5-10 meters) is appropriate for cycling because the user is moving faster. It helps to smooth out the track and reduce the impact of minor GPS inaccuracies. Important Considerations
+ LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 3000): Create a LocationRequest with high accuracy and an interval of 3000 milliseconds (3 seconds).
+ setMinUpdateDistanceMeters(5f): Set the minimum distance to 5 meters.
+ fusedLocationClient.requestLocationUpdates(...): Request location updates.
+ fusedLocationClient.removeLocationUpdates(locationCallback): Remove location updates. In Summary
+ Walking: 3-5 second interval, 2-5 meter minimum distance.
+ Cycling: 1-3 second interval, 5-10 meter minimum distance.
+ Battery Consumption: The location interval is the biggest factor.
+ GPS Accuracy: Not perfect; use min distance to filter noise.
+ Data Usage: More updates = more data.
+ Fused Location Provider: Use it.
+ Activity Recognition: Use it.
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 bottomSheet:
 

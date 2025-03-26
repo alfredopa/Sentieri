@@ -22,8 +22,8 @@
 
         <TextView
             android:id="@+id/tx_nome"
-            android:layout_width="371dp"
-            android:layout_height="52dp"
+            android:layout_width="364dp"
+            android:layout_height="40dp"
             android:layout_marginTop="24dp"
             android:paddingLeft="8sp"
             android:text="Nome"
@@ -113,7 +113,7 @@
             android:id="@+id/imageView2"
             android:layout_width="35dp"
             android:layout_height="30dp"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:src="@drawable/hearth"
             app:layout_constraintStart_toStartOf="@+id/textView7"
             app:layout_constraintTop_toBottomOf="@+id/textView7" />
@@ -174,24 +174,27 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
             android:text="tMin"
+            android:visibility="invisible"
             app:layout_constraintStart_toEndOf="@+id/textView13"
             app:layout_constraintTop_toTopOf="@+id/textView13" />
 
         <TextView
-            android:id="@+id/tMedia_text"
+            android:id="@+id/tTempoTot_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
             android:text="tMedia"
+            android:visibility="invisible"
             app:layout_constraintStart_toEndOf="@+id/textView19"
             app:layout_constraintTop_toTopOf="@+id/textView19" />
 
         <TextView
-            android:id="@+id/tMax_text"
+            android:id="@+id/tTempoMov_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:text="tMax"
+            android:visibility="invisible"
             app:layout_constraintStart_toEndOf="@+id/textView11"
             app:layout_constraintTop_toTopOf="@+id/textView11" />
 
@@ -201,8 +204,9 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
             android:text="Max"
-            app:layout_constraintStart_toEndOf="@+id/tMedia_text"
-            app:layout_constraintTop_toTopOf="@+id/tMedia_text" />
+            android:visibility="invisible"
+            app:layout_constraintStart_toEndOf="@+id/tTempoTot_text"
+            app:layout_constraintTop_toTopOf="@+id/tTempoTot_text" />
 
         <TextView
             android:id="@+id/textView13"
@@ -210,17 +214,19 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
             android:text="Min"
-            app:layout_constraintStart_toEndOf="@+id/tMax_text"
-            app:layout_constraintTop_toTopOf="@+id/tMax_text" />
+            android:visibility="invisible"
+            app:layout_constraintStart_toEndOf="@+id/tTempoMov_text"
+            app:layout_constraintTop_toTopOf="@+id/tTempoMov_text" />
 
         <TextView
             android:id="@+id/textView19"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="44dp"
             android:text="Temp. media"
             app:layout_constraintStart_toStartOf="@+id/imageView2"
-            app:layout_constraintTop_toBottomOf="@+id/textView5" />
+            app:layout_constraintTop_toBottomOf="@+id/textView5"
+            android:visibility="invisible" />
 
         <Switch
             android:id="@+id/swtchFrecce"
@@ -271,6 +277,42 @@
                 android:textSize="14sp" />
 
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/textView4"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Tempo tot"
+            app:layout_constraintStart_toStartOf="@+id/imageView2"
+            app:layout_constraintTop_toBottomOf="@+id/imageView2" />
+
+        <TextView
+            android:id="@+id/tvTempoTot"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:text="TempoTot"
+            app:layout_constraintStart_toEndOf="@+id/textView4"
+            app:layout_constraintTop_toTopOf="@+id/textView4" />
+
+        <TextView
+            android:id="@+id/textView12"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="28dp"
+            android:text="Tempo mov"
+            app:layout_constraintStart_toEndOf="@+id/tvTempoTot"
+            app:layout_constraintTop_toTopOf="@+id/textView4" />
+
+        <TextView
+            android:id="@+id/tvTMov"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="TempMov"
+            app:layout_constraintStart_toEndOf="@+id/textView12"
+            app:layout_constraintTop_toTopOf="@+id/textView4" />
 
 
     </androidx.constraintlayout.widget.ConstraintLayout>
