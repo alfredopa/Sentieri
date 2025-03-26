@@ -46,7 +46,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var poi = GeoPoint(0.0, 0.0)
     var bloccaMappa = true
     var connessione = false
-    var menuMap = 0             // indica mappa online o offline
+    var menuMap = 0             // indice della mappa utilizzata secondo le voci del menu mappa
     var uriMappa = Uri.EMPTY
     var isFixed = false
     //var running = true
@@ -79,7 +79,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     // valori per il calcolo del dislivello con GPS con filtro MovingAverage
     private var previousAltitude: Int? = null
     private val altitudeHistory = mutableListOf<Double>()
-    private val movingAverageWindowSize = 15 // Regola secondo necessità
+    private val movingAverageWindowSize = 10 // Numero di valori da tenere in memoria per la media
     // valori di riferimento della traccia da seguire
     var trackDistanza = 0f
     var trackAscesa = 0

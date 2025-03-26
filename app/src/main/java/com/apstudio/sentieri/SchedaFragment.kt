@@ -77,13 +77,17 @@ class SchedaFragment : Fragment(), MenuProvider {
     private lateinit var mapView: MapView
     private var mapController: MapController? = null
     private lateinit var percorso: Polyline
-    val poiDBList = mutableListOf<PoiDB>()
+    private val poiDBList = mutableListOf<PoiDB>()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setHasOptionsMenu(true) // Abilita le icone nel menu
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        setHasOptionsMenu(true) // Abilita le icone nel menu
         // Inflate the layout for this fragment
         binding = FragmentSchedaBinding.inflate(inflater, container, false)
         return binding.root
@@ -177,9 +181,11 @@ class SchedaFragment : Fragment(), MenuProvider {
             binding.DataOraText.text = it.prnData()
             binding.HrMedText.text = it.HrMed.toString()
             binding.HrMaxText.text = it.HrMax.toString()
-            binding.tMediaText.text = DecimalFormat("##.#").format(it.TempMedia)
-            binding.tMaxText.text = DecimalFormat("##.#").format(it.TempMax)
-            binding.tMinText.text = DecimalFormat("##.#").format(it.TempMin)
+            //binding.tMediaText.text = DecimalFormat("##.#").format(it.TempMedia)
+            //binding.tMaxText.text = DecimalFormat("##.#").format(it.TempMax)
+            //binding.tMinText.text = DecimalFormat("##.#").format(it.TempMin)
+            binding.tvTempoTot.text = MapUtils.formatSeconds(it.TempoTot.toLong())
+            binding.tvTMov.text = MapUtils.formatSeconds(it.TempoInMov.toLong())
         }
         mapView = binding.Mapview
         mapController = MapController(mapView)
@@ -209,7 +215,7 @@ class SchedaFragment : Fragment(), MenuProvider {
         startMarker.title = "Inizio"
         var punto: GeoPoint = percorso.actualPoints[0]
         startMarker.position = punto
-        mapView?.overlays?.add(startMarker)
+        mapView.overlays?.add(startMarker)
         val endMarker = Marker(mapView)
         endMarker.icon = requireContext().let {
             AppCompatResources.getDrawable(
@@ -220,7 +226,7 @@ class SchedaFragment : Fragment(), MenuProvider {
         punto = percorso.actualPoints[percorso.actualPoints.size - 1]
         endMarker.position = punto
         endMarker.title = "Fine"
-        mapView?.overlays?.add(endMarker)
+        mapView.overlays?.add(endMarker)
 
         /*val arrowPaint = Paint()
         val color = Color.argb(255, 100, 100, 100)
@@ -329,20 +335,6 @@ class SchedaFragment : Fragment(), MenuProvider {
                 SchedaFragmentDirections.actionSchedaFragmentToMappaFragment()
             findNavController().navigate(directions)
         }
-
-
-        /*swcSegui.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                //segue traccia, abilita la gestione del fuori traccia
-                percorso.title = binding.txNome.text.toString()
-                /*if (viewModel.tracciaDaSeguire.isNotEmpty()) {
-                    alertSegui { result ->
-                        swcSegui.isChecked = result
-                    }
-                }*/
-
-            }
-        }*/
 
             val btnAltimetria: Button = binding.btnAltimetria
             btnAltimetria.setOnClickListener {

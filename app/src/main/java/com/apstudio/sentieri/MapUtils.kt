@@ -16,7 +16,9 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.core.content.ContextCompat.getColor
+import com.apstudio.mytestmapsforgegit.URIPathHelper
 import com.apstudio.sentieri.db.LayerItem
 import com.google.type.Date
 import org.osmdroid.mapsforge.MapsForgeTileProvider
@@ -118,7 +120,7 @@ object MapUtils {
         }
     }*/
 
-    fun disegnaLine(line: Polyline): Polyline {
+        fun disegnaLine(line: Polyline): Polyline {
         // min / max values used in the example
         // scalar meaning is "speed" in this example with no unit
         val MIN_SCALAR = 0

@@ -908,7 +908,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             TempMax = 0.0,
             TempMin = 0.0,
             DataFine = "",
-            TempoTot = viewModel.elapsedTime.toDouble(),
+            TempoTot = (viewModel.elapsedTime /1000).toDouble(),
             TempoInMov = viewModel.secondiMovimento.value!!.toDouble(),
             MediaVel = 0.0
         )

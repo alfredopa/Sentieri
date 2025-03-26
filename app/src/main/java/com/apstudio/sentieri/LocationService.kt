@@ -49,8 +49,8 @@ class LocationService : LifecycleService() {
 
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = 1234 //"location_service_channel"
-        private const val LOCATION_UPDATE_INTERVAL_MS = 1500L
-        private const val MIN_DISTANCE_CHANGE_METERS = 0f
+        private const val LOCATION_UPDATE_INTERVAL_MS = 2000L
+        private const val MIN_DISTANCE_CHANGE_METERS = 2f
         private const val MIN_ACCURACY_METERS = 40f
         private const val TAG = "LocationService"
     }
@@ -125,10 +125,10 @@ class LocationService : LifecycleService() {
             location = newLocation
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 gpsViewModel.mslAltitude = newLocation.mslAltitudeMeters
-            } else {
+            } //else {
                 // Use the standard altitude if mslAltitudeMeters is not available
-                gpsViewModel.mslAltitude = newLocation.altitude
-            }
+                //gpsViewModel.mslAltitude = newLocation.altitude
+            //}
             if (gpsViewModel.is_Calibrato) {
                 milliBar = baroRepo.baroData.value ?: 0.0F
             }
@@ -199,9 +199,9 @@ class LocationService : LifecycleService() {
         if (message.startsWith("\$GPGGA") || message.startsWith("\$GNGGA")) {
             val nmeaParts = message.split(",")
             if (nmeaParts.size > 9 && nmeaParts[6] == "1") {
-                gpsViewModel.updateGpsStatus("fixed")
+                //gpsViewModel.updateGpsStatus("fixed")
                 gpsViewModel.mslAltitude = nmeaParts[9].toDoubleOrNull() ?: gpsViewModel.zeroMsl
-                Log.d(TAG, "NMEA message received: Altitude = ${gpsViewModel.mslAltitude}")
+                //Log.d(TAG, "NMEA message received: Altitude = ${gpsViewModel.mslAltitude}")
             }
         }
     }
