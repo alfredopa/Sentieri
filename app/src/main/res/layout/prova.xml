@@ -59,7 +59,7 @@
             android:layout_height="wrap_content"
             app:srcCompat="@drawable/ic_pin_drop" />
         <TextView
-            android:id="@+id/tvQuota"
+            android:id="@+id/tTempoTotText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"

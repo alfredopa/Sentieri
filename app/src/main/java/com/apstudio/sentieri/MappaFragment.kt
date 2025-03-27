@@ -54,6 +54,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.fragment.findNavController
 import androidx.preference.PreferenceManager
 import com.apstudio.mytestmapsforgegit.URIPathHelper
+import com.apstudio.sentieri.MapUtils.convertMillisToISO8601JavaTime
 import com.apstudio.sentieri.MapUtils.dataOraIso8601
 import com.apstudio.sentieri.MapUtils.disegnaLine
 import com.apstudio.sentieri.MapUtils.formatSeconds
@@ -72,7 +73,6 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import mil.nga.geopackage.GeoPackageFactory
-import mil.nga.proj.ProjectionFactory
 import net.federicomatera.agpxp.GpxParser
 import net.federicomatera.agpxp.GpxWriter
 import net.federicomatera.agpxp.models.Gpx
@@ -87,7 +87,6 @@ import org.osmdroid.gpkg.overlay.OsmMapShapeConverter
 import org.osmdroid.gpkg.overlay.features.MarkerOptions
 import org.osmdroid.gpkg.overlay.features.PolygonOptions
 import org.osmdroid.gpkg.overlay.features.PolylineOptions
-import org.osmdroid.gpkg.tiles.raster.GeoPackageProvider
 import org.osmdroid.mapsforge.MapsForgeTileProvider
 import org.osmdroid.mapsforge.MapsForgeTileSource
 import org.osmdroid.tileprovider.MapTileProviderBasic
@@ -96,9 +95,7 @@ import org.osmdroid.tileprovider.modules.OfflineTileProvider
 import org.osmdroid.tileprovider.tilesource.MapBoxTileSource
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
-import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapController
@@ -289,7 +286,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
         // Textview dei valori da visualizzare in Cruscotto
         dist = view.findViewById(R.id.tvDist)
-        tvQuota = view.findViewById(R.id.tvQuota)
+        tvQuota = view.findViewById(R.id.tTempoTotText)
         velo = view.findViewById(R.id.tvVelo)
         disliv = view.findViewById(R.id.tvDPiu)
         dMeno = view.findViewById(R.id.tvDMeno)
@@ -890,6 +887,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
+    private fun mediaSpeed(): Double {
+        // Calcola la velocità media media in km/h
+        return (viewModel.distanzaMetri.value!!.toDouble()/(viewModel.elapsedTime /1000).toDouble() * 3.6)
+    }
+
     private fun salvaTraccia(nomeTraccia: String) {
         var ultimoID: Long
 //var punto = WayPoint()
@@ -903,14 +905,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             discesa = viewModel.dislivMeno.value!!.toInt(),
             HrMed = 0,
             HrMax = 0,
-            DataOra = dateString,
+            DataOra = convertMillisToISO8601JavaTime(viewModel.oraInizio),
             TempMedia = 0.0,
             TempMax = 0.0,
             TempMin = 0.0,
-            DataFine = "",
+            DataFine = dateString,
             TempoTot = (viewModel.elapsedTime /1000).toDouble(),
             TempoInMov = viewModel.secondiMovimento.value!!.toDouble(),
-            MediaVel = 0.0
+            MediaVel = mediaSpeed()
         )
 
         viewModel.viewModelScope.launch(Dispatchers.IO) {
@@ -1230,7 +1232,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         return if (distanza < 1_000)
             String.format(Locale.getDefault(), "%d m", distanza)
         else {
-            val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
+            NumberFormat.getNumberInstance(Locale.getDefault())
             val km = distanza / 1_000.0
             String.format(Locale.getDefault(), "%.1f km", km)
         }
@@ -1437,8 +1439,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    private fun geoPackage() {
-        /*val mapFiles: MutableSet<File> = HashSet()
+    /*private fun geoPackage() {
+        val mapFiles: MutableSet<File> = HashSet()
         mapFiles.add(File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe/prova.gpkg"))
         //var maps: Array<File?> = arrayOfNulls(mapFiles.size)
         var maps: Array<File?> = arrayOfNulls(1)
@@ -1455,7 +1457,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         )
         val bbox: BoundingBox = sources[0].bounds
         mapView.setTileProvider(geoPackageProvider)
-        mapView.setTileSource(tileSource)*/
+        mapView.setTileSource(tileSource)
 
 
         //-----------------------------------------------------------------------------------------------------------------------
@@ -1507,7 +1509,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
             }
         }
-    }
+    }*/
 
     private fun addGeopackageTiles() {
 
@@ -1533,7 +1535,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
             val features = geoPackage.featureTables   //tileTables
 
-
             val markerRenderingOptions = MarkerOptions()
             val polylineRenderingOptions = PolylineOptions()
             polylineRenderingOptions.width = 2f
@@ -1557,7 +1558,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val featureTable = "iba"
             val featureDao = geoPackage.getFeatureDao(featureTable)
             val featureCursor = featureDao.queryForAll()
-            try {
+            featureCursor.use { featureCursor ->
                 while (featureCursor.moveToNext()) {
                     try {
                         val featureRow = featureCursor.row
@@ -1570,10 +1571,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     }
                     // ...
                 }
-            } finally {
-                featureCursor.close()
             }
-            var projection = ProjectionFactory.getProjection(
+            /*var projection = ProjectionFactory.getProjection(
                 featureDao.projection.authority,
                 featureDao.projection.code
             )
@@ -1584,12 +1583,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 boundingBox.maxLongitude,
                 boundingBox.minLatitude,
                 boundingBox.minLongitude
-            )
+            )*/
             geoPackage.close()
             mapView.invalidate()
 
             /*if (features != null) {
-
+                // Layer di Tiles
                 for (tableName in features) {
                     val tileDao = geoPackage.getTileDao(tableName)
 

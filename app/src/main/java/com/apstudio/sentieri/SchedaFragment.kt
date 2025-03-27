@@ -2,6 +2,7 @@ package com.apstudio.sentieri
 
 import android.content.Context
 import android.content.Intent
+import android.icu.text.DecimalFormat
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -29,7 +30,6 @@ import com.apstudio.sentieri.databinding.FragmentSchedaBinding
 import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.SentieriRepo
-import com.apstudio.sentieri.db.prnData
 import com.apstudio.sentieri.db.prnDiscesa
 import com.apstudio.sentieri.db.prnDislivello
 import com.apstudio.sentieri.db.prnLunghezza
@@ -60,7 +60,6 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.io.File
 import java.io.FileOutputStream
-import java.text.DecimalFormat
 import java.util.Date
 
 // Fragment che visualizza il dettaglio della traccia selezionata dall'elenco delle tracce
@@ -178,14 +177,16 @@ class SchedaFragment : Fragment(), MenuProvider {
             binding.txDistanza.text = it.prnLunghezza()
             binding.txDislivello.text = it.prnDislivello()
             binding.txDiscesa.text = it.prnDiscesa()
-            binding.DataOraText.text = it.prnData()
+            binding.tDataInizioText.text = MapUtils.prnDataFromUtc(it.DataOra)
+            binding.tDataFineText.text = MapUtils.prnDataFromUtc(it.DataFine)
+            binding.tvTempoTot.text = MapUtils.formatSeconds(it.TempoTot.toLong())
+            binding.tvTMov.text = MapUtils.formatSeconds(it.TempoInMov.toLong())
             binding.HrMedText.text = it.HrMed.toString()
             binding.HrMaxText.text = it.HrMax.toString()
+            binding.tVelMedText.text = DecimalFormat("##.#").format(it.MediaVel)
             //binding.tMediaText.text = DecimalFormat("##.#").format(it.TempMedia)
             //binding.tMaxText.text = DecimalFormat("##.#").format(it.TempMax)
             //binding.tMinText.text = DecimalFormat("##.#").format(it.TempMin)
-            binding.tvTempoTot.text = MapUtils.formatSeconds(it.TempoTot.toLong())
-            binding.tvTMov.text = MapUtils.formatSeconds(it.TempoInMov.toLong())
         }
         mapView = binding.Mapview
         mapController = MapController(mapView)
@@ -350,7 +351,7 @@ class SchedaFragment : Fragment(), MenuProvider {
         val filePath = uriPathHelper.getPath(requireContext(), uri)
 
         val maps: Array<File?> = arrayOfNulls(1)
-        val f = File(filePath)
+        val f = File(filePath!!)
         if (f.exists()) {
             maps[0] = f
         }
