@@ -20,6 +20,7 @@ import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.core.content.ContextCompat.getColor
 import com.apstudio.mytestmapsforgegit.URIPathHelper
 import com.apstudio.sentieri.db.LayerItem
+import com.apstudio.sentieri.db.Sentieri
 import com.google.type.Date
 import org.osmdroid.mapsforge.MapsForgeTileProvider
 import org.osmdroid.mapsforge.MapsForgeTileSource
@@ -45,6 +46,7 @@ import java.time.LocalTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.Duration
+import java.time.Instant
 import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -444,6 +446,13 @@ object MapUtils {
         return formatter.format(now)
     }
 
+    fun convertMillisToISO8601JavaTime(millis: Long): String {
+        return DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
+            .withZone(ZoneOffset.UTC)
+            .format(Instant.ofEpochMilli(millis))
+        //return DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(millis))
+    }
+
     fun extractFileName(input: String): String {
         if (input.isEmpty()) {
             return "" // Restituisci una stringa vuota se l'input è nullo o vuoto
@@ -572,6 +581,19 @@ object MapUtils {
         val seconds = totalSeconds % 60
         // Use String.format to add leading zeros
         return String.format(Locale.ITALY, "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+
+    fun prnDataFromUtc(dataOra: String): String {
+        return if (dataOra == "")
+            ""
+        else {
+            // data ora UTC
+            var odt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
+                .withZone(ZoneOffset.UTC)
+            val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm",)
+            val dateTime = LocalDateTime.parse(dataOra, odt)
+            formatter.format(dateTime)
+        }
     }
 
     fun formatMillisToHHmmss(millis: Long): String {

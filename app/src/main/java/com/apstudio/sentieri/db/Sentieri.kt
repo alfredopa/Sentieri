@@ -4,9 +4,6 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.text.NumberFormat
-import java.time.LocalDateTime
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Entity(tableName = "Sentieri")
@@ -53,19 +50,6 @@ fun Sentieri.prnDislivello(): String =
 
 fun Sentieri.prnDiscesa(): String =
     NumberFormat.getInstance(Locale.ITALIAN).format(discesa)
-
-fun Sentieri.prnData(): String {
-    return if (DataOra == "")
-        ""
-    else {
-        // data ora UTC
-        var odt =  DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
-                .withZone(ZoneOffset.UTC)
-        val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm",)
-        val dateTime = LocalDateTime.parse(DataOra, odt)
-        formatter.format(dateTime)
-    }
-}
 
 
 

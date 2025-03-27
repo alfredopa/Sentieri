@@ -113,10 +113,10 @@
             android:id="@+id/imageView2"
             android:layout_width="35dp"
             android:layout_height="30dp"
-            android:layout_marginTop="8dp"
+            android:layout_marginStart="16dp"
             android:src="@drawable/hearth"
-            app:layout_constraintStart_toStartOf="@+id/textView7"
-            app:layout_constraintTop_toBottomOf="@+id/textView7" />
+            app:layout_constraintStart_toEndOf="@+id/tVelMed_text"
+            app:layout_constraintTop_toTopOf="@+id/textView13" />
 
         <TextView
             android:id="@+id/DataOra_text"
@@ -132,7 +132,7 @@
             android:id="@+id/textView5"
             android:layout_width="37dp"
             android:layout_height="23dp"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="8dp"
             android:text="Med"
             android:textSize="14sp"
             app:layout_constraintStart_toEndOf="@+id/imageView2"
@@ -169,64 +169,64 @@
             app:layout_constraintTop_toTopOf="@+id/textView10" />
 
         <TextView
-            android:id="@+id/tMin_text"
+            android:id="@+id/tVelMed_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:text="tMin"
-            android:visibility="invisible"
+            android:layout_marginStart="8dp"
+            android:text="velMed"
+            android:visibility="visible"
             app:layout_constraintStart_toEndOf="@+id/textView13"
             app:layout_constraintTop_toTopOf="@+id/textView13" />
 
         <TextView
-            android:id="@+id/tTempoTot_text"
+            android:id="@+id/tDataInizio_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
-            android:text="tMedia"
-            android:visibility="invisible"
+            android:text="Inizio"
+            android:visibility="visible"
             app:layout_constraintStart_toEndOf="@+id/textView19"
             app:layout_constraintTop_toTopOf="@+id/textView19" />
 
         <TextView
-            android:id="@+id/tTempoMov_text"
+            android:id="@+id/tDataFine_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:text="tMax"
-            android:visibility="invisible"
-            app:layout_constraintStart_toEndOf="@+id/textView11"
-            app:layout_constraintTop_toTopOf="@+id/textView11" />
+            android:text="data fine"
+            android:visibility="visible"
+            app:layout_constraintStart_toEndOf="@+id/tTempoMovText"
+            app:layout_constraintTop_toTopOf="@+id/tTempoMovText" />
 
         <TextView
-            android:id="@+id/textView11"
+            android:id="@+id/tTempoMovText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:text="Max"
-            android:visibility="invisible"
-            app:layout_constraintStart_toEndOf="@+id/tTempoTot_text"
-            app:layout_constraintTop_toTopOf="@+id/tTempoTot_text" />
+            android:layout_marginStart="16dp"
+            android:text="Fine"
+            android:visibility="visible"
+            app:layout_constraintStart_toEndOf="@+id/tDataInizio_text"
+            app:layout_constraintTop_toTopOf="@+id/tDataInizio_text" />
 
         <TextView
             android:id="@+id/textView13"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:text="Min"
-            android:visibility="invisible"
-            app:layout_constraintStart_toEndOf="@+id/tTempoMov_text"
-            app:layout_constraintTop_toTopOf="@+id/tTempoMov_text" />
+            android:layout_marginTop="8dp"
+            android:text="Vel med"
+            android:visibility="visible"
+            app:layout_constraintStart_toStartOf="@+id/textView4"
+            app:layout_constraintTop_toBottomOf="@+id/textView4" />
 
         <TextView
             android:id="@+id/textView19"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="44dp"
-            android:text="Temp. media"
-            app:layout_constraintStart_toStartOf="@+id/imageView2"
-            app:layout_constraintTop_toBottomOf="@+id/textView5"
-            android:visibility="invisible" />
+            android:layout_marginTop="8dp"
+            android:text="Inizio"
+            android:visibility="visible"
+            app:layout_constraintStart_toStartOf="@+id/textView7"
+            app:layout_constraintTop_toBottomOf="@+id/textView7" />
 
         <Switch
             android:id="@+id/swtchFrecce"
@@ -282,16 +282,16 @@
             android:id="@+id/textView4"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="8dp"
             android:text="Tempo tot"
-            app:layout_constraintStart_toStartOf="@+id/imageView2"
-            app:layout_constraintTop_toBottomOf="@+id/imageView2" />
+            app:layout_constraintStart_toStartOf="@+id/textView19"
+            app:layout_constraintTop_toBottomOf="@+id/textView19" />
 
         <TextView
             android:id="@+id/tvTempoTot"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="24dp"
+            android:layout_marginStart="16dp"
             android:text="TempoTot"
             app:layout_constraintStart_toEndOf="@+id/textView4"
             app:layout_constraintTop_toTopOf="@+id/textView4" />
