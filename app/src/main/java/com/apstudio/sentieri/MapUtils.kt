@@ -41,6 +41,7 @@ import org.osmdroid.views.overlay.milestones.MilestoneManager
 import org.osmdroid.views.overlay.milestones.MilestonePathDisplayer
 import org.osmdroid.views.overlay.milestones.MilestonePixelDistanceLister
 import java.io.File
+import java.text.NumberFormat
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneOffset
@@ -593,6 +594,17 @@ object MapUtils {
             val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm",)
             val dateTime = LocalDateTime.parse(dataOra, odt)
             formatter.format(dateTime)
+        }
+    }
+
+    fun formattastring(distanza: Int): String {
+        // visualizza distanza in metri o km
+        return if (distanza < 1_000)
+            String.format(Locale.getDefault(), "%d m", distanza)
+        else {
+            NumberFormat.getNumberInstance(Locale.getDefault())
+            val km = distanza / 1_000.0
+            String.format(Locale.getDefault(), "%.1f km", km)
         }
     }
 

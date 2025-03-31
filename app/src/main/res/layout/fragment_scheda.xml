@@ -35,32 +35,32 @@
 
         <TextView
             android:id="@+id/tx_distanza"
-            android:layout_width="77dp"
+            android:layout_width="70dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
             android:layout_marginTop="24dp"
             android:text="Distanza"
             android:textSize="14sp"
             app:layout_constraintBottom_toBottomOf="@+id/textView6"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0.061"
             app:layout_constraintStart_toEndOf="@+id/textView6"
             app:layout_constraintTop_toBottomOf="@+id/tx_nome"
             app:layout_constraintVertical_bias="1.0" />
 
         <TextView
             android:id="@+id/tx_dislivello"
-            android:layout_width="79dp"
-            android:layout_height="19dp"
+            android:layout_width="45dp"
+            android:layout_height="18dp"
+            android:layout_marginStart="8dp"
             android:text="Dislivello"
             android:textSize="14sp"
-            app:layout_constraintStart_toStartOf="@+id/tx_distanza"
+            app:layout_constraintStart_toEndOf="@+id/textView7"
             app:layout_constraintTop_toTopOf="@+id/textView7" />
 
         <TextView
             android:id="@+id/tx_discesa"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="32dp"
+            android:layout_marginStart="8dp"
             android:text="Discesa"
             android:textSize="14sp"
             app:layout_constraintStart_toEndOf="@+id/textView9"
@@ -70,28 +70,27 @@
             android:id="@+id/textView6"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
             android:layout_marginTop="8dp"
-            android:text="Distanza"
+            android:text="Dist."
             android:textSize="14sp"
-            app:layout_constraintStart_toStartOf="@+id/tx_nome"
-            app:layout_constraintTop_toBottomOf="@+id/tx_nome" />
+            app:layout_constraintStart_toStartOf="@+id/textView19"
+            app:layout_constraintTop_toBottomOf="@+id/textView19" />
 
         <TextView
             android:id="@+id/textView7"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginStart="8dp"
             android:text="Ascesa"
             android:textSize="14sp"
-            app:layout_constraintStart_toStartOf="@+id/textView6"
-            app:layout_constraintTop_toBottomOf="@+id/textView6" />
+            app:layout_constraintStart_toEndOf="@+id/tx_distanza"
+            app:layout_constraintTop_toTopOf="@+id/textView6" />
 
         <TextView
             android:id="@+id/textView9"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="31dp"
+            android:layout_marginStart="8dp"
             android:text="Discesa"
             android:textSize="14sp"
             app:layout_constraintStart_toEndOf="@+id/tx_dislivello"
@@ -117,16 +116,6 @@
             android:src="@drawable/hearth"
             app:layout_constraintStart_toEndOf="@+id/tVelMed_text"
             app:layout_constraintTop_toTopOf="@+id/textView13" />
-
-        <TextView
-            android:id="@+id/DataOra_text"
-            android:layout_width="165dp"
-            android:layout_height="19dp"
-            android:layout_marginStart="32dp"
-            android:text="DataOra"
-            android:textSize="14sp"
-            app:layout_constraintStart_toEndOf="@+id/tx_distanza"
-            app:layout_constraintTop_toTopOf="@+id/textView6" />
 
         <TextView
             android:id="@+id/textView5"
@@ -225,8 +214,8 @@
             android:layout_marginTop="8dp"
             android:text="Inizio"
             android:visibility="visible"
-            app:layout_constraintStart_toStartOf="@+id/textView7"
-            app:layout_constraintTop_toBottomOf="@+id/textView7" />
+            app:layout_constraintStart_toStartOf="@+id/tx_nome"
+            app:layout_constraintTop_toBottomOf="@+id/tx_nome" />
 
         <Switch
             android:id="@+id/swtchFrecce"
@@ -284,8 +273,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="Tempo tot"
-            app:layout_constraintStart_toStartOf="@+id/textView19"
-            app:layout_constraintTop_toBottomOf="@+id/textView19" />
+            app:layout_constraintStart_toStartOf="@+id/textView6"
+            app:layout_constraintTop_toBottomOf="@+id/textView6" />
 
         <TextView
             android:id="@+id/tvTempoTot"

@@ -24,8 +24,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="140dp"
-        app:layout_constraintStart_toEndOf="@+id/tTempoTotText"
-        app:layout_constraintTop_toTopOf="@+id/tTempoTotText"
+        app:layout_constraintStart_toEndOf="@+id/tvQuota"
+        app:layout_constraintTop_toTopOf="@+id/tvQuota"
         app:srcCompat="@drawable/ic_trending_down" />
 
     <ImageView
@@ -33,8 +33,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="40dp"
-        app:layout_constraintStart_toEndOf="@+id/tTempoTotText"
-        app:layout_constraintTop_toTopOf="@+id/tTempoTotText"
+        app:layout_constraintStart_toEndOf="@+id/tvQuota"
+        app:layout_constraintTop_toTopOf="@+id/tvQuota"
         app:srcCompat="@drawable/ic_trending_up" />
 
     <TextView
@@ -50,7 +50,7 @@
         app:layout_constraintVertical_bias="0.017" />
 
     <TextView
-        android:id="@+id/tTempoTotText"
+        android:id="@+id/tvQuota"
         android:layout_width="81dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="12dp"
@@ -141,7 +141,7 @@
         app:srcCompat="@drawable/ic_time" />
 
     <Button
-        android:id="@+id/button"
+        android:id="@+id/btnAllarme"
         android:layout_width="wrap_content"
         android:layout_height="40dp"
         android:layout_marginEnd="8dp"

@@ -25,6 +25,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.NavDeepLinkBuilder
 import com.apstudio.sentieri.MappaFragment.Companion.SEND_LOCATION_ACTION
+import kotlin.text.format
 
 /**
  * LocationService is a foreground service responsible for tracking the device's location
@@ -53,6 +54,10 @@ class LocationService : LifecycleService() {
         private const val MIN_DISTANCE_CHANGE_METERS = 2f
         private const val MIN_ACCURACY_METERS = 40f
         private const val TAG = "LocationService"
+        var speedKnots: Double = 0.0
+            private set
+        var speedKmh: Double = 0.0
+            private set
     }
 
     private lateinit var location: Location
@@ -137,11 +142,12 @@ class LocationService : LifecycleService() {
     }
 
     private fun initializeNmeaListener() {
-        if (!hasMslAltitude) {
+        // al momento utilizzare sempre la velocità ricavata da NMEA
+        //if (!hasMslAltitude) {
             nmeaListener = OnNmeaMessageListener { message, _ ->
                 parseNmeaMessage(message)
             }
-        }
+        //}
     }
 
     private fun requestLocationUpdates() {
@@ -192,7 +198,7 @@ class LocationService : LifecycleService() {
             setClass(this@LocationService, MainActivity::class.java)
         }
         LocalBroadcastManager.getInstance(this).sendBroadcast(broadcastIntent)
-        Log.d(TAG, "Location broadcast sent: Altitude = ${location.altitude}, MilliBar = $milliBar, MSL Altitude = ${gpsViewModel.mslAltitude}")
+        //Log.d(TAG, "Location broadcast sent: Altitude = ${location.altitude}, MilliBar = $milliBar, MSL Altitude = ${gpsViewModel.mslAltitude}")
     }
 
     private fun parseNmeaMessage(message: String) {
@@ -203,6 +209,31 @@ class LocationService : LifecycleService() {
                 gpsViewModel.mslAltitude = nmeaParts[9].toDoubleOrNull() ?: gpsViewModel.zeroMsl
                 //Log.d(TAG, "NMEA message received: Altitude = ${gpsViewModel.mslAltitude}")
             }
+        }
+        if (message.startsWith("\$GPRMC")) {
+            parseGPRMC(message)
+        } else if (message.startsWith("\$GNVTG")) {
+            parseGNVTG(message)
+        }
+    }
+
+    private fun parseGPRMC(message: String) {
+        val parts = message.split(",")
+        if (parts.size > 7 && parts[3].isNotEmpty()) { // Check if the message is valid and has enough fields
+            speedKnots = parts[7].toDoubleOrNull() ?: 0.0
+            speedKmh = speedKnots * 1.852
+            gpsViewModel.updateVelocita(speedKmh)
+            //Log.d("NMEA",  "Velocità (GPRMC): %.2f nodi, %.2f km/h, $speedKnots, $speedKmh")
+        }
+    }
+
+    private fun parseGNVTG(message: String) {
+        val parts = message.split(",")
+        if (parts.size > 7) {
+            speedKnots = parts[5].toDoubleOrNull() ?: 0.0
+            speedKmh = parts[7].toDoubleOrNull() ?: (speedKnots * 1.852)
+            gpsViewModel.updateVelocita(speedKmh)
+            //Log.d("NMEA",  "Velocità (GNVTG): %.2f nodi, %.2f km/h, $speedKnots, $speedKmh")
         }
     }
 
