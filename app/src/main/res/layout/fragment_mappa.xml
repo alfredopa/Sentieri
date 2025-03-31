@@ -9,7 +9,7 @@
     tools:context=".MappaFragment">
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fab"
+        android:id="@+id/fabBlocMappa"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center|right|top"
@@ -46,6 +46,6 @@
         android:backgroundTint="@color/common_google_signin_btn_text_dark_disabled"
         app:layout_anchorGravity="center" />
 
-    <include layout="@layout/cruscotto" />
+    <include layout="@layout/cruscotto" android:id="@+id/cruscotto"/>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

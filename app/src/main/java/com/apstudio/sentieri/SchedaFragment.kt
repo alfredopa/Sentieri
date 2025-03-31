@@ -174,7 +174,8 @@ class SchedaFragment : Fragment(), MenuProvider {
         val swcSegui: Switch = binding.swtchSegui
         viewModel.trovaSentiero(idSentiero).observe(this.viewLifecycleOwner) {
             binding.txNome.text = it.nome
-            binding.txDistanza.text = it.prnLunghezza()
+            binding.txDistanza.text = MapUtils.formattastring(it.lunghezza.toInt())
+            //binding.txDistanza.text = it.prnLunghezza()
             binding.txDislivello.text = it.prnDislivello()
             binding.txDiscesa.text = it.prnDiscesa()
             binding.tDataInizioText.text = MapUtils.prnDataFromUtc(it.DataOra)

@@ -28,10 +28,8 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -59,6 +57,7 @@ import com.apstudio.sentieri.MapUtils.dataOraIso8601
 import com.apstudio.sentieri.MapUtils.disegnaLine
 import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.MapUtils.getFileNameFromUri
+import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
 import com.apstudio.sentieri.db.PoiDB
@@ -68,7 +67,6 @@ import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TrackDao
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -124,6 +122,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private val gpsViewModel: GpsViewModel by lazy {
         ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[GpsViewModel::class.java]
     }
+    private var _binding: FragmentMappaBinding? = null
+    private val binding get() = _binding!!
+
     private lateinit var database: SentieriDB
     private lateinit var bottomSheetBehavior: BottomSheetBehavior<ConstraintLayout>
 
@@ -134,19 +135,19 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private lateinit var gpsMarker: Marker
     private var uri: Uri? = null
 
-    private lateinit var dist: TextView
+    /*private lateinit var dist: TextView
     private lateinit var tvQuota: TextView
     private lateinit var velo: TextView
     private lateinit var disliv: TextView
     private lateinit var dMeno: TextView
     private lateinit var tempo: TextView
     private lateinit var tempoMov: TextView
-    private lateinit var calcQuota: TextView
-    private lateinit var blocMappa: FloatingActionButton
-    private lateinit var flCamera: FloatingActionButton
+    private lateinit var calcQuota: TextView*/
+    //private lateinit var blocMappa: FloatingActionButton
+    //private lateinit var flCamera: FloatingActionButton
     private lateinit var osservaMappa: Observer<Polyline>
     private var alertDialog: AlertDialog? = null
-    private lateinit var btnAllarme: Button
+    //private lateinit var btnAllarme: Button
 
     // memorizza istanza del menu per aggiornare icone
     private var menu: Menu? = null
@@ -180,19 +181,24 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?,
-    ): View? {
-        //return inflater.inflate(R.layout.fragment_mappa, container, false)
-        val view = inflater.inflate(R.layout.fragment_mappa, container, false)
+    ): View {
+        _binding = FragmentMappaBinding.inflate(inflater, container, false)
         // Assegna un listener al fragment per gestire la pressione dei tasti
-        view.isFocusableInTouchMode = true
-        view.requestFocus()
-        view.setOnKeyListener(this)
+        view?.isFocusableInTouchMode = true
+        view?.requestFocus()
+        view?.setOnKeyListener(this)
         //Log.d("Mappa", "onCreateView ")
-        return view
+        return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        // aggiunge il bottomsheet ed il menu
+        bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
+        // Set the initial state to hidden AFTER the layout is complete
+        bottomSheetBehavior.peekHeight = 0
+        bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+
         mapView = view.findViewById(R.id.Mapview)
         mapView.setDestroyMode(false)
         // verifica se è stata memorizzato in MenuMap l'indice della mappa da usare
@@ -277,50 +283,32 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapController.setCenter(viewModel.ultPosizione)
         mapController.setZoom(viewModel.ultZoom)
 
-        // aggiunge il bottomsheet ed il menu
-        val layoutSheet = view.findViewById<ConstraintLayout>(R.id.cruscotto)
-        bottomSheetBehavior = BottomSheetBehavior.from(layoutSheet)
-        bottomSheetBehavior.isHideable = true
-        //bottomSheetBehavior.isFitToContents = false
-        bottomSheetBehavior.halfExpandedRatio = 0.6f
-        bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
-        // Textview dei valori da visualizzare in Cruscotto
-        dist = view.findViewById(R.id.tvDist)
-        tvQuota = view.findViewById(R.id.tTempoTotText)
-        velo = view.findViewById(R.id.tvVelo)
-        disliv = view.findViewById(R.id.tvDPiu)
-        dMeno = view.findViewById(R.id.tvDMeno)
-        tempo = view.findViewById(R.id.tvTempo)
-        tempoMov = view.findViewById(R.id.tvTempoMov)
-        blocMappa = view.findViewById(R.id.fab)
-        flCamera = view.findViewById(R.id.camera)
-        btnAllarme = view.findViewById(R.id.button)
-        calcQuota = view.findViewById(R.id.tvCalcQuota)
         // Bottone per bloccare ancoraggio mappa al gps
-        blocMappa.setOnClickListener {
+        binding.fabBlocMappa.setOnClickListener {
             bloccaMappa()
         }
 
         // Bottone per attivare la fotocamera
-        flCamera.setOnClickListener {
+        binding.camera.setOnClickListener {
             //Log.d("camera", "viemodel ${viewModel.traccia.points.size}")
             val directions =
                 MappaFragmentDirections.actionMappaFragmentToCameraFragment()
             this@MappaFragment.findNavController().navigate(directions)
         }
 
-        btnAllarme.setOnClickListener {
+        binding.cruscotto.btnAllarme.setOnClickListener {
             // Dis/Abilita allarme fuori tracce
             viewModel.alertFuoriTraccia = !viewModel.alertFuoriTraccia
             //Log.d("allarme", "allarme ${viewModel.alertFuoriTraccia}")
             if (viewModel.alertFuoriTraccia) {
-                btnAllarme.text = "Allarme on"
-                btnAllarme.backgroundTintList = ColorStateList.valueOf(Color.RED)
+                binding.cruscotto.btnAllarme.text = "Allarme on"
+                binding.cruscotto.btnAllarme.backgroundTintList = ColorStateList.valueOf(Color.RED)
             } else {
-                btnAllarme.text = "Allarme off"
-                btnAllarme.backgroundTintList = ColorStateList.valueOf(Color.GREEN)
+                binding.cruscotto.btnAllarme.text = "Allarme off"
+                binding.cruscotto.btnAllarme.backgroundTintList =
+                    ColorStateList.valueOf(Color.GREEN)
             }
-            btnAllarme.postInvalidate()
+            binding.cruscotto.btnAllarme.postInvalidate()
         }
 
         // l'intent contiene il nome del file GPX da caricare da Files
@@ -428,9 +416,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = 90
             bottomSheetBehavior.state = viewModel.BottomState
-            // riavvia gli observer per aggiornamento dati cruscotto
-            //avviaObserver()
-            gpsViewModel.updateGpsStatus(gpsViewModel.gpsStatus.value!!)
             val toast =
                 Toast.makeText(requireActivity(), "Registrazione in corso", Toast.LENGTH_SHORT)
             toast.view?.setBackgroundColor(getColor(requireActivity(), R.color.purple_500))
@@ -438,13 +423,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    /*override fun onPrepareMenu(menu: Menu) {
+    override fun onPrepareMenu(menu: Menu) {
         super.onPrepareMenu(menu)
         // soluzione per aggiornare icona gps dopo cambio fragment in quanto observer non aggiorna
         if (viewModel.isRecording) {
             gpsViewModel.updateGpsStatus(gpsViewModel.gpsStatus.value!!)
         }
-    }*/
+    }
 
     override fun onPause() {
         super.onPause()
@@ -453,7 +438,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.ultZoom = mapView.zoomLevel
         viewModel.ultPosizione = mapView.mapCenter as GeoPoint
         //memorizza stato del bottomSheet
-        viewModel.BottomState = bottomSheetBehavior.state
+        if (::bottomSheetBehavior.isInitialized)
+            viewModel.BottomState = bottomSheetBehavior.state
         mapView.onPause() //needed for compass, my location overlays, v6.0.0 and up
     }
 
@@ -546,13 +532,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (viewModel.isRecording) {
             if (!viewModel.bloccaMappa) {
                 val icona = ContextCompat.getDrawable(requireContext(), R.drawable.pin_rosso)
-                blocMappa.setImageDrawable(icona)
+                binding.fabBlocMappa.setImageDrawable(icona)
             } else {
                 val icona = ContextCompat.getDrawable(requireContext(), R.drawable.pin_nero)
-                blocMappa.setImageDrawable(icona)
+                binding.fabBlocMappa.setImageDrawable(icona)
             }
 // blocMappa.show()
-            blocMappa.invalidate()
+            binding.fabBlocMappa.invalidate()
             viewModel.bloccaMappa = !viewModel.bloccaMappa
 //Log.d("blocco", "${viewModel.bloccaMappa}")
         }
@@ -701,19 +687,19 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // determina se l'altitudine deve essere barometrica o dal GPS
         // setta il flag is_Calibrato nel gpsViewModel, utilizzato da LocationService
         if (viewModel.is_Calibrato) {
-            calcQuota.text = "BARO"
+            binding.cruscotto.tvCalcQuota.text = "BARO"
             gpsViewModel.is_Calibrato = true
-        }
-        else {
+        } else {
             gpsViewModel.is_Calibrato = false
-            calcQuota.text = "GPS"
+            binding.cruscotto.tvCalcQuota.text = "GPS"
         }
 
         viewModel.startUpdates()
 // avvia il servizio per tracciare locazione in background
         requireActivity().startService(Intent(context, LocationService::class.java))
         bottomSheetBehavior.isHideable = false
-        bottomSheetBehavior.peekHeight = 90
+        bottomSheetBehavior.peekHeight = 70
+        bottomSheetBehavior.halfExpandedRatio = 0.1f
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
 // avvia gli observer per aggiornamento dati cruscotto
         avviaObserver()
@@ -846,50 +832,50 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private fun avviaObserver() {
         val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
         viewModel.distanzaMetri.observe(viewLifecycleOwner) { distanzaMetri ->
-            dist.text = formattastring(distanzaMetri)
+            binding.cruscotto.tvDist.text = MapUtils.formattastring(distanzaMetri)
         }
-        viewModel.velocita.observe(viewLifecycleOwner) { velocita ->
+        /*viewModel.velocita.observe(viewLifecycleOwner) { velocita ->
             velo.text = getString(R.string.kmh, velocita.toInt())
+        }*/
+        gpsViewModel.velocita.observe(viewLifecycleOwner) { velocita ->
+            binding.cruscotto.tvVelo.text = getString(R.string.kmh, velocita.toInt())
         }
         viewModel.quota.observe(viewLifecycleOwner) { quota ->
             //tvQuota.text = quota.toString()
-            tvQuota.text = numberFormat.format(quota)
+            binding.cruscotto.tvQuota.text = numberFormat.format(quota)
         }
         viewModel.dislivPiu.observe(viewLifecycleOwner) { dislivPiu ->
-            disliv.text = numberFormat.format(dislivPiu)
+            binding.cruscotto.tvDPiu.text = numberFormat.format(dislivPiu)
         }
         viewModel.dislivMeno.observe(viewLifecycleOwner) { dislivMeno ->
-            dMeno.text = numberFormat.format(dislivMeno)
+            binding.cruscotto.tvDMeno.text = numberFormat.format(dislivMeno)
         }
         viewModel.tempoTrascorso.observe(viewLifecycleOwner) { tempoTrascorso ->
-            tempo.text = tempoTrascorso
+            binding.cruscotto.tvTempo.text = tempoTrascorso
         }
         viewModel.secondiMovimento.observe(viewLifecycleOwner) { secondiMovimento ->
-            tempoMov.text = formatSeconds(secondiMovimento)
+            binding.cruscotto.tvTempoMov.text = formatSeconds(secondiMovimento)
         }
         gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
-            val currentGpsStatus = status.toString()
-            val menuItem = menu?.findItem(R.id.gps)
-            //Log.d("gpsStatus", "observe $currentGpsStatus")
-            val icon = when (currentGpsStatus) {
-                "started" -> R.drawable.gps_started
-                "fixed" -> R.drawable.gps_on
-                "stopped" -> R.drawable.gps_off
-                else -> R.drawable.gps_off
-            }
-            menuItem?.setIcon(
-                ResourcesCompat.getDrawable(
-                    requireContext().resources,
-                    icon,
-                    requireContext().theme
-                )
-            )
+            updateGpsIcon(status)
         }
+
+    }
+
+    private fun updateGpsIcon(status: String) {
+        val iconRes = when (status) {
+            "started" -> R.drawable.gps_started
+            "fixed" -> R.drawable.gps_on
+            "stopped" -> R.drawable.gps_off
+            else -> R.drawable.gps_off
+        }
+        menu?.findItem(R.id.gps)?.setIcon(iconRes)
+        Log.d("GpsView", "gps status $status")
     }
 
     private fun mediaSpeed(): Double {
         // Calcola la velocità media media in km/h
-        return (viewModel.distanzaMetri.value!!.toDouble()/(viewModel.elapsedTime /1000).toDouble() * 3.6)
+        return (viewModel.distanzaMetri.value!!.toDouble() / (viewModel.elapsedTime / 1000).toDouble() * 3.6)
     }
 
     private fun salvaTraccia(nomeTraccia: String) {
@@ -910,7 +896,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             TempMax = 0.0,
             TempMin = 0.0,
             DataFine = dateString,
-            TempoTot = (viewModel.elapsedTime /1000).toDouble(),
+            TempoTot = (viewModel.elapsedTime / 1000).toDouble(),
             TempoInMov = viewModel.secondiMovimento.value!!.toDouble(),
             MediaVel = mediaSpeed()
         )
@@ -1027,8 +1013,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         Distanza percorsa: ${viewModel.distanzaMetri.value}
                         Dislivello positivo (d+): ${viewModel.dislivPiu.value}
                         Dislivello negativo (d-): ${viewModel.dislivMeno.value}
-                        Tempo trascorso: ${tempo.text}
-                        Tempo in movimento: ${tempoMov.text}
+                        Tempo trascorso: ${binding.cruscotto.tvTempo.text}
+                        Tempo in movimento: ${binding.cruscotto.tvTempoMov.text}
                 """.trimIndent()
                 setMessage(message)
                 setPositiveButton(
@@ -1052,7 +1038,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun azzeraCruscotto() {
 // azzera i valori del viewModel visualizzati nel cruscotto
-        tempoMov.text = ""
+        //tempoMov.text = ""
         viewModel.resetCruscotto()
     }
 
