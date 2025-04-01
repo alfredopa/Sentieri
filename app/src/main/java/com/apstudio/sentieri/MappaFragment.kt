@@ -131,29 +131,20 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     //private lateinit var intent: Intent
     private val SELECT_GPX_FILE = 10
     private val SELECT_MAP_FILE = 20
-    private lateinit var mapView: MapView
+    //private lateinit var mapView: MapView
     private lateinit var gpsMarker: Marker
     private var uri: Uri? = null
 
-    /*private lateinit var dist: TextView
-    private lateinit var tvQuota: TextView
-    private lateinit var velo: TextView
-    private lateinit var disliv: TextView
-    private lateinit var dMeno: TextView
-    private lateinit var tempo: TextView
-    private lateinit var tempoMov: TextView
-    private lateinit var calcQuota: TextView*/
-    //private lateinit var blocMappa: FloatingActionButton
-    //private lateinit var flCamera: FloatingActionButton
     private lateinit var osservaMappa: Observer<Polyline>
     private var alertDialog: AlertDialog? = null
-    //private lateinit var btnAllarme: Button
 
     // memorizza istanza del menu per aggiornare icone
     private var menu: Menu? = null
 
     //gestione preferenze e listener
     private lateinit var preferenze: SharedPreferences
+    private val mapView: MapView
+        get() = binding.Mapview
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -183,11 +174,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         savedInstanceState: Bundle?,
     ): View {
         _binding = FragmentMappaBinding.inflate(inflater, container, false)
-        // Assegna un listener al fragment per gestire la pressione dei tasti
-        view?.isFocusableInTouchMode = true
-        view?.requestFocus()
-        view?.setOnKeyListener(this)
-        //Log.d("Mappa", "onCreateView ")
         return binding.root
     }
 
@@ -198,8 +184,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // Set the initial state to hidden AFTER the layout is complete
         bottomSheetBehavior.peekHeight = 0
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
-
-        mapView = view.findViewById(R.id.Mapview)
+        //mapView = view.findViewById(R.id.Mapview)
+        // Assegna un listener alla mappa per gestire la pressione dei tasti
+        mapView.isFocusableInTouchMode = true
+        mapView.requestFocus()
+        mapView.setOnKeyListener(this)
         mapView.setDestroyMode(false)
         // verifica se è stata memorizzato in MenuMap l'indice della mappa da usare
         if (preferenze.contains("MenuMap")) {
