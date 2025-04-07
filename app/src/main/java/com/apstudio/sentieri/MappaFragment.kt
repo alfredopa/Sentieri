@@ -148,10 +148,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // predispone broadcast per servizio aggiornamento posizione
-        val filter = IntentFilter(SEND_LOCATION_ACTION)
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
-
         // Inizializza le preferenze e registra il listener
         preferenze = PreferenceManager.getDefaultSharedPreferences(requireContext())
         preferenze.registerOnSharedPreferenceChangeListener(this)
@@ -167,6 +163,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         // Get the database instance (using the singleton)
         database = SentieriDB.getInstance(requireContext())
+        // predispone broadcast per servizio aggiornamento posizione
+        val filter = IntentFilter(SEND_LOCATION_ACTION)
+        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
     }
 
     override fun onCreateView(
@@ -300,6 +299,45 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             binding.cruscotto.btnAllarme.postInvalidate()
         }
 
+        // avvia gli observer per aggiornamento dati cruscotto
+        val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
+        viewModel.distanzaMetri.observe(viewLifecycleOwner) { distanzaMetri ->
+            binding.cruscotto.tvDist.text = MapUtils.formattastring(distanzaMetri)
+        }
+        gpsViewModel.velocita.observe(viewLifecycleOwner) { velocita ->
+            binding.cruscotto.tvVelo.text = getString(R.string.kmh, velocita.toInt())
+        }
+        viewModel.quota.observe(viewLifecycleOwner) { quota ->
+            binding.cruscotto.tvQuota.text = numberFormat.format(quota)
+        }
+        viewModel.dislivPiu.observe(viewLifecycleOwner) { dislivPiu ->
+            binding.cruscotto.tvDPiu.text = numberFormat.format(dislivPiu)
+        }
+        viewModel.dislivMeno.observe(viewLifecycleOwner) { dislivMeno ->
+            binding.cruscotto.tvDMeno.text = numberFormat.format(dislivMeno)
+        }
+        viewModel.tempoTrascorso.observe(viewLifecycleOwner) { tempoTrascorso ->
+            binding.cruscotto.tvTempo.text = tempoTrascorso
+        }
+        viewModel.secondiMovimento.observe(viewLifecycleOwner) { secondiMovimento ->
+            binding.cruscotto.tvTempoMov.text = formatSeconds(secondiMovimento)
+        }
+        // determina se l'altitudine deve essere barometrica o dal GPS
+        // setta il flag is_Calibrato nel gpsViewModel, utilizzato da LocationService
+        viewModel.isCalibrato.observe(viewLifecycleOwner) {
+            if (it) {
+                binding.cruscotto.tvCalcQuota.text = "BARO"
+                gpsViewModel.usaBaro = true
+            } else {
+                binding.cruscotto.tvCalcQuota.text = "GPS"
+                gpsViewModel.usaBaro = false
+            }
+        }
+        gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
+            updateGpsIcon(status)
+            Log.d("gps", "status $status")
+        }
+
         // l'intent contiene il nome del file GPX da caricare da Files
         val intent = requireActivity().intent
         val data: Uri? = intent.data
@@ -404,7 +442,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             gpsMarker.setVisible(true)
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = 90
-            bottomSheetBehavior.state = viewModel.BottomState
+            bottomSheetBehavior.state = viewModel.bottomState
             val toast =
                 Toast.makeText(requireActivity(), "Registrazione in corso", Toast.LENGTH_SHORT)
             toast.view?.setBackgroundColor(getColor(requireActivity(), R.color.purple_500))
@@ -428,7 +466,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.ultPosizione = mapView.mapCenter as GeoPoint
         //memorizza stato del bottomSheet
         if (::bottomSheetBehavior.isInitialized)
-            viewModel.BottomState = bottomSheetBehavior.state
+            viewModel.bottomState = bottomSheetBehavior.state
         mapView.onPause() //needed for compass, my location overlays, v6.0.0 and up
     }
 
@@ -673,15 +711,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         viewModel.traccia.observe(viewLifecycleOwner, osservaMappa)
 
-        // determina se l'altitudine deve essere barometrica o dal GPS
+        /*// determina se l'altitudine deve essere barometrica o dal GPS
         // setta il flag is_Calibrato nel gpsViewModel, utilizzato da LocationService
+        Log.d("is_Calibrato", "${viewModel.is_Calibrato}")
         if (viewModel.is_Calibrato) {
             binding.cruscotto.tvCalcQuota.text = "BARO"
-            gpsViewModel.is_Calibrato = true
+            gpsViewModel.usaBaro = true
         } else {
-            gpsViewModel.is_Calibrato = false
             binding.cruscotto.tvCalcQuota.text = "GPS"
-        }
+            gpsViewModel.usaBaro = false
+        }*/
 
         viewModel.startUpdates()
 // avvia il servizio per tracciare locazione in background
@@ -690,8 +729,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         bottomSheetBehavior.peekHeight = 70
         bottomSheetBehavior.halfExpandedRatio = 0.1f
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
-// avvia gli observer per aggiornamento dati cruscotto
-        avviaObserver()
     }
 
     @Deprecated("Deprecated in Java")
@@ -711,7 +748,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // salva la mappa offline scelta nelle preferenze
                 preferenze.edit().putString("URIMappa", uri.toString()).apply()
                 preferenze.edit().putInt("MenuMap", 0).apply()
-                viewModel.uriMappa = uri
+                viewModel.uriMappa = uri!!
             }
         }
     }
@@ -816,39 +853,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             mapView.zoomToBoundingBox(line.bounds.increaseByScale(1.2f), false)
         }
         MapUtils.alertSegui(requireContext(), viewModel, line)
-    }
-
-    private fun avviaObserver() {
-        val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
-        viewModel.distanzaMetri.observe(viewLifecycleOwner) { distanzaMetri ->
-            binding.cruscotto.tvDist.text = MapUtils.formattastring(distanzaMetri)
-        }
-        /*viewModel.velocita.observe(viewLifecycleOwner) { velocita ->
-            velo.text = getString(R.string.kmh, velocita.toInt())
-        }*/
-        gpsViewModel.velocita.observe(viewLifecycleOwner) { velocita ->
-            binding.cruscotto.tvVelo.text = getString(R.string.kmh, velocita.toInt())
-        }
-        viewModel.quota.observe(viewLifecycleOwner) { quota ->
-            //tvQuota.text = quota.toString()
-            binding.cruscotto.tvQuota.text = numberFormat.format(quota)
-        }
-        viewModel.dislivPiu.observe(viewLifecycleOwner) { dislivPiu ->
-            binding.cruscotto.tvDPiu.text = numberFormat.format(dislivPiu)
-        }
-        viewModel.dislivMeno.observe(viewLifecycleOwner) { dislivMeno ->
-            binding.cruscotto.tvDMeno.text = numberFormat.format(dislivMeno)
-        }
-        viewModel.tempoTrascorso.observe(viewLifecycleOwner) { tempoTrascorso ->
-            binding.cruscotto.tvTempo.text = tempoTrascorso
-        }
-        viewModel.secondiMovimento.observe(viewLifecycleOwner) { secondiMovimento ->
-            binding.cruscotto.tvTempoMov.text = formatSeconds(secondiMovimento)
-        }
-        gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
-            updateGpsIcon(status)
-        }
-
     }
 
     private fun updateGpsIcon(status: String) {
@@ -1044,7 +1048,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             val altitudine: Double = intent.getDoubleExtra("altitudine", 0.0)
             val milliBar = intent.getFloatExtra("milliBar", 0.0F)
-
+            Log.d("Receiver", "alti $altitudine mb $milliBar")
             // aggiorna posizione ed inserisce nuovo punto
             // riceve il valore in millibar letti da barometro e lo passa al viewModel
             // aggiorna dati nel viewModel
@@ -1154,7 +1158,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val newWayPoint = WayPoint(
             latitude = viewModel.newPunto.latitude,
             longitude = viewModel.newPunto.longitude,
-            elevation = viewModel.newPunto.altitude,
+            elevation = gpsViewModel.mslAltitude,
             time = Timestamp(System.currentTimeMillis()),
             name = nome,
             comment = descr
@@ -1166,7 +1170,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 Trackid = 0,
                 Latit = viewModel.newPunto.latitude.toFloat(),
                 Longit = viewModel.newPunto.longitude.toFloat(),
-                Ele = viewModel.newPunto.altitude.toFloat(),
+                Ele = gpsViewModel.mslAltitude.toFloat(),
                 NomePOI = nome,
                 DescrPOI = descr,
                 UriPath = "",
@@ -1280,7 +1284,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     //menuItem.setIcon(resources.getDrawable(R.drawable.gps_on))
                     // se è presente barometro ed è settato per essere usato, verifica poi se è gia calibrato non è necessario
                     if (viewModel.haBaro && viewModel.setBaro) {
-                        if (!viewModel.is_Calibrato)
+                        if (!viewModel.isCalibrato.value!!)
                             altDaBaro()
                         else
                             attivaGps()

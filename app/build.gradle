@@ -79,7 +79,6 @@ dependencies {
     implementation ('org.osmdroid:osmdroid-geopackage:6.1.20'){
         exclude group: 'org.osmdroid.gpkg'
         exclude module: 'ormlite-core'
-        //exclude group: 'com.j256.ormlite'
     }
     implementation 'org.mapsforge:mapsforge-map-android:0.21.0'
     implementation 'org.mapsforge:mapsforge-map:0.21.0'

@@ -25,7 +25,6 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.NavDeepLinkBuilder
 import com.apstudio.sentieri.MappaFragment.Companion.SEND_LOCATION_ACTION
-import kotlin.text.format
 
 /**
  * LocationService is a foreground service responsible for tracking the device's location
@@ -51,7 +50,7 @@ class LocationService : LifecycleService() {
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = 1234 //"location_service_channel"
         private const val LOCATION_UPDATE_INTERVAL_MS = 2000L
-        private const val MIN_DISTANCE_CHANGE_METERS = 2f
+        private const val MIN_DISTANCE_CHANGE_METERS = 0f
         private const val MIN_ACCURACY_METERS = 40f
         private const val TAG = "LocationService"
         var speedKnots: Double = 0.0
@@ -60,7 +59,6 @@ class LocationService : LifecycleService() {
             private set
     }
 
-    private lateinit var location: Location
     private lateinit var locationManager: LocationManager
     private lateinit var locationListener: LocationListener
     private var nmeaListener: OnNmeaMessageListener? = null
@@ -127,17 +125,7 @@ class LocationService : LifecycleService() {
                 Log.w(TAG, "Location accuracy is too low: ${newLocation.accuracy}")
                 return@LocationListener
             }
-            location = newLocation
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                gpsViewModel.mslAltitude = newLocation.mslAltitudeMeters
-            } //else {
-                // Use the standard altitude if mslAltitudeMeters is not available
-                //gpsViewModel.mslAltitude = newLocation.altitude
-            //}
-            if (gpsViewModel.is_Calibrato) {
-                milliBar = baroRepo.baroData.value ?: 0.0F
-            }
-            sendBroadcast()
+            sendBroadcast(newLocation)
         }
     }
 
@@ -180,33 +168,35 @@ class LocationService : LifecycleService() {
     }
 
     private fun initializeBarometer() {
-        if (gpsViewModel.is_Calibrato) {
+        if (gpsViewModel.usaBaro) {
             Log.d(TAG, "Starting barometer sensor updates")
             baroRepo = BaroRepo(this)
             baroRepo.startSensorUpdates()
         }
     }
 
-    private fun sendBroadcast() {
+    private fun sendBroadcast(newLocation: Location) {
         val broadcastIntent = Intent().apply {
             action = SEND_LOCATION_ACTION
-            putExtra("posizione", location)
+            putExtra("posizione", newLocation)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+                gpsViewModel.mslAltitude = newLocation.mslAltitudeMeters
             putExtra("altitudine", gpsViewModel.mslAltitude)
-            if (gpsViewModel.is_Calibrato) {
+            if (gpsViewModel.usaBaro) {
+                milliBar = baroRepo.baroData.value ?: 0.0F
                 putExtra("milliBar", milliBar)
             }
             setClass(this@LocationService, MainActivity::class.java)
         }
         LocalBroadcastManager.getInstance(this).sendBroadcast(broadcastIntent)
-        //Log.d(TAG, "Location broadcast sent: Altitude = ${location.altitude}, MilliBar = $milliBar, MSL Altitude = ${gpsViewModel.mslAltitude}")
+        Log.d(TAG, "Location broadcast sent: MilliBar = $milliBar, MSL Altitude = ${gpsViewModel.mslAltitude}")
     }
 
     private fun parseNmeaMessage(message: String) {
         if (message.startsWith("\$GPGGA") || message.startsWith("\$GNGGA")) {
             val nmeaParts = message.split(",")
             if (nmeaParts.size > 9 && nmeaParts[6] == "1") {
-                //gpsViewModel.updateGpsStatus("fixed")
-                gpsViewModel.mslAltitude = nmeaParts[9].toDoubleOrNull() ?: gpsViewModel.zeroMsl
+                gpsViewModel.mslAltitude = nmeaParts[9].toDoubleOrNull() ?: 0.0
                 //Log.d(TAG, "NMEA message received: Altitude = ${gpsViewModel.mslAltitude}")
             }
         }
@@ -246,7 +236,7 @@ class LocationService : LifecycleService() {
     }
 
     private fun stopBarometer() {
-        if (gpsViewModel.is_Calibrato) {
+        if (gpsViewModel.usaBaro) {
             Log.d(TAG, "Stopping barometer sensor updates")
             baroRepo.stopSensorUpdates()
         }
