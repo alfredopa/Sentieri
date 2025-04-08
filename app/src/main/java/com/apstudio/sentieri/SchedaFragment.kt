@@ -333,9 +333,7 @@ class SchedaFragment : Fragment(), MenuProvider {
                 viewModel.layerItems.add(LayerItem(viewModel.line.title, viewModel.line.isEnabled, false, false,
                     viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
 
-            val directions =
-                SchedaFragmentDirections.actionSchedaFragmentToMappaFragment()
-            findNavController().navigate(directions)
+            findNavController().navigate(R.id.action_schedaFragment_to_mappaFragment)
         }
 
             val btnAltimetria: Button = binding.btnAltimetria

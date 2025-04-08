@@ -15,13 +15,16 @@ import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
+import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.navigation.NavController
 import androidx.navigation.findNavController
+import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.navigateUp
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
@@ -43,6 +46,7 @@ class MainActivity :
     }
     private lateinit var navController: NavController
     private lateinit var drawerLayout: DrawerLayout
+    private lateinit var appBarConfiguration: AppBarConfiguration // For handling the Up button and drawer
     private lateinit var preferenze: SharedPreferences
     private var haBaro = false
     private val PERMISSION_ALL = 1
@@ -65,19 +69,21 @@ class MainActivity :
         // Tutti i permessi a false
         allPermissionsGranted = false
 
-        // aggiunge il permesso notifiche da Android 13
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            PERMISSIONS.add(Manifest.permission.POST_NOTIFICATIONS)
             onBackInvokedDispatcher.registerOnBackInvokedCallback(
                 OnBackInvokedDispatcher.PRIORITY_DEFAULT
             ) {
-                // Visualizza un messaggio di conferma
-                if (viewModel.isRecording)
-                    Toast.makeText(this, "Termina registrazione prima di chiudere l'app", Toast.LENGTH_SHORT).show()
-                else
-                    finishAffinity()
+                handleBackPress()
             }
+        } else {
+            onBackPressedDispatcher.addCallback(this, object :
+                OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    handleBackPress()
+                }
+            })
         }
+
         // inizializza le preferenze
         initPreferenze()
         // verifica se tutti i permessi standard sono stati concessi
@@ -102,25 +108,16 @@ class MainActivity :
         val navigationView = findViewById<NavigationView>(R.id.nav_View)
         navController = findNavController(R.id.nav_host_fragment)
         // Make sure actions in the ActionBar get propagated to the NavController
-        setupActionBarWithNavController(navController, drawerLayout)
+        // Connect the drawer layout to the navigation graph
+        appBarConfiguration = AppBarConfiguration(navController.graph, drawerLayout)
+        setupActionBarWithNavController(navController, appBarConfiguration)
+        navigationView.setupWithNavController(navController)
 
         // disabilitazione della voce barometro se non presente
         if (!haBaro) {
             val menuItem = navigationView.menu.findItem(R.id.barometro)
             menuItem.isVisible = false
         }
-        // ABILITARE SE GESTISCO CLICK SUL MENUDRAWER
-        /*navigationView.setNavigationItemSelectedListener { menuItem ->
-            when (menuItem.itemId) {
-                R.id.nav_exit -> {
-                    // Handle home selection
-                    Log.d("Navigation", "uscita")
-                     true
-                }
-                else ->  false
-            }
-        }*/
-        navigationView.setupWithNavController(navController)
 
         // Le preferenze vanno caricate dal main e sono indispensabili per il
         // corretto caricamento delle mappe
@@ -176,15 +173,32 @@ class MainActivity :
             preferenze.edit().putBoolean("haBaro", haBaro).apply()
             preferenze.edit().putBoolean("setBaro", false).apply()
         }
-        /*if (preferenze.contains("haBaro")) {
-            haBaro = preferenze.getBoolean("haBaro", false)
-        } else {
-            navController.navigate(R.id.preferenze)
-        }*/
     }
 
     override fun onSupportNavigateUp(): Boolean {
-        return navController.navigateUp(drawerLayout) || super.onSupportNavigateUp()
+        return navController.navigateUp(appBarConfiguration) || super.onSupportNavigateUp()
+    }
+
+    private fun handleBackPress() {
+        /*if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            return // Stop further back handling here
+        }*/
+        if (viewModel.isRecording) {
+            Toast.makeText(this, "Termina registrazione prima di chiudere l'app", Toast.LENGTH_SHORT).show()
+        } else {
+            // Check if we are at the start destination and the backstack is empty
+            if (navController.currentDestination?.id == navController.graph.startDestinationId &&
+                !navController.popBackStack()) {
+                finishAffinity()
+            } else {
+                // Otherwise, let the NavController handle the back press
+                if (!navController.navigateUp()) {
+                    // This should ideally not be reached if the above check is correct
+                    super.onBackPressed() // For compatibility with older versions
+                }
+            }
+        }
     }
 
     private fun hasPermissions(
@@ -234,16 +248,5 @@ class MainActivity :
                     Toast.makeText(this, "Permessi non assegnati", Toast.LENGTH_SHORT).show()
         }
     }
-    /*override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        when (item.itemId) {
-            R.id.action_exit -> {
-                finishAffinity()
-                // Gestisci il click sulla voce "Home" nel menu drawer
-                return true
-            }
-            // ... altre voci del menu
-        }
-        return false
-    }*/
 
 }
