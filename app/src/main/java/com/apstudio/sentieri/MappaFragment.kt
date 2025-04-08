@@ -1617,56 +1617,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
+    override fun onDetach() {
+        // TODO:  ("Not yet implemented")// da implementare per gestire termine app alla chiusura del fragment
+        super.onDetach()
+    }
 }
-
-
-/*----------------------------------------------------------------------------------------------------
-//  filtra i punti basandosi sulla velocità verticale
-fun filterPoints(points: List<Point>): List<Point> {
-val filteredPoints = mutableListOf<Point>()
-var previousPoint: Point? = null
-for (point in points) {
-if (previousPoint != null) {
-val verticalSpeed = (point.altitude - previousPoint.altitude) / (point.timestamp - previousPoint.timestamp)
-if (Math.abs(verticalSpeed) <= 10.0) {
-    filteredPoints.add(point)
-}
-}
-previousPoint = point
-}
-return filteredPoints
-}
-
-@Override
-fun onOrientationChanged(orientationToMagneticNorth: Float, source: IOrientationProvider?) {
-//note, on devices without a compass this never fires...
-//only use the compass bit if we aren't moving, since gps is more accurate when we are moving
-if (gpsspeed < 0.01) {
-var gf: GeomagneticField? = GeomagneticField(lat, lon, alt, timeOfFix)
-trueNorth = orientationToMagneticNorth + gf!!.declination
-gf = null
-synchronized(trueNorth) {
-if (trueNorth > 360.0f) {
-    trueNorth = trueNorth - 360.0f
-}
-var actualHeading = 0f
-
-//this part adjusts the desired map rotation based on device orientation and compass heading
-var t: Float = 360 - trueNorth - this.deviceOrientation
-if (t < 0) {
-    t += 360f
-}
-if (t > 360) {
-    t -= 360f
-}
-actualHeading = t
-//help smooth everything out
-t = t.toInt().toFloat()
-t = t / 5
-t = t.toInt().toFloat()
-t = t * 5
-mMapView.setMapOrientation(t)
-}
-}
-}
-*/

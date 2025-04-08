@@ -141,9 +141,7 @@ class SentieriFragment : Fragment() {
     private fun listItemClicked(sentieri: Sentieri) {
         // implementa click passa il valore del TrackId del record cliccato
         val direction = actionSentieriFragmentToSchedaFragment(sentieri.id)
-        //viewModel.ricerca = query
         findNavController().navigate(direction)
-        //Toast.makeText(requireActivity().application, "Click su elemento", Toast.LENGTH_LONG).show()
     }
 
     private fun cercaNome(query: String) {
