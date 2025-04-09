@@ -8,7 +8,6 @@
         android:title="Salva gpx" />
     <item
         android:id="@+id/eliminaSentiero"
-        android:enabled="false"
         android:icon="@android:drawable/ic_delete"
         android:title="Elimina sentiero" />
 </menu>

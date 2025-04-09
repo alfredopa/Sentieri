@@ -63,7 +63,7 @@ class LocationService : LifecycleService() {
     private lateinit var locationListener: LocationListener
     private var nmeaListener: OnNmeaMessageListener? = null
     private lateinit var gnssCallback: GnssStatus.Callback
-    private lateinit var baroRepo: BaroRepo
+    private  val baroRepo: BaroRepo by lazy { BaroRepo(this) }
     private var milliBar = 0.0F
     private var hasMslAltitude = false
 
@@ -170,7 +170,7 @@ class LocationService : LifecycleService() {
     private fun initializeBarometer() {
         if (gpsViewModel.usaBaro) {
             Log.d(TAG, "Starting barometer sensor updates")
-            baroRepo = BaroRepo(this)
+            //baroRepo = BaroRepo(this)
             baroRepo.startSensorUpdates()
         }
     }
@@ -182,7 +182,7 @@ class LocationService : LifecycleService() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
                 gpsViewModel.mslAltitude = newLocation.mslAltitudeMeters
             putExtra("altitudine", gpsViewModel.mslAltitude)
-            if (gpsViewModel.usaBaro) {
+            if (gpsViewModel.usaBaro && baroRepo.baroData.isInitialized) {
                 milliBar = baroRepo.baroData.value ?: 0.0F
                 putExtra("milliBar", milliBar)
             }
