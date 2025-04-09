@@ -727,8 +727,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         requireActivity().startService(Intent(context, LocationService::class.java))
         bottomSheetBehavior.isHideable = false
         bottomSheetBehavior.peekHeight = 70
-        bottomSheetBehavior.halfExpandedRatio = 0.1f
+        bottomSheetBehavior.halfExpandedRatio = 0.5f
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
+        gpsViewModel.updateGpsStatus("started")
     }
 
     @Deprecated("Deprecated in Java")

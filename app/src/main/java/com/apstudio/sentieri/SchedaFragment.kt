@@ -161,7 +161,7 @@ class SchedaFragment : Fragment(), MenuProvider {
 
             }
             R.id.eliminaSentiero -> {
-
+                requireActivity().onBackPressedDispatcher.onBackPressed()
             }
         }
         return false
