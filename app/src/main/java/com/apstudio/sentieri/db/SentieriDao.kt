@@ -28,8 +28,8 @@ interface SentieriDao {
     @Delete
     suspend fun deleteDB(item: Sentieri) : Int
 
-    @Query("DELETE from sentieri")
-    suspend fun deleteAll() : Int
+    @Query("DELETE from sentieri WHERE id = :id")
+    suspend fun deleteSentiero(id: Int) : Int
 
     @Query("SELECT * FROM sentieri WHERE Nome LIKE :searchQuery")
     fun cercaNome(searchQuery: String): Flow<List<Sentieri>>

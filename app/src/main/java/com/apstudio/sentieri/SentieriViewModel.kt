@@ -345,7 +345,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     }
 
     fun trovaSentiero(id: Int): LiveData<Sentieri> {
-        return repository.CercaId(id)
+        return repository.cercaId(id)
     }
 
     fun cercaNome(searchQuery: String): LiveData<List<Sentieri>> {
@@ -354,6 +354,13 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     suspend fun salvaSentiero(sentiero: Sentieri): Long {
         return repository.insertDB(sentiero)
+    }
+
+    fun cancellaSentiero(id: Int) {
+        viewModelScope.launch {
+            repository.cancellaSentiero(id)
+            getSavedSentieri()
+        }
     }
 
     /*fun cercaPoi(id: Int): List<PoiDB> {

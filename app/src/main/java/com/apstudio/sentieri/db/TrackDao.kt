@@ -23,4 +23,7 @@ interface TrackDao {
 
     @Insert
     suspend fun insertDB(item: Track) : Long
+
+    @Query("DELETE FROM Track where TrackId = :trackid")
+    suspend fun deleteTrack(trackid: Int)
 }
