@@ -15,6 +15,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.Switch
 import android.widget.Toast
+import androidx.activity.result.launch
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat.getColor
 import androidx.core.view.MenuHost
@@ -22,6 +23,7 @@ import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.apstudio.mytestmapsforgegit.URIPathHelper
@@ -29,10 +31,10 @@ import com.apstudio.sentieri.MapUtils.alertVerificaSegui
 import com.apstudio.sentieri.databinding.FragmentSchedaBinding
 import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.PoiDB
+import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.prnDiscesa
 import com.apstudio.sentieri.db.prnDislivello
-import com.apstudio.sentieri.db.prnLunghezza
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -161,6 +163,8 @@ class SchedaFragment : Fragment(), MenuProvider {
 
             }
             R.id.eliminaSentiero -> {
+                // elimina sentiero con transazione
+                viewModel.cancellaSentiero(args.idSentiero)
                 requireActivity().onBackPressedDispatcher.onBackPressed()
             }
         }
@@ -429,4 +433,5 @@ class SchedaFragment : Fragment(), MenuProvider {
         val bitmapProvider = MapTileProviderBasic(requireContext(), MAPBOXSATELLITELABELLED)
         return bitmapProvider
     }
+
 }

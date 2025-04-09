@@ -1,12 +1,15 @@
 package com.apstudio.sentieri.db
 
 import android.content.Context
+import androidx.activity.result.launch
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.asLiveData
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.Flow
 
 class SentieriRepo(context: Context) {
 
+    val database : SentieriDB = SentieriDB.getInstance(context)
     val dao : SentieriDao = SentieriDB.getInstance(context).sentieriDao
     val poiDao : PoiDao = SentieriDB.getInstance(context).poiDao
     val fotoPoiDao : FotoPoiDao = SentieriDB.getInstance(context).fotoPoiDao
@@ -16,7 +19,7 @@ class SentieriRepo(context: Context) {
         return dao.insertDB(sentieriDB)
     }
 
-    fun CercaId(id : Int): LiveData<Sentieri> {
+    fun cercaId(id : Int): LiveData<Sentieri> {
         return  dao.getItem(id).asLiveData()
     }
 
@@ -28,8 +31,8 @@ class SentieriRepo(context: Context) {
         return dao.deleteDB(sentieriDB)
     }
 
-    suspend fun deleteAll(): Int {
-        return dao.deleteAll()
+    suspend fun deleteSentiero(id: Int): Int {
+        return dao.deleteSentiero(id)
     }
 
     fun cercaNome(searchQuery: String): Flow<List<Sentieri>> {
@@ -44,5 +47,14 @@ class SentieriRepo(context: Context) {
         return fotoPoiDao.getFotoPoibyID(id)
     }
 
+    suspend fun cancellaSentiero(id: Int) {
+        // non riesco ad attivare la transazione
+        //database.runInTransaction{
+            val trackDao = database.trackDao
+            val sentieriDao = database.sentieriDao
+                trackDao.deleteTrack(id)
+                sentieriDao.deleteSentiero(id)
+        //}
+    }
 
 }
