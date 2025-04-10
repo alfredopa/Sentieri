@@ -9,34 +9,35 @@ import kotlinx.coroutines.flow.Flow
 
 class SentieriRepo(context: Context) {
 
-    val database : SentieriDB = SentieriDB.getInstance(context)
-    val dao : SentieriDao = SentieriDB.getInstance(context).sentieriDao
-    val poiDao : PoiDao = SentieriDB.getInstance(context).poiDao
-    val fotoPoiDao : FotoPoiDao = SentieriDB.getInstance(context).fotoPoiDao
-    val sentieriDB = dao.getItems()
+    val database: SentieriDB = SentieriDB.getInstance(context)
+    val sentieriDao: SentieriDao = SentieriDB.getInstance(context).sentieriDao
+    val poiDao: PoiDao = SentieriDB.getInstance(context).poiDao
+    val fotoPoiDao: FotoPoiDao = SentieriDB.getInstance(context).fotoPoiDao
+    val sentieriDB = sentieriDao.getItems()
+    val trackDao = database.trackDao
 
     suspend fun insertDB(sentieriDB: Sentieri): Long {
-        return dao.insertDB(sentieriDB)
+        return sentieriDao.insertDB(sentieriDB)
     }
 
-    fun cercaId(id : Int): LiveData<Sentieri> {
-        return  dao.getItem(id).asLiveData()
+    fun cercaId(id: Int): LiveData<Sentieri> {
+        return sentieriDao.getItem(id).asLiveData()
     }
 
     suspend fun updateDB(sentieriDB: Sentieri): Int {
-        return dao.updateDB(sentieriDB)
+        return sentieriDao.updateDB(sentieriDB)
     }
 
     suspend fun deleteDB(sentieriDB: Sentieri): Int {
-        return dao.deleteDB(sentieriDB)
+        return sentieriDao.deleteDB(sentieriDB)
     }
 
     suspend fun deleteSentiero(id: Int): Int {
-        return dao.deleteSentiero(id)
+        return sentieriDao.deleteSentiero(id)
     }
 
     fun cercaNome(searchQuery: String): Flow<List<Sentieri>> {
-        return dao.cercaNome(searchQuery)
+        return sentieriDao.cercaNome(searchQuery)
     }
 
     fun cercaPoi(id: Int): List<PoiDB> {
@@ -50,10 +51,8 @@ class SentieriRepo(context: Context) {
     suspend fun cancellaSentiero(id: Int) {
         // non riesco ad attivare la transazione
         //database.runInTransaction{
-            val trackDao = database.trackDao
-            val sentieriDao = database.sentieriDao
-                trackDao.deleteTrack(id)
-                sentieriDao.deleteSentiero(id)
+        trackDao.deleteTrack(id)
+        sentieriDao.deleteSentiero(id)
         //}
     }
 

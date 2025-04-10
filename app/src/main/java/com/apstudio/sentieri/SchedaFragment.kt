@@ -1,5 +1,6 @@
 package com.apstudio.sentieri
 
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.icu.text.DecimalFormat
@@ -15,7 +16,6 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.Switch
 import android.widget.Toast
-import androidx.activity.result.launch
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat.getColor
 import androidx.core.view.MenuHost
@@ -23,7 +23,6 @@ import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.apstudio.mytestmapsforgegit.URIPathHelper
@@ -31,7 +30,6 @@ import com.apstudio.sentieri.MapUtils.alertVerificaSegui
 import com.apstudio.sentieri.databinding.FragmentSchedaBinding
 import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.PoiDB
-import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.prnDiscesa
 import com.apstudio.sentieri.db.prnDislivello
@@ -63,6 +61,7 @@ import org.osmdroid.views.overlay.Polyline
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Date
+import androidx.core.net.toUri
 
 // Fragment che visualizza il dettaglio della traccia selezionata dall'elenco delle tracce
 // su una mappa ridotta e principali dati di riepilogo
@@ -163,8 +162,22 @@ class SchedaFragment : Fragment(), MenuProvider {
 
             }
             R.id.eliminaSentiero -> {
-                // elimina sentiero con transazione
-                viewModel.cancellaSentiero(args.idSentiero)
+                // chiede conferma cancellazione
+                val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+                with(builder)
+                {   // chiede salvataggio traccia
+                    setTitle("Eliminazione percorso")
+                    setMessage("Sei sicuro di voler eliminare il percorso?")
+                    setPositiveButton(
+                        "Confermo"
+                    ) { _, _ ->
+                        // elimina sentiero con transazione?
+                        viewModel.cancellaSentiero(args.idSentiero)
+                    }
+                    setNegativeButton(android.R.string.cancel) { _, _ ->}
+                    setCancelable(false) // Impedisce la chiusura tramite tocco esterno o tasto Indietro
+                    show()
+                }
                 requireActivity().onBackPressedDispatcher.onBackPressed()
             }
         }
@@ -192,6 +205,10 @@ class SchedaFragment : Fragment(), MenuProvider {
             //binding.tMediaText.text = DecimalFormat("##.#").format(it.TempMedia)
             //binding.tMaxText.text = DecimalFormat("##.#").format(it.TempMax)
             //binding.tMinText.text = DecimalFormat("##.#").format(it.TempMin)
+            // valorizza le variabili che serviranno se viene caricato il percorso
+            viewModel.trackDistanza = it.lunghezza.toFloat()
+            viewModel.trackAscesa = it.dislivello
+            viewModel.trackDiscesa = it.discesa
         }
         mapView = binding.Mapview
         mapController = MapController(mapView)
@@ -292,7 +309,7 @@ class SchedaFragment : Fragment(), MenuProvider {
                 // aggiunge elenco foto traccia
                 viewModel.listaFotoId(idSentiero).forEach {
                     viewModel.fotoList.add(
-                        Uri.parse(it.uriPath)
+                        it.uriPath.toUri()
                     )
                 }
             }
@@ -401,14 +418,14 @@ class SchedaFragment : Fragment(), MenuProvider {
         }
 
         mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
-        viewModel.connessione = (false)
+        viewModel.connessione = false
         mapView.setUseDataConnection(false)
         mapView.invalidate()
     }
 
     private fun online(mappa: Int) {
         var scarica: MapTileProviderBasic? = null
-        viewModel.connessione = (true)
+        viewModel.connessione = true
         // salvo indice menu selezionato
         viewModel.menuMap = mappa
         mapView.setUseDataConnection(true)
