@@ -88,9 +88,9 @@ class LayerDialog : Fragment() {
                     setTitle("Dati traccia\n${viewModel.layerItems[position].nome}")
                     val layout = LinearLayout(context)
                     layout.orientation = LinearLayout.VERTICAL
-                    val distanza = String.format("%,d", viewModel.trackDistanza.toInt())
-                    val ascesa = String.format("%,d", viewModel.trackAscesa)
-                    val discesa = String.format("%,d", viewModel.trackDiscesa)
+                    val distanza = String.format("%,d", viewModel.layerItems[position].distanza.toInt())
+                    val ascesa = String.format("%,d", viewModel.layerItems[position].ascesa)
+                    val discesa = String.format("%,d", viewModel.layerItems[position].discesa)
                     allarme.setText("\nDistanza: $distanza\nAscesa: $ascesa\nDiscesa: $discesa")
                     allarme.setPadding(20, 10, 20, 30) // Aggiungi padding per una migliore leggibilità
                     layout.addView(allarme)

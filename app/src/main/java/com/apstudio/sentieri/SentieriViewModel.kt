@@ -359,7 +359,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     fun cancellaSentiero(id: Int) {
         viewModelScope.launch {
             repository.cancellaSentiero(id)
-            getSavedSentieri()
         }
     }
 

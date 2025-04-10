@@ -26,7 +26,13 @@ import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriRepo
 
 class SentieriFragment : Fragment() {
-    private val viewModel: SentieriViewModel by activityViewModels {SentieriFactory(SentieriRepo(requireActivity()))}
+    private val viewModel: SentieriViewModel by activityViewModels {
+        SentieriFactory(
+            SentieriRepo(
+                requireActivity()
+            )
+        )
+    }
     private lateinit var binding: FragmentSentieriBinding
     private lateinit var adapter: MyRecyclerViewAdapter
     //private lateinit var searchView: SearchView
@@ -37,7 +43,6 @@ class SentieriFragment : Fragment() {
     ): View {
         binding = FragmentSentieriBinding.inflate(inflater, container, false)
         binding.lifecycleOwner = viewLifecycleOwner
-        //binding.lifecycleOwner = this
         binding.myViewModel = viewModel
 
         val menuHost: MenuHost = requireActivity()
@@ -52,16 +57,16 @@ class SentieriFragment : Fragment() {
                 searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
                     override fun onQueryTextSubmit(query: String?): Boolean {
                         //if (query != null) {
-                            viewModel.ricerca = query!!
-                            cercaNome(query)
+                        viewModel.ricerca = query!!
+                        cercaNome(query)
                         //}
                         return true
                     }
 
                     override fun onQueryTextChange(query: String?): Boolean {
                         //if (query != null) {
-                            viewModel.ricerca = query!!
-                            cercaNome(query)
+                        viewModel.ricerca = query!!
+                        cercaNome(query)
                         //}
                         return true
                     }
@@ -92,16 +97,17 @@ class SentieriFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        /*viewModel.message.observe(viewLifecycleOwner, Observer {
-            it.getContentIfNotHandled()?.let {
-                Toast.makeText(requireActivity().application, it, Toast.LENGTH_LONG).show()
-            }
-        })
-        Log.d("message", "${viewModel.message}")
-         */
         setHasOptionsMenu(true)
         initRecyclerView()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (viewModel.ricerca.isNotEmpty()) {
+            cercaNome(viewModel.ricerca)
+        } else {
+            displaySentieriList()
+        }
     }
 
     private fun initRecyclerView() {
@@ -125,15 +131,14 @@ class SentieriFragment : Fragment() {
             cercaNome(viewModel.ricerca)
             // val actionRestart = menu?.findItem(R.id.menu_search)
             // onOptionsItemSelected(actionRestart)
-        } else {
-            displaySentieriList()
-        }
+        } //else {
+          //  displaySentieriList()
+        //}
     }
 
     private fun displaySentieriList() {
-        viewModel.getSavedSentieri().observe(this.viewLifecycleOwner) {
+        viewModel.getSavedSentieri().observe(viewLifecycleOwner) {
             adapter.setData(it)
-            //adapter.notifyDataSetChanged()
             adapter.notifyItemRangeChanged(0, it.size)
         }
     }
@@ -145,14 +150,13 @@ class SentieriFragment : Fragment() {
     }
 
     private fun cercaNome(query: String) {
-
-            val searchQuery = "%$query%"
-            viewModel.cercaNome(searchQuery).observe(this.viewLifecycleOwner) { list ->
-                list.let {
-                    adapter.setData(it)
-                }
-            }
+        val searchQuery = "%$query%"
+        viewModel.cercaNome(searchQuery).observe(viewLifecycleOwner) { list ->
+            adapter.setData(list)
+            adapter.notifyItemRangeChanged(0, list.size)
         }
-
+    }
 }
+
+
 
