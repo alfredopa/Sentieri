@@ -45,8 +45,8 @@ class MyRecyclerViewAdapter(private val clickListener: (Sentieri) -> Unit) :
 class MyViewHolder(private val binding: FragmentDettaglioSentieriBinding) : RecyclerView.ViewHolder(binding.root) {
     fun bind(sentieri: Sentieri, clickListener: (Sentieri) -> Unit) {
         binding.nomeText.text = sentieri.nome
-        //binding .text = sentieri.descrizione
-        binding.lunghezzaText.text = sentieri.prnLunghezza()
+        binding.lunghezzaText.text = MapUtils.formattastring(sentieri.lunghezza.toInt())
+        //binding.lunghezzaText.text = sentieri.prnLunghezza()
         binding.dislivelloText.text = sentieri.prnDislivello()
         binding.discesaText.text  = sentieri.prnDiscesa()
         binding.hrmediaText.text  = sentieri.HrMed.toString()

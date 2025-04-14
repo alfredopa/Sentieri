@@ -48,6 +48,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -447,11 +448,18 @@ object MapUtils {
         return formatter.format(now)
     }
 
-    fun convertMillisToISO8601JavaTime(millis: Long): String {
+    /*fun convertMillisToISO8601JavaTime(millis: Long): String {
         return DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
             .withZone(ZoneOffset.UTC)
             .format(Instant.ofEpochMilli(millis))
         //return DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(millis))
+    }*/
+
+    fun convertMillisToISO8601JavaTime(timestampMillis: Long): String {
+        val instant = Instant.ofEpochMilli(timestampMillis)
+        val localDateTime = LocalDateTime.ofInstant(instant, ZoneId.systemDefault())
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'") // XXX per l'offset del fuso orario
+        return localDateTime.format(formatter)
     }
 
     fun extractFileName(input: String): String {
@@ -608,7 +616,7 @@ object MapUtils {
         }
     }
 
-    fun formatMillisToHHmmss(millis: Long): String {
+    /*fun formatMillisToHHmmss(millis: Long): String {
         val duration = Duration.ofMillis(millis)
         val hours = duration.toHours()
         val minutes = duration.toMinutesPart()
@@ -628,7 +636,7 @@ object MapUtils {
     fun secondsToTimeString(seconds: Int): String {
         val time = LocalTime.ofSecondOfDay(seconds.toLong())
         return time.format(DateTimeFormatter.ofPattern("HH:mm:ss"))
-    }
+    }*/
 
 
 // da BikeRoutes...

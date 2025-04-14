@@ -145,6 +145,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private lateinit var preferenze: SharedPreferences
     private val mapView: MapView
         get() = binding.Mapview
+    //icone blocco mappa
+    private val PIN_RED = R.drawable.pin_rosso
+    private val PIN_BLACK = R.drawable.pin_nero
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -555,19 +559,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun bloccaMappa() {
-// cambio immagine non funziona
         if (viewModel.isRecording) {
-            if (!viewModel.bloccaMappa) {
-                val icona = ContextCompat.getDrawable(requireContext(), R.drawable.pin_rosso)
-                binding.fabBlocMappa.setImageDrawable(icona)
-            } else {
-                val icona = ContextCompat.getDrawable(requireContext(), R.drawable.pin_nero)
-                binding.fabBlocMappa.setImageDrawable(icona)
+            val iconResId = if (viewModel.bloccaMappa) PIN_BLACK else PIN_RED
+            val icon = ContextCompat.getDrawable(requireContext(), iconResId)
+
+            binding.fabBlocMappa.apply {
+                setImageDrawable(icon)
             }
-// blocMappa.show()
-            binding.fabBlocMappa.invalidate()
             viewModel.bloccaMappa = !viewModel.bloccaMappa
-//Log.d("blocco", "${viewModel.bloccaMappa}")
         }
     }
 
@@ -1159,7 +1158,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val newWayPoint = WayPoint(
             latitude = viewModel.newPunto.latitude,
             longitude = viewModel.newPunto.longitude,
-            elevation = gpsViewModel.mslAltitude,
+            elevation = viewModel.newPunto.altitude,
             time = Timestamp(System.currentTimeMillis()),
             name = nome,
             comment = descr
@@ -1171,7 +1170,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 Trackid = 0,
                 Latit = viewModel.newPunto.latitude.toFloat(),
                 Longit = viewModel.newPunto.longitude.toFloat(),
-                Ele = gpsViewModel.mslAltitude.toFloat(),
+                Ele = viewModel.newPunto.altitude.toFloat(),
                 NomePOI = nome,
                 DescrPOI = descr,
                 UriPath = "",
