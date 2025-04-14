@@ -76,8 +76,8 @@ class SchedaFragment : Fragment(), MenuProvider {
     private lateinit var binding: FragmentSchedaBinding
     private lateinit var mapView: MapView
     private var mapController: MapController? = null
-    private lateinit var percorso: Polyline
     private val poiDBList = mutableListOf<PoiDB>()
+    private lateinit var percorso: Polyline
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

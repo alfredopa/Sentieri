@@ -55,8 +55,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var isRecording = false
     var ricerca = String()
     var ultPosizione = GeoPoint(40.120875, 9.012893, 40.0)   // posizione iniziale mappa
-    var newPunto =  GeoPoint(0.0,0.0)
-    private var oldPunto =  GeoPoint(0.0,0.0)
+    var newPunto =  GeoPoint(0.0,0.0, 0.0)
+    private var oldPunto =  GeoPoint(0.0,0.0, 0.0)
     var ultZoom = (9)
 
     // valori visualizzati nel cruscotto
@@ -128,14 +128,16 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             millibar = baroPress
             // utilizza formula ipsometrica per calcolare altitudine
             val altitudineBaro: Double = MapUtils.calcolaAltitudineIpso(millibar, NORMAL_PRESSURE).toDouble()
-            newPunto = GeoPoint(loc.latitude, loc.longitude)
+            newPunto = GeoPoint(loc.latitude, loc.longitude, altitudineBaro)
             dislivelloBaro(altitudineBaro.toInt())
             _quota.value = altitudineBaro.toInt()
         } else {
-            newPunto = GeoPoint(loc.latitude, loc.longitude)
-            dislivelloGPS(altitudine)
             // la quota deve essere quella media calcolata con MovingAverage
-            //quota.value = altitudine.toInt()
+            val nuovaQuota = dislivelloGPS(altitudine)
+            if (nuovaQuota != null) {
+                newPunto = GeoPoint(loc.latitude, loc.longitude, nuovaQuota.toDouble())
+                _quota.value = nuovaQuota
+            }
         }
 
         if (oldPunto.latitude != 0.0 && oldPunto.longitude != 0.0) {
@@ -172,17 +174,19 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         //Log.d("viewmodel", "aggiornadati ${quotaIpso.value}  new $newQuotaIpso  d+ ${dislivPiuIpso.value} d- ${dislivMenoIpso.value}")
     }
 
-    private fun dislivelloGPS(altitudineGps: Double) {
+    private fun dislivelloGPS(altitudineGps: Double): Int? {
         // CALCOLO DISLIVELLO CON QUOTA DA GPS
         // attende il numero di altitudeHistory punti prima di stimare altitudine
-        if (altitudeHistory.size < movingAverageWindowSize) {
+        return if (altitudeHistory.size < movingAverageWindowSize) {
             altitudeHistory.add(altitudineGps)
-            return
+            null
+        } else {
+            addLocation(altitudineGps)
         }
-        addLocation(altitudineGps)
+
     }
 
-    private fun addLocation(altitudineGps: Double) {
+    private fun addLocation(altitudineGps: Double): Int {
         // Filtra i dati di altitudine usando una media mobile
         val filteredAltitude = applyMovingAverage(altitudineGps)
         // Calcola la differenza di altitudine
@@ -198,7 +202,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
         // Aggiorna l'altitudine precedente
         previousAltitude = filteredAltitude
-        _quota.value = filteredAltitude
+        return filteredAltitude
     }
 
     private fun applyMovingAverage(altitude: Double): Int {
