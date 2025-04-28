@@ -8,11 +8,12 @@ import android.os.Build
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import androidx.core.net.toUri
 
 class URIPathHelper {
 
     fun getPath(context: Context, uri: Uri): String? {
-        val isKitKatorAbove = Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT
+        val isKitKatorAbove = true
 
         // DocumentProvider
         if (isKitKatorAbove && DocumentsContract.isDocumentUri(context, uri)) {
@@ -27,7 +28,7 @@ class URIPathHelper {
 
             } else if (isDownloadsDocument(uri)) {
                 val id = DocumentsContract.getDocumentId(uri)
-                val contentUri = ContentUris.withAppendedId(Uri.parse("content://downloads/public_downloads"), java.lang.Long.valueOf(id))
+                val contentUri = ContentUris.withAppendedId("content://downloads/public_downloads".toUri(), java.lang.Long.valueOf(id))
                 return getDataColumn(context, contentUri, null, null)
             } else if (isMediaDocument(uri)) {
                 val docId = DocumentsContract.getDocumentId(uri)
