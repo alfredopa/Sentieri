@@ -20,6 +20,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.navigation.NavController
@@ -34,6 +35,7 @@ import com.google.android.material.navigation.NavigationView
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.osmdroid.config.Configuration
 import java.io.File
+import androidx.core.content.edit
 
 
 class MainActivity :
@@ -49,26 +51,34 @@ class MainActivity :
     private lateinit var appBarConfiguration: AppBarConfiguration // For handling the Up button and drawer
     private lateinit var preferenze: SharedPreferences
     private var haBaro = false
-    private val PERMISSION_ALL = 1
-    private val PERMISSIONS = mutableListOf(
-        Manifest.permission.ACCESS_COARSE_LOCATION,
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.INTERNET,
-        Manifest.permission.ACCESS_NETWORK_STATE,
-        Manifest.permission.READ_EXTERNAL_STORAGE,
-        Manifest.permission.WRITE_EXTERNAL_STORAGE,
-        Manifest.permission.CAMERA
+    private val PERMISSION_ALL = 123
+    private val PERMISSIONS = buildList {
+        add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        add(Manifest.permission.INTERNET)
+        add(Manifest.permission.ACCESS_NETWORK_STATE)
+        add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        add(Manifest.permission.CAMERA)
         // permesso da Android 13
-        //Manifest.permission.POST_NOTIFICATIONS
-    )
-    private val REQUEST_MANAGE_ALL_FILES_ACCESS_PERMISSION = 2296
-    private var allPermissionsGranted = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE){
+            add(Manifest.permission.FOREGROUND_SERVICE_LOCATION)
+        }
+        else {
+            add(Manifest.permission.FOREGROUND_SERVICE)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Tutti i permessi a false
-        allPermissionsGranted = false
-
+        //allPermissionsGranted = false
+        // verifica se tutti i permessi standard sono stati concessi
+        checkAndRequestPermissions()
+        // inizializza le preferenze
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(
                 OnBackInvokedDispatcher.PRIORITY_DEFAULT
@@ -84,17 +94,7 @@ class MainActivity :
             })
         }
 
-        // inizializza le preferenze
         initPreferenze()
-        // verifica se tutti i permessi standard sono stati concessi
-        if (!hasPermissions(this, PERMISSIONS)) {
-            ActivityCompat.requestPermissions(this, PERMISSIONS.toTypedArray(), PERMISSION_ALL)
-        }
-        // verifica accesso a tutti i file
-        checkAndRequestStoragePermission()
-           if (allPermissionsGranted) {
-            initApp()
-        }
     }
 
     private fun initApp() {
@@ -126,23 +126,23 @@ class MainActivity :
             applicationContext,
             getDefaultSharedPreferences(applicationContext)
         )
-        // verifica se esiste cartella Sentieri nella Root /storage/emulated/0/
-        val folderBase = Environment.getExternalStorageDirectory().absolutePath + "/Sentieri"
-        val sentieriFolder = File(folderBase)
+        // verifica se esiste cartella Sentieri nello spazio file applicazione
+        val documentsDir =
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+        val sentieriFolder = File(documentsDir, "/Mappe")
         if (!sentieriFolder.exists()) {
-            //Controllare se i permessi sono stati concessi ContextCompat.checkSelfPermission()
-            if (Environment.isExternalStorageManager()) {
-                // crea cartelle Sentieri nella sdcard
-                val percorso: Set<String> = setOf("/Sentieri/Mappe", "/Sentieri/Tracce")
-                for (element in percorso) {
-                    val folderPath = Environment.getExternalStorageDirectory().absolutePath + element
-                    if (!creaCartelle(folderPath))
-                        Toast.makeText(this, "Errore nella creazione della cartella $folderPath", Toast.LENGTH_LONG).show()
-                    //Log.d("Preferenze", "Errore nella creazione della cartella Sentieri")
-                    else
-                        Log.d("Preferenze", "Cartella creata in: $folderPath")
-                }
+            // crea cartelle Sentieri nello spazio file applicazione
+            val percorso: Set<String> = setOf("/Mappe", "/Tracce")
+            for (element in percorso) {
+                val folderPath = documentsDir?.absolutePath + element
+                if (!creaCartelle(folderPath))
+                    Toast.makeText(
+                        this,
+                        "Errore nella creazione della cartella $folderPath",
+                        Toast.LENGTH_LONG
+                    ).show()
             }
+
         }
 
     }
@@ -163,15 +163,15 @@ class MainActivity :
         // file preferences.xml
         preferenze = getDefaultSharedPreferences(this)
         // TEST SENSORE BAROMETRO
-        val sensorManager: SensorManager = this.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val sensorManager: SensorManager = this.getSystemService(SENSOR_SERVICE) as SensorManager
         if (sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null) {
             haBaro = true
-            preferenze.edit().putBoolean("haBaro", haBaro).apply()
-            preferenze.edit().putBoolean("setBaro", true).apply()
+            preferenze.edit() { putBoolean("haBaro", haBaro) }
+            preferenze.edit() { putBoolean("setBaro", true) }
         } else {
             haBaro = false
-            preferenze.edit().putBoolean("haBaro", haBaro).apply()
-            preferenze.edit().putBoolean("setBaro", false).apply()
+            preferenze.edit() { putBoolean("haBaro", haBaro) }
+            preferenze.edit() { putBoolean("setBaro", false) }
         }
     }
 
@@ -185,11 +185,16 @@ class MainActivity :
             return // Stop further back handling here
         }*/
         if (viewModel.isRecording) {
-            Toast.makeText(this, "Termina registrazione prima di chiudere l'app", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this,
+                "Termina registrazione prima di chiudere l'app",
+                Toast.LENGTH_SHORT
+            ).show()
         } else {
             // Check if we are at the start destination and the backstack is empty
             if (navController.currentDestination?.id == navController.graph.startDestinationId &&
-                !navController.popBackStack()) {
+                !navController.popBackStack()
+            ) {
                 finishAffinity()
             } else {
                 // Otherwise, let the NavController handle the back press
@@ -201,52 +206,34 @@ class MainActivity :
         }
     }
 
-    private fun hasPermissions(
-        mainActivity: MainActivity,
-        permissions: List<String>
-    ): Boolean {
-        for (permission in permissions) {
-            if (ActivityCompat.checkSelfPermission(
-                    mainActivity,
-                    permission
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                return false
+    private fun hasPermissions(context: Context, permissions: List<String>): Boolean =
+        permissions.all {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+        }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_ALL) {
+            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                // All permissions granted, proceed
+                initApp()
+            } else {
+                // Permissions denied, handle accordingly (e.g., show a message)
+                Toast.makeText(this, "Permessi non assegnati", Toast.LENGTH_LONG).show()
             }
         }
-        return true
     }
 
-    private fun checkAndRequestStoragePermission() {
-        if (!hasAllFilesAccessPermission()) {
-            requestAllFilesAccessPermission()
+    fun checkAndRequestPermissions() {
+        if (!hasPermissions(this, PERMISSIONS)) {
+            ActivityCompat.requestPermissions(this, PERMISSIONS.toTypedArray(), PERMISSION_ALL)
         } else {
-            allPermissionsGranted = true
-            // Il permesso è già concesso, procedi con l'accesso ai file
+            // All permissions are already granted, proceed with functionality.
+            initApp()
         }
     }
-
-    private fun hasAllFilesAccessPermission(): Boolean {
-        return Environment.isExternalStorageManager()
-    }
-
-    private fun requestAllFilesAccessPermission() {
-        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-        intent.addCategory("android.intent.category.DEFAULT")
-        intent.data = Uri.parse(String.format("package:%s", applicationContext.packageName))
-        startActivityForResult(intent, REQUEST_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_MANAGE_ALL_FILES_ACCESS_PERMISSION) {
-                if (Environment.isExternalStorageManager()) {
-                    allPermissionsGranted = true
-                    initApp()
-                }
-                else
-                    Toast.makeText(this, "Permessi non assegnati", Toast.LENGTH_SHORT).show()
-        }
-    }
-
 }

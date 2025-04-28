@@ -392,12 +392,11 @@ class SchedaFragment : Fragment(), MenuProvider {
         val offlineMappa: OfflineTileProvider
         var theme: XmlRenderTheme?  = null
         if (f.name.contains(".map")) {
-            val folderTema = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe/4UMaps/4UMaps.xml")
+            val documentsDir =
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS).absolutePath
+            val folderTema = File("$documentsDir/Sentieri/Mappe/4UMaps/4UMaps.xml")
             if (folderTema.exists()) {
-                theme = ExternalRenderTheme(
-                    Environment.getExternalStorageDirectory().absolutePath +
-                            "/Sentieri/Mappe/4UMaps/4UMaps.xml"
-                )
+                theme = ExternalRenderTheme("$documentsDir/Sentieri/Mappe/4UMaps/4UMaps.xml")
             }
             val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, null)
             forgeMappa = MapsForgeTileProvider(

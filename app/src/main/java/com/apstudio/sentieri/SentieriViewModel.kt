@@ -55,8 +55,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var isRecording = false
     var ricerca = String()
     var ultPosizione = GeoPoint(40.120875, 9.012893, 40.0)   // posizione iniziale mappa
-    var newPunto =  GeoPoint(0.0,0.0, 0.0)
-    private var oldPunto =  GeoPoint(0.0,0.0, 0.0)
+    var newPunto =  GeoPoint(0.0,0.0,0.0)
+    private var oldPunto =  GeoPoint(0.0,0.0,0.0)
     var ultZoom = (9)
 
     // valori visualizzati nel cruscotto
@@ -110,7 +110,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             //Log.w("GGA", "Location is null, cannot update data")
             return
         }
-        newPunto = GeoPoint(loc.latitude, loc.longitude)
+        newPunto = GeoPoint(loc.latitude, loc.longitude, altitudine)
         // al primo aggiornamento di posizione valorizza isFixed true
         if (!isFixed) {
             // al primo fix gps oldPunto e newPunto coincidono

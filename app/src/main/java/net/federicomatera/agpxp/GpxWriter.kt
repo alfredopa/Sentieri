@@ -18,7 +18,7 @@ import javax.xml.transform.stream.StreamResult
 class GpxWriter {
 
     private val dateFormat by lazy {
-        SimpleDateFormat("yyyy-MM-dd'T'kk:mm:ss.SSS'Z'", Locale.US).apply {
+        SimpleDateFormat("yyyy-MM-dd'T'kk:mm:ss.SSS'Z'", Locale.ITALY).apply {
             //            timeZone = TimeZone.getTimeZone("UTC")
             timeZone = TimeZone.getDefault()
         }

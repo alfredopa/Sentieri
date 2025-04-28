@@ -108,6 +108,8 @@ import java.sql.Timestamp
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
+import androidx.core.net.toUri
+import kotlin.text.toDouble
 
 
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
@@ -202,7 +204,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.setUseDataConnection(false)
                 // recupera Uri della mappa offline da preferenze
                 if (preferenze.contains("URIMappa")) {
-                    val uriMappa = Uri.parse(preferenze.getString("URIMappa", "")!!)
+                    val uriMappa = preferenze.getString("URIMappa", "")!!.toUri()
                     apreMappa(uriMappa)
                     viewModel.uriMappa = uriMappa
                     menu?.findItem(0)?.setChecked(true)
@@ -232,7 +234,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         Log.d("Mappa", "onViewCreated ")
         //aggiunge i folder overlay, listaTracce che conterrà tutte le tracce aggiunte  overlays alla mapview
         // e rectraccia che conterrà la traccia corrente
-        if (mapView.overlays.size == 0) {
+        if (mapView.overlays.isEmpty()) {
             //val overlayManager = mapView.overlayManager
             mapView.overlayManager.add(viewModel.listaTracce)
             mapView.overlayManager.add(viewModel.recTraccia)
@@ -381,7 +383,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // verifica se è valorizzata line, quindi è stato passsata dal pulsante Segui
         // e lo mostra sulla mappa
         // qui carica traccia dal db con waypoint e lista foto
-        if (viewModel.line.actualPoints.size > 0) {
+        if (viewModel.line.actualPoints.isNotEmpty()) {
             if (viewModel.line.title.isNotEmpty()) {
                 (activity as AppCompatActivity).supportActionBar?.title = viewModel.line.title
             }
@@ -407,7 +409,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             viewModel.line.actualPoints.clear()
 
             // carica i waypoints dalla lista wayPoints da non salvare con traccia
-            if (viewModel.wayPoint.size > 0) {
+            if (viewModel.wayPoint.isNotEmpty()) {
                 viewModel.wayPoint.forEach {
                     val poiMarker = Marker(mapView)
                     poiMarker.title = it.name
@@ -509,13 +511,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val offlineMappa: OfflineTileProvider
         var theme: XmlRenderTheme? = null
         if (f.name.contains(".map")) {
-            val folderTema =
-                File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe/4UMaps/4UMaps.xml")
+            val documentsDir =
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS).absolutePath
+            val folderTema = File("$documentsDir/Mappe/4UMaps/4UMaps.xml")
             if (folderTema.exists()) {
-                theme = ExternalRenderTheme(
-                    Environment.getExternalStorageDirectory().absolutePath +
-                            "/Sentieri/Mappe/4UMaps/4UMaps.xml"
-                )
+                theme = ExternalRenderTheme("$documentsDir/Mappe/4UMaps/4UMaps.xml")
             }
             val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, null)
             forgeMappa = MapsForgeTileProvider(
@@ -536,14 +536,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
 
         mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
-        viewModel.connessione = (false)
+        viewModel.connessione = false
         mapView.setUseDataConnection(false)
         mapView.invalidate()
     }
 
     private fun online(mappa: Int) {
         var scarica: MapTileProviderBasic? = null
-        viewModel.connessione = (true)
+        viewModel.connessione = true
         // salvo indice menu selezionato
         viewModel.menuMap = mappa
         mapView.setUseDataConnection(true)
@@ -867,8 +867,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun mediaSpeed(): Double {
-        // Calcola la velocità media media in km/h
-        return (viewModel.distanzaMetri.value!!.toDouble() / (viewModel.elapsedTime / 1000).toDouble() * 3.6)
+        // Calcola la velocità media in km/h
+        // Ottieni i valori dai LiveData/StateFlow e gestisci il caso di null
+        val distanzaMetri = viewModel.distanzaMetri.value?.toDouble() ?: 0.0
+        val secondiMovimento = viewModel.secondiMovimento.value?.toDouble() ?: 0.0
+        // Gestisci la divisione per zero
+        return if (secondiMovimento == 0.0) {
+            0.0
+        } else {
+            (distanzaMetri / (secondiMovimento / 1000000.0)) * 3.6
+        }
     }
 
     private fun salvaTraccia(nomeTraccia: String) {
@@ -920,7 +928,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
 // scrive waypoint se inseriti durante registrazione traccia
 // la lista è PoiDB
-            if (viewModel.poiDBList.size > 0) {
+            if (viewModel.poiDBList.isNotEmpty()) {
                 val poiDao: PoiDao =
                     SentieriDB.getInstance(requireActivity().application).poiDao
                 //MainScope().launch {
@@ -943,7 +951,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
 
 // memorizza uri e nome file delle foto scattate in registrazione traccia
-            if (viewModel.fotoInPoiDB.size > 0) {
+            if (viewModel.fotoInPoiDB.isNotEmpty()) {
                 val fotoDao: FotoPoiDao =
                     SentieriDB.getInstance(requireActivity().application).fotoPoiDao
                 //MainScope().launch {
@@ -1206,7 +1214,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         const val SEND_LOCATION_ACTION = "com.apstudio.sentieri.posizione"
     }
 
-    private fun formattastring(distanza: Int): String {
+    /*private fun formattastring(distanza: Int): String {
         // visualizza distanza in metri o km
         return if (distanza < 1_000)
             String.format(Locale.getDefault(), "%d m", distanza)
@@ -1215,7 +1223,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val km = distanza / 1_000.0
             String.format(Locale.getDefault(), "%.1f km", km)
         }
-    }
+    }*/
 
     // coroutine per aggiornamento del tempo di registrazione sul cruscotto
     /*private fun startUpdates() {
