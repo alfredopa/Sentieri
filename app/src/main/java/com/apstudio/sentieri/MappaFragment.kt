@@ -2,6 +2,7 @@ package com.apstudio.sentieri
 
 import android.Manifest
 import android.app.Activity
+import android.app.Activity.RESULT_OK
 import android.content.BroadcastReceiver
 import android.content.ContentValues
 import android.content.Context
@@ -31,6 +32,8 @@ import android.view.WindowManager
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
@@ -51,7 +54,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.fragment.findNavController
 import androidx.preference.PreferenceManager
-import com.apstudio.mytestmapsforgegit.URIPathHelper
 import com.apstudio.sentieri.MapUtils.convertMillisToISO8601JavaTime
 import com.apstudio.sentieri.MapUtils.dataOraIso8601
 import com.apstudio.sentieri.MapUtils.disegnaLine
@@ -109,7 +111,6 @@ import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
 import androidx.core.net.toUri
-import kotlin.text.toDouble
 
 
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
@@ -135,7 +136,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private val SELECT_MAP_FILE = 20
     //private lateinit var mapView: MapView
     private lateinit var gpsMarker: Marker
+
     private var uri: Uri? = null
+    private lateinit var openFileLauncher: ActivityResultLauncher<Intent>
 
     private lateinit var osservaMappa: Observer<Polyline>
     private var alertDialog: AlertDialog? = null
@@ -150,7 +153,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     //icone blocco mappa
     private val PIN_RED = R.drawable.pin_rosso
     private val PIN_BLACK = R.drawable.pin_nero
-
+    private val TAG = "MappaFragment"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -172,6 +175,24 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // predispone broadcast per servizio aggiornamento posizione
         val filter = IntentFilter(SEND_LOCATION_ACTION)
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
+
+        // Initialize the ActivityResultLauncher
+        openFileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) {
+                val uri: Uri? = result.data?.data
+                if (uri != null) {
+                    // Persist permissions for the selected file
+                    persistFilePermissions(uri)
+                    // Now, you have the correct Uri of the selected file
+                    // ... your code here
+                    apreMappa(uri)
+                } else {
+                    Toast.makeText(requireActivity(), "No file selected", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(requireActivity(), "File selection canceled", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun onCreateView(
@@ -477,11 +498,30 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun offline() {
-        val intent = Intent(Intent.ACTION_GET_CONTENT)
+        /*val intent = Intent(Intent.ACTION_GET_CONTENT)
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         intent.addCategory(Intent.CATEGORY_OPENABLE)
         intent.type = "application/octet-stream"
-        startActivityForResult(intent, SELECT_MAP_FILE)
+        startActivityForResult(intent, SELECT_MAP_FILE)*/
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*" // Accept any file type
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            putExtra(Intent.EXTRA_TITLE, "Select a map file")
+        }
+        // Launch the intent using the ActivityResultLauncher
+        openFileLauncher.launch(intent)
+    }
+
+    private fun persistFilePermissions(uri: Uri) {
+        try {
+            requireContext().contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Failed to persist file permissions", e)
+        }
     }
 
     // apertura mappa offline locale da Uri

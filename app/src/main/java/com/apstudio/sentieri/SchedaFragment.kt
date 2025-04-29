@@ -25,7 +25,6 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
-import com.apstudio.mytestmapsforgegit.URIPathHelper
 import com.apstudio.sentieri.MapUtils.alertVerificaSegui
 import com.apstudio.sentieri.databinding.FragmentSchedaBinding
 import com.apstudio.sentieri.db.LayerItem
