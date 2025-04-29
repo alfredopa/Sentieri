@@ -17,6 +17,7 @@ import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
@@ -52,18 +53,22 @@ class MainActivity :
     private lateinit var preferenze: SharedPreferences
     private var haBaro = false
     private val PERMISSION_ALL = 123
+
     private val PERMISSIONS = buildList {
         add(Manifest.permission.ACCESS_COARSE_LOCATION)
         add(Manifest.permission.ACCESS_FINE_LOCATION)
         add(Manifest.permission.INTERNET)
         add(Manifest.permission.ACCESS_NETWORK_STATE)
-        add(Manifest.permission.READ_EXTERNAL_STORAGE)
-        add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         add(Manifest.permission.CAMERA)
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R)  {  // S_V2 è API level 32
+            add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
         // permesso da Android 13
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.POST_NOTIFICATIONS)
         }
+
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE){
             add(Manifest.permission.FOREGROUND_SERVICE_LOCATION)
         }
@@ -127,14 +132,13 @@ class MainActivity :
             getDefaultSharedPreferences(applicationContext)
         )
         // verifica se esiste cartella Sentieri nello spazio file applicazione
-        val documentsDir =
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
-        val sentieriFolder = File(documentsDir, "/Mappe")
+        val obbDir: File = this.obbDir
+        val sentieriFolder = File(obbDir, "/Mappe")
         if (!sentieriFolder.exists()) {
             // crea cartelle Sentieri nello spazio file applicazione
             val percorso: Set<String> = setOf("/Mappe", "/Tracce")
             for (element in percorso) {
-                val folderPath = documentsDir?.absolutePath + element
+                val folderPath = obbDir.absolutePath + element
                 if (!creaCartelle(folderPath))
                     Toast.makeText(
                         this,
@@ -144,7 +148,6 @@ class MainActivity :
             }
 
         }
-
     }
 
     private fun creaCartelle(folderPath: String): Boolean {

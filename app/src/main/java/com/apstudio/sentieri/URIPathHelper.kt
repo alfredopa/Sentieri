@@ -1,14 +1,14 @@
-package com.apstudio.mytestmapsforgegit
+package com.apstudio.sentieri
 
 import android.content.ContentUris
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import androidx.core.net.toUri
+import java.lang.Long
 
 class URIPathHelper {
 
@@ -28,7 +28,7 @@ class URIPathHelper {
 
             } else if (isDownloadsDocument(uri)) {
                 val id = DocumentsContract.getDocumentId(uri)
-                val contentUri = ContentUris.withAppendedId("content://downloads/public_downloads".toUri(), java.lang.Long.valueOf(id))
+                val contentUri = ContentUris.withAppendedId("content://downloads/public_downloads".toUri(), Long.valueOf(id))
                 return getDataColumn(context, contentUri, null, null)
             } else if (isMediaDocument(uri)) {
                 val docId = DocumentsContract.getDocumentId(uri)
