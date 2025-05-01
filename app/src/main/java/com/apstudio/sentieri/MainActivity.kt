@@ -2,27 +2,21 @@ package com.apstudio.sentieri
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
-import android.provider.Settings
-import android.util.Log
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.GravityCompat
+import androidx.core.content.edit
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.navigation.NavController
 import androidx.navigation.findNavController
@@ -36,7 +30,6 @@ import com.google.android.material.navigation.NavigationView
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.osmdroid.config.Configuration
 import java.io.File
-import androidx.core.content.edit
 
 
 class MainActivity :
@@ -131,14 +124,17 @@ class MainActivity :
             applicationContext,
             getDefaultSharedPreferences(applicationContext)
         )
-        // verifica se esiste cartella Sentieri nello spazio file applicazione
-        val obbDir: File = this.obbDir
-        val sentieriFolder = File(obbDir, "/Mappe")
+
+        // verifica se esiste cartella Sentieri nello spazio file applicazione ATTENZIONE solo la cartella media visibile da file picker
+        //val baseDir: File? = getAppSpecificExternalDirectory(applicationContext) // restituisce cartella data anzichè media
+        val mediaStorageDir = this.getExternalMediaDirs()
+        val baseDir: File? = mediaStorageDir[0]
+        val sentieriFolder = File(baseDir, "/Mappe")
         if (!sentieriFolder.exists()) {
             // crea cartelle Sentieri nello spazio file applicazione
             val percorso: Set<String> = setOf("/Mappe", "/Tracce")
             for (element in percorso) {
-                val folderPath = obbDir.absolutePath + element
+                val folderPath = baseDir?.absolutePath + element
                 if (!creaCartelle(folderPath))
                     Toast.makeText(
                         this,

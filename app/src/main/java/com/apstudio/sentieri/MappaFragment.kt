@@ -138,7 +138,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private lateinit var gpsMarker: Marker
 
     private var uri: Uri? = null
-    private lateinit var openFileLauncher: ActivityResultLauncher<Intent>
+    //private lateinit var openFileLauncher: ActivityResultLauncher<Intent>
 
     private lateinit var osservaMappa: Observer<Polyline>
     private var alertDialog: AlertDialog? = null
@@ -177,7 +177,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
 
         // Initialize the ActivityResultLauncher
-        openFileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        /*openFileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
                 val uri: Uri? = result.data?.data
                 if (uri != null) {
@@ -192,7 +192,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             } else {
                 Toast.makeText(requireActivity(), "File selection canceled", Toast.LENGTH_SHORT).show()
             }
-        }
+        }*/
     }
 
     override fun onCreateView(
@@ -498,30 +498,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun offline() {
-        /*val intent = Intent(Intent.ACTION_GET_CONTENT)
+        val intent = Intent(Intent.ACTION_GET_CONTENT)
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         intent.addCategory(Intent.CATEGORY_OPENABLE)
         intent.type = "application/octet-stream"
-        startActivityForResult(intent, SELECT_MAP_FILE)*/
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "*/*" // Accept any file type
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            putExtra(Intent.EXTRA_TITLE, "Select a map file")
-        }
-        // Launch the intent using the ActivityResultLauncher
-        openFileLauncher.launch(intent)
-    }
-
-    private fun persistFilePermissions(uri: Uri) {
-        try {
-            requireContext().contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Failed to persist file permissions", e)
-        }
+        startActivityForResult(intent, SELECT_MAP_FILE)
     }
 
     // apertura mappa offline locale da Uri
@@ -551,8 +532,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val offlineMappa: OfflineTileProvider
         var theme: XmlRenderTheme? = null
         if (f.name.contains(".map")) {
-            val documentsDir =
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS).absolutePath
+            val mediaDir = requireContext().getExternalMediaDirs()
+            val documentsDir = mediaDir[0]
             val folderTema = File("$documentsDir/Mappe/4UMaps/4UMaps.xml")
             if (folderTema.exists()) {
                 theme = ExternalRenderTheme("$documentsDir/Mappe/4UMaps/4UMaps.xml")
@@ -646,7 +627,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             stopObserver() // Arresta gli observer
             return
         }
-
         // altrimenti chiede se salvare traccia
         val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
         val inputEditTextField = EditText(requireActivity())
@@ -749,18 +729,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
         viewModel.traccia.observe(viewLifecycleOwner, osservaMappa)
-
-        /*// determina se l'altitudine deve essere barometrica o dal GPS
-        // setta il flag is_Calibrato nel gpsViewModel, utilizzato da LocationService
-        Log.d("is_Calibrato", "${viewModel.is_Calibrato}")
-        if (viewModel.is_Calibrato) {
-            binding.cruscotto.tvCalcQuota.text = "BARO"
-            gpsViewModel.usaBaro = true
-        } else {
-            binding.cruscotto.tvCalcQuota.text = "GPS"
-            gpsViewModel.usaBaro = false
-        }*/
-
         viewModel.startUpdates()
 // avvia il servizio per tracciare locazione in background
         requireActivity().startService(Intent(context, LocationService::class.java))
