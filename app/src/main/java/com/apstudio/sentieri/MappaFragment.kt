@@ -2,8 +2,8 @@ package com.apstudio.sentieri
 
 import android.Manifest
 import android.app.Activity
-import android.app.Activity.RESULT_OK
 import android.content.BroadcastReceiver
+import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -11,6 +11,7 @@ import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.database.Cursor
 import android.graphics.Color
 import android.location.Location
 import android.net.Uri
@@ -32,8 +33,6 @@ import android.view.WindowManager
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
@@ -42,6 +41,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getColor
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.net.toUri
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
@@ -110,7 +110,6 @@ import java.sql.Timestamp
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
-import androidx.core.net.toUri
 
 
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
@@ -509,7 +508,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private fun apreMappa(uri: Uri) {
         val uriPathHelper = URIPathHelper()
         val filePath = uriPathHelper.getPath(requireContext(), uri)
-
         val maps: Array<File?> = arrayOfNulls(1)
         val f = File(filePath!!)
         if (f.exists()) {
@@ -1507,12 +1505,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }*/
 
     private fun addGeopackageTiles() {
-
         try {
-            val f = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
-
-            val geoPackageFile = File(f, "parchi.gpkg")
-
+            val mediaDir = requireContext().getExternalMediaDirs()
+            val documentsDir = mediaDir[0]
+            //val f = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
+            //val geoPackageFile = File(f, "parchi.gpkg")
+            val geoPackageFile = File("$documentsDir/Mappe/parchi.gpkg")
             val manager = GeoPackageFactory.getManager(requireContext())
 
             try {
@@ -1521,34 +1519,26 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             } catch (ex: Exception) {
                 Log.d("packgage", "import exception " + ex.message)
             }
-
             val databases = manager.databases()
-
             // Open database     val f = File(Environment.getExternalStorageDirectory(), "osmdroid")
-
             val geoPackage = manager.open(databases[0])
-
             val features = geoPackage.featureTables   //tileTables
-
             val markerRenderingOptions = MarkerOptions()
             val polylineRenderingOptions = PolylineOptions()
             polylineRenderingOptions.width = 2f
             polylineRenderingOptions.color = Color.argb(100, 255, 0, 0)
             polylineRenderingOptions.title = databases[0] + ":" + features[1]
-
             val polygonOptions = PolygonOptions()
             polygonOptions.strokeWidth = 2f
             polygonOptions.fillColor = Color.argb(100, 255, 0, 255)
             polygonOptions.strokeColor = Color.argb(100, 0, 0, 255)
             polygonOptions.title = databases[0] + ":" + features[1]
-
             val converter = OsmMapShapeConverter(
                 null,
                 markerRenderingOptions,
                 polylineRenderingOptions,
                 polygonOptions
             )
-
             //val featureTable: String = features[1]
             val featureTable = "iba"
             val featureDao = geoPackage.getFeatureDao(featureTable)
