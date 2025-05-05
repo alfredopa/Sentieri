@@ -105,21 +105,31 @@ object MapUtils {
             // gestione del milestone
             val arrowPaint = Paint()
             arrowPaint.color = Color.argb(180, 230, 18, 18)
-            arrowPaint.strokeWidth = 10.0f
+            arrowPaint.strokeWidth = 12.0f
             arrowPaint.style = Paint.Style.STROKE
             arrowPaint.isAntiAlias = true
             val arrowPath = Path() // a simple arrow towards the right
             /*arrowPath.moveTo(-10f, -10f)
             arrowPath.lineTo(10f, 0f)
             arrowPath.lineTo(-10f, 10f)*/
-            arrowPath.moveTo(-10f, -10f)
-            arrowPath.lineTo(10f, 0f)
-            arrowPath.lineTo(-10f, 10f)
+
+            // Arrow tip (rightmost point)
+            arrowPath.moveTo(15f, 0f) // Tip of the arrow (adjust x to control length)
+
+            // Right feather
+            arrowPath.lineTo(5f, -5f) // Adjust for feather angle
+            arrowPath.lineTo(5f, -2f) // Back side of the feather
+            arrowPath.lineTo(-15f, -2f) // Back of arrow body (adjust x to control body length)
+
+            // Left feather
+            arrowPath.lineTo(-15f, 2f) // Back of arrow body
+            arrowPath.lineTo(5f, 2f) // Back side of the feather
+            arrowPath.lineTo(5f, 5f) // Adjust for feather angle
             arrowPath.close()
             val managers: MutableList<MilestoneManager> = ArrayList()
             managers.add(
                 MilestoneManager(
-                    MilestonePixelDistanceLister(50.0, 50.0),
+                    MilestonePixelDistanceLister(35.0, 35.0),
                     MilestonePathDisplayer(0.0, true, arrowPath, arrowPaint)
                 )
             )

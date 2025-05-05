@@ -249,27 +249,6 @@ class SchedaFragment : Fragment(), MenuProvider {
         endMarker.position = punto
         endMarker.title = "Fine"
         mapView.overlays?.add(endMarker)
-
-        /*val arrowPaint = Paint()
-        val color = Color.argb(255, 100, 100, 100)
-        arrowPaint.color = color
-        arrowPaint.strokeWidth = 10.0f
-        arrowPaint.style = Paint.Style.FILL_AND_STROKE
-        arrowPaint.isAntiAlias = true
-        val arrowPath = Path() // a simple arrow towards the right
-        arrowPath.moveTo(-10f, -10f)
-        arrowPath.lineTo(10f, 0f)
-        arrowPath.lineTo(-10f, 10f)
-        arrowPath.close()
-        val managers: MutableList<MilestoneManager> = ArrayList()
-        managers.add(
-            MilestoneManager(
-                MilestonePixelDistanceLister(50.0, 50.0),
-                MilestonePathDisplayer(0.0, true, arrowPath, arrowPaint)
-            )
-        )
-        percorso.setMilestoneManagers(managers)
-        percorso.usePath(false)*/
         mapView.overlays.add(percorso)
         // il post serve per la corretta visualizzazione al termine del caricamento
         mapView.post {
@@ -368,7 +347,6 @@ class SchedaFragment : Fragment(), MenuProvider {
     private fun apreMappa(uri: Uri) {
         val uriPathHelper = URIPathHelper()
         val filePath = uriPathHelper.getPath(requireContext(), uri)
-
         val maps: Array<File?> = arrayOfNulls(1)
         val f = File(filePath!!)
         if (f.exists()) {
