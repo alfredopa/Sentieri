@@ -73,7 +73,7 @@ class LocationService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "Service created")
+        //Log.d(TAG, "Service created")
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         hasMslAltitude = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE // Android 14
 
@@ -101,18 +101,18 @@ class LocationService : LifecycleService() {
             override fun onFirstFix(ttffMillis: Int) {
                 super.onFirstFix(ttffMillis)
                 gpsViewModel.updateGpsStatus("fixed")
-                Log.d(TAG, "First fix in $ttffMillis ms")
+                //Log.d(TAG, "First fix in $ttffMillis ms")
             }
 
             override fun onStarted() {
                 gpsViewModel.updateGpsStatus("started")
-                Log.d(TAG, "GNSS started")
+                //Log.d(TAG, "GNSS started")
                 super.onStarted()
             }
 
             override fun onStopped() {
                 gpsViewModel.updateGpsStatus("stopped")
-                Log.d(TAG, "GNSS stopped")
+                //Log.d(TAG, "GNSS stopped")
                 super.onStopped()
             }
         }
@@ -120,9 +120,9 @@ class LocationService : LifecycleService() {
 
     private fun initializeLocationListener() {
         locationListener = LocationListener { newLocation ->
-            Log.d(TAG, "onLocationChanged: Accuracy = ${newLocation.accuracy}")
+            //Log.d(TAG, "onLocationChanged: Accuracy = ${newLocation.accuracy}")
             if (newLocation.accuracy > MIN_ACCURACY_METERS) {
-                Log.w(TAG, "Location accuracy is too low: ${newLocation.accuracy}")
+                //Log.w(TAG, "Location accuracy is too low: ${newLocation.accuracy}")
                 return@LocationListener
             }
             sendBroadcast(newLocation)
@@ -147,7 +147,7 @@ class LocationService : LifecycleService() {
                 Manifest.permission.ACCESS_COARSE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            Log.e(TAG, "Location permissions not granted")
+            //Log.e(TAG, "Location permissions not granted")
             return
         }
 
@@ -169,7 +169,7 @@ class LocationService : LifecycleService() {
 
     private fun initializeBarometer() {
         if (gpsViewModel.usaBaro) {
-            Log.d(TAG, "Starting barometer sensor updates")
+            //Log.d(TAG, "Starting barometer sensor updates")
             //baroRepo = BaroRepo(this)
             baroRepo.startSensorUpdates()
         }
@@ -189,7 +189,7 @@ class LocationService : LifecycleService() {
             setClass(this@LocationService, MainActivity::class.java)
         }
         LocalBroadcastManager.getInstance(this).sendBroadcast(broadcastIntent)
-        Log.d(TAG, "Location broadcast sent: MilliBar = $milliBar, MSL Altitude = ${gpsViewModel.mslAltitude}")
+        //Log.d(TAG, "Location broadcast sent: MilliBar = $milliBar, MSL Altitude = ${gpsViewModel.mslAltitude}")
     }
 
     private fun parseNmeaMessage(message: String) {
@@ -229,7 +229,7 @@ class LocationService : LifecycleService() {
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "Service destroyed")
+        //Log.d(TAG, "Service destroyed")
         stopBarometer()
         gpsViewModel.updateGpsStatus("stopped")
         removeLocationUpdates()
@@ -237,7 +237,7 @@ class LocationService : LifecycleService() {
 
     private fun stopBarometer() {
         if (gpsViewModel.usaBaro) {
-            Log.d(TAG, "Stopping barometer sensor updates")
+            //Log.d(TAG, "Stopping barometer sensor updates")
             baroRepo.stopSensorUpdates()
         }
     }

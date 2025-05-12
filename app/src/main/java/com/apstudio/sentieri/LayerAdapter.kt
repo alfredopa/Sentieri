@@ -50,7 +50,7 @@ class LayerAdapter(private val layerItems: MutableList<LayerItem>) :
                 if (position != RecyclerView.NO_POSITION) {
                     onItemClickListener?.onItemLongClick(position)
                 }
-                Log.d("LayerAdapter", "Long click at position $position")
+                //Log.d("LayerAdapter", "Long click at position $position")
                 true
             }
             // Imposta il listener di click sullo switch
@@ -60,10 +60,10 @@ class LayerAdapter(private val layerItems: MutableList<LayerItem>) :
                     onItemClickListener?.onswcVisibileClick(position)
                     // Gestisci il cambio di stato dello switch alla posizione 'position'
                     // Ad esempio, puoi aggiornare lo stato del layer corrispondente
-                    Log.d(
-                        "LayerAdapter",
-                        "Switch at position $position is now ${if (isChecked) "ON" else "OFF"}"
-                    )
+                    //Log.d(
+                    //    "LayerAdapter",
+                    //    "Switch at position $position is now ${if (isChecked) "ON" else "OFF"}"
+                    //)
                 }
             }
 
@@ -71,10 +71,10 @@ class LayerAdapter(private val layerItems: MutableList<LayerItem>) :
                 val position = adapterPosition
                 if (position != RecyclerView.NO_POSITION) {
                     onItemClickListener?.onswcDirezioneClick(position) // Nuovo listener
-                    Log.d(
-                        "LayerAdapter",
-                        "Blocca switch at position $position is now ${if (isChecked) "ON" else "OFF"}"
-                    )
+                    //Log.d(
+                    //    "LayerAdapter",
+                    //    "Blocca switch at position $position is now ${if (isChecked) "ON" else "OFF"}"
+                    //)
                 }
             }
 

@@ -83,7 +83,7 @@ class Barometro : Fragment() , SensorEventListener {
         binding.btnPress.setOnClickListener {
             NORMAL_PRESSURE = binding.EditPressione.text.toString().toFloat()
             viewModel.NORMAL_PRESSURE = NORMAL_PRESSURE
-            Log.d("barometro","pressione ${viewModel.NORMAL_PRESSURE}")
+            //Log.d("barometro","pressione ${viewModel.NORMAL_PRESSURE}")
             viewModel.baroCalibrato(true)
         }
         // pulsante Altitudine conosciuta  click listener calcola equivalente pressione a livello mare
@@ -91,7 +91,7 @@ class Barometro : Fragment() , SensorEventListener {
             NORMAL_PRESSURE = MapUtils.getSealevelPressure(binding.EditAltitud.text.toString().toFloat(), millibarsOfPressure )
             binding.EditPressione.setText(NORMAL_PRESSURE. toString())
             viewModel.NORMAL_PRESSURE = NORMAL_PRESSURE
-            Log.d("barometro","pressione ${viewModel.NORMAL_PRESSURE}")
+            //Log.d("barometro","pressione ${viewModel.NORMAL_PRESSURE}")
             viewModel.baroCalibrato(true)
         }
         // Crea un LocationListener

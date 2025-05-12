@@ -9,7 +9,6 @@ import com.apstudio.sentieri.databinding.FragmentDettaglioSentieriBinding
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.prnDiscesa
 import com.apstudio.sentieri.db.prnDislivello
-import com.apstudio.sentieri.db.prnLunghezza
 import java.text.DecimalFormat
 
 class MyRecyclerViewAdapter(private val clickListener: (Sentieri) -> Unit) :
@@ -53,7 +52,7 @@ class MyViewHolder(private val binding: FragmentDettaglioSentieriBinding) : Recy
         binding.hrmaxText.text   = sentieri.HrMax.toString()
         binding.DataText.text = MapUtils.prnDataFromUtc(sentieri.DataOra)
         binding.fineText.text = MapUtils.prnDataFromUtc(sentieri.DataFine)
-        binding.velMediaText.text = DecimalFormat("##.#").format(sentieri.MediaVel)
+        binding.velMediaText.text = DecimalFormat("##.##").format(sentieri.MediaVel)
         binding.tDataInizioText.text = MapUtils.formatSeconds(sentieri.TempoTot.toLong())
         binding.tDataFineText.text = MapUtils.formatSeconds(sentieri.TempoInMov.toLong())
         //binding.tMediaText.text = DecimalFormat("##.#").format(sentieri.TempMedia)

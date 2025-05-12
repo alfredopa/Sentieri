@@ -5,7 +5,7 @@
 
         <item
             android:id="@+id/mappaFragment"
-            android:icon="@android:drawable/ic_dialog_map"
+            android:icon="@drawable/quattromori_background"
             android:title="Vista Mappa" />
         <item
             android:id="@+id/sentieriFragment"
