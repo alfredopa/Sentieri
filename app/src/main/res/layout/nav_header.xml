@@ -17,13 +17,13 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="5dp"
         android:text="Sentieri"
-        android:textColor="@color/black"
+        android:textColor="@color/teal_200"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/textView1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Versone 0.0.1 test" />
+        android:text="Versione 1.0" />
 
 </LinearLayout>

@@ -51,7 +51,7 @@ class GpxParser {
             val gpx = builder.parse(stream)
             doc = gpx
         } catch (e: Exception) {
-            Log.d("gpx", "parse: invalido")
+            //Log.d("gpx", "parse: invalido")
             return Gpx()
             //throw IOException("Invalid GPX file")
         }

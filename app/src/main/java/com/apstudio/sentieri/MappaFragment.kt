@@ -3,7 +3,6 @@ package com.apstudio.sentieri
 import android.Manifest
 import android.app.Activity
 import android.content.BroadcastReceiver
-import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -11,7 +10,6 @@ import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
-import android.database.Cursor
 import android.graphics.Color
 import android.location.Location
 import android.net.Uri
@@ -19,7 +17,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
-import android.util.Log
 import android.view.KeyEvent
 import android.view.KeyEvent.KEYCODE_VOLUME_DOWN
 import android.view.KeyEvent.KEYCODE_VOLUME_UP
@@ -107,9 +104,11 @@ import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider
 import org.osmdroid.views.overlay.infowindow.BasicInfoWindow
 import java.io.File
 import java.sql.Timestamp
+import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
+import androidx.core.content.edit
 
 
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
@@ -152,7 +151,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     //icone blocco mappa
     private val PIN_RED = R.drawable.pin_rosso
     private val PIN_BLACK = R.drawable.pin_nero
-    private val TAG = "MappaFragment"
+    //private val TAG = "MappaFragment"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -251,7 +250,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
-        Log.d("Mappa", "onViewCreated ")
+        //Log.d("Mappa", "onViewCreated ")
         //aggiunge i folder overlay, listaTracce che conterrà tutte le tracce aggiunte  overlays alla mapview
         // e rectraccia che conterrà la traccia corrente
         if (mapView.overlays.isEmpty()) {
@@ -361,7 +360,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
             updateGpsIcon(status)
-            Log.d("gps", "status $status")
+            //Log.d("gps", "status $status")
         }
 
         // l'intent contiene il nome del file GPX da caricare da Files
@@ -572,7 +571,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             3 -> scarica = MappaMapBox() // MapBox
         }
 // salva la mappa scelta nelle preferenze
-        preferenze.edit().putInt("MenuMap", mappa).apply()
+        preferenze.edit { putInt("MenuMap", mappa) }
         mapView.tileProvider = scarica
         mapView.invalidate()
     }
@@ -752,8 +751,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 uri = data.data
                 apreMappa(uri!!)
 // salva la mappa offline scelta nelle preferenze
-                preferenze.edit().putString("URIMappa", uri.toString()).apply()
-                preferenze.edit().putInt("MenuMap", 0).apply()
+                preferenze.edit { putString("URIMappa", uri.toString()) }
+                preferenze.edit { putInt("MenuMap", 0) }
                 viewModel.uriMappa = uri!!
             }
         }
@@ -794,10 +793,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 punto = GeoPoint(it.latitude, it.longitude, it.elevation.toDouble())
 // confronta con la precedente altitudine non nulla e verifica se aumenta ascesa oppure discesa
                 if (oldPunto?.altitude != null) {
-                    if (it.elevation.toDouble() > oldPunto?.altitude!!) {
-                        viewModel.trackAscesa += (it.elevation.toInt() - oldPunto!!.altitude.toInt())
+                    if (it.elevation.toDouble() > oldPunto.altitude) {
+                        viewModel.trackAscesa += (it.elevation.toInt() - oldPunto.altitude.toInt())
                     } else {
-                        viewModel.trackDiscesa += (it.elevation.toInt() - oldPunto!!.altitude.toInt())
+                        viewModel.trackDiscesa += (it.elevation.toInt() - oldPunto.altitude.toInt())
                     }
                 }
             } else {
@@ -806,17 +805,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
 // calcola distanza della traccia, da utilizzare se viene seguita per caloolare distanza rimanente
             if (oldPunto != null) {
-                val distToPunto = MapUtils.getDistanceInMeters(oldPunto!!, punto)
+                val distToPunto = MapUtils.getDistanceInMeters(oldPunto, punto)
                 viewModel.trackDistanza += distToPunto
             }
 
             oldPunto = GeoPoint(it.latitude, it.longitude, it.elevation ?: 0.0)
             line.addPoint(punto)
         }
-        Log.d(
-            "Punto",
-            "${viewModel.trackDistanza}   ${viewModel.trackAscesa}  ${viewModel.trackDiscesa}"
-        )
+        //Log.d(
+        //    "Punto",
+        //    "${viewModel.trackDistanza}   ${viewModel.trackAscesa}  ${viewModel.trackDiscesa}"
+        //)
         disegnaLine(line)
         viewModel.listaTracce.add(line)
         addMarker(line)
@@ -869,7 +868,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             else -> R.drawable.gps_off
         }
         menu?.findItem(R.id.gps)?.setIcon(iconRes)
-        Log.d("GpsView", "gps status $status")
+        //Log.d("GpsView", "gps status $status")
     }
 
     private fun mediaSpeed(): Double {
@@ -1015,13 +1014,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
             with(builder)
             {
+                val mediaSpeed = mediaSpeed()
+                DecimalFormat("##.##").format(mediaSpeed)
                 setTitle("Percorso concluso")
                 val message = """
                         Distanza percorsa: ${viewModel.distanzaMetri.value}
                         Dislivello positivo (d+): ${viewModel.dislivPiu.value}
                         Dislivello negativo (d-): ${viewModel.dislivMeno.value}
                         Tempo trascorso: ${binding.cruscotto.tvTempo.text}
-                        Tempo in movimento: ${binding.cruscotto.tvTempoMov.text}
+                        Tempo in movimento: ${DecimalFormat("##.##").format(mediaSpeed)}
                 """.trimIndent()
                 setMessage(message)
                 setPositiveButton(
@@ -1062,7 +1063,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             val altitudine: Double = intent.getDoubleExtra("altitudine", 0.0)
             val milliBar = intent.getFloatExtra("milliBar", 0.0F)
-            Log.d("Receiver", "alti $altitudine mb $milliBar")
+            //Log.d("Receiver", "alti $altitudine mb $milliBar")
             // aggiorna posizione ed inserisce nuovo punto
             // riceve il valore in millibar letti da barometro e lo passa al viewModel
             // aggiorna dati nel viewModel
@@ -1510,14 +1511,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val documentsDir = mediaDir[0]
             //val f = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
             //val geoPackageFile = File(f, "parchi.gpkg")
-            val geoPackageFile = File("$documentsDir/Mappe/parchi.gpkg")
+            val geoPackageFile = File("$documentsDir/Mappe/grotte.gpkg")
             val manager = GeoPackageFactory.getManager(requireContext())
 
             try {
                 val imported = manager.importGeoPackage(geoPackageFile)
-                Log.d("packgage", "is imported ? $imported")
+                //Log.d("packgage", "is imported ? $imported")
             } catch (ex: Exception) {
-                Log.d("packgage", "import exception " + ex.message)
+                //Log.d("packgage", "import exception " + ex.message)
             }
             val databases = manager.databases()
             // Open database     val f = File(Environment.getExternalStorageDirectory(), "osmdroid")
@@ -1527,12 +1528,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val polylineRenderingOptions = PolylineOptions()
             polylineRenderingOptions.width = 2f
             polylineRenderingOptions.color = Color.argb(100, 255, 0, 0)
-            polylineRenderingOptions.title = databases[0] + ":" + features[1]
+            polylineRenderingOptions.title = databases[0] + ":" + features[0]
             val polygonOptions = PolygonOptions()
             polygonOptions.strokeWidth = 2f
             polygonOptions.fillColor = Color.argb(100, 255, 0, 255)
             polygonOptions.strokeColor = Color.argb(100, 0, 0, 255)
-            polygonOptions.title = databases[0] + ":" + features[1]
+            polygonOptions.title = databases[0] + ":" + features[0]
             val converter = OsmMapShapeConverter(
                 null,
                 markerRenderingOptions,
@@ -1540,7 +1541,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 polygonOptions
             )
             //val featureTable: String = features[1]
-            val featureTable = "iba"
+            val featureTable = "grotte"
             val featureDao = geoPackage.getFeatureDao(featureTable)
             val featureCursor = featureDao.queryForAll()
             featureCursor.use { featureCursor ->
@@ -1549,7 +1550,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         val featureRow = featureCursor.row
                         val geometryData = featureRow.geometry
                         val geometry = geometryData.geometry
-                        Log.d("packgage", "geometry $geometry")
+                        //Log.d("packgage", "geometry $geometry")
                         converter.addToMap(mapView, geometry)
                     } catch (ex: java.lang.Exception) {
                         ex.printStackTrace()
@@ -1619,7 +1620,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
             }*/
         } catch (ex: Exception) {
-            Log.d("packgage", "inside geopackage exception " + ex.message)
+            //Log.d("packgage", "inside geopackage exception " + ex.message)
         }
     }
 

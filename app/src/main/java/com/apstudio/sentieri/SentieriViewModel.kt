@@ -198,7 +198,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             } else {
                 _dislivMeno.value = dislivMeno.value?.plus(altitudeDifference)
             }
-            Log.d("addLocation",  "quota da GPS $filteredAltitude prec $previousAltitude ${dislivPiu.value} ${dislivMeno.value}")
+            //Log.d("addLocation",  "quota da GPS $filteredAltitude prec $previousAltitude ${dislivPiu.value} ${dislivMeno.value}")
         }
         // Aggiorna l'altitudine precedente
         previousAltitude = filteredAltitude
