@@ -72,11 +72,9 @@ class MainActivity :
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Tutti i permessi a false
-        //allPermissionsGranted = false
-        // verifica se tutti i permessi standard sono stati concessi
-        checkAndRequestPermissions()
         // inizializza le preferenze
+        initPreferenze()
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(
                 OnBackInvokedDispatcher.PRIORITY_DEFAULT
@@ -91,8 +89,8 @@ class MainActivity :
                 }
             })
         }
-
-        initPreferenze()
+        // verifica se tutti i permessi standard sono stati concessi
+        checkAndRequestPermissions()
     }
 
     private fun initApp() {
@@ -111,12 +109,6 @@ class MainActivity :
         setupActionBarWithNavController(navController, appBarConfiguration)
         navigationView.setupWithNavController(navController)
 
-        // disabilitazione della voce barometro se non presente
-        if (!haBaro) {
-            val menuItem = navigationView.menu.findItem(R.id.barometro)
-            menuItem.isVisible = false
-        }
-
         // Le preferenze vanno caricate dal main e sono indispensabili per il
         // corretto caricamento delle mappe
         AndroidGraphicFactory.createInstance(this)
@@ -125,6 +117,11 @@ class MainActivity :
             getDefaultSharedPreferences(applicationContext)
         )
 
+        // disabilitazione della voce barometro se non presente
+        if (!haBaro) {
+            val menuItem = navigationView.menu.findItem(R.id.barometro)
+            menuItem.isVisible = false
+        }
         // verifica se esiste cartella Sentieri nello spazio file applicazione ATTENZIONE solo la cartella media visibile da file picker
         //val baseDir: File? = getAppSpecificExternalDirectory(applicationContext) // restituisce cartella data anzichè media
         val mediaStorageDir = this.getExternalMediaDirs()
