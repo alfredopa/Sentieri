@@ -17,6 +17,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import android.view.KeyEvent
 import android.view.KeyEvent.KEYCODE_VOLUME_DOWN
 import android.view.KeyEvent.KEYCODE_VOLUME_UP
@@ -507,6 +508,22 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private fun apreMappa(uri: Uri) {
         val uriPathHelper = URIPathHelper()
         val filePath = uriPathHelper.getPath(requireContext(), uri)
+        //--------------------------------------------------------------------------------------------------------------
+        // da verificare codice errore da play store
+        val mbtilesFilePath = "/storage/emulated/0/Android/media/com.apstudio.sentieri/Mappe/FreemapSk.mbtiles"
+        val mbtilesFile = File(mbtilesFilePath)
+        Log.d("AppTestPlayStore", "Percorso MBTiles: ${mbtilesFile.absolutePath}")
+        Log.d("AppTestPlayStore", "MBTiles Esiste: ${mbtilesFile.exists()}")
+        Log.d("AppTestPlayStore", "MBTiles Può Leggere: ${mbtilesFile.canRead()}")
+        Log.d("AppTestPlayStore", "MBTiles È File: ${mbtilesFile.isFile}")
+        Log.d("AppTestPlayStore", "Lunghezza MBTiles: ${mbtilesFile.length()}")
+
+        try {
+            // Prova ad inizializzare OsmDroid qui
+        } catch (e: Exception) {
+            Log.e("AppTestPlayStore", "Errore inizializzazione OsmDroid", e)
+        }
+        //--------------------------------------------------------------------------------------------------
         val maps: Array<File?> = arrayOfNulls(1)
         val f = File(filePath!!)
         if (f.exists()) {
@@ -553,9 +570,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             archives[0].setIgnoreTileSource(true)
         }
 
-        mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
         viewModel.connessione = false
         mapView.setUseDataConnection(false)
+        mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
         mapView.invalidate()
     }
 
