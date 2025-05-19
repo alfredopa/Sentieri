@@ -33,3 +33,5 @@
 -dontwarn javax.persistence.OneToOne
 -dontwarn javax.persistence.Table
 -dontwarn javax.persistence.Version
+ -keep class org.osmdroid.** { *; }
+ -dontwarn org.osmdroid.**
