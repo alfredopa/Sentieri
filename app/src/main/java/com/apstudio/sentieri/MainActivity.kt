@@ -2,16 +2,21 @@ package com.apstudio.sentieri
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
@@ -91,6 +96,19 @@ class MainActivity :
         }
         // verifica se tutti i permessi standard sono stati concessi
         checkAndRequestPermissions()
+
+        if (isBatteryOptimizationEnabled(this)) {
+            // Spiega all'utente perché è necessario e poi richiedi
+            // Esempio con un AlertDialog:
+            AlertDialog.Builder(this)
+                .setTitle("Ottimizzazione Batteria")
+                .setMessage("Per garantire che [La Tua Funzionalità Chiave, es. il tracciamento GPS] funzioni correttamente in background, è consigliabile disabilitare le ottimizzazioni della batteria per questa app. Vuoi andare alle impostazioni?")
+                .setPositiveButton("Vai alle Impostazioni") { _, _ ->
+                    requestIgnoreBatteryOptimizations(this)
+                }
+                .setNegativeButton("Annulla", null)
+                .show()
+        }
     }
 
     private fun initApp() {
@@ -232,4 +250,41 @@ class MainActivity :
             initApp()
         }
     }
+
+    fun isBatteryOptimizationEnabled(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val packageName = context.packageName
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            return !pm.isIgnoringBatteryOptimizations(packageName)
+        }
+        return false // Le ottimizzazioni specifiche sono per Marshmallow (API 23) e successivi
+    }
+
+    fun requestIgnoreBatteryOptimizations(activity: AppCompatActivity) {
+        val intent = Intent()
+        val packageName = activity.packageName
+        val pm = activity.getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+            intent.data = Uri.parse("package:$packageName")
+            // È buona norma controllare se l'intent può essere gestito
+            if (intent.resolveActivity(activity.packageManager) != null) {
+                activity.startActivity(intent)
+            } else {
+                // Potrebbe non esserci un'activity per gestire questa azione
+                // su alcuni dispositivi molto customizzati.
+                // In questo caso, potresti guidare l'utente manualmente.
+                // Log.w("BatteryOpt", "Nessuna activity per ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS")
+                // Prova ad aprire le impostazioni generali di ottimizzazione batteria:
+                val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                if (fallbackIntent.resolveActivity(activity.packageManager) != null) {
+                    activity.startActivity(fallbackIntent)
+                } else {
+                    // Log.w("BatteryOpt", "Nessuna activity per ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS")
+                    // Mostra un messaggio all'utente per farlo manualmente
+                }
+            }
+        }
+    }
+
 }

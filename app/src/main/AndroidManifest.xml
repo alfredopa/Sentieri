@@ -3,7 +3,8 @@
     <!-- Permessi per la connessione Internet -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
+    <!-- Permessi per ignorare ottimizzazione batteria -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Permesso per la fotocamera -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.any" />
@@ -50,7 +51,7 @@
 
         <activity
             android:name=".MainActivity"
-            android:launchMode="singleInstance"
+            android:launchMode="singleTask"
             android:windowIsTranslucent="false"
             android:screenOrientation="portrait"
             android:exported="true">
