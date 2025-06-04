@@ -897,7 +897,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         return if (secondiMovimento == 0.0) {
             0.0
         } else {
-            (distanzaMetri / (secondiMovimento / 1000000.0)) * 3.6
+            ((distanzaMetri / secondiMovimento) / 1000000.0) * 3.6
         }
     }
 
@@ -1039,7 +1039,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         Dislivello positivo (d+): ${viewModel.dislivPiu.value}
                         Dislivello negativo (d-): ${viewModel.dislivMeno.value}
                         Tempo trascorso: ${binding.cruscotto.tvTempo.text}
-                        Tempo in movimento: ${DecimalFormat("##.##").format(mediaSpeed)}
+                        Tempo in movimento: ${binding.cruscotto.tvTempoMov.text}
+                        Velocità media: ${DecimalFormat("##.##").format(mediaSpeed)}
                 """.trimIndent()
                 setMessage(message)
                 setPositiveButton(
