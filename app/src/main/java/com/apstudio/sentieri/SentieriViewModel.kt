@@ -25,9 +25,13 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.sql.Timestamp
+import kotlin.math.abs
 
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
+    companion object {
+        private const val movingAverageWindowSize = 8 // Numero di valori da tenere in memoria per la media
+    }
     private val _traccia = MutableLiveData<Polyline>()
     val traccia : LiveData<Polyline> = _traccia
     val listaTracce = FolderOverlay()
@@ -62,10 +66,10 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     // valori visualizzati nel cruscotto
     private val _distanzaMetri = MutableLiveData(0)
     val distanzaMetri : LiveData<Int> = _distanzaMetri
-    private val _dislivPiu = MutableLiveData(0)
-    val dislivPiu : LiveData<Int> = _dislivPiu
-    private val _dislivMeno = MutableLiveData(0)
-    val dislivMeno : LiveData<Int> = _dislivMeno
+    private val _dislivPiu = MutableLiveData<Double>(0.0)
+    val dislivPiu: LiveData<Double> = _dislivPiu
+    private val _dislivMeno = MutableLiveData<Double>(0.0)
+    val dislivMeno: LiveData<Double> = _dislivMeno
     private val _velocita = MutableLiveData(0)
     val velocita : LiveData<Int> = _velocita
     private val _quota = MutableLiveData(0)
@@ -79,7 +83,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     // valori per il calcolo del dislivello con GPS con filtro MovingAverage
     private var previousAltitude: Int? = null
     private val altitudeHistory = mutableListOf<Double>()
-    private val movingAverageWindowSize = 10 // Numero di valori da tenere in memoria per la media
     // valori di riferimento della traccia da seguire
     var trackDistanza = 0f
     var trackAscesa = 0
@@ -137,6 +140,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             if (nuovaQuota != null) {
                 newPunto = GeoPoint(loc.latitude, loc.longitude, nuovaQuota.toDouble())
                 _quota.value = nuovaQuota
+                Log.d("aggiornaDati", "nuovaQuota $nuovaQuota")
             }
         }
 
@@ -177,6 +181,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private fun dislivelloGPS(altitudineGps: Double): Int? {
         // CALCOLO DISLIVELLO CON QUOTA DA GPS
         // attende il numero di altitudeHistory punti prima di stimare altitudine
+        Log.d("dislivelloGPS", "altitudineGps $altitudineGps")
         return if (altitudeHistory.size < movingAverageWindowSize) {
             altitudeHistory.add(altitudineGps)
             null
@@ -194,11 +199,11 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             val altitudeDifference = (filteredAltitude - previousAltitude!!)
             // Accumula le differenze positive
             if (altitudeDifference > 0) {
-                _dislivPiu.value = dislivPiu.value?.plus(altitudeDifference)
+                _dislivPiu.value = (_dislivPiu.value ?: 0.0) + altitudeDifference
             } else {
-                _dislivMeno.value = dislivMeno.value?.plus(altitudeDifference)
+                _dislivMeno.value = (_dislivMeno.value ?: 0.0) + abs(altitudeDifference)
             }
-            //Log.d("addLocation",  "quota da GPS $filteredAltitude prec $previousAltitude ${dislivPiu.value} ${dislivMeno.value}")
+            Log.d("addLocation",  "quota da GPS $filteredAltitude prec $previousAltitude ${dislivPiu.value} ${dislivMeno.value}")
         }
         // Aggiorna l'altitudine precedente
         previousAltitude = filteredAltitude
@@ -215,8 +220,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     fun resetCruscotto() {
         _quota.value = 0
-        _dislivPiu.value = 0
-        _dislivMeno.value = 0
+        _dislivPiu.value = 0.0
+        _dislivMeno.value = 0.0
         _velocita.value = 0
         _distanzaMetri.value = 0
         _tempoTrascorso.value = ""
