@@ -13,5 +13,5 @@ plugins {
     id("com.google.devtools.ksp") version "2.0.20-1.0.25" apply false
 }
 ext {
-    defaultVersionName = '1.0.2'
+    defaultVersionName = '1.0.3'
 }

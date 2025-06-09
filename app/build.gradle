@@ -14,7 +14,7 @@ android {
         applicationId "com.apstudio.sentieri"
         minSdk 30
         targetSdk 35
-        versionCode 4
+        versionCode 6
         versionName defaultVersionName
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
