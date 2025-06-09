@@ -48,15 +48,11 @@ import com.apstudio.sentieri.MappaFragment.Companion.SEND_LOCATION_ACTION
 class LocationService : LifecycleService() {
 
     companion object {
-        private const val NOTIFICATION_CHANNEL_ID = 1234 //"location_service_channel"
+        private const val LOCATION_SERVICE_CHANNEL = 1234 // canale delle notifiche
         private const val LOCATION_UPDATE_INTERVAL_MS = 2000L
         private const val MIN_DISTANCE_CHANGE_METERS = 2f
         private const val MIN_ACCURACY_METERS = 40f
         private const val TAG = "LocationService"
-        var speedKnots: Double = 0.0
-            private set
-        var speedKmh: Double = 0.0
-            private set
     }
 
     private lateinit var locationManager: LocationManager
@@ -66,7 +62,8 @@ class LocationService : LifecycleService() {
     private  val baroRepo: BaroRepo by lazy { BaroRepo(this) }
     private var milliBar = 0.0F
     private var hasMslAltitude = false
-
+    private var speedKnots: Double = 0.0
+    private var speedKmh: Double = 0.0
     private val gpsViewModel: GpsViewModel by lazy {
         ViewModelProvider(application as ViewModelStoreOwner)[GpsViewModel::class.java]
     }
@@ -181,6 +178,8 @@ class LocationService : LifecycleService() {
             putExtra("posizione", newLocation)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
                 gpsViewModel.mslAltitude = newLocation.mslAltitudeMeters
+            //else
+            //    gpsViewModel.mslAltitude = newLocation.altitude
             putExtra("altitudine", gpsViewModel.mslAltitude)
             if (gpsViewModel.usaBaro && baroRepo.baroData.isInitialized) {
                 milliBar = baroRepo.baroData.value ?: 0.0F
@@ -258,10 +257,10 @@ class LocationService : LifecycleService() {
     private fun createNotificationChannel() {
         val channelName = "Location Service"
         val importance = NotificationManager.IMPORTANCE_HIGH
-        val channelId = "serviceeee"
+        val channelId = "LOCATION_SERVICE_CHANNEL"
         val channel = NotificationChannel(channelId, channelName, importance)
         channel.setSound(null, null)
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
 
         val pendingIntent = NavDeepLinkBuilder(applicationContext)
@@ -293,7 +292,7 @@ class LocationService : LifecycleService() {
                 .setCategory(Notification.CATEGORY_SERVICE)
                 .setPriority(NotificationManager.IMPORTANCE_DEFAULT)
                 .build()
-        startForeground(NOTIFICATION_CHANNEL_ID, notification)
+        startForeground(LOCATION_SERVICE_CHANNEL, notification)
     }
 
 }

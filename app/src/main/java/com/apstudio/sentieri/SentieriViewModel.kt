@@ -30,6 +30,8 @@ import kotlin.math.abs
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     companion object {
+        private const val ALTITUDE_CHANGE_THRESHOLD_METERS = 1.0
+        private const val MOVING_AVERAGE_WINDOW_SIZE = 8 // Example value
         private const val movingAverageWindowSize = 8 // Numero di valori da tenere in memoria per la media
     }
     private val _traccia = MutableLiveData<Polyline>()
@@ -81,7 +83,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private val _secondiMovimento = MutableLiveData<Long>(0)
     val secondiMovimento: LiveData<Long> = _secondiMovimento
     // valori per il calcolo del dislivello con GPS con filtro MovingAverage
-    private var previousAltitude: Int? = null
+    private var previousAltitude: Double? = null
     private val altitudeHistory = mutableListOf<Double>()
     // valori di riferimento della traccia da seguire
     var trackDistanza = 0f
@@ -103,6 +105,9 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val isCalibrato : LiveData<Boolean> = _isCalibrato
     var bottomState = 0
 
+    // modifica per il calcolo del dislivello con MovingAverage
+    private val gpsAltitudeHistory: ArrayDeque<Double> = ArrayDeque(MOVING_AVERAGE_WINDOW_SIZE)
+    private var previousFilteredAltitude: Double? = null
     init {
         val traccia = Polyline()
         _traccia.value = traccia
@@ -136,12 +141,13 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             _quota.value = altitudineBaro.toInt()
         } else {
             // la quota deve essere quella media calcolata con MovingAverage
-            val nuovaQuota = dislivelloGPS(altitudine)
+            val nuovaQuota = processGpsAltitude(altitudine)
+            //val nuovaQuota = dislivelloGPS(altitudine)
             if (nuovaQuota != null) {
-                newPunto = GeoPoint(loc.latitude, loc.longitude, nuovaQuota.toDouble())
-                _quota.value = nuovaQuota
-                Log.d("aggiornaDati", "nuovaQuota $nuovaQuota")
+                _quota.value = nuovaQuota.toInt()
+                newPunto = GeoPoint(loc.latitude, loc.longitude, nuovaQuota)
             }
+            SimpleFileLogger.log("aggiornaDati", "nuovaQuota $nuovaQuota")
         }
 
         if (oldPunto.latitude != 0.0 && oldPunto.longitude != 0.0) {
@@ -178,45 +184,97 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         //Log.d("viewmodel", "aggiornadati ${quotaIpso.value}  new $newQuotaIpso  d+ ${dislivPiuIpso.value} d- ${dislivMenoIpso.value}")
     }
 
-    private fun dislivelloGPS(altitudineGps: Double): Int? {
+    fun processGpsAltitude(gpsAltitude: Double): Double? {
+        // CALCOLO DISLIVELLO CON QUOTA DA GPS (Original comment, kept for context if needed)
+        // attende il numero di altitudeHistory punti prima di stimare altitudine (Original comment)
+
+        if (gpsAltitudeHistory.size < MOVING_AVERAGE_WINDOW_SIZE -1) { // -1 because we add the current one before checking size in applyMovingAverage
+            gpsAltitudeHistory.addLast(gpsAltitude) // Add to history even before full window for average calculation
+            return null
+        } else {
+            // Add the current altitude before calculating the average
+            // applyMovingAverage will also add it to the history
+            val filteredAltitude = applyMovingAverage(gpsAltitude)
+            updateAltitudeChanges(filteredAltitude)
+            return filteredAltitude
+        }
+    }
+
+    private fun updateAltitudeChanges(currentFilteredAltitude: Double) {
+        if (previousFilteredAltitude == null) {
+            previousFilteredAltitude = currentFilteredAltitude
+            return
+        }
+        previousFilteredAltitude?.let { prevAlt ->
+            val altitudeDifference = currentFilteredAltitude - prevAlt
+            if (altitudeDifference > ALTITUDE_CHANGE_THRESHOLD_METERS) {
+                // Assuming _positiveAltitudeChange is LiveData/StateFlow initialized to 0.0
+                _dislivPiu.value = (_dislivPiu.value ?: 0.0) + altitudeDifference
+                previousFilteredAltitude = currentFilteredAltitude
+            } else if (altitudeDifference < -ALTITUDE_CHANGE_THRESHOLD_METERS) { // Consider a threshold for descent too
+                // Accumulate absolute descent if the change is significantly negative
+                _dislivMeno.value = (_dislivMeno.value ?: 0.0) + altitudeDifference
+                previousFilteredAltitude = currentFilteredAltitude
+            }
+        }
+        SimpleFileLogger.log("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
+        Log.d("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
+
+    }
+
+    /**
+     * Applies a moving average filter to the given altitude.
+     * Adds the altitude to the history and ensures the history does not exceed the window size.
+     */
+    private fun applyMovingAverage(altitude: Double): Double {
+        gpsAltitudeHistory.addLast(altitude)
+        if (gpsAltitudeHistory.size > MOVING_AVERAGE_WINDOW_SIZE) {
+            gpsAltitudeHistory.removeFirst()
+        }
+        return gpsAltitudeHistory.average()
+    }
+
+    //--------------------------------------------------------------------------------------------------------------------------------
+    // Codice precedente per calcolo dislivello GPS
+    /*private fun dislivelloGPS(altitudineGps: Double): Double? {
         // CALCOLO DISLIVELLO CON QUOTA DA GPS
         // attende il numero di altitudeHistory punti prima di stimare altitudine
-        Log.d("dislivelloGPS", "altitudineGps $altitudineGps")
+        //Log.d("dislivelloGPS", "altitudineGps $altitudineGps")
         return if (altitudeHistory.size < movingAverageWindowSize) {
             altitudeHistory.add(altitudineGps)
             null
         } else {
             addLocation(altitudineGps)
         }
+    }*/
 
-    }
-
-    private fun addLocation(altitudineGps: Double): Int {
+    /*private fun addLocation(altitudineGps: Double): Double {
         // Filtra i dati di altitudine usando una media mobile
         val filteredAltitude = applyMovingAverage(altitudineGps)
         // Calcola la differenza di altitudine
         if (previousAltitude != null) {
             val altitudeDifference = (filteredAltitude - previousAltitude!!)
             // Accumula le differenze positive
-            if (altitudeDifference > 0) {
+            if (altitudeDifference > 1) {
                 _dislivPiu.value = (_dislivPiu.value ?: 0.0) + altitudeDifference
             } else {
                 _dislivMeno.value = (_dislivMeno.value ?: 0.0) + abs(altitudeDifference)
             }
-            Log.d("addLocation",  "quota da GPS $filteredAltitude prec $previousAltitude ${dislivPiu.value} ${dislivMeno.value}")
         }
+        SimpleFileLogger.log("addLocation",  "filteredAltitude $filteredAltitude previousAltitude $previousAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
         // Aggiorna l'altitudine precedente
         previousAltitude = filteredAltitude
         return filteredAltitude
-    }
+    }*/
 
-    private fun applyMovingAverage(altitude: Double): Int {
+    /*private fun applyMovingAverage(altitude: Double): Double {
         altitudeHistory.add(altitude)
         if (altitudeHistory.size > movingAverageWindowSize) {
             altitudeHistory.removeAt(0)
         }
-        return altitudeHistory.average().toInt()
-    }
+        return altitudeHistory.average()
+    }*/
+    //-------------------------------------------------------------------------------------------------------------------------------------------
 
     fun resetCruscotto() {
         _quota.value = 0
@@ -265,7 +323,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
                 geoPuntiPercorso.add(punto)
                 //Log.v("thread", "$Latit : $Longit")
             }
-            if (percorso.actualPoints.size > 0) {
+            if (percorso.actualPoints.isNotEmpty()) {
                 percorso = disegnaLine(percorso)
             }
             else

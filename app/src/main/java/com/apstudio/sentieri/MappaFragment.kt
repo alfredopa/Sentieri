@@ -38,6 +38,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getColor
+import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.net.toUri
 import androidx.core.view.MenuHost
@@ -109,7 +110,6 @@ import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
-import androidx.core.content.edit
 
 
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
@@ -175,23 +175,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val filter = IntentFilter(SEND_LOCATION_ACTION)
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
 
-        // Initialize the ActivityResultLauncher
-        /*openFileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == RESULT_OK) {
-                val uri: Uri? = result.data?.data
-                if (uri != null) {
-                    // Persist permissions for the selected file
-                    persistFilePermissions(uri)
-                    // Now, you have the correct Uri of the selected file
-                    // ... your code here
-                    apreMappa(uri)
-                } else {
-                    Toast.makeText(requireActivity(), "No file selected", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                Toast.makeText(requireActivity(), "File selection canceled", Toast.LENGTH_SHORT).show()
-            }
-        }*/
     }
 
     override fun onCreateView(
@@ -337,10 +320,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             binding.cruscotto.tvQuota.text = numberFormat.format(quota)
         }
         viewModel.dislivPiu.observe(viewLifecycleOwner) { dislivPiu ->
-            binding.cruscotto.tvDPiu.text = numberFormat.format(dislivPiu)
+            binding.cruscotto.tvDPiu.text = numberFormat.format(dislivPiu.toInt())
         }
         viewModel.dislivMeno.observe(viewLifecycleOwner) { dislivMeno ->
-            binding.cruscotto.tvDMeno.text = numberFormat.format(dislivMeno)
+            binding.cruscotto.tvDMeno.text = numberFormat.format(dislivMeno.toInt())
         }
         viewModel.tempoTrascorso.observe(viewLifecycleOwner) { tempoTrascorso ->
             binding.cruscotto.tvTempo.text = tempoTrascorso
@@ -350,7 +333,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         // determina se l'altitudine deve essere barometrica o dal GPS
         // setta il flag is_Calibrato nel gpsViewModel, utilizzato da LocationService
-        viewModel.isCalibrato.observe(viewLifecycleOwner) {
+        // disabilitato per controllo valore quota
+        /*viewModel.isCalibrato.observe(viewLifecycleOwner) {
             if (it) {
                 binding.cruscotto.tvCalcQuota.text = "BARO"
                 gpsViewModel.usaBaro = true
@@ -358,7 +342,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 binding.cruscotto.tvCalcQuota.text = "GPS"
                 gpsViewModel.usaBaro = false
             }
-        }
+        }*/
         gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
             updateGpsIcon(status)
             //Log.d("gps", "status $status")
@@ -1085,7 +1069,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // aggiorna posizione ed inserisce nuovo punto
             // riceve il valore in millibar letti da barometro e lo passa al viewModel
             // aggiorna dati nel viewModel
+            SimpleFileLogger.log("BroadcastReceiver", "altitudine $altitudine  millibar $milliBar")
             viewModel.aggiornaDati(loc, altitudine, milliBar)
+            binding.cruscotto.tvCalcQuota.text = altitudine.toString()
             //se non è visualizzata la mappa non aggiorna dati cruscotto
             if (!isFragmentVisibleAndActive())
                 return
