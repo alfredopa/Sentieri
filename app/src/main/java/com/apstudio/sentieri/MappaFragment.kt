@@ -120,6 +120,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         )
     }
 
+    private val METERS_IN_A_KILOMETER = 1000.0 // Changed from Int to Double for precision
+    private val SECONDS_IN_AN_HOUR = 3600.0 // Changed from Int to Double for precision
+
     // viewModel del LocationService con scope Application
     private val gpsViewModel: GpsViewModel by lazy {
         ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[GpsViewModel::class.java]
@@ -333,8 +336,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         // determina se l'altitudine deve essere barometrica o dal GPS
         // setta il flag is_Calibrato nel gpsViewModel, utilizzato da LocationService
-        // disabilitato per controllo valore quota
-        /*viewModel.isCalibrato.observe(viewLifecycleOwner) {
+        viewModel.isCalibrato.observe(viewLifecycleOwner) {
             if (it) {
                 binding.cruscotto.tvCalcQuota.text = "BARO"
                 gpsViewModel.usaBaro = true
@@ -342,7 +344,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 binding.cruscotto.tvCalcQuota.text = "GPS"
                 gpsViewModel.usaBaro = false
             }
-        }*/
+        }
         gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
             updateGpsIcon(status)
             //Log.d("gps", "status $status")
@@ -496,12 +498,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // da verificare codice errore da play store
         val mbtilesFilePath = "/storage/emulated/0/Android/media/com.apstudio.sentieri/Mappe/FreemapSk.mbtiles"
         val mbtilesFile = File(mbtilesFilePath)
-        Log.d("AppTestPlayStore", "Percorso MBTiles: ${mbtilesFile.absolutePath}")
+        /*Log.d("AppTestPlayStore", "Percorso MBTiles: ${mbtilesFile.absolutePath}")
         Log.d("AppTestPlayStore", "MBTiles Esiste: ${mbtilesFile.exists()}")
         Log.d("AppTestPlayStore", "MBTiles Può Leggere: ${mbtilesFile.canRead()}")
         Log.d("AppTestPlayStore", "MBTiles È File: ${mbtilesFile.isFile}")
         Log.d("AppTestPlayStore", "Lunghezza MBTiles: ${mbtilesFile.length()}")
-
+        */
         try {
             // Prova ad inizializzare OsmDroid qui
         } catch (e: Exception) {
@@ -875,14 +877,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private fun mediaSpeed(): Double {
         // Calcola la velocità media in km/h
         // Ottieni i valori dai LiveData/StateFlow e gestisci il caso di null
-        val distanzaMetri = viewModel.distanzaMetri.value?.toDouble() ?: 0.0
-        val secondiMovimento = viewModel.secondiMovimento.value?.toDouble() ?: 0.0
-        // Gestisci la divisione per zero
-        return if (secondiMovimento == 0.0) {
-            0.0
-        } else {
-            ((distanzaMetri / secondiMovimento) / 1000000.0) * 3.6
+        val distanceMeters = viewModel.distanzaMetri.value ?: 0
+        val movingSeconds = viewModel.secondiMovimento.value ?: 0
+        // Ritorna zero se non c'è stato movimento
+        if (movingSeconds.toInt() == 0) {
+            return 0.0 // Return Double for consistency
         }
+        // Convert to Double early to maintain precision
+        val distanceKilometers = distanceMeters.toDouble() / METERS_IN_A_KILOMETER
+        val movingHours = movingSeconds.toDouble() / SECONDS_IN_AN_HOUR
+        // Calculate speed in km/h
+        return distanceKilometers / movingHours
     }
 
     private fun salvaTraccia(nomeTraccia: String) {
@@ -1020,8 +1025,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 setTitle("Percorso concluso")
                 val message = """
                         Distanza percorsa: ${viewModel.distanzaMetri.value}
-                        Dislivello positivo (d+): ${viewModel.dislivPiu.value}
-                        Dislivello negativo (d-): ${viewModel.dislivMeno.value}
+                        Dislivello positivo (d+): ${viewModel.dislivPiu.value?.toInt()}
+                        Dislivello negativo (d-): ${viewModel.dislivMeno.value?.toInt()}
                         Tempo trascorso: ${binding.cruscotto.tvTempo.text}
                         Tempo in movimento: ${binding.cruscotto.tvTempoMov.text}
                         Velocità media: ${DecimalFormat("##.##").format(mediaSpeed)}
@@ -1071,7 +1076,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // aggiorna dati nel viewModel
             SimpleFileLogger.log("BroadcastReceiver", "altitudine $altitudine  millibar $milliBar")
             viewModel.aggiornaDati(loc, altitudine, milliBar)
-            binding.cruscotto.tvCalcQuota.text = altitudine.toString()
+            //in debug visualizza altitudine su mappa
+            //binding.cruscotto.tvCalcQuota.text = altitudine.toString()
             //se non è visualizzata la mappa non aggiorna dati cruscotto
             if (!isFragmentVisibleAndActive())
                 return

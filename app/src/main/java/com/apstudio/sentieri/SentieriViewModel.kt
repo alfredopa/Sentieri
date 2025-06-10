@@ -2,7 +2,6 @@ package com.apstudio.sentieri
 
 import android.location.Location
 import android.net.Uri
-import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -25,14 +24,12 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.sql.Timestamp
-import kotlin.math.abs
 
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     companion object {
         private const val ALTITUDE_CHANGE_THRESHOLD_METERS = 1.0
-        private const val MOVING_AVERAGE_WINDOW_SIZE = 8 // Example value
-        private const val movingAverageWindowSize = 8 // Numero di valori da tenere in memoria per la media
+        private const val MOVING_AVERAGE_WINDOW_SIZE = 8 // Numero di valori da tenere in memoria per la media
     }
     private val _traccia = MutableLiveData<Polyline>()
     val traccia : LiveData<Polyline> = _traccia
@@ -55,7 +52,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var menuMap = 0             // indice della mappa utilizzata secondo le voci del menu mappa
     var uriMappa: Uri = Uri.EMPTY
     var isFixed = false
-    //var running = true
 
     private var updatesJob: Job? = null
     var isRecording = false
@@ -82,9 +78,12 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val tempoTrascorso: LiveData<String> = _tempoTrascorso
     private val _secondiMovimento = MutableLiveData<Long>(0)
     val secondiMovimento: LiveData<Long> = _secondiMovimento
+
     // valori per il calcolo del dislivello con GPS con filtro MovingAverage
-    private var previousAltitude: Double? = null
-    private val altitudeHistory = mutableListOf<Double>()
+    //private var previousAltitude: Double? = null
+    //private val altitudeHistory = mutableListOf<Double>()
+    private val gpsAltitudeHistory: ArrayDeque<Double> = ArrayDeque(MOVING_AVERAGE_WINDOW_SIZE)
+    private var previousFilteredAltitude: Double? = null
     // valori di riferimento della traccia da seguire
     var trackDistanza = 0f
     var trackAscesa = 0
@@ -105,9 +104,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val isCalibrato : LiveData<Boolean> = _isCalibrato
     var bottomState = 0
 
-    // modifica per il calcolo del dislivello con MovingAverage
-    private val gpsAltitudeHistory: ArrayDeque<Double> = ArrayDeque(MOVING_AVERAGE_WINDOW_SIZE)
-    private var previousFilteredAltitude: Double? = null
     init {
         val traccia = Polyline()
         _traccia.value = traccia
@@ -185,9 +181,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     }
 
     fun processGpsAltitude(gpsAltitude: Double): Double? {
-        // CALCOLO DISLIVELLO CON QUOTA DA GPS (Original comment, kept for context if needed)
-        // attende il numero di altitudeHistory punti prima di stimare altitudine (Original comment)
-
+        // CALCOLO DISLIVELLO CON QUOTA DA GPS
+        // attende il numero di altitudeHistory punti prima di stimare altitudine
         if (gpsAltitudeHistory.size < MOVING_AVERAGE_WINDOW_SIZE -1) { // -1 because we add the current one before checking size in applyMovingAverage
             gpsAltitudeHistory.addLast(gpsAltitude) // Add to history even before full window for average calculation
             return null
@@ -218,7 +213,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             }
         }
         SimpleFileLogger.log("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
-        Log.d("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
+        //Log.d("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
 
     }
 
@@ -339,16 +334,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         return percorso
     }
 
-    /*fun calctempoTrascorso(): MutableLiveData<String> {
-        // Calcolo del tempo trascorso da inizio registrazione
-        val millisecondi = System.currentTimeMillis()
-        _tempoTotale = millisecondi - oraInizio
-        //val tempoTrascorso = oraInizio - SystemClock.elapsedRealtime()
-        //Log.d("viewmodel", "tempo trascorso $tempoTrascorso, $oraInizio")
-        //return MapUtils.formatSeconds(tempoTrascorso.toInt()/1000)
-        return MapUtils.formatMillisToHHmmss(tempoTrascorso)
-    }*/
-
     private fun incrementMovementSeconds() {
         _secondiMovimento.value = (_secondiMovimento.value ?: 0) + 1
     }
@@ -376,9 +361,9 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     fun stopUpdates() {
         updatesJob?.cancel()
         updatesJob = null
-        //viewModel.running = false
 //Log.d("Mappa", "Stop running")
     }
+
     /*// filtro basato su velocità ascensionale in m/sec
     velocità ascensionale media in bici, espressa in m/sec:
     Ciclista principiante su pendenza moderata (5-10%): 0.5 - 1.0 m/sec

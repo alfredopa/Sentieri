@@ -118,6 +118,7 @@ class MainActivity :
 
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
+        this.supportActionBar?.title = "Mappa"
         drawerLayout = findViewById(R.id.drawerLayout)
         val navigationView = findViewById<NavigationView>(R.id.nav_View)
         navController = findNavController(R.id.nav_host_fragment)
