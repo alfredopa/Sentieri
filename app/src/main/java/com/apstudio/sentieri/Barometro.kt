@@ -197,13 +197,11 @@ class Barometro : Fragment() , SensorEventListener {
         //  $GPGGA,113951.00,3913.488983,N,00906.041103,E,1,03,1.6,0.0,M,46.8,M,,*6A
         if (message.startsWith('$'+"GPGGA") or message.startsWith('$'+"GNGGA")) {
             val nmeaSplit = message.split(",")
-            val mslAltitude = nmeaSplit[9]
-            binding.tvMsl.text = mslAltitude
-            //binding.tvNMEA.text = message
-            /*val mslAltitude = nmeaSplit[9].toFloatOrNull() ?: 0.0f
-            val lat = nmeaSplit[2]
-            val lon = nmeaSplit[4]*/
-            //Log.d("GGA", "$mslAltitude - $message")
+            val fixQuality = nmeaSplit[6]
+            val mslAltitude = nmeaSplit[9].toDoubleOrNull()
+            if (fixQuality == "1" && mslAltitude != null) {
+                binding.tvMsl.text = mslAltitude.toString()
+            }
         }
         //Log.d("NMEA", message)
     }

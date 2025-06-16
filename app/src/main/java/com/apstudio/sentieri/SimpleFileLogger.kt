@@ -27,7 +27,21 @@ object SimpleFileLogger {
         }
 
         try {
-            val logDirectory = File(appContext.getExternalFilesDir(null), DIRECTORY_NAME)
+            // Ottieni la directory media specifica dell'app
+            val mediaDirs = appContext.externalMediaDirs
+            val logDirectory: File?
+
+            if (mediaDirs.isNotEmpty() && mediaDirs[0] != null) {
+                // Usa la prima directory media disponibile
+                logDirectory = File(mediaDirs[0], DIRECTORY_NAME)
+            } else {
+                // Fallback alla directory specifica dell'app in /Android/data/ se /Android/media/ non è accessibile
+                // o se vuoi comunque avere un fallback garantito.
+                // In alternativa, potresti loggare un errore e non scrivere se la directory media non è disponibile.
+                android.util.Log.w("SimpleFileLogger", "External media directory not available, falling back to external files dir.")
+                logDirectory = File(appContext.getExternalFilesDir(null), DIRECTORY_NAME)
+            }
+
             if (!logDirectory.exists()) {
                 logDirectory.mkdirs()
             }
