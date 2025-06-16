@@ -128,11 +128,9 @@ class LocationService : LifecycleService() {
 
     private fun initializeNmeaListener() {
         // al momento utilizzare sempre la velocità ricavata da NMEA
-        //if (!hasMslAltitude) {
-            nmeaListener = OnNmeaMessageListener { message, _ ->
-                parseNmeaMessage(message)
-            }
-        //}
+        nmeaListener = OnNmeaMessageListener { message, _ ->
+           parseNmeaMessage(message)
+        }
     }
 
     private fun requestLocationUpdates() {
@@ -176,11 +174,26 @@ class LocationService : LifecycleService() {
         val broadcastIntent = Intent().apply {
             action = SEND_LOCATION_ACTION
             putExtra("posizione", newLocation)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-                gpsViewModel.mslAltitude = newLocation.mslAltitudeMeters
-            //else
-            //    gpsViewModel.mslAltitude = newLocation.altitude
+
+            /*if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val rawMslAltitude = newLocation.mslAltitudeMeters
+                SimpleFileLogger.log(TAG, "sendBroadcast - Android 14+: newLocation.mslAltitudeMeters = $rawMslAltitude, newLocation.altitude (WGS84) = ${newLocation.altitude}")
+                if (!rawMslAltitude.isNaN()) {
+                    gpsViewModel.mslAltitude = rawMslAltitude
+                } else {
+                    SimpleFileLogger.log(TAG, "sendBroadcast - Android 14+: mslAltitudeMeters is NaN. ViewModel MSL altitude will rely on NMEA if available.")
+                    // Qui potresti decidere se gpsViewModel.mslAltitude debba mantenere l'ultimo valore NMEA
+                    // o essere impostato a un valore che indica "non disponibile".
+                    // Attualmente, se è NaN, gpsViewModel.mslAltitude non viene aggiornato qui.
+                }
+            } else {
+                SimpleFileLogger.log(TAG, "sendBroadcast - Android < 14: Using NMEA for MSL. Current gpsViewModel.mslAltitude = ${gpsViewModel.mslAltitude}, newLocation.altitude (WGS84) = ${newLocation.altitude}")
+                // gpsViewModel.mslAltitude è già stato (o sarà) impostato da parseNmeaMessage
+            }*/
+
             putExtra("altitudine", gpsViewModel.mslAltitude)
+            SimpleFileLogger.log(TAG, "sendBroadcast - Android < 14: Using NMEA for MSL. Current gpsViewModel.mslAltitude = ${gpsViewModel.mslAltitude}, newLocation.altitude (WGS84) = ${newLocation.altitude}")
+
             if (gpsViewModel.usaBaro && baroRepo.baroData.isInitialized) {
                 milliBar = baroRepo.baroData.value ?: 0.0F
                 putExtra("milliBar", milliBar)
@@ -192,17 +205,26 @@ class LocationService : LifecycleService() {
     }
 
     private fun parseNmeaMessage(message: String) {
-        if (message.startsWith("\$GPGGA") || message.startsWith("\$GNGGA")) {
-            val nmeaParts = message.split(",")
-            if (nmeaParts.size > 9 && nmeaParts[6] == "1") {
-                gpsViewModel.mslAltitude = nmeaParts[9].toDoubleOrNull() ?: 0.0
-                //Log.d(TAG, "NMEA message received: Altitude = ${gpsViewModel.mslAltitude}")
-            }
+        when (message.substring(0, 6)) {
+            "\$GPGGA", "\$GNGGA" -> {
+                parseGPGGA(message)}
+            "\$GPRMC" -> {
+                parseGPRMC(message)}
+            "\$GNVTG" -> {
+                parseGNVTG(message)}
         }
-        if (message.startsWith("\$GPRMC")) {
-            parseGPRMC(message)
-        } else if (message.startsWith("\$GNVTG")) {
-            parseGNVTG(message)
+    }
+
+    private fun parseGPGGA(message: String) {
+        val nmeaParts = message.split(",")
+        if (nmeaParts.size > 9) {
+            val fixQuality = nmeaParts[6]
+            val mslFromNmea = nmeaParts[9].toDoubleOrNull()
+            //SimpleFileLogger.log(TAG, "parseNmeaMessage - GGA Fix Quality: $fixQuality, MSL from NMEA string: ${nmeaParts[9]}, Parsed: $mslFromNmea")
+            if (fixQuality == "1" && mslFromNmea != null) { // O controlla anche altri codici di fix validi
+                gpsViewModel.mslAltitude = mslFromNmea
+                SimpleFileLogger.log(TAG, "parseNmeaMessage - Updated gpsViewModel.mslAltitude from NMEA: ${gpsViewModel.mslAltitude}")
+            }
         }
     }
 
