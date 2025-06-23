@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.location.Location
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -38,6 +39,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getColor
+import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.net.toUri
@@ -694,6 +696,23 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun attivaGps() {
+        var locationManager = requireActivity().getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        // Check if GPS provider is enabled
+        val isGpsProviderEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        if (!isGpsProviderEnabled) {
+            val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+            with(builder)
+            {
+                setTitle("Sensore GPS")
+                setMessage("Il dispositivo non è dotato di sensore GPS")
+                setPositiveButton(
+                    "Chiudi"
+                ) { _, _ ->
+                }
+                    .show()
+            }
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 // Richiedi l'autorizzazione solo se la versione dell'API è uguale o superiore a TIRAMISU
             if (ActivityCompat.checkSelfPermission(
