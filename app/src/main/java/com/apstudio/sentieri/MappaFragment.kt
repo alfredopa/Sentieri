@@ -195,8 +195,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // aggiunge il bottomsheet ed il menu
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
         // Set the initial state to hidden AFTER the layout is complete
-        bottomSheetBehavior.peekHeight = 0
-        bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+        bottomSheetBehavior.isHideable = true // Assicurati che possa essere nascosto
+        bottomSheetBehavior.skipCollapsed = false // IMPORTANTE: non saltare lo stato collassato
+        // Imposta la peekHeight desiderata per quando è collassato
+        bottomSheetBehavior.peekHeight = 200 // O il valore in pixel desiderato
+        // Inizia nascosto
+        binding.cruscotto.root.post { // Per sicurezza, attendi il layout
+            if (isAdded) {
+                bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+            }
+        }
+
         //mapView = view.findViewById(R.id.Mapview)
         // Assegna un listener alla mappa per gestire la pressione dei tasti
         mapView.isFocusableInTouchMode = true
@@ -455,7 +464,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             gpsMarker.position = (viewModel.newPunto)
             gpsMarker.setVisible(true)
             bottomSheetBehavior.isHideable = false
-            bottomSheetBehavior.peekHeight = 90
+            bottomSheetBehavior.peekHeight = 200
             bottomSheetBehavior.state = viewModel.bottomState
             val toast =
                 Toast.makeText(requireActivity(), "Registrazione in corso", Toast.LENGTH_SHORT)
@@ -752,7 +761,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // avvia il servizio per tracciare locazione in background
         requireActivity().startService(Intent(context, LocationService::class.java))
         bottomSheetBehavior.isHideable = false
-        bottomSheetBehavior.peekHeight = 70
+        bottomSheetBehavior.peekHeight = 150
         bottomSheetBehavior.halfExpandedRatio = 0.5f
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
         gpsViewModel.updateGpsStatus("started")
