@@ -143,7 +143,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
                 _quota.value = nuovaQuota.toInt()
                 newPunto = GeoPoint(loc.latitude, loc.longitude, nuovaQuota)
             }
-            SimpleFileLogger.log("aggiornaDati", "nuovaQuota $nuovaQuota")
+            //SimpleFileLogger.log("aggiornaDati", "nuovaQuota $nuovaQuota")
         }
 
         if (oldPunto.latitude != 0.0 && oldPunto.longitude != 0.0) {
@@ -212,7 +212,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
                 previousFilteredAltitude = currentFilteredAltitude
             }
         }
-        SimpleFileLogger.log("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
+        //SimpleFileLogger.log("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
         //Log.d("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
 
     }
