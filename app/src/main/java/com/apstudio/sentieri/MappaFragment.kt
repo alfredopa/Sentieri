@@ -1102,7 +1102,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // aggiorna posizione ed inserisce nuovo punto
             // riceve il valore in millibar letti da barometro e lo passa al viewModel
             // aggiorna dati nel viewModel
-            SimpleFileLogger.log("BroadcastReceiver", "altitudine $altitudine  millibar $milliBar")
+            //SimpleFileLogger.log("BroadcastReceiver", "altitudine $altitudine  millibar $milliBar")
             viewModel.aggiornaDati(loc, altitudine, milliBar)
             //in debug visualizza altitudine su mappa
             //binding.cruscotto.tvCalcQuota.text = altitudine.toString()

@@ -14,13 +14,19 @@ class GpsViewModel  : ViewModel(){
     private val _gpsStatus = MutableLiveData("started")
     val gpsStatus: LiveData<String> = _gpsStatus
     var usaBaro : Boolean = false
-    var mslAltitude : Double = 0.0
+    private val _mslAltitude = MutableLiveData(0.0)
+    val mslAltitude : LiveData<Double> = _mslAltitude
     var numSat : Int = 0
     private val _velocita = MutableLiveData(0.0)
     val velocita: LiveData<Double> = _velocita
     // aggiungere tutti i livedata utili
     //private val _numSat = MutableLiveData(0)
     //var numSat: LiveData<Int> = _numSat
+
+    fun updateMslAltitude(altitude: Double) {
+        _mslAltitude.value = altitude
+        //Log.d("GpsView", "gps status $altitude")
+    }
 
     fun updateGpsStatus(status: String) {
         _gpsStatus.value = status

@@ -30,6 +30,43 @@ import com.apstudio.sentieri.MappaFragment.Companion.SEND_LOCATION_ACTION
  * LocationService is a foreground service responsible for tracking the device's location
  * and providing location updates. It utilizes the GPS provider and optionally a barometer
  * sensor if available.
+ * GGA
+ * * Global Positioning System Fix Data
+ * 184936.00
+ * * Tempo  18:49:36.00
+ * 4508.43100,N
+ * * Latitudine  45°08.43100' N
+ * 00737.21937,E
+ * * Longitudine 7°37.21937' E
+ * 1
+ * * Qualità del Fix:
+ * 0 = Invalido
+ * 1 = GPS fix
+ * 2 = DGPS fix
+ * 3 = Fix GPS PPS
+ * 4 = RTK (Real Time Kinematic) intera
+ * 5 = RTK float
+ * 6 = Navigazione Stimata (dead reckoning)
+ * 7 = Input Manuale
+ * 8 = Simulazione
+ * 06
+ *
+ * 6 Satelliti usati nella soluzione
+ * 1.5
+ *
+ * HDOP
+ * 278.4,M
+ *
+ * Altitudine   278.4  metri s.l.m
+ * 47.2 , M
+ *
+ * Altezza sul geoide WGS84 =47.2  metri
+ * vuoto
+ *
+ * Tempo dall'ultimo aggiornamento DGPS
+ * vuoto
+ *
+ * Id della stazione DGPS
  *
  * <p>
  * Key features:
@@ -191,8 +228,8 @@ class LocationService : LifecycleService() {
                 // gpsViewModel.mslAltitude è già stato (o sarà) impostato da parseNmeaMessage
             }*/
 
-            putExtra("altitudine", gpsViewModel.mslAltitude)
-            SimpleFileLogger.log(TAG, "sendBroadcast - Android < 14: Using NMEA for MSL. Current gpsViewModel.mslAltitude = ${gpsViewModel.mslAltitude}, newLocation.altitude (WGS84) = ${newLocation.altitude}")
+            putExtra("altitudine", gpsViewModel.mslAltitude.value)
+            //SimpleFileLogger.log(TAG, "sendBroadcast - Android < 14: Using NMEA for MSL. Current gpsViewModel.mslAltitude = ${gpsViewModel.mslAltitude.value}, newLocation.altitude (WGS84) = ${newLocation.altitude}")
 
             if (gpsViewModel.usaBaro && baroRepo.baroData.isInitialized) {
                 milliBar = baroRepo.baroData.value ?: 0.0F
@@ -205,6 +242,11 @@ class LocationService : LifecycleService() {
     }
 
     private fun parseNmeaMessage(message: String) {
+        //SimpleFileLogger.log(TAG, "NMEA Received: $message") // <-- AGGIUNGI QUESTO LOG
+        if (message.length < 6) {
+            //SimpleFileLogger.log(TAG, "NMEA message too short: $message")
+            return
+        }
         when (message.substring(0, 6)) {
             "\$GPGGA", "\$GNGGA" -> {
                 parseGPGGA(message)}
@@ -220,10 +262,10 @@ class LocationService : LifecycleService() {
         if (nmeaParts.size > 9) {
             val fixQuality = nmeaParts[6]
             val mslFromNmea = nmeaParts[9].toDoubleOrNull()
-            //SimpleFileLogger.log(TAG, "parseNmeaMessage - GGA Fix Quality: $fixQuality, MSL from NMEA string: ${nmeaParts[9]}, Parsed: $mslFromNmea")
-            if (fixQuality == "1" && mslFromNmea != null) { // O controlla anche altri codici di fix validi
-                gpsViewModel.mslAltitude = mslFromNmea
-                SimpleFileLogger.log(TAG, "parseNmeaMessage - Updated gpsViewModel.mslAltitude from NMEA: ${gpsViewModel.mslAltitude}")
+            SimpleFileLogger.log(TAG, "parseNmeaMessage - GGA Fix Quality: $fixQuality, MSL from NMEA string: ${nmeaParts[9]}, Parsed: $mslFromNmea")
+            if (fixQuality != "0" && mslFromNmea != null) { // O controlla anche altri codici di fix validi
+                gpsViewModel.updateMslAltitude(mslFromNmea)
+                SimpleFileLogger.log(TAG, "parseNmeaMessage - Updated gpsViewModel.mslAltitude from NMEA: ${gpsViewModel.mslAltitude.value}")
             }
         }
     }
@@ -266,6 +308,7 @@ class LocationService : LifecycleService() {
     private fun removeLocationUpdates() {
         nmeaListener?.let {
             locationManager.removeNmeaListener(it)
+            //Log.d(TAG, "Removed NMEA listener")
         }
         locationManager.removeUpdates(locationListener)
         locationManager.unregisterGnssStatusCallback(gnssCallback)
