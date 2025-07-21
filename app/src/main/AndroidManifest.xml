@@ -34,6 +34,7 @@
         android:roundIcon="@drawable/quattromori"
         android:supportsRtl="true"
         android:theme="@style/Base.Theme.MyApplication"
+        android:extractNativeLibs="false"
         android:requestLegacyExternalStorage="true"
         >
         <meta-data
@@ -44,7 +45,6 @@
             android:value="pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNrd29tYXJiZjAwd24ydnJ0Yno3NGJ4aHUifQ.4QyOTn9AYZhWCyWSs36R_w" />
         <service
             android:name=".LocationService"
-            android:launchMode="singleTask"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" />
@@ -57,7 +57,6 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <!-- apertura Files da filemanager e da link web -->
