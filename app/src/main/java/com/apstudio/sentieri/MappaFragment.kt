@@ -1450,14 +1450,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onKey(v: View?, keyCode: Int, event: KeyEvent?): Boolean {
         val mapController = mapView.controller
-        if (keyCode == KEYCODE_VOLUME_UP) {
-            mapController?.zoomIn()
+        when (keyCode) {
+            KEYCODE_VOLUME_UP -> {
+                // Solo se l'azione è KEY_DOWN per evitare doppie chiamate
+                if (event?.action == KeyEvent.ACTION_DOWN) {
+                    mapController?.zoomIn()
+                }
+                return true // Evento volume gestito
+            }
+            KEYCODE_VOLUME_DOWN -> {
+                // Solo se l'azione è KEY_DOWN
+                if (event?.action == KeyEvent.ACTION_DOWN) {
+                    mapController?.zoomOut()
+                }
+                return true // Evento volume gestito
+            }
         }
-        if (keyCode == KEYCODE_VOLUME_DOWN) {
-            mapController?.zoomOut()
-        }
-        return true
+        return false // Non abbiamo gestito questo evento di tasto, lascialo propagare
     }
+
 
     override fun onSharedPreferenceChanged(p0: SharedPreferences?, p1: String?) {
         when (p1) {

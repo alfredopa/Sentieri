@@ -18,8 +18,9 @@
     <string name="attachment_summary_on">Automatically download attachments for incoming emails
     </string>
     <string name="attachment_summary_off">Only download attachments when manually requested</string>
-    <string name="apreNav">Apre navigaione</string>
+    <string name="apreNav">Apre navigazione</string>
     <string name="chiudiNav">Chiude navigazione</string>
     <string name="barometro">Sensore barometrico</string>
     <string name="kmh">%d km/h</string>
+    <string name="finish_recording_before_closing">Termina registrazione prima di chiudere l\'\app</string>
 </resources>

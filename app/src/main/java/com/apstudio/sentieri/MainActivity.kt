@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
@@ -35,6 +36,7 @@ import com.google.android.material.navigation.NavigationView
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.osmdroid.config.Configuration
 import java.io.File
+import androidx.core.net.toUri
 
 
 class MainActivity :
@@ -77,23 +79,10 @@ class MainActivity :
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         // inizializza le preferenze
         initPreferenze()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            onBackInvokedDispatcher.registerOnBackInvokedCallback(
-                OnBackInvokedDispatcher.PRIORITY_DEFAULT
-            ) {
-                handleBackPress()
-            }
-        } else {
-            onBackPressedDispatcher.addCallback(this, object :
-                OnBackPressedCallback(true) {
-                override fun handleOnBackPressed() {
-                    handleBackPress()
-                }
-            })
-        }
         // verifica se tutti i permessi standard sono stati concessi
         checkAndRequestPermissions()
 
@@ -109,6 +98,8 @@ class MainActivity :
                 .setNegativeButton("Annulla", null)
                 .show()
         }
+        // gestione evento indietro
+        setupBackPressHandling()
     }
 
     private fun initApp() {
@@ -194,30 +185,82 @@ class MainActivity :
         return navController.navigateUp(appBarConfiguration) || super.onSupportNavigateUp()
     }
 
-    private fun handleBackPress() {
-        /*if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-            drawerLayout.closeDrawer(GravityCompat.START)
-            return // Stop further back handling here
-        }*/
+    private fun setupBackPressHandling() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Per API 33+ (Android 13 Tiramisu e successivi)
+            // Assumendo che tu abbia android:enableOnBackInvokedCallback="true" nel Manifest
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT
+            ) {
+                // Quando il sistema invoca questo callback, esegui la logica unificata
+                handleCentralizedBackPressLogic()
+            }
+        } else {
+            // Per API < 33
+            val onBackPressedCallback = object : OnBackPressedCallback(true /* enabled by default */) {
+                override fun handleOnBackPressed() {
+                    // Quando questo callback viene attivato (su API < 33),
+                    // esegui la logica unificata.
+                    // Se vuoi che il sistema gestisca il "back" dopo la tua logica
+                    // (es. chiudere l'activity se non fai finishAffinity()),
+                    // puoi disabilitare temporaneamente il callback e richiamare onBackPressed().
+                    handleCentralizedBackPressLogic(
+                        fallbackToSuper = {
+                            isEnabled = false
+                            onBackPressedDispatcher.onBackPressed() // Questa è la chiamata critica
+                            isEnabled = true
+                        }
+                    )
+                }
+            }
+            onBackPressedDispatcher.addCallback(this /* LifecycleOwner */, onBackPressedCallback)
+        }
+    }
+
+    private fun handleCentralizedBackPressLogic(fallbackToSuper: (() -> Unit)? = null) {
         if (viewModel.isRecording) {
             Toast.makeText(
                 this,
-                "Termina registrazione prima di chiudere l'app",
+                // Assicurati di avere questa stringa in res/values/strings.xml
+                getString(R.string.finish_recording_before_closing),
                 Toast.LENGTH_SHORT
             ).show()
+            return // Esce presto se sta registrando
+        }
+
+        // Tenta prima di navigare indietro con NavController
+        val navigatedUp = navController.navigateUp()
+        if (navigatedUp) {
+            return
+        }
+
+        // Se navigateUp() fallisce, siamo probabilmente alla destinazione iniziale del grafo.
+        // Controlla esplicitamente se siamo alla destinazione iniziale.
+        val currentDestId = navController.currentDestination?.id
+        val startDestId = navController.graph.startDestinationId
+        if (currentDestId == startDestId) {
+            finishAffinity() // Chiudi l'app
         } else {
-            // Check if we are at the start destination and the backstack is empty
-            if (navController.currentDestination?.id == navController.graph.startDestinationId &&
-                !navController.popBackStack()
-            ) {
-                finishAffinity()
-            } else {
-                // Otherwise, let the NavController handle the back press
-                if (!navController.navigateUp()) {
-                    // This should ideally not be reached if the above check is correct
-                    super.onBackPressed() // For compatibility with older versions
-                }
+            // Questo caso indica che navigateUp() è fallito MA non siamo alla destinazione iniziale.
+            // Potrebbe accadere in scenari di navigazione complessi o se il NavController
+            // non è configurato come previsto per questo flusso "Indietro".
+            // Come fallback, esegui il comportamento di default.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU && fallbackToSuper != null) {
+                // Su API < 33, esegui la lambda di fallback fornita
+                fallbackToSuper.invoke()
+            } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                // Fallback di sicurezza se la lambda non è stata fornita per API < 33,
+                // anche se con la struttura attuale dovrebbe esserlo.
+                // Questa è la chiamata diretta a super.onBackPressed() originale.
+                // ATTENZIONE: se sei dentro un OnBackPressedCallback, chiamare super.onBackPressed()
+                // direttamente qui potrebbe non essere l'ideale. La gestione tramite
+                // isEnabled = false; dispatcher.onBackPressed() è generalmente più pulita.
+                // Tuttavia, la logica con `fallbackToSuper` è preferibile.
+                super.onBackPressed() // Mantenuto per coerenza con la tua richiesta originale di fallback
             }
+            // Per API 33+, se si arriva qui, il sistema gestirà la chiusura dell'Activity
+            // se non ci sono altri callback registrati che gestiscono l'evento.
+            // Non c'è un `super.onBackPressed()` diretto da chiamare nel contesto di `onBackInvoked`.
         }
     }
 
@@ -243,6 +286,18 @@ class MainActivity :
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Se l'Activity viene riportata in primo piano con un nuovo Intent
+        // (es. cliccando notifica o rilanciando l'app con launchMode="singleTask" o "singleTop"),
+        // questo metodo viene chiamato.
+        // Potresti dover aggiornare l'UI o gestire dati dall'intent qui.
+        // Per ora, anche solo loggare può essere utile:
+        Log.d("MainActivityLifecycle", "onNewIntent chiamato con intent: $intent")
+        // Assicurati di chiamare setIntent(intent) se vuoi che getIntent() restituisca questo nuovo intent successivamente
+        setIntent(intent)
+    }
+
     fun checkAndRequestPermissions() {
         if (!hasPermissions(this, PERMISSIONS)) {
             ActivityCompat.requestPermissions(this, PERMISSIONS.toTypedArray(), PERMISSION_ALL)
@@ -253,12 +308,9 @@ class MainActivity :
     }
 
     fun isBatteryOptimizationEnabled(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val packageName = context.packageName
-            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-            return !pm.isIgnoringBatteryOptimizations(packageName)
-        }
-        return false // Le ottimizzazioni specifiche sono per Marshmallow (API 23) e successivi
+        val packageName = context.packageName
+        val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        return !pm.isIgnoringBatteryOptimizations(packageName)
     }
 
     fun requestIgnoreBatteryOptimizations(activity: AppCompatActivity) {
@@ -267,7 +319,7 @@ class MainActivity :
         val pm = activity.getSystemService(Context.POWER_SERVICE) as PowerManager
         if (!pm.isIgnoringBatteryOptimizations(packageName)) {
             intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-            intent.data = Uri.parse("package:$packageName")
+            intent.data = "package:$packageName".toUri()
             // È buona norma controllare se l'intent può essere gestito
             if (intent.resolveActivity(activity.packageManager) != null) {
                 activity.startActivity(intent)
