@@ -35,7 +35,7 @@
         <item
             android:id="@+id/Geopackage"
             android:title="Apre Geopackage"
-            android:visible="false"/>
+            android:visible="true"/>
     </group>
 
 </menu>

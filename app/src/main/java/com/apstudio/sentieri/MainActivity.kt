@@ -79,7 +79,7 @@ class MainActivity :
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        val apro = this.intent
         // inizializza le preferenze
         initPreferenze()
 
