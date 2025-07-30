@@ -413,12 +413,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             viewModel.listaTracce.add(nuovaTraccia)
             addMarker(nuovaTraccia)
             viewModel.listaTracce.items.lastIndex
-            /*val segui: Boolean
-            if (viewModel.tracciaDaSeguire == nuovaTraccia.title)
-                segui = true
-            else
-                segui = false
-            viewModel.layerItems.add(LayerItem(nuovaTraccia.title, nuovaTraccia.isEnabled, false, segui))*/
             // il post serve a terminare la fase di disegno prima di eseguire lo zoom
             mapView.post {
                 mapView.zoomToBoundingBox(mbounds.increaseByScale(1.2f), false)
@@ -463,9 +457,18 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // in registrazione ripristina marker gps,bottomsheet allo stato precedente
             gpsMarker.position = (viewModel.newPunto)
             gpsMarker.setVisible(true)
+            if (viewModel.alertFuoriTraccia) {
+                binding.cruscotto.btnAllarme.text = "Allarme on"
+                binding.cruscotto.btnAllarme.backgroundTintList = ColorStateList.valueOf(Color.RED)
+            } else {
+                binding.cruscotto.btnAllarme.text = "Allarme off"
+                binding.cruscotto.btnAllarme.backgroundTintList =
+                    ColorStateList.valueOf(Color.GREEN)
+            }
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = 200
             bottomSheetBehavior.state = viewModel.bottomState
+
             val toast =
                 Toast.makeText(requireActivity(), "Registrazione in corso", Toast.LENGTH_SHORT)
             toast.view?.setBackgroundColor(getColor(requireActivity(), R.color.purple_500))
@@ -1558,20 +1561,18 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         try {
             val mediaDir = requireContext().getExternalMediaDirs()
             val documentsDir = mediaDir[0]
-            //val f = File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
-            //val geoPackageFile = File(f, "parchi.gpkg")
-            val geoPackageFile = File("$documentsDir/Mappe/grotte.gpkg")
+            val geoPackageFile = File("$documentsDir/Mappe/parchi.gpkg")
             val manager = GeoPackageFactory.getManager(requireContext())
 
-            try {
+            /*try {
                 val imported = manager.importGeoPackage(geoPackageFile)
                 //Log.d("packgage", "is imported ? $imported")
             } catch (ex: Exception) {
                 //Log.d("packgage", "import exception " + ex.message)
-            }
+            }*/
             val databases = manager.databases()
-            // Open database     val f = File(Environment.getExternalStorageDirectory(), "osmdroid")
-            val geoPackage = manager.open(databases[0])
+            //val geoPackage = manager.open(databases[0])
+            val geoPackage = manager.openExternal(geoPackageFile)
             val features = geoPackage.featureTables   //tileTables
             val markerRenderingOptions = MarkerOptions()
             val polylineRenderingOptions = PolylineOptions()
@@ -1590,7 +1591,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 polygonOptions
             )
             //val featureTable: String = features[1]
-            val featureTable = "grotte"
+            val featureTable = "iba"
             val featureDao = geoPackage.getFeatureDao(featureTable)
             val featureCursor = featureDao.queryForAll()
             featureCursor.use { featureCursor ->
@@ -1599,7 +1600,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         val featureRow = featureCursor.row
                         val geometryData = featureRow.geometry
                         val geometry = geometryData.geometry
-                        //Log.d("packgage", "geometry $geometry")
+                        Log.d("packgage", "geometry $geometry")
                         converter.addToMap(mapView, geometry)
                     } catch (ex: java.lang.Exception) {
                         ex.printStackTrace()
@@ -1669,7 +1670,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
             }*/
         } catch (ex: Exception) {
-            //Log.d("packgage", "inside geopackage exception " + ex.message)
+            Log.d("packgage", "inside geopackage exception " + ex.message)
         }
     }
 
