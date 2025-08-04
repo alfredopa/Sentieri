@@ -28,8 +28,9 @@ import java.sql.Timestamp
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     companion object {
-        private const val ALTITUDE_CHANGE_THRESHOLD_METERS = 1.0
-        private const val MOVING_AVERAGE_WINDOW_SIZE = 8 // Numero di valori da tenere in memoria per la media
+        // costanti per calcolo dislivello con GPS con filtro MovingAverage
+        private const val ALTITUDE_CHANGE_THRESHOLD_METERS = 1.5 // Differenza minima di altitudine per considerare un cambio di quota
+        private const val MOVING_AVERAGE_WINDOW_SIZE = 9 // Numero di valori da tenere in memoria per la media
     }
     private val _traccia = MutableLiveData<Polyline>()
     val traccia : LiveData<Polyline> = _traccia

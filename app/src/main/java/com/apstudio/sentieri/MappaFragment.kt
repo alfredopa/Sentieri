@@ -198,7 +198,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         bottomSheetBehavior.isHideable = true // Assicurati che possa essere nascosto
         bottomSheetBehavior.skipCollapsed = false // IMPORTANTE: non saltare lo stato collassato
         // Imposta la peekHeight desiderata per quando è collassato
-        bottomSheetBehavior.peekHeight = 200 // O il valore in pixel desiderato
+        bottomSheetBehavior.peekHeight = 120 // O il valore in pixel desiderato
         // Inizia nascosto
         binding.cruscotto.root.post { // Per sicurezza, attendi il layout
             if (isAdded) {
@@ -466,7 +466,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     ColorStateList.valueOf(Color.GREEN)
             }
             bottomSheetBehavior.isHideable = false
-            bottomSheetBehavior.peekHeight = 200
+            bottomSheetBehavior.peekHeight = 120
             bottomSheetBehavior.state = viewModel.bottomState
 
             val toast =
@@ -764,7 +764,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // avvia il servizio per tracciare locazione in background
         requireActivity().startService(Intent(context, LocationService::class.java))
         bottomSheetBehavior.isHideable = false
-        bottomSheetBehavior.peekHeight = 150
+        bottomSheetBehavior.peekHeight = 120
         bottomSheetBehavior.halfExpandedRatio = 0.5f
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
         gpsViewModel.updateGpsStatus("started")
