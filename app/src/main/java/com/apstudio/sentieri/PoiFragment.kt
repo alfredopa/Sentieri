@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat.getColor
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -18,13 +19,13 @@ import org.osmdroid.util.GeoPoint
 
 
 class PoiFragment : Fragment() {
-    private val viewModel: SentieriViewModel by activityViewModels {SentieriFactory(
-            SentieriRepo(requireActivity())
-        )
-    }
-
+    private lateinit var viewModel: SentieriViewModel
     private lateinit var recyclerPoi: RecyclerView
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
+    }
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?,
@@ -43,7 +44,6 @@ class PoiFragment : Fragment() {
                 file.delete()
             }
         }*/
-
         if (viewModel.fotoList.size > 0) {
             // Create a recyclerPhoto  object and set the adapter
             val recyclerPhoto = view.findViewById<RecyclerView>(R.id.rv_photo)

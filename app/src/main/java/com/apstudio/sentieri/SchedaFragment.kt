@@ -61,17 +61,15 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.Date
 import androidx.core.net.toUri
+import androidx.lifecycle.ViewModelProvider
 
 // Fragment che visualizza il dettaglio della traccia selezionata dall'elenco delle tracce
 // su una mappa ridotta e principali dati di riepilogo
 class SchedaFragment : Fragment(), MenuProvider {
 
     private val args: SchedaFragmentArgs by navArgs()
-    private val viewModel: SentieriViewModel by activityViewModels {
-        SentieriFactory(
-            SentieriRepo(requireActivity())
-        )
-    }
+    private lateinit var viewModel: SentieriViewModel
+
     private lateinit var binding: FragmentSchedaBinding
     private lateinit var mapView: MapView
     private var mapController: MapController? = null
@@ -80,6 +78,7 @@ class SchedaFragment : Fragment(), MenuProvider {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
         setHasOptionsMenu(true) // Abilita le icone nel menu
     }
 

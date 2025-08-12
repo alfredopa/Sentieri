@@ -37,16 +37,12 @@ import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.osmdroid.config.Configuration
 import java.io.File
 import androidx.core.net.toUri
+import androidx.lifecycle.ViewModelProvider
 
 
 class MainActivity :
-    AppCompatActivity() {   // NavigationView.OnNavigationItemSelectedListener { //ABILITA EVENTI MENUDRAWER
-
-    private val viewModel: SentieriViewModel by viewModels {
-        SentieriFactory(
-            SentieriRepo(this)
-        )
-    }
+    AppCompatActivity() {
+    private lateinit var viewModel: SentieriViewModel
     private lateinit var navController: NavController
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var appBarConfiguration: AppBarConfiguration // For handling the Up button and drawer
@@ -78,8 +74,11 @@ class MainActivity :
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        Log.d("Mappa", "MainActivity first of super")
         super.onCreate(savedInstanceState)
-        val apro = this.intent
+        val app = applicationContext as AppSentieri
+        viewModel = ViewModelProvider(app, app.sentieriViewModelFactory)
+            .get(SentieriViewModel::class.java)
         // inizializza le preferenze
         initPreferenze()
 
@@ -100,6 +99,8 @@ class MainActivity :
         }
         // gestione evento indietro
         setupBackPressHandling()
+        Log.d("Mappa", "MainActivity onCreate: $intent")
+        handleIntent(intent) // Gestisci anche l'intent iniziale che ha creato l'Activity
     }
 
     private fun initApp() {
@@ -288,14 +289,29 @@ class MainActivity :
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // Se l'Activity viene riportata in primo piano con un nuovo Intent
-        // (es. cliccando notifica o rilanciando l'app con launchMode="singleTask" o "singleTop"),
-        // questo metodo viene chiamato.
-        // Potresti dover aggiornare l'UI o gestire dati dall'intent qui.
-        // Per ora, anche solo loggare può essere utile:
-        Log.d("MainActivityLifecycle", "onNewIntent chiamato con intent: $intent")
-        // Assicurati di chiamare setIntent(intent) se vuoi che getIntent() restituisca questo nuovo intent successivamente
-        setIntent(intent)
+        Log.d("Mappa", "MainActivity onNewIntent: $intent")
+        setIntent(intent) // Aggiorna l'intent che verrà restituito da getIntent()
+        // Processa l'intent, ad esempio per aprire il file GPX
+        handleIntent(intent)
+        // Lascia che la Navigation Component gestisca il nuovo intent per il deep linking
+        // Se l'intent è stato creato da NavDeepLinkBuilder, NavController lo gestirà.
+        //navController.handleDeepLink(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        intent?.let {
+            if (it.action == Intent.ACTION_VIEW && it.data != null) {
+                val gpxUri = it.data
+                Log.d("Mappa", "MainActivity: Navigating to MappaFragment with GPX URI: $gpxUri")
+
+                val bundle = Bundle().apply {
+                    putString("gpx_file_uri", gpxUri.toString())
+                }
+                // Assumendo che tu abbia un NavController chiamato 'navController'
+                // e che MappaFragment sia la destinazione corrente o raggiungibile
+                navController.navigate(R.id.mappaFragment, bundle) // O un'azione specifica che porta a MappaFragment
+            }
+        }
     }
 
     fun checkAndRequestPermissions() {

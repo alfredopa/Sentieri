@@ -2,6 +2,7 @@ package com.apstudio.sentieri
 
 import android.location.Location
 import android.net.Uri
+import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -29,7 +30,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     companion object {
         // costanti per calcolo dislivello con GPS con filtro MovingAverage
-        private const val ALTITUDE_CHANGE_THRESHOLD_METERS = 1.5 // Differenza minima di altitudine per considerare un cambio di quota
+        private const val ALTITUDE_CHANGE_THRESHOLD_METERS = 1.9 // Differenza minima di altitudine per considerare un cambio di quota
         private const val MOVING_AVERAGE_WINDOW_SIZE = 9 // Numero di valori da tenere in memoria per la media
     }
     private val _traccia = MutableLiveData<Polyline>()
@@ -280,6 +281,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         _distanzaMetri.value = 0
         _tempoTrascorso.value = ""
         _secondiMovimento.value = 0
+        alertFuoriTraccia = false
     }
 
     fun baroCalibrato(barometro: Boolean) {
@@ -415,9 +417,9 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
     }
 
-    /*fun cercaPoi(id: Int): List<PoiDB> {
+    fun cercaPoi(id: Int): List<PoiDB> {
         return repository.cercaPoi(id)
-    }*/
+    }
 
     fun listaFotoId(id: Int): List<FotoPoi> {
         return repository.listaFotoId(id)
@@ -425,7 +427,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
-        isRecording = false
+        //Log.d("Mappa", "onCleared")
     }
 
 }

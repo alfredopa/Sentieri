@@ -19,6 +19,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.navArgs
 import com.apstudio.sentieri.db.SentieriRepo
 import com.bumptech.glide.Glide
@@ -31,16 +32,17 @@ class CameraFragment : Fragment() {
     private lateinit var fabCamera: FloatingActionButton
     private var currentImageUri: Uri? = null
     private lateinit var resultLauncher: ActivityResultLauncher<Intent>
-    private val viewModel: SentieriViewModel by activityViewModels {SentieriFactory(
-            SentieriRepo(requireActivity())
-        )
-    }
+    private lateinit var viewModel: SentieriViewModel
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
                               savedInstanceState: Bundle?): View? {
         // Inflate the layout for this fragment
         return inflater.inflate(R.layout.fragment_camera, container, false)
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
+    }
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         fabCamera = view.findViewById(R.id.fabCamera)

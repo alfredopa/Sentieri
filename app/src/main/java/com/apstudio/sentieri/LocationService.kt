@@ -228,7 +228,7 @@ class LocationService : LifecycleService() {
                 // gpsViewModel.mslAltitude è già stato (o sarà) impostato da parseNmeaMessage
             }*/
 
-            putExtra("altitudine", gpsViewModel.mslAltitude.value)
+            putExtra("altitudine", gpsViewModel.mslAltitude.value!!)
             //SimpleFileLogger.log(TAG, "sendBroadcast - Android < 14: Using NMEA for MSL. Current gpsViewModel.mslAltitude = ${gpsViewModel.mslAltitude.value}, newLocation.altitude (WGS84) = ${newLocation.altitude}")
 
             if (gpsViewModel.usaBaro && baroRepo.baroData.isInitialized) {
@@ -319,6 +319,8 @@ class LocationService : LifecycleService() {
         return null
     }
 
+    /*
+    // VECCHIO MOODO
     private fun createNotificationChannel() {
         val channelName = "Location Service"
         val importance = NotificationManager.IMPORTANCE_HIGH
@@ -358,6 +360,45 @@ class LocationService : LifecycleService() {
                 .setPriority(NotificationManager.IMPORTANCE_DEFAULT)
                 .build()
         startForeground(LOCATION_SERVICE_CHANNEL, notification)
+    }*/
+
+    private fun createNotificationChannel() {
+        val channelName = "Location Service"
+        val importance = NotificationManager.IMPORTANCE_HIGH
+        val channelId = "LOCATION_SERVICE_CHANNEL" // Assicurati che sia univoco
+        val channel = NotificationChannel(channelId, channelName, importance)
+        channel.setSound(null, null) // Considera se vuoi un suono o meno
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.createNotificationChannel(channel)
+
+        // PendingIntent per navigare a MappaFragment
+        val pendingIntent = NavDeepLinkBuilder(applicationContext)
+            .setGraph(R.navigation.nav_graph)
+            .setDestination(R.id.mappaFragment)
+            .setComponentName(MainActivity::class.java)
+            // Aggiungi qui eventuali argomenti se MappaFragment ne richiede
+            // .setArguments(bundleOf("argomentoChiave" to valore))
+            .createTaskStackBuilder() // Cruciale per un corretto back stack
+            .getPendingIntent(
+                0, // requestCode
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setOngoing(true)
+            .setContentTitle("Registrazione GPS in corso") // Titolo più conciso
+            .setContentText("Sentieri sta registrando la traccia") // Usa setContentText per il corpo
+            .setSmallIcon(R.drawable.ic_start)
+            .setContentIntent(pendingIntent)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE) // Usa NotificationCompat per coerenza
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT) // Usa NotificationCompat per coerenza
+            // .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE) // Per Android 12+ se vuoi che appaia subito
+            .build()
+
+        // Usa un ID univoco per startForeground, non una costante stringa per il channelId
+        // LOCATION_SERVICE_CHANNEL è l'ID della notifica, non del canale qui
+        startForeground(LOCATION_SERVICE_CHANNEL, notification) // Usa l'ID definito nella companion object
     }
+
 
 }

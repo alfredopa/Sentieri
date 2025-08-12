@@ -10,6 +10,11 @@
         android:name="com.apstudio.sentieri.MappaFragment"
         android:label="Mappa sentieri"
         tools:layout="@layout/fragment_mappa" >
+        <argument
+            android:name="gpx_file_uri"
+            app:argType="string"
+            app:nullable="true"
+            android:defaultValue="@null" />
         <action
             android:id="@+id/action_mappaFragment_to_sentieriFragment"
             app:destination="@id/sentieriFragment"

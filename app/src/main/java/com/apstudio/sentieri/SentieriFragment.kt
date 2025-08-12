@@ -17,6 +17,7 @@ import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -26,16 +27,16 @@ import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriRepo
 
 class SentieriFragment : Fragment() {
-    private val viewModel: SentieriViewModel by activityViewModels {
-        SentieriFactory(
-            SentieriRepo(
-                requireActivity()
-            )
-        )
-    }
+    private lateinit var viewModel: SentieriViewModel
+
     private lateinit var binding: FragmentSentieriBinding
     private lateinit var adapter: MyRecyclerViewAdapter
     //private lateinit var searchView: SearchView
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
