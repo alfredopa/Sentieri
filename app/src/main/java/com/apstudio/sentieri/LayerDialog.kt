@@ -10,6 +10,7 @@ import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -19,11 +20,8 @@ import org.osmdroid.views.overlay.Polyline
 
 // visualizza le tracce caricate nella mappa
 class LayerDialog : Fragment() {
-    private val viewModel: SentieriViewModel by activityViewModels {
-        SentieriFactory(
-            SentieriRepo(requireActivity())
-        )
-    }
+    private lateinit var viewModel: SentieriViewModel
+
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -32,6 +30,11 @@ class LayerDialog : Fragment() {
     ): View? {
         val view = layoutInflater.inflate(R.layout.dialog_layer, container, false)
         return view
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

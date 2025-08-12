@@ -13,9 +13,11 @@ import kotlinx.coroutines.flow.asStateFlow
 class GpsViewModel  : ViewModel(){
     private val _gpsStatus = MutableLiveData("started")
     val gpsStatus: LiveData<String> = _gpsStatus
-    var usaBaro : Boolean = false
+    private val _isTraceRecordingActive = MutableLiveData(false)
+    val isTraceRecordingActive: LiveData<Boolean> = _isTraceRecordingActive
     private val _mslAltitude = MutableLiveData(0.0)
     val mslAltitude : LiveData<Double> = _mslAltitude
+    var usaBaro : Boolean = false
     var numSat : Int = 0
     private val _velocita = MutableLiveData(0.0)
     val velocita: LiveData<Double> = _velocita
@@ -36,6 +38,9 @@ class GpsViewModel  : ViewModel(){
     fun updateVelocita(velocita: Double) {
         _velocita.value = velocita
         //Log.d("GpsView", "gps status $velocita")
+    }
+    fun updateRecordingStatus(isRecording: Boolean) {
+        _isTraceRecordingActive.value = !isRecording
     }
 
 }

@@ -116,12 +116,7 @@ import java.util.Locale
 
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
     View.OnKeyListener {
-    val viewModel: SentieriViewModel by activityViewModels {
-        SentieriFactory(
-            SentieriRepo(requireActivity())
-        )
-    }
-
+    private lateinit var viewModel: SentieriViewModel
     private val METERS_IN_A_KILOMETER = 1000.0 // Changed from Int to Double for precision
     private val SECONDS_IN_AN_HOUR = 3600.0 // Changed from Int to Double for precision
 
@@ -161,6 +156,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
         // Inizializza le preferenze e registra il listener
         preferenze = PreferenceManager.getDefaultSharedPreferences(requireContext())
         preferenze.registerOnSharedPreferenceChangeListener(this)
@@ -192,6 +188,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        // verifica se sono passati argomenti
+        arguments?.getString("gpx_file_uri")?.let { uriString ->
+            val gpxUri = uriString.toUri()
+            caricaGPX(gpxUri)
+            arguments?.remove("gpx_file_uri")
+        }
         // aggiunge il bottomsheet ed il menu
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
         // Set the initial state to hidden AFTER the layout is complete
@@ -224,7 +226,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     val uriMappa = preferenze.getString("URIMappa", "")!!.toUri()
                     apreMappa(uriMappa)
                     viewModel.uriMappa = uriMappa
-                    menu?.findItem(0)?.setChecked(true)
+                    menu?.findItem(0)?.isChecked = true
                 } else {
                     // se non trova stringa mappa carica OpenStreetMap
                     mapView.isTilesScaledToDpi = true
@@ -310,16 +312,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         binding.cruscotto.btnAllarme.setOnClickListener {
             // Dis/Abilita allarme fuori tracce
             viewModel.alertFuoriTraccia = !viewModel.alertFuoriTraccia
-            //Log.d("allarme", "allarme ${viewModel.alertFuoriTraccia}")
-            if (viewModel.alertFuoriTraccia) {
-                binding.cruscotto.btnAllarme.text = "Allarme on"
-                binding.cruscotto.btnAllarme.backgroundTintList = ColorStateList.valueOf(Color.RED)
-            } else {
-                binding.cruscotto.btnAllarme.text = "Allarme off"
-                binding.cruscotto.btnAllarme.backgroundTintList =
-                    ColorStateList.valueOf(Color.GREEN)
-            }
-            binding.cruscotto.btnAllarme.postInvalidate()
+            btnAllarme()
+            //binding.cruscotto.btnAllarme.postInvalidate()
         }
 
         // avvia gli observer per aggiornamento dati cruscotto
@@ -361,13 +355,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             //Log.d("gps", "status $status")
         }
 
-        // l'intent contiene il nome del file GPX da caricare da Files
+        /* VECCHIA GESTIONE INTENT
+        // l'intent contiene il nome del file GPX da caricare da File Manager
         val intent = requireActivity().intent
         val data: Uri? = intent.data
         if (data != null) {
             caricaGPX(data)
             intent.setData(null)
-        }
+        }*/
     }
 
     // aggiunge il click listener alla polyline per aprire l'info window
@@ -395,7 +390,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onResume() {
         super.onResume()
         mapView.onResume()
-
+        //Log.d("Mappa", "MappaFragment onResume ")
         // Controlli per verificare valori da altri fragment da scheda sentieri e visualizzazione waypoint
         // verifica se è valorizzata line, quindi è stato passsata dal pulsante Segui
         // e lo mostra sulla mappa
@@ -457,14 +452,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // in registrazione ripristina marker gps,bottomsheet allo stato precedente
             gpsMarker.position = (viewModel.newPunto)
             gpsMarker.setVisible(true)
-            if (viewModel.alertFuoriTraccia) {
-                binding.cruscotto.btnAllarme.text = "Allarme on"
-                binding.cruscotto.btnAllarme.backgroundTintList = ColorStateList.valueOf(Color.RED)
-            } else {
-                binding.cruscotto.btnAllarme.text = "Allarme off"
-                binding.cruscotto.btnAllarme.backgroundTintList =
-                    ColorStateList.valueOf(Color.GREEN)
-            }
+            btnAllarme()
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = 120
             bottomSheetBehavior.state = viewModel.bottomState
@@ -508,16 +496,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private fun apreMappa(uri: Uri) {
         val uriPathHelper = URIPathHelper()
         val filePath = uriPathHelper.getPath(requireContext(), uri)
-        //--------------------------------------------------------------------------------------------------------------
-        // da verificare codice errore da play store
-        val mbtilesFilePath = "/storage/emulated/0/Android/media/com.apstudio.sentieri/Mappe/FreemapSk.mbtiles"
-        val mbtilesFile = File(mbtilesFilePath)
-        /*Log.d("AppTestPlayStore", "Percorso MBTiles: ${mbtilesFile.absolutePath}")
-        Log.d("AppTestPlayStore", "MBTiles Esiste: ${mbtilesFile.exists()}")
-        Log.d("AppTestPlayStore", "MBTiles Può Leggere: ${mbtilesFile.canRead()}")
-        Log.d("AppTestPlayStore", "MBTiles È File: ${mbtilesFile.isFile}")
-        Log.d("AppTestPlayStore", "Lunghezza MBTiles: ${mbtilesFile.length()}")
-        */
+
         try {
             // Prova ad inizializzare OsmDroid qui
         } catch (e: Exception) {
@@ -573,6 +552,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.connessione = false
         mapView.setUseDataConnection(false)
         mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
+        //Log.d("Mappa", "Mappa caricata  ")
         mapView.invalidate()
     }
 
@@ -1262,36 +1242,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         const val SEND_LOCATION_ACTION = "com.apstudio.sentieri.posizione"
     }
 
-    /*private fun formattastring(distanza: Int): String {
-        // visualizza distanza in metri o km
-        return if (distanza < 1_000)
-            String.format(Locale.getDefault(), "%d m", distanza)
-        else {
-            NumberFormat.getNumberInstance(Locale.getDefault())
-            val km = distanza / 1_000.0
-            String.format(Locale.getDefault(), "%.1f km", km)
-        }
-    }*/
-
-    // coroutine per aggiornamento del tempo di registrazione sul cruscotto
-    /*private fun startUpdates() {
-        if (updatesJob?.isActive == true) {
-            // Coroutine is already running, no need to start a new one
-            return
-        }
-        updatesJob = viewLifecycleOwner.lifecycleScope.launch {
-            while (true) {
-                //if (viewModel.running) {
-                    tempo.text = viewModel.calctempoTrascorso()
-                    if (viewModel.velocita.value != 0) {
-                        viewModel.incrementMovementSeconds()
-                        tempoMov.text = formatSeconds(viewModel.secondiMovimento.value!!)
-                    }
-                    delay(1000)
-                //}
-            }
-        }
-    }*/
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
         menuInflater.inflate(R.menu.main_menu, menu)
@@ -1472,6 +1422,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         return false // Non abbiamo gestito questo evento di tasto, lascialo propagare
     }
 
+    private fun btnAllarme() {
+        if (!viewModel.alertFuoriTraccia) {
+            binding.cruscotto.btnAllarme.text = "Allarme on"
+            binding.cruscotto.btnAllarme.backgroundTintList = ColorStateList.valueOf(Color.RED)
+        } else {
+            binding.cruscotto.btnAllarme.text = "Allarme off"
+            binding.cruscotto.btnAllarme.backgroundTintList =
+                ColorStateList.valueOf(Color.GREEN)
+        }
+    }
 
     override fun onSharedPreferenceChanged(p0: SharedPreferences?, p1: String?) {
         when (p1) {
@@ -1600,7 +1560,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         val featureRow = featureCursor.row
                         val geometryData = featureRow.geometry
                         val geometry = geometryData.geometry
-                        Log.d("packgage", "geometry $geometry")
+                        //Log.d("packgage", "geometry $geometry")
                         converter.addToMap(mapView, geometry)
                     } catch (ex: java.lang.Exception) {
                         ex.printStackTrace()
@@ -1674,8 +1634,4 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    override fun onDetach() {
-        // TODO:  ("Not yet implemented")// da implementare per gestire termine app alla chiusura del fragment
-        super.onDetach()
-    }
 }

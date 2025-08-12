@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.activity
 import com.apstudio.sentieri.databinding.FragmentAltGrafBinding
 import com.apstudio.sentieri.db.SentieriRepo
@@ -22,15 +23,15 @@ import kotlin.math.sqrt
 
 
 class AltGrafFragment : Fragment() {
-    private val viewModel: SentieriViewModel by activityViewModels {
-        SentieriFactory(
-            SentieriRepo(requireActivity())
-        )
-    }
+    private lateinit var viewModel: SentieriViewModel
     private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     private lateinit var binding: FragmentAltGrafBinding
     private val chartEntryModelProducer: ChartEntryModelProducer = ChartEntryModelProducer()
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
+    }
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
