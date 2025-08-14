@@ -38,6 +38,10 @@ import org.osmdroid.config.Configuration
 import java.io.File
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModelProvider
+import java.io.FileOutputStream
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 
 
 class MainActivity :
@@ -56,7 +60,7 @@ class MainActivity :
         add(Manifest.permission.INTERNET)
         add(Manifest.permission.ACCESS_NETWORK_STATE)
         add(Manifest.permission.CAMERA)
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R)  {  // S_V2 è API level 32
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {  // S_V2 è API level 32
             add(Manifest.permission.READ_EXTERNAL_STORAGE)
             add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
@@ -65,10 +69,9 @@ class MainActivity :
             add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE){
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             add(Manifest.permission.FOREGROUND_SERVICE_LOCATION)
-        }
-        else {
+        } else {
             add(Manifest.permission.FOREGROUND_SERVICE)
         }
     }
@@ -133,9 +136,15 @@ class MainActivity :
             val menuItem = navigationView.menu.findItem(R.id.barometro)
             menuItem.isVisible = false
         }
+        // controllo se cartelle mappe e tracce presenti e db layer
+        verificaCartelleDB()
+
+    }
+
+    private fun verificaCartelleDB() {
         // verifica se esiste cartella Sentieri nello spazio file applicazione ATTENZIONE solo la cartella media visibile da file picker
         //val baseDir: File? = getAppSpecificExternalDirectory(applicationContext) // restituisce cartella data anzichè media
-        val mediaStorageDir = this.getExternalMediaDirs()
+        val mediaStorageDir = this.externalMediaDirs
         val baseDir: File? = mediaStorageDir[0]
         val sentieriFolder = File(baseDir, "/Mappe")
         if (!sentieriFolder.exists()) {
@@ -150,7 +159,17 @@ class MainActivity :
                         Toast.LENGTH_LONG
                     ).show()
             }
-
+        }
+        // controllo esistenza file db Geopackage
+        val databaseName = "Layers.gpkg"
+        val geoPackageFile = copyGeopackageToInternalStorage(databaseName)
+        if (!geoPackageFile.exists()) {
+            AlertDialog.Builder(this)
+                .setTitle("Errore")
+                .setMessage("File geopackage non trovato: ${geoPackageFile.absolutePath}")
+                .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
+                .show()
+            return
         }
     }
 
@@ -163,6 +182,30 @@ class MainActivity :
             // La cartella esiste già
             return true
         }
+    }
+
+    // copia il file Layers nella cartella dati interni data/data/packageName/database
+    private fun copyGeopackageToInternalStorage(databaseName: String): File {
+        val dataDir = this.getDatabasePath(databaseName).parentFile
+        //val dataDir = File(this.applicationInfo.dataDir, "databases")
+        val dbFile = File(dataDir, databaseName)
+        if (!dbFile.exists()) {
+            try {
+                val inputStream: InputStream = assets.open(databaseName)
+                val outputStream: OutputStream = FileOutputStream(dbFile)
+                val buffer = ByteArray(1024)
+                var length: Int
+                while (inputStream.read(buffer).also { length = it } > 0) {
+                    outputStream.write(buffer, 0, length)
+                }
+                outputStream.flush()
+                outputStream.close()
+                inputStream.close()
+            } catch (e: IOException) {
+                Log.e("Geopackage", "Errore nella copia del file: ${e.message}")
+            }
+        }
+        return dbFile
     }
 
     private fun initPreferenze() {
@@ -198,22 +241,23 @@ class MainActivity :
             }
         } else {
             // Per API < 33
-            val onBackPressedCallback = object : OnBackPressedCallback(true /* enabled by default */) {
-                override fun handleOnBackPressed() {
-                    // Quando questo callback viene attivato (su API < 33),
-                    // esegui la logica unificata.
-                    // Se vuoi che il sistema gestisca il "back" dopo la tua logica
-                    // (es. chiudere l'activity se non fai finishAffinity()),
-                    // puoi disabilitare temporaneamente il callback e richiamare onBackPressed().
-                    handleCentralizedBackPressLogic(
-                        fallbackToSuper = {
-                            isEnabled = false
-                            onBackPressedDispatcher.onBackPressed() // Questa è la chiamata critica
-                            isEnabled = true
-                        }
-                    )
+            val onBackPressedCallback =
+                object : OnBackPressedCallback(true /* enabled by default */) {
+                    override fun handleOnBackPressed() {
+                        // Quando questo callback viene attivato (su API < 33),
+                        // esegui la logica unificata.
+                        // Se vuoi che il sistema gestisca il "back" dopo la tua logica
+                        // (es. chiudere l'activity se non fai finishAffinity()),
+                        // puoi disabilitare temporaneamente il callback e richiamare onBackPressed().
+                        handleCentralizedBackPressLogic(
+                            fallbackToSuper = {
+                                isEnabled = false
+                                onBackPressedDispatcher.onBackPressed() // Questa è la chiamata critica
+                                isEnabled = true
+                            }
+                        )
+                    }
                 }
-            }
             onBackPressedDispatcher.addCallback(this /* LifecycleOwner */, onBackPressedCallback)
         }
     }
@@ -309,7 +353,10 @@ class MainActivity :
                 }
                 // Assumendo che tu abbia un NavController chiamato 'navController'
                 // e che MappaFragment sia la destinazione corrente o raggiungibile
-                navController.navigate(R.id.mappaFragment, bundle) // O un'azione specifica che porta a MappaFragment
+                navController.navigate(
+                    R.id.mappaFragment,
+                    bundle
+                ) // O un'azione specifica che porta a MappaFragment
             }
         }
     }

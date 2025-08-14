@@ -1335,6 +1335,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 addGeopackageTiles()
                 //geoPackage()
             }
+            /*R.id.layerGPkg -> {
+                val directions = MappaFragmentDirections.actionMappaFragmentToGpkgLayer()
+                this@MappaFragment.findNavController().navigate(directions)
+            }*/
         }
         return false
     }
