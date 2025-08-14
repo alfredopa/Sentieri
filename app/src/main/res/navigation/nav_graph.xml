@@ -34,6 +34,10 @@
             android:id="@+id/action_mappaFragment_to_layerDialog"
             app:destination="@id/layerDialog"
             app:popUpTo="@id/mappaFragment" />
+        <action
+            android:id="@+id/action_mappaFragment_to_gpkgLayer"
+            app:destination="@id/gpkgLayer"
+            app:popUpTo="@id/mappaFragment" />
     </fragment>
     <fragment
         android:id="@+id/sentieriFragment"
@@ -132,4 +136,8 @@
             android:id="@+id/action_layerDialog_to_mappaFragment"
             app:destination="@id/mappaFragment" />
     </fragment>
+    <dialog
+        android:id="@+id/gpkgLayer"
+        android:name="com.apstudio.sentieri.layer.GpkgLayer"
+        android:label="GpkgLayer" />
 </navigation>
