@@ -33,5 +33,23 @@
 -dontwarn javax.persistence.OneToOne
 -dontwarn javax.persistence.Table
 -dontwarn javax.persistence.Version
- -keep class org.osmdroid.** { *; }
- -dontwarn org.osmdroid.**
+-dontwarn org.apache.log4j.Level
+-dontwarn org.apache.log4j.Logger
+-dontwarn org.apache.log4j.Priority
+-dontwarn org.apache.logging.log4j.LogManager
+-dontwarn org.apache.logging.log4j.Logger
+-dontwarn org.slf4j.ILoggerFactory
+-dontwarn org.slf4j.Logger
+-dontwarn org.slf4j.LoggerFactory
+-dontwarn org.slf4j.impl.StaticLoggerBinder
+-keep class org.osmdroid.** { *; }
+-dontwarn org.osmdroid.**
+-keep class mil.nga.geopackage.** { *; }
+-keep interface mil.nga.geopackage.** { *; }
+-keep enum mil.nga.geopackage.** { *; }
+-dontwarn mil.nga.geopackage.**
+-keep public class * extends com.j256.ormlite.dao.BaseDaoImpl
+-keep public class * extends com.j256.ormlite.stmt.StatementBuilder
+-keep class com.j256.**
+# Molto importante per i generics e le collezioni!
+-keepattributes Signature,RuntimeVisibleAnnotations,AnnotationDefault
