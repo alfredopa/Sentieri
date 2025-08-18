@@ -41,8 +41,4 @@ class AppSentieri : Application(), ViewModelStoreOwner {
         ViewModelProvider(this, sentieriViewModelFactory)[SentieriViewModel::class.java]
     }
 
-    override fun onCreate() {
-        super.onCreate()
-        // Puoi inizializzare qui altre cose se necessario
-    }
 }

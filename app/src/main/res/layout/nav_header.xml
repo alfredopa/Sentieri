@@ -16,7 +16,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="5dp"
-        android:text="Sentieri"
+        android:text=""
         android:textColor="@color/teal_200"
         android:textStyle="bold" />
 
@@ -24,6 +24,6 @@
         android:id="@+id/textView1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="1.0.3" />
+        android:text="1.9.0" />
 
 </LinearLayout>

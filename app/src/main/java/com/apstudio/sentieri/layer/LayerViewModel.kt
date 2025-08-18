@@ -1,25 +1,39 @@
 package com.apstudio.sentieri.layer
 
+import android.graphics.Color
 import androidx.lifecycle.ViewModel
 import mil.nga.geopackage.GeoPackage
+import mil.nga.geopackage.features.user.FeatureRow
+import org.osmdroid.gpkg.overlay.features.PolygonOptions
 
 class LayerViewModel : ViewModel() {
     val featureList = mutableListOf<FeatureTableInfo>()
     var geoPackageInstance: GeoPackage? = null
         set(value) {
-            if (field == null && value != null) { // Carica solo la prima volta o se il geopackage cambia
-                field = value
-                loadFeaturesFromGeoPackage()
-            } else if (value == null) {
-                field = null
-                featureList.clear()
+            // If the new value is different from the current field
+            if (field != value) {
+                field = value // Update the field with the new value
+                if (value != null) {
+                    // New GeoPackage is set (and it's different or was null)
+                    loadFeaturesFromGeoPackage()
+                } else {
+                    // GeoPackage is cleared (set to null)
+                    featureList.clear()
+                }
             }
         }
-
+    // PARAMETRI per Polyline e Polygon
+    val polygonOptions = PolygonOptions().apply {
+        strokeWidth = 2f
+        fillColor = Color.argb(100, 255, 0, 255)
+        strokeColor = Color.argb(100, 0, 0, 255)
+    }
+    var labelConfig = mutableMapOf<String, List<Pair<String, Boolean>>>()
+    val TAG = "LayerViewModel"
     var currentActiveTableName: String? = null // Era DATABASE_TABLE_NAME
 
     // Chiamato quando geoPackageInstance viene impostato per la prima volta
-    private fun loadFeaturesFromGeoPackage() {
+    fun loadFeaturesFromGeoPackage() {
         if (featureList.isEmpty()) { // Carica solo se la lista è vuota (per evitare ricariche non necessarie)
             geoPackageInstance?.featureTables?.map { tableName ->
                 val contentsDao = geoPackageInstance?.contentsDao
@@ -48,4 +62,18 @@ class LayerViewModel : ViewModel() {
             featureInfo.isVisible = visibilityMap[featureInfo.name] ?: false
         }
     }
+
+
+    fun creaLabel(featureRow: FeatureRow, tableName: String): String {
+        val fieldsConfig = labelConfig[tableName]
+        var label = ""
+        fieldsConfig?.forEachIndexed { index, (fieldName, isVisible) ->
+            if (isVisible) {
+                label += fieldName + ": " + featureRow.values[index].toString() + "\n"
+            }
+        }
+        return label
+    }
+
+
 }
