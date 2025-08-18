@@ -7,23 +7,25 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
+import android.view.View
+import android.widget.TextView
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import androidx.core.net.toUri
 import androidx.drawerlayout.widget.DrawerLayout
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavController
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
@@ -31,13 +33,10 @@ import androidx.navigation.ui.navigateUp
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import androidx.preference.PreferenceManager.getDefaultSharedPreferences
-import com.apstudio.sentieri.db.SentieriRepo
 import com.google.android.material.navigation.NavigationView
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.osmdroid.config.Configuration
 import java.io.File
-import androidx.core.net.toUri
-import androidx.lifecycle.ViewModelProvider
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -84,7 +83,6 @@ class MainActivity :
             .get(SentieriViewModel::class.java)
         // inizializza le preferenze
         initPreferenze()
-
         // verifica se tutti i permessi standard sono stati concessi
         checkAndRequestPermissions()
 
@@ -116,6 +114,14 @@ class MainActivity :
         this.supportActionBar?.title = "Mappa"
         drawerLayout = findViewById(R.id.drawerLayout)
         val navigationView = findViewById<NavigationView>(R.id.nav_View)
+        // Accedi all'header view
+        val headerView: View = navigationView.getHeaderView(0) // Di solito l'header è all'indice 0
+        // Trova la TextView nell'header
+        // Sostituisci con l'ID corretto della tua TextView in nav_header.xml
+        val textViewInHeader: TextView? = headerView.findViewById<TextView>(R.id.textView1)
+        // Oppure se usi l'ID che ho suggerito:
+        // val textViewInHeader: TextView? = headerView.findViewById<TextView>(R.id.textViewNameToUpdate)
+        textViewInHeader?.text = BuildConfig.VERSION_NAME
         navController = findNavController(R.id.nav_host_fragment)
         // Make sure actions in the ActionBar get propagated to the NavController
         // Connect the drawer layout to the navigation graph

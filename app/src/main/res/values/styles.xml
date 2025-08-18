@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <style name="AppTheme.LayerDialog" parent="Theme.AppCompat.Light.Dialog">
         <item name="android:windowIsFloating">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
+    <style name="Theme.MyApp.EdgeToEdge" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Rendi la status bar trasparente -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <!-- Rendi la navigation bar trasparente (opzionale) -->
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- Permetti al layout di estendersi sotto le system bars -->
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <!-- Per API 27+ per gestire meglio i cutout e il colore della navigation bar -->
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="o_mr1">shortEdges</item>
     </style>
 </resources>

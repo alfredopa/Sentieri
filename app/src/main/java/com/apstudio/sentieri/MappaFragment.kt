@@ -11,6 +11,7 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Paint
 import android.location.Location
 import android.location.LocationManager
 import android.net.Uri
@@ -39,14 +40,13 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getColor
-import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
@@ -67,13 +67,21 @@ import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.PoiDao
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
-import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TrackDao
+import com.apstudio.sentieri.layer.FeatureTableInfo
+import com.apstudio.sentieri.layer.LAYER_DIALOG_REQUEST_KEY
+import com.apstudio.sentieri.layer.LayerViewModel
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import mil.nga.geopackage.GeoPackageFactory
+import mil.nga.geopackage.features.user.FeatureCursor
+import mil.nga.geopackage.features.user.FeatureDao
+import mil.nga.geopackage.features.user.FeatureRow
+import mil.nga.geopackage.geom.GeoPackageGeometryData
+import mil.nga.sf.GeometryType
+import mil.nga.sf.MultiPolygon
 import net.federicomatera.agpxp.GpxParser
 import net.federicomatera.agpxp.GpxWriter
 import net.federicomatera.agpxp.models.Gpx
@@ -83,6 +91,7 @@ import net.federicomatera.agpxp.models.Track
 import net.federicomatera.agpxp.models.WayPoint
 import org.mapsforge.map.rendertheme.ExternalRenderTheme
 import org.mapsforge.map.rendertheme.XmlRenderTheme
+import org.osmdroid.api.IGeoPoint
 import org.osmdroid.api.IMapController
 import org.osmdroid.gpkg.overlay.OsmMapShapeConverter
 import org.osmdroid.gpkg.overlay.features.MarkerOptions
@@ -101,11 +110,17 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapController
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.compass.CompassOverlay
 import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider
 import org.osmdroid.views.overlay.infowindow.BasicInfoWindow
+import org.osmdroid.views.overlay.simplefastpoint.LabelledGeoPoint
+import org.osmdroid.views.overlay.simplefastpoint.SimpleFastPointOverlay
+import org.osmdroid.views.overlay.simplefastpoint.SimpleFastPointOverlayOptions
+import org.osmdroid.views.overlay.simplefastpoint.SimplePointTheme
 import java.io.File
 import java.sql.Timestamp
 import java.text.DecimalFormat
@@ -113,6 +128,7 @@ import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
 
+private const val TAG = "MappaFragment"
 
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
     View.OnKeyListener {
@@ -124,20 +140,21 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private val gpsViewModel: GpsViewModel by lazy {
         ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[GpsViewModel::class.java]
     }
+    val layerModel: LayerViewModel by lazy {
+        ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[LayerViewModel::class.java]
+    }
+
     private var _binding: FragmentMappaBinding? = null
     private val binding get() = _binding!!
 
     private lateinit var database: SentieriDB
     private lateinit var bottomSheetBehavior: BottomSheetBehavior<ConstraintLayout>
 
-    //private lateinit var intent: Intent
     private val SELECT_GPX_FILE = 10
     private val SELECT_MAP_FILE = 20
-    //private lateinit var mapView: MapView
     private lateinit var gpsMarker: Marker
 
     private var uri: Uri? = null
-    //private lateinit var openFileLauncher: ActivityResultLauncher<Intent>
 
     private lateinit var osservaMappa: Observer<Polyline>
     private var alertDialog: AlertDialog? = null
@@ -149,14 +166,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private lateinit var preferenze: SharedPreferences
     private val mapView: MapView
         get() = binding.Mapview
+
     //icone blocco mappa
     private val PIN_RED = R.drawable.pin_rosso
     private val PIN_BLACK = R.drawable.pin_nero
-    //private val TAG = "MappaFragment"
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
+        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri)[SentieriViewModel::class.java]
         // Inizializza le preferenze e registra il listener
         preferenze = PreferenceManager.getDefaultSharedPreferences(requireContext())
         preferenze.registerOnSharedPreferenceChangeListener(this)
@@ -176,6 +194,57 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val filter = IntentFilter(SEND_LOCATION_ACTION)
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
 
+        // Imposta il listener per il risultato da GpkgLayer
+        parentFragmentManager.setFragmentResultListener(
+            LAYER_DIALOG_REQUEST_KEY,
+            this
+        ) { requestKey, bundle ->
+            // Questo blocco viene eseguito quando GpkgLayer invia un risultato
+            // con la LAYER_DIALOG_REQUEST_KEY specificata.
+            if (requestKey == LAYER_DIALOG_REQUEST_KEY) {
+                layerModel.featureList.forEach { featureInfo ->
+                    //if (featureInfo.isVisible)
+                    onReturnFromLayerDialog(featureInfo)
+                }
+                // Puoi recuperare dati dal bundle se GpkgLayer li ha inviati
+                // val userAction = bundle.getString("userAction")
+            }
+        }
+    }
+
+    fun onReturnFromLayerDialog(featureInfo: FeatureTableInfo) {
+        // Metti qui la logica che vuoi eseguire al ritorno da GpkgLayer
+        // Ad esempio, aggiornare la mappa, ricaricare dei dati, etc.
+        Log.d("MappaFragment", "Funzione onReturnFromLayerDialog chiamata!")
+        if (featureInfo.isVisible) {
+            if (!featureInfo.readData || featureInfo.listOverlay.isNullOrEmpty()) {
+                layerModel.geoPackageInstance?.let { // Usa l'istanza dal ViewModel
+                    // Passa il geoPackage corretto e tableName
+                    puntiSuMappa(
+                        featureInfo.name,
+                        featureInfo
+                    ) // Assicurati che puntiSuMappa usi layerModel.geoPackageInstance
+                    featureInfo.readData = true
+                } ?: run {
+                    Log.e(
+                        "SwitchDebug",
+                        "geoPackageInstance in ViewModel is null. Cannot load points."
+                    )
+                }
+            } else {
+                featureInfo.listOverlay?.forEach { tabOverlay ->
+                    if (!mapView.overlays.contains(tabOverlay)) {
+                        mapView.overlays.add(tabOverlay)
+                    }
+                }
+            }
+        } else {
+            featureInfo.listOverlay?.forEach { tabOverlay ->
+                mapView.overlays.remove(tabOverlay)
+                featureInfo.readData = false
+            }
+        }
+        // Esempio: viewModel.refreshMapLayers()
     }
 
     override fun onCreateView(
@@ -208,7 +277,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
 
-        //mapView = view.findViewById(R.id.Mapview)
         // Assegna un listener alla mappa per gestire la pressione dei tasti
         mapView.isFocusableInTouchMode = true
         mapView.requestFocus()
@@ -355,14 +423,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             //Log.d("gps", "status $status")
         }
 
-        /* VECCHIA GESTIONE INTENT
-        // l'intent contiene il nome del file GPX da caricare da File Manager
-        val intent = requireActivity().intent
-        val data: Uri? = intent.data
-        if (data != null) {
-            caricaGPX(data)
-            intent.setData(null)
-        }*/
     }
 
     // aggiunge il click listener alla polyline per aprire l'info window
@@ -390,11 +450,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onResume() {
         super.onResume()
         mapView.onResume()
-        //Log.d("Mappa", "MappaFragment onResume ")
+        Log.d("Mappa", "MappaFragment onResume ")
         // Controlli per verificare valori da altri fragment da scheda sentieri e visualizzazione waypoint
         // verifica se è valorizzata line, quindi è stato passsata dal pulsante Segui
-        // e lo mostra sulla mappa
-        // qui carica traccia dal db con waypoint e lista foto
+        // e lo mostra sulla mappa qui carica traccia dal db con waypoint e lista foto
         if (viewModel.line.actualPoints.isNotEmpty()) {
             if (viewModel.line.title.isNotEmpty()) {
                 (activity as AppCompatActivity).supportActionBar?.title = viewModel.line.title
@@ -462,6 +521,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             toast.view?.setBackgroundColor(getColor(requireActivity(), R.color.purple_500))
             toast.show()
         }
+
+        // ridisegna eventuali layer aggiunti da GpkgLayer
+        layerModel.featureList.forEach { featureInfo ->
+            if (featureInfo.isVisible)
+                onReturnFromLayerDialog(featureInfo)
+        }
     }
 
     override fun onPrepareMenu(menu: Menu) {
@@ -525,7 +590,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val offlineMappa: OfflineTileProvider
         var theme: XmlRenderTheme? = null
         if (f.name.contains(".map")) {
-            val mediaDir = requireContext().getExternalMediaDirs()
+            val mediaDir = requireContext().externalMediaDirs
             val documentsDir = mediaDir[0]
             val folderTema = File("$documentsDir/Mappe/4UMaps/4UMaps.xml")
             if (folderTema.exists()) {
@@ -688,7 +753,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun attivaGps() {
-        var locationManager = requireActivity().getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        var locationManager =
+            requireActivity().getSystemService(Context.LOCATION_SERVICE) as LocationManager
         // Check if GPS provider is enabled
         val isGpsProviderEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
         if (!isGpsProviderEnabled) {
@@ -804,10 +870,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 //Log.d("Punto","${it.latitude}${it.longitude}")
 // verifica esistenza valore altitudine
             if (it.elevation != null) {
-                punto = GeoPoint(it.latitude, it.longitude, it.elevation.toDouble())
+                punto = GeoPoint(it.latitude, it.longitude, it.elevation)
 // confronta con la precedente altitudine non nulla e verifica se aumenta ascesa oppure discesa
                 if (oldPunto?.altitude != null) {
-                    if (it.elevation.toDouble() > oldPunto.altitude) {
+                    if (it.elevation > oldPunto.altitude) {
                         viewModel.trackAscesa += (it.elevation.toInt() - oldPunto.altitude.toInt())
                     } else {
                         viewModel.trackDiscesa += (it.elevation.toInt() - oldPunto.altitude.toInt())
@@ -903,7 +969,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun salvaTraccia(nomeTraccia: String) {
         var ultimoID: Long
-//var punto = WayPoint()
         val dateString = dataOraIso8601()
         val sentiero = Sentieri(
             id = 0,
@@ -925,10 +990,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         )
 
         viewModel.viewModelScope.launch(Dispatchers.IO) {
-            //runBlocking {
             // salva il nuovo record in Tabella Sentiero
             ultimoID = viewModel.salvaSentiero(sentiero)
-            //}
 
 //ciclo caricamento punti GPS in lista punti db
             val tracciaDao: TrackDao =
@@ -953,7 +1016,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             if (viewModel.poiDBList.isNotEmpty()) {
                 val poiDao: PoiDao =
                     SentieriDB.getInstance(requireActivity().application).poiDao
-                //MainScope().launch {
                 viewModel.poiDBList.forEach {
                     val poi = PoiDB(
                         Id = 0,
@@ -969,14 +1031,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     poiDao.insertDB(poi)
                     //Log.d("Track","$trackPoint")
                 }
-                //}
             }
 
 // memorizza uri e nome file delle foto scattate in registrazione traccia
             if (viewModel.fotoInPoiDB.isNotEmpty()) {
                 val fotoDao: FotoPoiDao =
                     SentieriDB.getInstance(requireActivity().application).fotoPoiDao
-                //MainScope().launch {
                 viewModel.fotoInPoiDB.forEach {
                     val foto = FotoPoi(
                         id = 0,
@@ -988,7 +1048,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     fotoDao.insertDB(foto)
                     //Log.d("Track","$trackPoint")
                 }
-                //}
             }
         }
 // scrive file GPX in cartella Downloads
@@ -1064,7 +1123,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun azzeraCruscotto() {
 // azzera i valori del viewModel visualizzati nel cruscotto
-        //tempoMov.text = ""
         viewModel.resetCruscotto()
     }
 
@@ -1109,7 +1167,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // Orienta display sorgente in OpenMap demo di Osmdroid: Location - SampleHeadingCompassUp
             //Log.d("loc", "${loc.bearing} - ${loc.speed}")
             val gpsbearing = loc.bearing
-            //val gpsspeed = loc.speed
 
             //use gps bearing instead of the compass
             var t: Float = 360 - gpsbearing
@@ -1142,11 +1199,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         }
                     }
                     val traccia = viewModel.listaTracce.items[indice] as Polyline
-                    //val puntoDista =  traccia.getCloseTo(viewModel.newPunto, 30.0, mapView)
-                    //Log.d("Mappa", "segui $puntoDista")
                     // restituisce se il punto è vicino con una tolleranza di 30 pixel alla posizione corrente della mappa
                     if (!traccia.isCloseTo(viewModel.newPunto, 30.0, mapView)) {
-                        //Alert
                         val allarme = EditText(requireActivity())
                         val builder =
                             AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
@@ -1273,21 +1327,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
 
             R.id.lista -> {
-// gestione del frammento Lista sentieri se non in registrazione traccia
-//if (!viewModel.isRecording) {
                 val directions =
                     MappaFragmentDirections.actionMappaFragmentToSentieriFragment()
                 this@MappaFragment.findNavController().navigate(directions)
-//}
             }
 
             R.id.gps -> {
 // Attiva o disattiva GPS
                 if (viewModel.isRecording) {
-                    //menuItem.setIcon(resources.getDrawable(R.drawable.gps_off))
                     stopGPS()
                 } else {
-                    //menuItem.setIcon(resources.getDrawable(R.drawable.gps_on))
                     // se è presente barometro ed è settato per essere usato, verifica poi se è gia calibrato non è necessario
                     if (viewModel.haBaro && viewModel.setBaro) {
                         if (!viewModel.isCalibrato.value!!)
@@ -1415,6 +1464,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
                 return true // Evento volume gestito
             }
+
             KEYCODE_VOLUME_DOWN -> {
                 // Solo se l'azione è KEY_DOWN
                 if (event?.action == KeyEvent.ACTION_DOWN) {
@@ -1523,7 +1573,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun addGeopackageTiles() {
         try {
-            val mediaDir = requireContext().getExternalMediaDirs()
+            val mediaDir = requireContext().externalMediaDirs
             val documentsDir = mediaDir[0]
             val geoPackageFile = File("$documentsDir/Mappe/parchi.gpkg")
             val manager = GeoPackageFactory.getManager(requireContext())
@@ -1635,6 +1685,245 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }*/
         } catch (ex: Exception) {
             Log.d("packgage", "inside geopackage exception " + ex.message)
+        }
+    }
+
+    private fun createOsmPolygonFromNgaPolygon(
+        ngaPolygon: mil.nga.sf.Polygon,
+        featureRow: FeatureRow
+    ): Polygon {
+        //val osmdroidPolygon = Polygon(map) // Assuming 'map' is accessible
+        val osmdroidPolygon = Polygon() // Assuming 'map' is accessible
+        val exteriorRingPoints = mutableListOf<GeoPoint>()
+        ngaPolygon.rings.firstOrNull()?.points?.forEach { ngaPoint ->
+            exteriorRingPoints.add(GeoPoint(ngaPoint.y, ngaPoint.x))
+        }
+        osmdroidPolygon.points = exteriorRingPoints
+
+        if (ngaPolygon.rings.size > 1) {
+            val holes = mutableListOf<List<GeoPoint>>()
+            ngaPolygon.rings.drop(1).forEach { interiorNgaRing ->
+                val holePath = mutableListOf<GeoPoint>()
+                interiorNgaRing.points.forEach { ngaPoint ->
+                    holePath.add(GeoPoint(ngaPoint.y, ngaPoint.x))
+                }
+                holes.add(holePath)
+            }
+            osmdroidPolygon.holes = holes
+        }
+        // Opzione A: Crea la label ora e memorizzala (più semplice se la label non è troppo grande)
+        val labelForPolygon = layerModel.creaLabel(featureRow, layerModel.currentActiveTableName!!)
+        osmdroidPolygon.relatedObject = labelForPolygon // Memorizza la stringa della label
+
+        //Devi associare l' OnClickListener a ogni singola istanza di Polygon che crei.
+        // Imposta l'OnClickListener
+        osmdroidPolygon.setOnClickListener { polygon, map, eventPos ->
+            // 'polygon' è l'istanza di org.osmdroid.views.overlay.Polygon che è stata cliccata
+            // 'mapView' è la mappa
+            // 'eventPos' è il GeoPoint del click
+            // Puoi aprire un InfoWindow personalizzato o eseguire altre azioni
+            // Per l'InfoWindow di default (se hai titolo e snippet):
+            /*if (polygon.isInfoWindowOpen) {
+                InfoWindow.closeAllInfoWindowsOn(mapView)
+            } else {
+                // Chiudi altri InfoWindow prima di aprirne uno nuovo
+                InfoWindow.closeAllInfoWindowsOn(mapView)
+                polygon.showInfoWindow() // Mostra l'InfoWindow nel punto cliccato
+            }*/
+            val retrievedLabel = polygon.relatedObject as? String
+            if (retrievedLabel != null) {
+                val featureInfo =
+                    layerModel.featureList.find { it.name == layerModel.currentActiveTableName } // Trova la FeatureTableInfo corretta per il titolo
+                // DA CREARE UN LIVEDATA?
+                mostraAlertDialogSemplice(
+                    retrievedLabel,
+                    featureInfo?.descrTabella ?: "Dettagli Feature"
+                )
+            }
+            true // Indica che l'evento è stato gestito
+        }
+        // Apply styling (assuming polygonOptions is accessible)
+        osmdroidPolygon.fillColor = layerModel.polygonOptions.fillColor
+        osmdroidPolygon.strokeColor = layerModel.polygonOptions.strokeColor
+        osmdroidPolygon.strokeWidth = layerModel.polygonOptions.strokeWidth
+        osmdroidPolygon.title = layerModel.polygonOptions.title
+        return osmdroidPolygon
+    }
+
+    private fun mostraAlertDialogSemplice(message: String, titolo: String) {
+        val builder = AlertDialog.Builder(requireContext()) // 'this' è il Context dell'Activity
+        builder.setTitle(titolo) // Imposta il titolo
+        builder.setMessage(message) // Imposta il messaggio
+        builder.setPositiveButton("Chiudi") { dialog, which ->
+            dialog.dismiss() // Chiude esplicitamente il dialogo (spesso non necessario per setPositiveButton)
+        }
+        val alertDialog: AlertDialog = builder.create()
+        alertDialog.show()
+    }
+
+    private fun puntiSuMappa(tableName: String, featureInfo: FeatureTableInfo) {
+        // Assicurati che usi il GeoPackage dal ViewModel
+        val currentGeoPackage = layerModel.geoPackageInstance
+        if (currentGeoPackage == null) {
+            Log.e(TAG, "GeoPackage is null in puntiSuMappa for table $tableName")
+            return
+        }
+        val points = mutableListOf<IGeoPoint>()
+        val osmdroidPolygonsToAdd = mutableListOf<Polygon>()
+        // Utilizza tableName passato come argomento
+        val featureDao: FeatureDao = currentGeoPackage.getFeatureDao(tableName)
+        val featureCursor: FeatureCursor = featureDao.queryForAll()
+        try {
+            while (featureCursor.moveToNext()) {
+                val featureRow: FeatureRow = featureCursor.row
+                val geometryData: GeoPackageGeometryData? = featureRow.geometry // Può essere null
+
+                if (geometryData?.geometry == null || geometryData.isEmpty) {
+                    Log.w(TAG, "Skipping feature row with null or empty geometry.")
+                    continue
+                }
+
+                val geometry = geometryData.geometry
+
+                when (geometry.geometryType) {
+                    GeometryType.POINT -> processPointGeometry(featureRow, tableName, points)
+                    GeometryType.MULTIPOLYGON -> processMultiPolygonGeometry(
+                        featureRow,
+                        osmdroidPolygonsToAdd
+                    )
+
+                    GeometryType.POLYGON -> processPolygonGeometry(
+                        featureRow,
+                        osmdroidPolygonsToAdd
+                    )
+                    // ... other types
+                    else -> Log.w(
+                        TAG,
+                        "Geometry type ${geometry.geometryType.name} not yet handled for display."
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error processing feature cursor for table $tableName", e)
+        } finally {
+            featureCursor.close()
+        }
+        // crea e carica i layer se ci sono dati, punti oppure poligoni
+        if (points.isNotEmpty()) {
+            creaOverlayPunti(points, featureInfo)
+        }
+
+        if (osmdroidPolygonsToAdd.isNotEmpty()) {
+            creaOverlayPoligoni(osmdroidPolygonsToAdd, featureInfo)
+        }
+        mapView.invalidate()
+    }
+
+    private fun creaOverlayPoligoni(
+        osmdroidPolygonsToAdd: MutableList<Polygon>,
+        featureInfo: FeatureTableInfo // Questo è l'oggetto che deve contenere la lista degli overlay
+    ) {
+        val polyOverlay =
+            FolderOverlay() // Questo è l'overlay che deve essere in featureInfo.listOverlay
+        osmdroidPolygonsToAdd.forEach {
+            polyOverlay.add(it) // Aggiungi i singoli poligoni al FolderOverlay
+        }
+        if (featureInfo.listOverlay == null) {
+            featureInfo.listOverlay = mutableListOf()
+        }
+        featureInfo.listOverlay?.add(polyOverlay) // AGGIUNGI IL FOLDER OVERLAY ALLA LISTA!
+        // Aggiungi il FolderOverlay principale alla mappa (se non l'hai già fatto)
+        // Se lo aggiungi qui, assicurati di non aggiungerlo due volte se lo fai anche fuori
+        if (!mapView.overlays.contains(polyOverlay)) {
+            mapView.overlays.add(polyOverlay)
+        }
+    }
+
+
+    private fun creaOverlayPunti(points: MutableList<IGeoPoint>, featureInfo: FeatureTableInfo) {
+        val theme = SimplePointTheme(points, false)
+        // create label style
+        val textStyle = Paint().apply {
+            style = Paint.Style.FILL
+            color = "#0000ff".toColorInt()
+            textAlign = Paint.Align.CENTER
+            textSize = 24f
+        }
+        // create point style
+        val PointStyle = Paint().apply {
+            style = Paint.Style.FILL
+            //color = "#114190".toColorInt()
+            color = featureInfo.colore.toColorInt()
+            textAlign = Paint.Align.CENTER
+            textSize = 24f
+        }
+        // set some visual options for the overlay
+        // we use here MAXIMUM_OPTIMIZATION algorithm, which works well with >100k points
+        val opt = SimpleFastPointOverlayOptions.getDefaultStyle()
+            //.setAlgorithm(SimpleFastPointOverlayOptions.RenderingAlgorithm.MAXIMUM_OPTIMIZATION)
+            .setAlgorithm(SimpleFastPointOverlayOptions.RenderingAlgorithm.NO_OPTIMIZATION)
+            .setRadius(7F)
+            .setSymbol(SimpleFastPointOverlayOptions.Shape.CIRCLE)
+            .setIsClickable(true)
+            .setCellSize(15)
+            .setPointStyle(PointStyle)
+            .setTextStyle(textStyle)
+        val sfpo = SimpleFastPointOverlay(theme, opt)
+        // 2. Inizializza listOverlay se è null
+        if (featureInfo.listOverlay == null) {
+            featureInfo.listOverlay = mutableListOf()
+        }
+        // add overlay
+        featureInfo.listOverlay?.add(sfpo)
+        sfpo.setOnClickListener { points, point ->
+            points[point].toString()
+            (points[point] as LabelledGeoPoint).label?.let {
+                mostraAlertDialogSemplice(
+                    it,
+                    featureInfo.descrTabella
+                )
+            }
+        }
+        if (!mapView.overlays.contains(sfpo)) {
+            mapView.overlays.add(sfpo)
+        }
+    }
+
+    private fun processPointGeometry(
+        featureRow: FeatureRow,
+        tableName: String,
+        pointsToAdd: MutableList<IGeoPoint>
+    ) {
+        val label = layerModel.creaLabel(featureRow, tableName)
+        val geometryData: GeoPackageGeometryData = featureRow.geometry
+        pointsToAdd.add(
+            LabelledGeoPoint(
+                geometryData.geometry.centroid.y,
+                geometryData.geometry.centroid.x,
+                label
+            )
+        )
+    }
+
+    private fun processPolygonGeometry(
+        featureRow: FeatureRow,
+        osmdroidPolygonsToAdd: MutableList<Polygon>
+    ) {
+        val geometryData = featureRow.geometry
+        val geometry = geometryData.geometry
+        val ngaPolygon = geometry as mil.nga.sf.Polygon
+        osmdroidPolygonsToAdd.add(createOsmPolygonFromNgaPolygon(ngaPolygon, featureRow))
+    }
+
+    private fun processMultiPolygonGeometry(
+        featureRow: FeatureRow,
+        osmdroidPolygonsToAdd: MutableList<Polygon>
+    ) {
+        val geometryData = featureRow.geometry
+        val geometry = geometryData.geometry
+        val ngaMultiPolygon = geometry as MultiPolygon
+        ngaMultiPolygon.polygons.forEach { ngaPolygon ->
+            osmdroidPolygonsToAdd.add(createOsmPolygonFromNgaPolygon(ngaPolygon, featureRow))
         }
     }
 
