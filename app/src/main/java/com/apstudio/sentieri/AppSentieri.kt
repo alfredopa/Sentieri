@@ -40,5 +40,9 @@ class AppSentieri : Application(), ViewModelStoreOwner {
     val sentieriViewModel: SentieriViewModel by lazy {
         ViewModelProvider(this, sentieriViewModelFactory)[SentieriViewModel::class.java]
     }
-
+    override fun onCreate() {
+        super.onCreate()
+        SimpleFileLogger.initialize(this)
+        SimpleFileLogger.log("Sentieri", "App avviata, log manuale.")
+    }
 }

@@ -44,10 +44,30 @@
 -dontwarn org.slf4j.impl.StaticLoggerBinder
 -keep class org.osmdroid.** { *; }
 -dontwarn org.osmdroid.**
--keep class mil.nga.geopackage.** { *; }
--keep interface mil.nga.geopackage.** { *; }
--keep enum mil.nga.geopackage.** { *; }
+# Mantiene tutte le classi pubbliche, interfacce, enum e i loro membri pubblici/protetti
+# all'interno del package mil.nga.geopackage e dei suoi sottopackage.
+-keep public class mil.nga.geopackage.** {
+      public protected *;
+}
+-keep public interface mil.nga.geopackage.** {
+      public protected *;
+}
+-keep enum mil.nga.geopackage.** {
+      public protected *;
+}
+
+# Se la libreria usa JNI (codice nativo) per le proiezioni, potresti dover
+# mantenere i nomi dei metodi nativi e le classi che li contengono.
+# Questo è un esempio generico, i nomi specifici andrebbero identificati.
+# -keepclasseswithmembernames class * {
+#    native <methods>;
+# }
+
+# Sopprime gli avvisi per questa libreria se ancora presenti,
+# anche se con regole di keep più forti potrebbero non essercene.
 -dontwarn mil.nga.geopackage.**
+-dontwarn org.sqlite.** # GeoPackage usa SQLite, che a volte genera warning
+-dontwarn jsqlite.**   # Una vecchia dipendenza a volte tirata dentro
 -keep public class * extends com.j256.ormlite.dao.BaseDaoImpl
 -keep public class * extends com.j256.ormlite.stmt.StatementBuilder
 -keep class com.j256.**

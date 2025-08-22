@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import mil.nga.geopackage.GeoPackage
 import mil.nga.geopackage.features.user.FeatureRow
 import org.osmdroid.gpkg.overlay.features.PolygonOptions
+import kotlin.random.Random
+import kotlin.random.nextInt
 
 class LayerViewModel : ViewModel() {
     val featureList = mutableListOf<FeatureTableInfo>()
@@ -26,7 +28,7 @@ class LayerViewModel : ViewModel() {
     val polygonOptions = PolygonOptions().apply {
         strokeWidth = 2f
         fillColor = Color.argb(100, 255, 0, 255)
-        strokeColor = Color.argb(100, 0, 0, 255)
+        strokeColor = Color.argb(100, 0, 0, 0)
     }
     var labelConfig = mutableMapOf<String, List<Pair<String, Boolean>>>()
     val TAG = "LayerViewModel"
@@ -65,15 +67,28 @@ class LayerViewModel : ViewModel() {
 
 
     fun creaLabel(featureRow: FeatureRow, tableName: String): String {
-        val fieldsConfig = labelConfig[tableName]
-        var label = ""
-        fieldsConfig?.forEachIndexed { index, (fieldName, isVisible) ->
+        val campiLabel = labelConfig[tableName]
+        // val fieldsConfig = campiLabel // Non serve una variabile separata
+        val labelBuilder = StringBuilder() // Usa StringBuilder
+        campiLabel?.forEachIndexed { index, (fieldName, isVisible) ->
             if (isVisible) {
-                label += fieldName + ": " + featureRow.values[index].toString() + "\n"
+                // Usa append() per costruire la stringa
+                labelBuilder.append(fieldName)
+                    .append(": ")
+                    .append(featureRow.values[index]?.toString() ?: "null") // Aggiunto controllo null per featureRow.values[index]
+                    .append("\n")
             }
         }
-        return label
+        return labelBuilder.toString() // Converti StringBuilder in String alla fine
+    }
+
+    fun getRandomHexColor(): String {
+        val red = Random.nextInt(256)
+        val green = Random.nextInt(256)
+        val blue = Random.nextInt(256)
+        return String.format("#80%02x%02x%02x", red, green, blue)
     }
 
 
 }
+
