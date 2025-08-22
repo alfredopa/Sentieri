@@ -1,0 +1,108 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<databaseSchema>
+	<table name="areetutelate__parchi_regionali_istituiti">
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="OBJECTID" visible="false"/>
+		<field name="TOPONIMO" visible="true"/>
+		<field name="AREA_HA" visible="true"/>
+		<field name="PROVVEDIME" visible="true"/>
+	</table>
+	<table name="areetutelate__aree_di_rilevante_interesse_naturalistico">
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="OBJECTID" visible="false"/>
+		<field name="TOPONIMO" visible="true"/>
+		<field name="AREA_MQ" visible="true"/>
+		<field name="PERIM_M" visible="true"/>
+		<field name="PROVVED" visible="true"/>
+	</table>
+	<table name="areetutelate__iba">
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="OBJECTID" visible="false"/>
+		<field name="codice_iba" visible="false"/>
+		<field name="nome_iba" visible="true"/>
+		<field name="regioni" visible="true"/>
+		<field name="areamq" visible="true"/>
+		<field name="areaha" visible="true"/>
+		<field name="Shape_Leng" visible="true"/>
+		<field name="Shape_Area" visible="true"/>
+	</table>
+	<table name="areetutelate__monumenti_naturali_istituiti">
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="OBJECTID" visible="false"/>
+		<field name="CODICE" visible="true"/>
+		<field name="ZONA" visible="true"/>
+		<field name="TOPONIMO" visible="true"/>
+	</table>
+	<table name="alberi_monumentali">
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="ID" visible="false"/>
+		<field name="N_SCHEDA" visible="true"/>
+		<field name="PROVINCIA" visible="true"/>
+		<field name="COMUNE" visible="true"/>
+		<field name="LOCALITA" visible="true"/>
+		<field name="X" visible="true"/>
+		<field name="Y" visible="true"/>
+		<field name="ALTITUDINE" visible="true"/>
+		<field name="CONT_URBA" visible="true"/>
+		<field name="NOME_SCIEN" visible="true"/>
+		<field name="NOME_VOLG" visible="true"/>
+		<field name="CIRC_CM" visible="true"/>
+		<field name="ALTEZZA_M" visible="true"/>
+		<field name="TUTELA" visible="true"/>
+	</table>
+	<table name="grotte">
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="STRINGA" visible="true"/>
+		<field name="TEXT_ANGLE" visible="true"/>
+		<field name="TEXT_SIZE" visible="true"/>
+		<field name="TEXTSTRING" visible="true"/>
+	</table>
+	<table name="beni_paesaggistici_2014">
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="PROGRESSIV" visible="false"/>
+		<field name="CODICE_bur" visible="false"/>
+		<field name="Comune" visible="true"/>
+		<field name="Denominazione" visible="true"/>
+		<field name="Fonte" visible="true"/>
+		<field name="Tipologia" visible="true"/>
+		<field name="X" visible="true"/>
+		<field name="Y" visible="true"/>
+		<field name="SIMBOLI" visible="true"/>
+		<field name="T" visible="true"/>
+		<field name="NOTE" visible="true"/>
+	</table>
+	<table name="nur_data">
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="contentid" visible="false"/>
+		<field name="category" visible="true"/>
+		<field name="nome" visible="true"/>
+		<field name="regione" visible="true"/>
+		<field name="comune" visible="true"/>
+		<field name="localita" visible="true"/>
+		<field name="location" visible="true"/>
+		<field name="descr_it" visible="true"/>
+		<field name="fonte" visible="true"/>
+		<field name="youtube" visible="true"/>
+	</table>
+		<table name="Comuni">
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="ogc_fid" visible="false"/>
+		<field name="aa01_cod_com_istat" visible="true"/>
+		<field name="aa01_nome" visible="true"/>
+		<field name="aa01_cod_prov_istat" visible="true"/>
+		<field name="aa01_cod_reg_istat" visible="true"/>
+		<field name="aa01_area" visible="true"/>
+		<field name="aa01_perimetro" visible="false"/>
+		<field name="aa01_id_comune" visible="false"/>
+		<field name="aa01_geometria" visible="false"/>
+	</table>
+</databaseSchema>

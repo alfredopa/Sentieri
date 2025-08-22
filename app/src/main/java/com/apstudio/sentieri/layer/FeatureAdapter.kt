@@ -15,6 +15,7 @@ class FeatureAdapter (
     private val featureTableInfo: MutableList<FeatureTableInfo>,
     private val listener: OnItemClickListener
 ) : RecyclerView.Adapter<FeatureAdapter.FeatureViewHolder>() {
+    private val coloreDefault = "#0000FF"
 
     interface OnItemClickListener {
         // Questo metodo verrà chiamato quando un elemento viene cliccato
@@ -45,7 +46,11 @@ class FeatureAdapter (
         }
 
         fun bind(item: FeatureTableInfo) {
-            coloreTabella.setBackgroundColor(item.colore.toColorInt())
+
+            if (item.colore == "RANDOM")
+                coloreTabella.setBackgroundColor(coloreDefault.toColorInt())
+            else
+                coloreTabella.setBackgroundColor(item.colore.toColorInt())
             nomeTabella.text = item.descrTabella
 
             // 1. Rimuovi TEMPORANEAMENTE il listener per evitare che si attivi

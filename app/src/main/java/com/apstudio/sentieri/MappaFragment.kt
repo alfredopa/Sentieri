@@ -75,11 +75,13 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import mil.nga.geopackage.BoundingBox
 import mil.nga.geopackage.GeoPackageFactory
 import mil.nga.geopackage.features.user.FeatureCursor
 import mil.nga.geopackage.features.user.FeatureDao
 import mil.nga.geopackage.features.user.FeatureRow
 import mil.nga.geopackage.geom.GeoPackageGeometryData
+import mil.nga.proj.ProjectionFactory
 import mil.nga.sf.GeometryType
 import mil.nga.sf.MultiPolygon
 import net.federicomatera.agpxp.GpxParser
@@ -245,6 +247,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
         // Esempio: viewModel.refreshMapLayers()
+        mapView.invalidate()
     }
 
     override fun onCreateView(
@@ -864,41 +867,43 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // nome file (da Maputils)
         line.title = getFileNameFromUri(requireContext(), uri)
 
-// carica i punti della traccia - da verificare con gpx multisegmento
+// carica i punti della traccia se esistono- da verificare con gpx multisegmento
 // usa altinulla per contare gli elementi con altitudine 0
-        gpx.tracks[0].trackPoints.forEach {
+        if (!gpx.tracks.isEmpty()) {
+            gpx.tracks[0].trackPoints.forEach {
 //Log.d("Punto","${it.latitude}${it.longitude}")
 // verifica esistenza valore altitudine
-            if (it.elevation != null) {
-                punto = GeoPoint(it.latitude, it.longitude, it.elevation)
+                if (it.elevation != null) {
+                    punto = GeoPoint(it.latitude, it.longitude, it.elevation)
 // confronta con la precedente altitudine non nulla e verifica se aumenta ascesa oppure discesa
-                if (oldPunto?.altitude != null) {
-                    if (it.elevation > oldPunto.altitude) {
-                        viewModel.trackAscesa += (it.elevation.toInt() - oldPunto.altitude.toInt())
-                    } else {
-                        viewModel.trackDiscesa += (it.elevation.toInt() - oldPunto.altitude.toInt())
+                    if (oldPunto?.altitude != null) {
+                        if (it.elevation > oldPunto.altitude) {
+                            viewModel.trackAscesa += (it.elevation.toInt() - oldPunto.altitude.toInt())
+                        } else {
+                            viewModel.trackDiscesa += (it.elevation.toInt() - oldPunto.altitude.toInt())
+                        }
                     }
+                } else {
+                    punto = GeoPoint(it.latitude, it.longitude)
+                    altiNulla += 1
                 }
-            } else {
-                punto = GeoPoint(it.latitude, it.longitude)
-                altiNulla += 1
-            }
 // calcola distanza della traccia, da utilizzare se viene seguita per caloolare distanza rimanente
-            if (oldPunto != null) {
-                val distToPunto = MapUtils.getDistanceInMeters(oldPunto, punto)
-                viewModel.trackDistanza += distToPunto
-            }
+                if (oldPunto != null) {
+                    val distToPunto = MapUtils.getDistanceInMeters(oldPunto, punto)
+                    viewModel.trackDistanza += distToPunto
+                }
 
-            oldPunto = GeoPoint(it.latitude, it.longitude, it.elevation ?: 0.0)
-            line.addPoint(punto)
+                oldPunto = GeoPoint(it.latitude, it.longitude, it.elevation ?: 0.0)
+                line.addPoint(punto)
+            }
+            //Log.d(
+            //    "Punto",
+            //    "${viewModel.trackDistanza}   ${viewModel.trackAscesa}  ${viewModel.trackDiscesa}"
+            //)
+            disegnaLine(line)
+            viewModel.listaTracce.add(line)
+            addMarker(line)
         }
-        //Log.d(
-        //    "Punto",
-        //    "${viewModel.trackDistanza}   ${viewModel.trackAscesa}  ${viewModel.trackDiscesa}"
-        //)
-        disegnaLine(line)
-        viewModel.listaTracce.add(line)
-        addMarker(line)
 
 // carica i waypoints nella lista wayPoints da non salvare con traccia
         gpx.wayPoints?.forEach {
@@ -918,28 +923,31 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
 
 // verifica il numero dei punti con il valore altinulla se coincide tutti i punti hanno altitudine nulla
-        if (gpx.tracks[0].trackPoints.size == altiNulla) {
-            val snackbar =
-                view?.let { it1 ->
-                    Snackbar.make(
-                        it1,
-                        "La traccia non ha informazioni su altitudine",
-                        Snackbar.LENGTH_LONG
-                    ).setAction("Action", null)
-                }
-            snackbar!!.setActionTextColor(Color.WHITE)
-            val snackbarView = snackbar.view
-            snackbarView.setBackgroundColor(Color.RED)
-            snackbar.show()                //.show()
+        if (!gpx.tracks.isEmpty()) {
+            if (gpx.tracks[0].trackPoints.size == altiNulla) {
+                val snackbar =
+                    view?.let { it1 ->
+                        Snackbar.make(
+                            it1,
+                            "La traccia non ha informazioni su altitudine",
+                            Snackbar.LENGTH_LONG
+                        ).setAction("Action", null)
+                    }
+                snackbar!!.setActionTextColor(Color.WHITE)
+                val snackbarView = snackbar.view
+                snackbarView.setBackgroundColor(Color.RED)
+                snackbar.show()                //.show()
+            }
         }
 //Log.d("caricagpx", mapView.zoomLevel.toString())
 // esegue la visualizzazione dopo aver aggiornato lo zoom della mappa
-        mapView.post {
-            mapView.zoomToBoundingBox(line.bounds.increaseByScale(1.2f), false)
+        if (!gpx.tracks.isEmpty()) {
+            mapView.post {
+                mapView.zoomToBoundingBox(line.bounds.increaseByScale(1.2f), false)
+            }
+            MapUtils.alertSegui(requireContext(), viewModel, line)
         }
-        MapUtils.alertSegui(requireContext(), viewModel, line)
     }
-
     private fun updateGpsIcon(status: String) {
         val iconRes = when (status) {
             "started" -> R.drawable.gps_started
@@ -1438,6 +1446,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         startMarker.title = "Inizio"
         startMarker.id = "start"
+        if (line.actualPoints.isEmpty())
+            return
         var punto: GeoPoint = line.actualPoints[0]
         startMarker.position = punto
         viewModel.listaTracce.add(startMarker)
@@ -1622,18 +1632,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     // ...
                 }
             }
-            /*var projection = ProjectionFactory.getProjection(
-                featureDao.projection.authority,
-                featureDao.projection.code
-            )
-            val boundingBox = featureDao.boundingBox
-            //var bbox = transform(boundingBox, projection)
-            val bounds = BoundingBox(
-                boundingBox.maxLatitude,
-                boundingBox.maxLongitude,
-                boundingBox.minLatitude,
-                boundingBox.minLongitude
-            )*/
             geoPackage.close()
             mapView.invalidate()
 
@@ -1690,7 +1688,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun createOsmPolygonFromNgaPolygon(
         ngaPolygon: mil.nga.sf.Polygon,
-        featureRow: FeatureRow
+        featureRow: FeatureRow,
+        colore: String
     ): Polygon {
         //val osmdroidPolygon = Polygon(map) // Assuming 'map' is accessible
         val osmdroidPolygon = Polygon() // Assuming 'map' is accessible
@@ -1743,7 +1742,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             true // Indica che l'evento è stato gestito
         }
         // Apply styling (assuming polygonOptions is accessible)
-        osmdroidPolygon.fillColor = layerModel.polygonOptions.fillColor
+        if (colore == "RANDOM")
+            osmdroidPolygon.fillColor = layerModel.getRandomHexColor().toColorInt()
+        else
+            osmdroidPolygon.fillColor = layerModel.polygonOptions.fillColor
         osmdroidPolygon.strokeColor = layerModel.polygonOptions.strokeColor
         osmdroidPolygon.strokeWidth = layerModel.polygonOptions.strokeWidth
         osmdroidPolygon.title = layerModel.polygonOptions.title
@@ -1768,6 +1770,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             Log.e(TAG, "GeoPackage is null in puntiSuMappa for table $tableName")
             return
         }
+        val colore = featureInfo.colore
         val points = mutableListOf<IGeoPoint>()
         val osmdroidPolygonsToAdd = mutableListOf<Polygon>()
         // Utilizza tableName passato come argomento
@@ -1789,12 +1792,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     GeometryType.POINT -> processPointGeometry(featureRow, tableName, points)
                     GeometryType.MULTIPOLYGON -> processMultiPolygonGeometry(
                         featureRow,
-                        osmdroidPolygonsToAdd
+                        osmdroidPolygonsToAdd,
+                        colore
                     )
 
                     GeometryType.POLYGON -> processPolygonGeometry(
                         featureRow,
-                        osmdroidPolygonsToAdd
+                        osmdroidPolygonsToAdd,
+                        colore
                     )
                     // ... other types
                     else -> Log.w(
@@ -1907,23 +1912,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun processPolygonGeometry(
         featureRow: FeatureRow,
-        osmdroidPolygonsToAdd: MutableList<Polygon>
+        osmdroidPolygonsToAdd: MutableList<Polygon>,
+        colore: String
     ) {
         val geometryData = featureRow.geometry
         val geometry = geometryData.geometry
         val ngaPolygon = geometry as mil.nga.sf.Polygon
-        osmdroidPolygonsToAdd.add(createOsmPolygonFromNgaPolygon(ngaPolygon, featureRow))
+        osmdroidPolygonsToAdd.add(createOsmPolygonFromNgaPolygon(ngaPolygon, featureRow, colore))
     }
 
     private fun processMultiPolygonGeometry(
         featureRow: FeatureRow,
-        osmdroidPolygonsToAdd: MutableList<Polygon>
+        osmdroidPolygonsToAdd: MutableList<Polygon>,
+        colore: String
     ) {
         val geometryData = featureRow.geometry
         val geometry = geometryData.geometry
         val ngaMultiPolygon = geometry as MultiPolygon
         ngaMultiPolygon.polygons.forEach { ngaPolygon ->
-            osmdroidPolygonsToAdd.add(createOsmPolygonFromNgaPolygon(ngaPolygon, featureRow))
+            osmdroidPolygonsToAdd.add(createOsmPolygonFromNgaPolygon(ngaPolygon, featureRow, colore))
         }
     }
 

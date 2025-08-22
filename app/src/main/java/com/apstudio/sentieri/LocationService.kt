@@ -262,7 +262,7 @@ class LocationService : LifecycleService() {
         if (nmeaParts.size > 9) {
             val fixQuality = nmeaParts[6]
             val mslFromNmea = nmeaParts[9].toDoubleOrNull()
-            SimpleFileLogger.log(TAG, "parseNmeaMessage - GGA Fix Quality: $fixQuality, MSL from NMEA string: ${nmeaParts[9]}, Parsed: $mslFromNmea")
+            //SimpleFileLogger.log(TAG, "parseNmeaMessage - GGA Fix Quality: $fixQuality, MSL from NMEA string: ${nmeaParts[9]}, Parsed: $mslFromNmea")
             if (fixQuality != "0" && mslFromNmea != null) { // O controlla anche altri codici di fix validi
                 gpsViewModel.updateMslAltitude(mslFromNmea)
                 SimpleFileLogger.log(TAG, "parseNmeaMessage - Updated gpsViewModel.mslAltitude from NMEA: ${gpsViewModel.mslAltitude.value}")
