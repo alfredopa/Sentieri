@@ -70,6 +70,26 @@
 -dontwarn jsqlite.**   # Una vecchia dipendenza a volte tirata dentro
 -keep public class * extends com.j256.ormlite.dao.BaseDaoImpl
 -keep public class * extends com.j256.ormlite.stmt.StatementBuilder
--keep class com.j256.**
 # Molto importante per i generics e le collezioni!
 -keepattributes Signature,RuntimeVisibleAnnotations,AnnotationDefault
+-keep class com.j256.ormlite.** { *; }
+-keep interface com.j256.ormlite.** { *; }
+-keep enum com.j256.ormlite.** { *; }
+-keepclassmembers class * {
+    @com.j256.ormlite.field.DatabaseField <fields>;
+}
+# Keep specific ORMLite annotations if the above is not enough
+-keep @com.j256.ormlite.field.DatabaseField class *
+-keep @com.j256.ormlite.table.DatabaseTable class *
+
+# Keep annotations for ORMLite classes themselves, and any class that uses ORMLite annotations
+-keepclassmembers enum * {
+    @com.j256.ormlite.field.DatabaseField *;
+}
+-keepclassmembers interface * {
+    @com.j256.ormlite.field.DatabaseField *;
+}
+# Keep constructors of entity classes (important for ORMLite)
+-keepclassmembers class mil.nga.geopackage.** { # Adjust if entities are in sub-packages
+    public <init>(...);
+}

@@ -73,6 +73,7 @@ class MainActivity :
         } else {
             add(Manifest.permission.FOREGROUND_SERVICE)
         }
+        add(Manifest.permission.RECORD_AUDIO)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
