@@ -168,7 +168,9 @@ class MainActivity :
         }
         // controllo esistenza file db Geopackage
         val databaseName = "Layers.gpkg"
-        val geoPackageFile = copyGeopackageToInternalStorage(databaseName)
+        val geoPackageFile = copyToInternalStorage(databaseName, "databases")
+        // copia anche dbschema
+        copyToInternalStorage("db_schema_config.xml")
         if (!geoPackageFile.exists()) {
             AlertDialog.Builder(this)
                 .setTitle("Errore")
@@ -190,10 +192,15 @@ class MainActivity :
         }
     }
 
-    // copia il file Layers nella cartella dati interni data/data/packageName/database
-    private fun copyGeopackageToInternalStorage(databaseName: String): File {
-        val dataDir = this.getDatabasePath(databaseName).parentFile
-        //val dataDir = File(this.applicationInfo.dataDir, "databases")
+    // copia il file nella cartella dati interni data/data/packageName
+    private fun copyToInternalStorage(databaseName: String, subDir: String? = null): File {
+        val dataDir : File
+        if (subDir == "databases") {
+            dataDir = this.getDatabasePath(databaseName).parentFile!!
+        }
+        else {
+            dataDir = this.filesDir
+        }
         val dbFile = File(dataDir, databaseName)
         if (!dbFile.exists()) {
             try {
