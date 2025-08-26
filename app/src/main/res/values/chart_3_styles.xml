@@ -78,4 +78,6 @@
         <item name="titleStyle">@style/Chart3StartAxisTitleStyle</item>
         <item name="title">@string/y_axis</item>
     </style>
+    <color name="colore_commento_presente">#4CAF50</color> <!-- Esempio: Verde Material -->
+    <color name="colore_commento_assente">#F44336</color>
 </resources>

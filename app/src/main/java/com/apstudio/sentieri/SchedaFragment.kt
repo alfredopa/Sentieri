@@ -225,30 +225,33 @@ class SchedaFragment : Fragment(), MenuProvider {
         // carica punti percorso ed eventuali waypoint
         percorso = viewModel.leggiTrack(this, idSentiero, poiDBList)
 
-        // aggiunge marker inizio e fine percorso
-        val startMarker = Marker(mapView)
-        startMarker.icon = requireContext().let {
-            AppCompatResources.getDrawable(
-                it,
-                R.drawable.ic_start
-            )
+        if (percorso.actualPoints.isNotEmpty()) {
+            // aggiunge marker inizio e fine percorso
+            val startMarker = Marker(mapView)
+            startMarker.icon = requireContext().let {
+                AppCompatResources.getDrawable(
+                    it,
+                    R.drawable.ic_start
+                )
+            }
+            startMarker.title = "Inizio"
+            var punto: GeoPoint = percorso.actualPoints[0]
+            startMarker.position = punto
+            mapView.overlays?.add(startMarker)
+            val endMarker = Marker(mapView)
+            endMarker.icon = requireContext().let {
+                AppCompatResources.getDrawable(
+                    it,
+                    R.drawable.ic_finish
+                )
+            }
+            punto = percorso.actualPoints[percorso.actualPoints.size - 1]
+            endMarker.position = punto
+            endMarker.title = "Fine"
+            mapView.overlays?.add(endMarker)
+            mapView.overlays.add(percorso)
         }
-        startMarker.title = "Inizio"
-        var punto: GeoPoint = percorso.actualPoints[0]
-        startMarker.position = punto
-        mapView.overlays?.add(startMarker)
-        val endMarker = Marker(mapView)
-        endMarker.icon = requireContext().let {
-            AppCompatResources.getDrawable(
-                it,
-                R.drawable.ic_finish
-            )
-        }
-        punto = percorso.actualPoints[percorso.actualPoints.size - 1]
-        endMarker.position = punto
-        endMarker.title = "Fine"
-        mapView.overlays?.add(endMarker)
-        mapView.overlays.add(percorso)
+
         // il post serve per la corretta visualizzazione al termine del caricamento
         mapView.post {
             mapView.zoomToBoundingBox(percorso.bounds.increaseByScale(1.2f), false)
@@ -277,7 +280,8 @@ class SchedaFragment : Fragment(), MenuProvider {
                         longitude = it.Longit.toDouble(),
                         elevation = it.Ele.toDouble(),
                         name = it.NomePOI,
-                        description = it.DescrPOI
+                        description = it.DescrPOI,
+                        src = it.UriPath
                     )
                 )
             }
