@@ -24,7 +24,7 @@ class PoiFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
+        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri)[SentieriViewModel::class.java]
     }
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -44,7 +44,7 @@ class PoiFragment : Fragment() {
                 file.delete()
             }
         }*/
-        if (viewModel.fotoList.size > 0) {
+        if (viewModel.fotoList.isNotEmpty()) {
             // Create a recyclerPhoto  object and set the adapter
             val recyclerPhoto = view.findViewById<RecyclerView>(R.id.rv_photo)
             recyclerPhoto.layoutManager =
@@ -70,7 +70,7 @@ class PoiFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        if (viewModel.wayPoint.size == 0) {
+        if (viewModel.wayPoint.isEmpty()) {
             // nessun waypoint
             val toast = Toast.makeText(requireActivity(), "Nessun waypoint presente!", Toast.LENGTH_LONG)
             toast.show()
