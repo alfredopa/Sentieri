@@ -288,16 +288,15 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
                 geoPuntiPercorso.add(punto)
                 //Log.v("thread", "$Latit : $Longit")
             }
+            // legge eventuali waypoint della traccia dal DB Poi
+            poiDao?.getPoibyID(id)?.forEach {
+                poiList.add(it)
+            }
             if (percorso.actualPoints.isNotEmpty()) {
                 percorso = disegnaLine(percorso)
             }
             else
                 return@Thread
-            // legge waypoint della traccia dal DB Poi
-            poiDao?.getPoibyID(id)?.forEach {
-                poiList.add(it)
-           }
-
         }
         thread.start()
         try { // È buona norma usare try-join per InterruptedException

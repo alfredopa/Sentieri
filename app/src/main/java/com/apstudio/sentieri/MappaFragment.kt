@@ -507,6 +507,23 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     viewModel.listaTracce.add(poiMarker)
                 }
             }
+
+            // carica i waypoints creati durante la registrazione da salvare con traccia
+            if (viewModel.poiDBList.isNotEmpty()) {
+                viewModel.poiDBList.forEach {
+                    val poiMarker = Marker(mapView)
+                    poiMarker.title = it.NomePOI
+                    poiMarker.icon = ResourcesCompat.getDrawable(
+                        requireContext().resources,
+                        R.drawable.ic_finish,
+                        requireContext().theme
+                    )
+                    poiMarker.position.latitude = it.Latit.toDouble()
+                    poiMarker.position.longitude = it.Longit.toDouble()
+                    poiMarker.position.altitude = it.Ele.toDouble()
+                    viewModel.listaTracce.add(poiMarker)
+                }
+            }
         }
 
         if (viewModel.poi != GeoPoint(0.0, 0.0, 0.0)) {
@@ -1278,43 +1295,53 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     // i Wp sono caricati nelle liste wayPoint per quelli che sono caricati da dB e Gpx
 // e in poiDBList per quelli ripresi durante registrazione traccia e devono essere salvati nel db PoiDB
-    private fun salvaWayPoint(nome: String, descr: String) {
-        val newWayPoint = WayPoint(
-            latitude = viewModel.newPunto.latitude,
-            longitude = viewModel.newPunto.longitude,
-            elevation = viewModel.newPunto.altitude,
-            time = Timestamp(System.currentTimeMillis()),
-            name = nome,
-            description = descr
-        )
-        viewModel.wayPoint.add(newWayPoint)
+// In MappaFragment.kt
+
+// ... altre parti di MappaFragment ...
+
+    private fun salvaWayPoint(nome: String, descr: String /*, audioPath: String? */) {
+        // NON aggiungere il nuovo waypoint a viewModel.wayPoint
+        // viewModel.wayPoint.add(...) // ASSICURATI CHE QUESTA RIGA SIA RIMOSSA O COMMENTATA SE ESISTEVA
+
+        // Aggiungi il nuovo waypoint SOLO a viewModel.poiDBList come PoiDB
         viewModel.poiDBList.add(
             PoiDB(
-                Id = 0,
-                Trackid = 0,
+                Id = 0, // Gestisci l'ID come appropriato per i nuovi record
+                Trackid = 0, // Gestisci il TrackId come appropriato
                 Latit = viewModel.newPunto.latitude.toFloat(),
                 Longit = viewModel.newPunto.longitude.toFloat(),
                 Ele = viewModel.newPunto.altitude.toFloat(),
                 NomePOI = nome,
                 DescrPOI = descr,
-                UriPath = currentAudioFilePath ?: "", // Usa il path audio qui
-                Time = Date().toString()
+                UriPath = currentAudioFilePath ?: "",
+                Time = Date().toString() // Considera di usare un formato di data/ora più standard o un Long
             )
         )
 
+        // La logica per visualizzare il marker sulla mappa può rimanere,
+        // creando un'istanza temporanea di WayPoint se necessario per il marker,
+        // ma NON aggiungerla a viewModel.wayPoint.
+        val markerDisplayWayPoint = net.federicomatera.agpxp.models.WayPoint(
+            latitude = viewModel.newPunto.latitude,
+            longitude = viewModel.newPunto.longitude,
+            elevation = viewModel.newPunto.altitude,
+            name = nome,
+            description = descr,
+            src = currentAudioFilePath // Esempio se UriPath mappa a source
+            // time = Date() // Se necessario e il costruttore lo accetta
+        )
+
         val waymarker = Marker(mapView)
-        waymarker.title = nome
+        waymarker.title = markerDisplayWayPoint.name
         waymarker.icon = ResourcesCompat.getDrawable(
             requireContext().resources,
             R.drawable.ic_finish,
             requireContext().theme
         )
-        waymarker.position.latitude = newWayPoint.latitude
-        waymarker.position.longitude = newWayPoint.longitude
-//mapView.overlays?.add(waymarker)
-        viewModel.listaTracce.add(waymarker)
+        waymarker.position.latitude = markerDisplayWayPoint.latitude
+        waymarker.position.longitude = markerDisplayWayPoint.longitude
+        // viewModel.listaTracce.add(waymarker) // Se questa è una lista separata per i marker sulla mappa
     }
-
 
     override fun onDestroy() {
 //ondestroy viene richiamato al termine dell'app
