@@ -50,7 +50,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val geoPuntiPercorso = mutableListOf<GeoPoint>()
     var alertFuoriTraccia : Boolean = false
     var tracciaDaSeguire : String = ""
-    var poi = GeoPoint(0.0, 0.0)
+    var poi = GeoPoint(0.0, 0.0, 0.0)
     var bloccaMappa = true
     var connessione = false
     var menuMap = 0             // indice della mappa utilizzata secondo le voci del menu mappa
