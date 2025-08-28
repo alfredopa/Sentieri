@@ -123,7 +123,7 @@ class PoiFragment : Fragment() {
                 val destPoi = GeoPoint(
                     clickedWayPoint.latitude,
                     clickedWayPoint.longitude,
-                    clickedWayPoint.elevation ?: 0.0 // Gestisci elevation nullabile
+                    clickedWayPoint.elevation!! // Gestisci elevation nullabile
                 )
 
                 viewModel.poi = destPoi // viewModel.poi è un GeoPoint, quindi questo è corretto

@@ -1308,9 +1308,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             PoiDB(
                 Id = 0, // Gestisci l'ID come appropriato per i nuovi record
                 Trackid = 0, // Gestisci il TrackId come appropriato
-                Latit = viewModel.newPunto.latitude.toFloat(),
-                Longit = viewModel.newPunto.longitude.toFloat(),
-                Ele = viewModel.newPunto.altitude.toFloat(),
+                Latit = viewModel.newPunto.latitude,
+                Longit = viewModel.newPunto.longitude,
+                Ele = viewModel.newPunto.altitude,
                 NomePOI = nome,
                 DescrPOI = descr,
                 UriPath = currentAudioFilePath ?: "",
@@ -1340,7 +1340,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         )
         waymarker.position.latitude = markerDisplayWayPoint.latitude
         waymarker.position.longitude = markerDisplayWayPoint.longitude
-        // viewModel.listaTracce.add(waymarker) // Se questa è una lista separata per i marker sulla mappa
+        waymarker.position.altitude = markerDisplayWayPoint.elevation ?: 0.0
+        viewModel.listaTracce.add(waymarker) // Se questa è una lista separata per i marker sulla mappa
     }
 
     override fun onDestroy() {

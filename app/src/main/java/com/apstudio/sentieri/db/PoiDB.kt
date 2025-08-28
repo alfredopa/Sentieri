@@ -11,11 +11,11 @@ data class PoiDB(
     @ColumnInfo(name = "Trackid")
     var Trackid: Int,
     @ColumnInfo(name = "Lat")
-    var Latit: Float,
+    var Latit: Double,
     @ColumnInfo(name = "Lon")
-    var Longit: Float,
+    var Longit: Double,
     @ColumnInfo(name = "Ele")
-    var Ele: Float,
+    var Ele: Double,
     @ColumnInfo(name = "NomePOI")
     var NomePOI: String,
     @ColumnInfo(name = "DescrPOI")
