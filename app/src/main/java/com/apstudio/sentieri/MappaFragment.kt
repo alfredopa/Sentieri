@@ -66,6 +66,7 @@ import com.apstudio.sentieri.MapUtils.dataOraIso8601
 import com.apstudio.sentieri.MapUtils.disegnaLine
 import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.MapUtils.getFileNameFromUri
+import com.apstudio.sentieri.SimpleFileLogger
 import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
@@ -336,7 +337,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
-        //Log.d("Mappa", "onViewCreated ")
+        SimpleFileLogger.log("Mappa", "onViewCreated ")
         //aggiunge i folder overlay, listaTracce che conterrà tutte le tracce aggiunte  overlays alla mapview
         // e rectraccia che conterrà la traccia corrente
         if (mapView.overlays.isEmpty()) {
@@ -721,9 +722,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // FINE REGISTRAZIONE TRACCIA
         // se non ha fixato non chiede di salvare
         if (!viewModel.isFixed) {
-            azzeraCruscotto()
-            fermaRecording(false)
             stopObserver() // Arresta gli observer
+            fermaRecording(false)
+            azzeraCruscotto()
             return
         }
         // altrimenti chiede se salvare traccia

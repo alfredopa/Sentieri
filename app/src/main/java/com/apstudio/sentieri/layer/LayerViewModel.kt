@@ -27,7 +27,7 @@ class LayerViewModel : ViewModel() {
     // PARAMETRI per Polyline e Polygon
     val polygonOptions = PolygonOptions().apply {
         strokeWidth = 2f
-        fillColor = Color.argb(100, 255, 0, 255)
+        fillColor = Color.argb(50, 255, 0, 255)
         strokeColor = Color.argb(100, 0, 0, 0)
     }
     var labelConfig = mutableMapOf<String, List<Pair<String, Boolean>>>()
@@ -86,7 +86,7 @@ class LayerViewModel : ViewModel() {
         val red = Random.nextInt(256)
         val green = Random.nextInt(256)
         val blue = Random.nextInt(256)
-        return String.format("#80%02x%02x%02x", red, green, blue)
+        return String.format("#20%02x%02x%02x", red, green, blue)
     }
 
 

@@ -102,6 +102,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     // coefficiente per filtro passa basso quota barometro da 0 ad 1
     // con 0.1 da valori troppo bassi (-200 dislivello)
     private val alfa: Double = 0.21
+    private val alfaGPS: Double = 0.3
     private var millibar = 0F
     var NORMAL_PRESSURE = 1013.25F
     private val _isCalibrato = MutableLiveData(false)
@@ -142,12 +143,11 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         } else {
             // la quota deve essere quella media calcolata con MovingAverage
             val nuovaQuota = processGpsAltitude(altitudine)
-            //val nuovaQuota = dislivelloGPS(altitudine)
             if (nuovaQuota != null) {
                 _quota.value = nuovaQuota.toInt()
                 newPunto = GeoPoint(loc.latitude, loc.longitude, nuovaQuota)
             }
-            //SimpleFileLogger.log("aggiornaDati", "nuovaQuota $nuovaQuota")
+            SimpleFileLogger.log("aggiornaDati", "nuovaQuota $nuovaQuota")
         }
 
         if (oldPunto.latitude != 0.0 && oldPunto.longitude != 0.0) {
@@ -184,22 +184,25 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     fun processGpsAltitude(gpsAltitude: Double): Double? {
         // CALCOLO DISLIVELLO CON QUOTA DA GPS
         // 1. Controllo per salti anomali sull'altitudine GREZZA
-        if (previousFilteredAltitude != null) {
+        /*if (previousFilteredAltitude != null && gpsAltitudeHistory.isNotEmpty()) {
             if (abs(gpsAltitude - previousFilteredAltitude!!) > MAX_ALTITUDE_JUMP_METERS_PER_UPDATE) {
-                Log.w("ProcessGPS", "Salto di altitudine GPS scartato: da $previousFilteredAltitude a $gpsAltitude")
+                SimpleFileLogger.log("ProcessGPS", "Salto di altitudine GPS scartato: da $previousFilteredAltitude a $gpsAltitude")
                 // Non aggiorniamo lastRawGpsAltitude qui, manteniamo l'ultimo valore "buono"
                 // e non procediamo con il filtraggio di questo valore anomalo.
                 return previousFilteredAltitude // Restituisce l'ultima altitudine filtrata valida
             }
+        }*/
+        if (previousFilteredAltitude == null) {
+            previousFilteredAltitude = gpsAltitude
         }
         // attende il numero di altitudeHistory punti prima di stimare altitudine
-        if (gpsAltitudeHistory.size < MOVING_AVERAGE_WINDOW_SIZE -1) { // -1 because we add the current one before checking size in applyMovingAverage
-            gpsAltitudeHistory.addLast(gpsAltitude) // Add to history even before full window for average calculation
+        if (gpsAltitudeHistory.size < MOVING_AVERAGE_WINDOW_SIZE -1) {
+            gpsAltitudeHistory.add(gpsAltitude)
             return null
         } else {
             // Add the current altitude before calculating the average
-            // applyMovingAverage will also add it to the history
-            val filteredAltitude = applyMovingAverage(gpsAltitude)
+            //val filteredAltitude = applyMovingAverage(gpsAltitude)
+            val filteredAltitude  = (alfaGPS * gpsAltitude + ((1 - alfaGPS) * previousFilteredAltitude!!))
             updateAltitudeChanges(filteredAltitude)
             return filteredAltitude
         }
@@ -249,6 +252,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         alertFuoriTraccia = false
         previousFilteredAltitude = null // Resetta anche lo stato del filtro GPS
         oldQuota = 0 // Resetta lo stato del filtro barometrico
+        gpsAltitudeHistory.clear()
     }
 
     fun baroCalibrato(barometro: Boolean) {
