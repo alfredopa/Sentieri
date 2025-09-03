@@ -97,6 +97,7 @@ import net.federicomatera.agpxp.models.Link
 import net.federicomatera.agpxp.models.Track
 import net.federicomatera.agpxp.models.WayPoint
 import org.mapsforge.map.rendertheme.ExternalRenderTheme
+import org.mapsforge.map.rendertheme.InternalRenderTheme
 import org.mapsforge.map.rendertheme.XmlRenderTheme
 import org.osmdroid.api.IGeoPoint
 import org.osmdroid.api.IMapController
@@ -489,7 +490,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onResume() {
         super.onResume()
         mapView.onResume()
-        Log.d("Mappa", "MappaFragment onResume ")
+        //Log.d("Mappa", "MappaFragment onResume ")
         // Controlli per verificare valori da altri fragment da scheda sentieri e visualizzazione waypoint
         // verifica se è valorizzata line, quindi è stato passsata dal pulsante Segui
         // e lo mostra sulla mappa qui carica traccia dal db con waypoint e lista foto
@@ -569,6 +570,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         if (viewModel.isRecording) {
             // in registrazione ripristina marker gps,bottomsheet allo stato precedente
+            gpsViewModel.updateGpsStatus(gpsViewModel.gpsStatus.value!!)
+            accendiSchermo()
             gpsMarker.position = (viewModel.newPunto)
             gpsMarker.setVisible(true)
             btnAllarme()
@@ -655,6 +658,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val folderTema = File("$documentsDir/Mappe/4UMaps/4UMaps.xml")
             if (folderTema.exists()) {
                 theme = ExternalRenderTheme("$documentsDir/Mappe/4UMaps/4UMaps.xml")
+            }
+            else {
+                theme = InternalRenderTheme.OSMARENDER
             }
             val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, null)
             forgeMappa = MapsForgeTileProvider(
@@ -854,7 +860,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // Cambia stato GPS ON
         gpsMarker.setVisible(true)
 // imposta schermo sempre acceso
-        requireActivity().window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        accendiSchermo()
 // inizio registrazione posizione
         viewModel.isRecording = true
         viewModel.oraInizio = System.currentTimeMillis()
@@ -1364,6 +1370,22 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         waymarker.position.altitude = markerDisplayWayPoint.elevation ?: 0.0
         viewModel.listaTracce.add(waymarker) // Se questa è una lista separata per i marker sulla mappa
     }
+
+    private fun accendiSchermo() {
+        val window = requireActivity().window
+        val currentFlags = window.attributes.flags // Ottieni i flag correnti della finestra
+
+        if ((currentFlags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0) {
+            // Il flag FLAG_KEEP_SCREEN_ON è GIA' impostato
+            Log.d("ScreenOnCheck", "FLAG_KEEP_SCREEN_ON è già attivo.")
+            // Non c'è bisogno di aggiungerlo di nuovo se è questa la tua intenzione
+        } else {
+            // Il flag FLAG_KEEP_SCREEN_ON NON è impostato
+            Log.d("ScreenOnCheck", "FLAG_KEEP_SCREEN_ON non è attivo. Lo imposto ora.")
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
 
     override fun onDestroy() {
 //ondestroy viene richiamato al termine dell'app
