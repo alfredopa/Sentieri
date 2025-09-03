@@ -89,6 +89,18 @@ class LayerViewModel : ViewModel() {
         return String.format("#20%02x%02x%02x", red, green, blue)
     }
 
+    fun getFeaturesForLayer(tableName: String): List<Map<String, Any>> {
+        val geoPackage = geoPackageInstance ?: return emptyList() // Assicurati che geoPackage sia aperto
+        val featureDao = geoPackage.getFeatureDao(tableName)
+        val results = mutableListOf<Map<String, Any>>()
+        featureDao.queryForAll().use { cursor -> // Usa use per chiudere il cursore
+            while (cursor.moveToNext()) {
+                val featureRow = cursor.row
+                results.add(featureRow.values as Map<String, Any>) // featureRow.values è Map<String, Any?>
+            }
+        }
+        return results
+    }
 
 }
 

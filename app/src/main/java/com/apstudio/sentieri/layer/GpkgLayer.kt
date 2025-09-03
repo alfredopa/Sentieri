@@ -11,6 +11,7 @@ import android.widget.Button
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.R
@@ -77,7 +78,9 @@ class GpkgLayer: DialogFragment(), FeatureAdapter.OnItemClickListener {
     override fun onItemClick(position: Int) {
         // Gestisci qui il click sull'item
         // Ad esempio, mostra dettagli, naviga, ecc.
-        Log.d(TAG, "Item clicked: $position}")
+        //Log.d(TAG, "Item clicked: $position}")
+        layerModel.currentActiveTableName = layerModel.featureList[position].name
+        this@GpkgLayer.findNavController().navigate(R.id.action_gpkgLayer_to_featureList)
         // Fai qualcosa con l'oggetto 'feature' cliccato
     }
 
