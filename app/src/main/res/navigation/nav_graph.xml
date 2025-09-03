@@ -139,5 +139,14 @@
     <dialog
         android:id="@+id/gpkgLayer"
         android:name="com.apstudio.sentieri.layer.GpkgLayer"
-        android:label="GpkgLayer" />
+        android:label="GpkgLayer" >
+        <action
+            android:id="@+id/action_gpkgLayer_to_featureList"
+            app:destination="@id/featureList" />
+    </dialog>
+    <fragment
+        android:id="@+id/featureList"
+        android:name="com.apstudio.sentieri.layer.FeatureList"
+        android:label="fragment_feature_list_list"
+        tools:layout="@layout/fragment_feature_list_list" />
 </navigation>

@@ -282,6 +282,26 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             caricaGPX(gpxUri)
             arguments?.remove("gpx_file_uri")
         }
+        // Ascolta i risultati da FeatureList
+        parentFragmentManager.setFragmentResultListener("feature_click_request", this) { requestKey, bundle ->
+            if (requestKey == "feature_click_request") {
+                val latitude = bundle.getDouble("clicked_latitude")
+                val longitude = bundle.getDouble("clicked_longitude")
+                // Elevation è opzionale
+                val elevation = if (bundle.containsKey("clicked_elevation")) bundle.getDouble("clicked_elevation") else null
+
+                // Ora hai le coordinate, usale come preferisci
+                // Esempio: centra la mappa su questo punto
+                val clickedPoint = GeoPoint(latitude, longitude)
+                elevation?.let { clickedPoint.altitude = it }
+
+                mapView.controller.animateTo(clickedPoint) // o setCenter
+                Toast.makeText(requireContext(), "Punto cliccato: Lat $latitude, Lon $longitude", Toast.LENGTH_LONG).show()
+
+                // Potresti anche voler aggiornare viewModel.poi se necessario
+                viewModel.poi = clickedPoint // Assumendo che viewModel.poi sia un GeoPoint
+            }
+        }
         // aggiunge il bottomsheet ed il menu
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
         // Set the initial state to hidden AFTER the layout is complete
