@@ -66,7 +66,6 @@ import com.apstudio.sentieri.MapUtils.dataOraIso8601
 import com.apstudio.sentieri.MapUtils.disegnaLine
 import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.MapUtils.getFileNameFromUri
-import com.apstudio.sentieri.SimpleFileLogger
 import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
@@ -88,6 +87,7 @@ import mil.nga.geopackage.features.user.FeatureDao
 import mil.nga.geopackage.features.user.FeatureRow
 import mil.nga.geopackage.geom.GeoPackageGeometryData
 import mil.nga.sf.GeometryType
+import mil.nga.sf.LineString
 import mil.nga.sf.MultiPolygon
 import net.federicomatera.agpxp.GpxParser
 import net.federicomatera.agpxp.GpxWriter
@@ -95,7 +95,6 @@ import net.federicomatera.agpxp.models.Gpx
 import net.federicomatera.agpxp.models.GpxMetadata
 import net.federicomatera.agpxp.models.Link
 import net.federicomatera.agpxp.models.Track
-import net.federicomatera.agpxp.models.WayPoint
 import org.mapsforge.map.rendertheme.ExternalRenderTheme
 import org.mapsforge.map.rendertheme.InternalRenderTheme
 import org.mapsforge.map.rendertheme.XmlRenderTheme
@@ -131,7 +130,6 @@ import org.osmdroid.views.overlay.simplefastpoint.SimpleFastPointOverlayOptions
 import org.osmdroid.views.overlay.simplefastpoint.SimplePointTheme
 import java.io.File
 import java.io.IOException
-import java.sql.Timestamp
 import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
@@ -655,14 +653,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (f.name.contains(".map")) {
             val mediaDir = requireContext().externalMediaDirs
             val documentsDir = mediaDir[0]
+            var nomeTema = ""
             val folderTema = File("$documentsDir/Mappe/4UMaps/4UMaps.xml")
             if (folderTema.exists()) {
                 theme = ExternalRenderTheme("$documentsDir/Mappe/4UMaps/4UMaps.xml")
+                nomeTema = "4UMaps"
             }
             else {
                 theme = InternalRenderTheme.OSMARENDER
             }
-            val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, null)
+            val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, nomeTema)
             forgeMappa = MapsForgeTileProvider(
                 SimpleRegisterReceiver(activity),
                 fromFiles, null
@@ -1904,7 +1904,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         // Apply styling (assuming polygonOptions is accessible)
         if (colore == "RANDOM")
-            osmdroidPolygon.fillColor = layerModel.getRandomHexColor().toColorInt()
+            osmdroidPolygon.fillColor = layerModel.getRandomIntColor(20)
         else
             osmdroidPolygon.fillColor = layerModel.polygonOptions.fillColor
         osmdroidPolygon.strokeColor = layerModel.polygonOptions.strokeColor
@@ -1934,6 +1934,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val colore = featureInfo.colore
         val points = mutableListOf<IGeoPoint>()
         val osmdroidPolygonsToAdd = mutableListOf<Polygon>()
+        val lineStringToAdd = mutableListOf<LineString>()
         // Utilizza tableName passato come argomento
         val featureDao: FeatureDao = currentGeoPackage.getFeatureDao(tableName)
         val featureCursor: FeatureCursor = featureDao.queryForAll()
@@ -1963,6 +1964,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         osmdroidPolygonsToAdd,
                         colore
                     )
+                    GeometryType.LINESTRING -> processLineStringGeometry(
+                        featureRow,
+                        lineStringToAdd
+                    )
                     // ... other types
                     else -> Log.w(
                         TAG,
@@ -1979,7 +1984,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (points.isNotEmpty()) {
             creaOverlayPunti(points, featureInfo)
         }
-
+        if (lineStringToAdd.isNotEmpty()) {
+            creaOverlayLinee(lineStringToAdd, featureInfo)
+        }
         if (osmdroidPolygonsToAdd.isNotEmpty()) {
             creaOverlayPoligoni(osmdroidPolygonsToAdd, featureInfo)
         }
@@ -2059,6 +2066,38 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
+    private fun creaOverlayLinee(
+        lineStringToAdd: MutableList<LineString>, // Questa è una lista di mil.nga.sf.LineString
+        featureInfo: FeatureTableInfo
+    ) {
+        val lineOverlayFolder = FolderOverlay() // Questo è l'overlay che deve essere in featureInfo.listOverlay
+
+        lineStringToAdd.forEach { ngaLineString ->
+            // 1. Crea un Polyline di osmdroid dalla LineString NGA
+            val osmdroidPolyline = Polyline()
+            val geoPoints = mutableListOf<GeoPoint>()
+            ngaLineString.points.forEach { point ->
+                geoPoints.add(GeoPoint(point.y, point.x)) // Assicurati che l'ordine sia (latitudine, longitudine)
+            }
+            osmdroidPolyline.setPoints(geoPoints)
+            // Puoi personalizzare l'aspetto della Polyline qui (colore, spessore, ecc.)
+            osmdroidPolyline.outlinePaint.color = layerModel.getRandomIntColor()
+            osmdroidPolyline.outlinePaint.strokeWidth = 5f
+
+            // 2. Aggiungi la Polyline di osmdroid al FolderOverlay
+            lineOverlayFolder.add(osmdroidPolyline)
+        }
+        if (featureInfo.listOverlay == null) {
+            featureInfo.listOverlay = mutableListOf()
+        }
+        featureInfo.listOverlay?.add(lineOverlayFolder) // AGGIUNGI IL FOLDER OVERLAY ALLA LISTA!
+
+        // Aggiungi il FolderOverlay principale alla mappa (se non l'hai già fatto)
+        if (!mapView.overlays.contains(lineOverlayFolder)) {
+            mapView.overlays.add(lineOverlayFolder)
+        }
+    }
+
     private fun processPointGeometry(
         featureRow: FeatureRow,
         tableName: String,
@@ -2109,6 +2148,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 )
             )
         }
+    }
+
+    private fun processLineStringGeometry(
+        featureRow: FeatureRow,
+        lineStringToAdd: MutableList<LineString>
+    ) {
+        // Gestisci la linea stringa qui
+        val geometryData = featureRow.geometry
+        val geometry = geometryData.geometry
+        val editLinestring = geometry as LineString
+        lineStringToAdd.add(editLinestring)
     }
 
     @RequiresApi(Build.VERSION_CODES.S)
