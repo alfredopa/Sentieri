@@ -82,13 +82,12 @@ class LayerViewModel : ViewModel() {
         return labelBuilder.toString() // Converti StringBuilder in String alla fine
     }
 
-    fun getRandomHexColor(): String {
+    fun getRandomIntColor(alpha: Int = 255): Int { // alpha da 0 (trasparente) a 255 (opaco)
         val red = Random.nextInt(256)
         val green = Random.nextInt(256)
         val blue = Random.nextInt(256)
-        return String.format("#20%02x%02x%02x", red, green, blue)
+        return Color.argb(alpha, red, green, blue)
     }
-
     fun getFeaturesForLayer(tableName: String): List<Map<String, Any>> {
         val geoPackage = geoPackageInstance ?: return emptyList() // Assicurati che geoPackage sia aperto
         val featureDao = geoPackage.getFeatureDao(tableName)
