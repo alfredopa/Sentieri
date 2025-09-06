@@ -102,7 +102,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     // coefficiente per filtro passa basso quota barometro da 0 ad 1
     // con 0.1 da valori troppo bassi (-200 dislivello)
     private val alfa: Double = 0.21
-    private val alfaGPS: Double = 0.3
+    private val alfaGPS: Double = 0.25
     private var millibar = 0F
     var NORMAL_PRESSURE = 1013.25F
     private val _isCalibrato = MutableLiveData(false)

@@ -77,6 +77,7 @@ import com.apstudio.sentieri.db.TrackDao
 import com.apstudio.sentieri.layer.FeatureTableInfo
 import com.apstudio.sentieri.layer.LAYER_DIALOG_REQUEST_KEY
 import com.apstudio.sentieri.layer.LayerViewModel
+import com.apstudio.sentieri.layer.LineStringFeature
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
@@ -1934,7 +1935,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val colore = featureInfo.colore
         val points = mutableListOf<IGeoPoint>()
         val osmdroidPolygonsToAdd = mutableListOf<Polygon>()
-        val lineStringToAdd = mutableListOf<LineString>()
+        val lineStringToAdd = mutableListOf<LineStringFeature>()
         // Utilizza tableName passato come argomento
         val featureDao: FeatureDao = currentGeoPackage.getFeatureDao(tableName)
         val featureCursor: FeatureCursor = featureDao.queryForAll()
@@ -1966,6 +1967,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     )
                     GeometryType.LINESTRING -> processLineStringGeometry(
                         featureRow,
+                        tableName,
                         lineStringToAdd
                     )
                     // ... other types
@@ -2067,23 +2069,31 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun creaOverlayLinee(
-        lineStringToAdd: MutableList<LineString>, // Questa è una lista di mil.nga.sf.LineString
+        lineStringToAdd: MutableList<LineStringFeature>, // Questa è una lista di mil.nga.sf.LineString
         featureInfo: FeatureTableInfo
     ) {
         val lineOverlayFolder = FolderOverlay() // Questo è l'overlay che deve essere in featureInfo.listOverlay
 
-        lineStringToAdd.forEach { ngaLineString ->
+        lineStringToAdd.forEachIndexed { index, lineFeature ->
             // 1. Crea un Polyline di osmdroid dalla LineString NGA
-            val osmdroidPolyline = Polyline()
+            val ngaLineString = lineFeature
+            val osmdroidPolyline = Polyline(mapView)
             val geoPoints = mutableListOf<GeoPoint>()
-            ngaLineString.points.forEach { point ->
+            ngaLineString.lineString.points.forEach { point ->
                 geoPoints.add(GeoPoint(point.y, point.x)) // Assicurati che l'ordine sia (latitudine, longitudine)
             }
             osmdroidPolyline.setPoints(geoPoints)
             // Puoi personalizzare l'aspetto della Polyline qui (colore, spessore, ecc.)
             osmdroidPolyline.outlinePaint.color = layerModel.getRandomIntColor()
-            osmdroidPolyline.outlinePaint.strokeWidth = 5f
-
+            osmdroidPolyline.outlinePaint.strokeWidth = 8f
+            // --- Gestione InfoWindow ---
+            osmdroidPolyline.id = "line_${featureInfo.name}_$index" // ID univoco
+            osmdroidPolyline.title = ngaLineString.title // Titolo per l'InfoWindow
+            osmdroidPolyline.snippet = ngaLineString.description // Snippet/sottotitolo
+            osmdroidPolyline.infoWindow = BasicInfoWindow(
+                org.osmdroid.library.R.layout.bonuspack_bubble, // Layout di default
+                mapView
+            )
             // 2. Aggiungi la Polyline di osmdroid al FolderOverlay
             lineOverlayFolder.add(osmdroidPolyline)
         }
@@ -2152,13 +2162,18 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun processLineStringGeometry(
         featureRow: FeatureRow,
-        lineStringToAdd: MutableList<LineString>
+        tableName: String,
+        lineStringToAdd: MutableList<LineStringFeature>
     ) {
         // Gestisci la linea stringa qui
         val geometryData = featureRow.geometry
         val geometry = geometryData.geometry
-        val editLinestring = geometry as LineString
-        lineStringToAdd.add(editLinestring)
+        if (geometry is LineString) {
+            val label = layerModel.creaLabel(featureRow, tableName) // Assumendo che esista questa funzione
+            val description = "Geometria LineString dal layer: $tableName" // Esempio
+            lineStringToAdd.add(LineStringFeature(geometry, label, description))
+        }
+        //lineStringToAdd.add(editLinestring)
     }
 
     @RequiresApi(Build.VERSION_CODES.S)
