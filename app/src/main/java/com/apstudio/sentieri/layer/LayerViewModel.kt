@@ -73,10 +73,13 @@ class LayerViewModel : ViewModel() {
         campiLabel?.forEachIndexed { index, (fieldName, isVisible) ->
             if (isVisible) {
                 // Usa append() per costruire la stringa
-                labelBuilder.append(fieldName)
-                    .append(": ")
-                    .append(featureRow.values[index]?.toString() ?: "null") // Aggiunto controllo null per featureRow.values[index]
-                    .append("\n")
+                val testo : String = featureRow.values[index]?.toString() ?: "null"
+                if (testo != "null") {
+                    labelBuilder.append(fieldName)
+                        .append(": ")
+                        .append(featureRow.values[index]?.toString()) // Aggiunto controllo null per featureRow.values[index]
+                        .append("\n")
+                }
             }
         }
         return labelBuilder.toString() // Converti StringBuilder in String alla fine

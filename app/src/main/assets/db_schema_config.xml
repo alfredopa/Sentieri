@@ -138,7 +138,7 @@
 		<field name="hiking" visible="true"/>
 		<field name="horse" visible="true"/>
 		<field name="information" visible="true"/>
-		<field name="intermittent" visible="true"/>
+		<field name="intermittent" visible="false"/>
 		<field name="leisure" visible="false"/>
 		<field name="man_made" visible="false"/>
 		<field name="material" visible="false"/>
@@ -153,7 +153,7 @@
 		<field name="operator" visible="true"/>
 		<field name="operator:type" visible="true"/>
 		<field name="operator:wikidata" visible="true"/>
-		<field name="osmc:symbol" visible="true"/>
+		<field name="osmc:symbol" visible="false"/>
 		<field name="ref" visible="true"/>
 		<field name="ref:REI" visible="true"/>
 		<field name="reg_ref" visible="true"/>
@@ -168,7 +168,7 @@
 		<field name="symbol" visible="false"/>
 		<field name="symbol:it" visible="false"/>
 		<field name="to" visible="true"/>
-		<field name="tourism" visible="true"/>
+		<field name="tourism" visible="false"/>
 		<field name="tower:construction" visible="false"/>
 		<field name="tower:type" visible="false"/>
 		<field name="type" visible="true"/>
