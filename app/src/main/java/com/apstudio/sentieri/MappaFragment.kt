@@ -468,10 +468,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private fun setPolylineClickListener(polyline: Polyline) {
         polyline.setOnClickListener { mpolyline, mapView, eventPos ->
             // Il layout è stato copiato nelle risorse potrebbe differire dall'originale
+            Log.d("MappaFragment", "OnClickListener della Polyline ATTIVATO! Titolo: ${mpolyline.title}")
             mpolyline.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
             mpolyline.infoWindowLocation = eventPos
             mpolyline.showInfoWindow()
-            false // Ritorna true per indicare che l'evento è stato gestito
+            mapView.controller.animateTo(eventPos)
+            true // Ritorna true per indicare che l'evento è stato gestito
         }
     }
 
@@ -1959,7 +1961,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         osmdroidPolygonsToAdd,
                         colore
                     )
-
                     GeometryType.POLYGON -> processPolygonGeometry(
                         featureRow,
                         osmdroidPolygonsToAdd,
@@ -2008,8 +2009,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             featureInfo.listOverlay = mutableListOf()
         }
         featureInfo.listOverlay?.add(polyOverlay) // AGGIUNGI IL FOLDER OVERLAY ALLA LISTA!
-        // Aggiungi il FolderOverlay principale alla mappa (se non l'hai già fatto)
-        // Se lo aggiungi qui, assicurati di non aggiungerlo due volte se lo fai anche fuori
         if (!mapView.overlays.contains(polyOverlay)) {
             mapView.overlays.add(polyOverlay)
         }
@@ -2094,6 +2093,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 org.osmdroid.library.R.layout.bonuspack_bubble, // Layout di default
                 mapView
             )
+            osmdroidPolyline.setOnClickListener { clickedPolyline, map, eventPosition ->
+                Log.d(TAG, "Polyline da GeoPackage cliccata: ${clickedPolyline.title}")
+                clickedPolyline.infoWindowLocation = eventPosition // Usa il punto del click per posizionare l'InfoWindow
+                clickedPolyline.showInfoWindow() // Mostra l'InfoWindow
+                map.controller.animateTo(eventPosition)
+                true // Indica che l'evento è stato gestito
+            }
             // 2. Aggiungi la Polyline di osmdroid al FolderOverlay
             lineOverlayFolder.add(osmdroidPolyline)
         }

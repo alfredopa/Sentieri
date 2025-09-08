@@ -211,23 +211,6 @@ class LocationService : LifecycleService() {
         val broadcastIntent = Intent().apply {
             action = SEND_LOCATION_ACTION
             putExtra("posizione", newLocation)
-
-            /*if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                val rawMslAltitude = newLocation.mslAltitudeMeters
-                SimpleFileLogger.log(TAG, "sendBroadcast - Android 14+: newLocation.mslAltitudeMeters = $rawMslAltitude, newLocation.altitude (WGS84) = ${newLocation.altitude}")
-                if (!rawMslAltitude.isNaN()) {
-                    gpsViewModel.mslAltitude = rawMslAltitude
-                } else {
-                    SimpleFileLogger.log(TAG, "sendBroadcast - Android 14+: mslAltitudeMeters is NaN. ViewModel MSL altitude will rely on NMEA if available.")
-                    // Qui potresti decidere se gpsViewModel.mslAltitude debba mantenere l'ultimo valore NMEA
-                    // o essere impostato a un valore che indica "non disponibile".
-                    // Attualmente, se è NaN, gpsViewModel.mslAltitude non viene aggiornato qui.
-                }
-            } else {
-                SimpleFileLogger.log(TAG, "sendBroadcast - Android < 14: Using NMEA for MSL. Current gpsViewModel.mslAltitude = ${gpsViewModel.mslAltitude}, newLocation.altitude (WGS84) = ${newLocation.altitude}")
-                // gpsViewModel.mslAltitude è già stato (o sarà) impostato da parseNmeaMessage
-            }*/
-
             putExtra("altitudine", gpsViewModel.mslAltitude.value!!)
             //SimpleFileLogger.log(TAG, "sendBroadcast - Android < 14: Using NMEA for MSL. Current gpsViewModel.mslAltitude = ${gpsViewModel.mslAltitude.value}, newLocation.altitude (WGS84) = ${newLocation.altitude}")
 
@@ -318,49 +301,6 @@ class LocationService : LifecycleService() {
         super.onBind(intent)
         return null
     }
-
-    /*
-    // VECCHIO MOODO
-    private fun createNotificationChannel() {
-        val channelName = "Location Service"
-        val importance = NotificationManager.IMPORTANCE_HIGH
-        val channelId = "LOCATION_SERVICE_CHANNEL"
-        val channel = NotificationChannel(channelId, channelName, importance)
-        channel.setSound(null, null)
-        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(channel)
-
-        val pendingIntent = NavDeepLinkBuilder(applicationContext)
-            .setGraph(R.navigation.nav_graph)
-            .setDestination(R.id.mappaFragment)
-            .setComponentName(MainActivity::class.java)
-            .createPendingIntent()
-            .let {
-                // Crea un nuovo PendingIntent con i flag corretti
-                val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                PendingIntent.getActivity(
-                    this,
-                    0,
-                    Intent(this, MainActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    },
-                    flags
-                )
-            }
-
-        val builder = NotificationCompat.Builder(this, channelId)
-        val notification: Notification =
-            builder
-                .setOngoing(true)
-                .setContentInfo("Traccia Sentieri in registrazione")
-                .setContentTitle("Registrazione traccia in corso ")
-                .setSmallIcon(R.drawable.ic_start)
-                .setContentIntent(pendingIntent)
-                .setCategory(Notification.CATEGORY_SERVICE)
-                .setPriority(NotificationManager.IMPORTANCE_DEFAULT)
-                .build()
-        startForeground(LOCATION_SERVICE_CHANNEL, notification)
-    }*/
 
     private fun createNotificationChannel() {
         val channelName = "Location Service"
