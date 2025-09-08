@@ -46,7 +46,8 @@ class FeatureAdapter (
         }
 
         fun bind(item: FeatureTableInfo) {
-
+            if (item.colore.isEmpty())
+                item.colore == "RANDOM"
             if (item.colore == "RANDOM")
                 coloreTabella.setBackgroundColor(coloreDefault.toColorInt())
             else
