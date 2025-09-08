@@ -119,7 +119,6 @@ class PoiFragment : Fragment() {
                 if (position < 0 || position >= waypointsToShow.size) return // Controllo di sicurezza
 
                 val clickedWayPoint = waypointsToShow[position]
-                // Usa i campi da clickedWayPoint (che è un net.federicomatera.agpxp.models.WayPoint)
                 val destPoi = GeoPoint(
                     clickedWayPoint.latitude,
                     clickedWayPoint.longitude,
