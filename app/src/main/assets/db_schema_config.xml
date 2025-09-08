@@ -1,27 +1,27 @@
 <?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
 <databaseSchema>
 	<table name="areetutelate__parchi_regionali_istituiti">
-		<field name="fid" visible="true"/>
-		<field name="geom" visible="true"/>
-		<field name="OBJECTID" visible="true"/>
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="OBJECTID" visible="false"/>
 		<field name="TOPONIMO" visible="true"/>
 		<field name="AREA_HA" visible="true"/>
 		<field name="PROVVEDIME" visible="true"/>
 	</table>
 	<table name="areetutelate__aree_di_rilevante_interesse_naturalistico">
-		<field name="fid" visible="true"/>
-		<field name="geom" visible="true"/>
-		<field name="OBJECTID" visible="true"/>
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="OBJECTID" visible="false"/>
 		<field name="TOPONIMO" visible="true"/>
 		<field name="AREA_MQ" visible="true"/>
 		<field name="PERIM_M" visible="true"/>
 		<field name="PROVVED" visible="true"/>
 	</table>
 	<table name="areetutelate__iba">
-		<field name="fid" visible="true"/>
-		<field name="geom" visible="true"/>
-		<field name="OBJECTID" visible="true"/>
-		<field name="codice_iba" visible="true"/>
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="OBJECTID" visible="false"/>
+		<field name="codice_iba" visible="false"/>
 		<field name="nome_iba" visible="true"/>
 		<field name="regioni" visible="true"/>
 		<field name="areamq" visible="true"/>
@@ -30,17 +30,17 @@
 		<field name="Shape_Area" visible="true"/>
 	</table>
 	<table name="areetutelate__monumenti_naturali_istituiti">
-		<field name="fid" visible="true"/>
-		<field name="geom" visible="true"/>
-		<field name="OBJECTID" visible="true"/>
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="OBJECTID" visible="false"/>
 		<field name="CODICE" visible="true"/>
 		<field name="ZONA" visible="true"/>
 		<field name="TOPONIMO" visible="true"/>
 	</table>
 	<table name="alberi_monumentali">
-		<field name="fid" visible="true"/>
-		<field name="geom" visible="true"/>
-		<field name="ID" visible="true"/>
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="ID" visible="false"/>
 		<field name="N_SCHEDA" visible="true"/>
 		<field name="PROVINCIA" visible="true"/>
 		<field name="COMUNE" visible="true"/>
@@ -56,32 +56,32 @@
 		<field name="TUTELA" visible="true"/>
 	</table>
 	<table name="grotte">
-		<field name="fid" visible="true"/>
-		<field name="geom" visible="true"/>
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
 		<field name="STRINGA" visible="true"/>
 		<field name="TEXT_ANGLE" visible="true"/>
 		<field name="TEXT_SIZE" visible="true"/>
 		<field name="TEXTSTRING" visible="true"/>
 	</table>
 	<table name="beni_paesaggistici_2014">
-		<field name="fid" visible="true"/>
-		<field name="geom" visible="true"/>
-		<field name="PROGRESSIV" visible="true"/>
-		<field name="CODICE_bur" visible="true"/>
-		<field name="COMUNE" visible="true"/>
-		<field name="DENOMINAZI" visible="true"/>
-		<field name="FONTE" visible="true"/>
-		<field name="TIPOLOGIA" visible="true"/>
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="PROGRESSIV" visible="false"/>
+		<field name="CODICE_bur" visible="false"/>
+		<field name="Comune" visible="true"/>
+		<field name="Denominazione" visible="true"/>
+		<field name="Fonte" visible="true"/>
+		<field name="Tipologia" visible="true"/>
 		<field name="X" visible="true"/>
 		<field name="Y" visible="true"/>
 		<field name="SIMBOLI" visible="true"/>
-		<field name="TIPO_BENE" visible="true"/>
+		<field name="T" visible="true"/>
 		<field name="NOTE" visible="true"/>
 	</table>
 	<table name="nur_data">
-		<field name="fid" visible="true"/>
-		<field name="geom" visible="true"/>
-		<field name="contentid" visible="true"/>
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="contentid" visible="false"/>
 		<field name="category" visible="true"/>
 		<field name="nome" visible="true"/>
 		<field name="regione" visible="true"/>
@@ -92,89 +92,73 @@
 		<field name="fonte" visible="true"/>
 		<field name="youtube" visible="true"/>
 	</table>
-	<table name="Comuni">
-		<field name="fid" visible="true"/>
-		<field name="geom" visible="true"/>
-		<field name="ogc_fid" visible="true"/>
+		<table name="Comuni">
+		<field name="fid" visible="false"/>
+		<field name="geom" visible="false"/>
+		<field name="ogc_fid" visible="false"/>
 		<field name="aa01_cod_com_istat" visible="true"/>
 		<field name="aa01_nome" visible="true"/>
 		<field name="aa01_cod_prov_istat" visible="true"/>
 		<field name="aa01_cod_reg_istat" visible="true"/>
 		<field name="aa01_area" visible="true"/>
-		<field name="aa01_perimetro" visible="true"/>
-		<field name="aa01_id_comune" visible="true"/>
-		<field name="aa01_geometria" visible="true"/>
+		<field name="aa01_perimetro" visible="false"/>
+		<field name="aa01_id_comune" visible="false"/>
+		<field name="aa01_geometria" visible="false"/>
 	</table>
-	<table name="settefratelli">
+		<table name="Sentieri CAI">
 		<field name="fid" visible="false"/>
 		<field name="geom" visible="false"/>
 		<field name="id" visible="false"/>
 		<field name="@id" visible="false"/>
-		<field name="access" visible="false"/>
-		<field name="alt_name" visible="false"/>
-		<field name="amenity" visible="false"/>
+		<field name="@relations" visible="false"/>
 		<field name="ascent" visible="true"/>
-		<field name="bicycle" visible="true"/>
-		<field name="building" visible="false"/>
 		<field name="cai_scale" visible="true"/>
+		<field name="cai_scale:mtb" visible="true"/>
 		<field name="cai_scale:mtb:uphill" visible="true"/>
-		<field name="check_date" visible="false"/>
 		<field name="descent" visible="true"/>
-		<field name="description" visible="true"/>
+		<field name="description" visible="false"/>
 		<field name="description:it" visible="true"/>
 		<field name="distance" visible="true"/>
 		<field name="duration" visible="true"/>
 		<field name="duration:backward" visible="true"/>
 		<field name="duration:forward" visible="true"/>
-		<field name="ele" visible="true"/>
 		<field name="ele:from" visible="true"/>
 		<field name="ele:max" visible="true"/>
 		<field name="ele:min" visible="true"/>
 		<field name="ele:to" visible="true"/>
-		<field name="emergency" visible="false"/>
 		<field name="from" visible="true"/>
-		<field name="height" visible="true"/>
 		<field name="highway" visible="true"/>
 		<field name="hiking" visible="true"/>
-		<field name="horse" visible="true"/>
-		<field name="information" visible="true"/>
-		<field name="intermittent" visible="false"/>
-		<field name="leisure" visible="false"/>
-		<field name="man_made" visible="false"/>
-		<field name="material" visible="false"/>
-		<field name="mtb" visible="true"/>
+		<field name="maintenance" visible="true"/>
+		<field name="maintenance:it" visible="true"/>
 		<field name="name" visible="true"/>
-		<field name="name:sc" visible="true"/>
-		<field name="natural" visible="false"/>
-		<field name="network" visible="true"/>
+		<field name="network" visible="false"/>
 		<field name="network:type" visible="false"/>
 		<field name="note" visible="true"/>
-		<field name="old_name" visible="true"/>
-		<field name="operator" visible="true"/>
-		<field name="operator:type" visible="true"/>
-		<field name="operator:wikidata" visible="true"/>
+		<field name="note:it" visible="true"/>
+		<field name="note:project_page" visible="true"/>
+		<field name="old_ref" visible="true"/>
+		<field name="operator" visible="false"/>
 		<field name="osmc:symbol" visible="false"/>
 		<field name="ref" visible="true"/>
 		<field name="ref:REI" visible="true"/>
+		<field name="ref_reg" visible="true"/>
 		<field name="reg_ref" visible="true"/>
 		<field name="roundtrip" visible="true"/>
-		<field name="route" visible="true"/>
+		<field name="route" visible="false"/>
 		<field name="rwn:name" visible="true"/>
-		<field name="source" visible="true"/>
-		<field name="source:date" visible="true"/>
-		<field name="start_date" visible="false"/>
-		<field name="surface" visible="false"/>
+		<field name="source" visible="false"/>
+		<field name="source:date" visible="false"/>
+		<field name="source:ref" visible="true"/>
+		<field name="state" visible="false"/>
 		<field name="survey:date" visible="false"/>
 		<field name="symbol" visible="false"/>
 		<field name="symbol:it" visible="false"/>
+		<field name="time" visible="false"/>
 		<field name="to" visible="true"/>
-		<field name="tourism" visible="false"/>
-		<field name="tower:construction" visible="false"/>
-		<field name="tower:type" visible="false"/>
-		<field name="type" visible="true"/>
+		<field name="type" visible="false"/>
+		<field name="url" visible="false"/>
 		<field name="via" visible="false"/>
-		<field name="website" visible="true"/>
-		<field name="width" visible="false"/>
-		<field name="@relations" visible="false"/>
+		<field name="website" visible="false"/>
 	</table>
 </databaseSchema>

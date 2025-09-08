@@ -1378,11 +1378,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         if ((currentFlags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0) {
             // Il flag FLAG_KEEP_SCREEN_ON è GIA' impostato
-            Log.d("ScreenOnCheck", "FLAG_KEEP_SCREEN_ON è già attivo.")
+            //Log.d("ScreenOnCheck", "FLAG_KEEP_SCREEN_ON è già attivo.")
             // Non c'è bisogno di aggiungerlo di nuovo se è questa la tua intenzione
         } else {
             // Il flag FLAG_KEEP_SCREEN_ON NON è impostato
-            Log.d("ScreenOnCheck", "FLAG_KEEP_SCREEN_ON non è attivo. Lo imposto ora.")
+            //Log.d("ScreenOnCheck", "FLAG_KEEP_SCREEN_ON non è attivo. Lo imposto ora.")
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
@@ -1905,7 +1905,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         // Apply styling (assuming polygonOptions is accessible)
         if (colore == "RANDOM")
-            osmdroidPolygon.fillColor = layerModel.getRandomIntColor(20)
+            osmdroidPolygon.fillColor = layerModel.getRandomIntColor(30)
         else
             osmdroidPolygon.fillColor = layerModel.polygonOptions.fillColor
         osmdroidPolygon.strokeColor = layerModel.polygonOptions.strokeColor
@@ -2170,7 +2170,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val geometry = geometryData.geometry
         if (geometry is LineString) {
             val label = layerModel.creaLabel(featureRow, tableName) // Assumendo che esista questa funzione
-            val description = "Geometria LineString dal layer: $tableName" // Esempio
+            val description = "layer:$tableName" // Esempio
             lineStringToAdd.add(LineStringFeature(geometry, label, description))
         }
         //lineStringToAdd.add(editLinestring)

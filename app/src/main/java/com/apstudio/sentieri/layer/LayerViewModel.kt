@@ -91,6 +91,7 @@ class LayerViewModel : ViewModel() {
         val blue = Random.nextInt(256)
         return Color.argb(alpha, red, green, blue)
     }
+
     fun getFeaturesForLayer(tableName: String): List<Map<String, Any>> {
         val geoPackage = geoPackageInstance ?: return emptyList() // Assicurati che geoPackage sia aperto
         val featureDao = geoPackage.getFeatureDao(tableName)
