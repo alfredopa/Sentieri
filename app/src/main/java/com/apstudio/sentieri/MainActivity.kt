@@ -17,6 +17,7 @@ import android.widget.TextView
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -24,6 +25,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import androidx.core.view.WindowCompat.enableEdgeToEdge
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavController
@@ -103,6 +105,7 @@ class MainActivity :
         setupBackPressHandling()
         Log.d("Mappa", "MainActivity onCreate: $intent")
         handleIntent(intent) // Gestisci anche l'intent iniziale che ha creato l'Activity
+        enableEdgeToEdge()
     }
 
     private fun initApp() {
