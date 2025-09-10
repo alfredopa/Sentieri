@@ -4,11 +4,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.CompoundButton
-import android.widget.Switch
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.core.graphics.toColorInt
 import com.apstudio.sentieri.R
+import com.google.android.material.materialswitch.MaterialSwitch
 
 
 class FeatureAdapter (
@@ -28,7 +28,7 @@ class FeatureAdapter (
     inner class FeatureViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView), View.OnClickListener {
         val coloreTabella: TextView = itemView.findViewById(R.id.txColore)
         val nomeTabella: TextView = itemView.findViewById(R.id.txtabella)
-        val switchView: Switch = itemView.findViewById(R.id.swcVisible)
+        val switchView: MaterialSwitch = itemView.findViewById(R.id.swcVisible)
 
         // Definisci il listener una sola volta
         private val checkedChangeListener = CompoundButton.OnCheckedChangeListener { _, isChecked ->
@@ -46,22 +46,19 @@ class FeatureAdapter (
         }
 
         fun bind(item: FeatureTableInfo) {
-            if (item.colore.isEmpty())
-                item.colore == "RANDOM"
-            if (item.colore == "RANDOM")
+            var colore = item.colore
+            if (colore.isEmpty()) {
+                colore = "RANDOM"
+            }
+            if (colore == "RANDOM") {
                 coloreTabella.setBackgroundColor(coloreDefault.toColorInt())
-            else
-                coloreTabella.setBackgroundColor(item.colore.toColorInt())
+            } else {
+                coloreTabella.setBackgroundColor(colore.toColorInt())
+            }
             nomeTabella.text = item.descrTabella
 
-            // 1. Rimuovi TEMPORANEAMENTE il listener per evitare che si attivi
-            //    quando imposti programmaticamente lo stato dello switch.
             switchView.setOnCheckedChangeListener(null)
-
-            // 2. Imposta lo stato dello switch dal modello dati
             switchView.isChecked = item.isVisible
-
-            // 3. Riattacca il listener originale (quello definito nel ViewHolder)
             switchView.setOnCheckedChangeListener(checkedChangeListener)
         }
 

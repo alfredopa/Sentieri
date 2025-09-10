@@ -148,8 +148,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private val gpsViewModel: GpsViewModel by lazy {
         ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[GpsViewModel::class.java]
     }
+    //val layerModel: LayerViewModel by lazy {
+    //    ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[LayerViewModel::class.java]
+    //}
     val layerModel: LayerViewModel by lazy {
-        ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[LayerViewModel::class.java]
+        val application = requireActivity().application
+        ViewModelProvider(
+            application as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+        )[LayerViewModel::class.java]
     }
 
     private var _binding: FragmentMappaBinding? = null
@@ -1854,24 +1861,47 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         featureRow: FeatureRow,
         colore: String
     ): Polygon {
-        //val osmdroidPolygon = Polygon(map) // Assuming 'map' is accessible
-        val osmdroidPolygon = Polygon() // Assuming 'map' is accessible
+        val osmdroidPolygon = Polygon(mapView) // Assuming 'map' is accessible
         val exteriorRingPoints = mutableListOf<GeoPoint>()
-        ngaPolygon.rings.firstOrNull()?.points?.forEach { ngaPoint ->
-            exteriorRingPoints.add(GeoPoint(ngaPoint.y, ngaPoint.x))
+
+        val firstRing = ngaPolygon.rings?.firstOrNull() // Controlla se rings è null
+        if (firstRing != null && firstRing.points != null) { // Controlla se points è null
+            firstRing.points.forEach { ngaPoint ->
+                if (ngaPoint != null) { // Controlla se il singolo punto è null
+                    exteriorRingPoints.add(GeoPoint(ngaPoint.y, ngaPoint.x))
+                } else {
+                    Log.w(TAG, "Null point found in exterior ring of polygon.")
+                }
+            }
+        } else {
+            Log.w(TAG, "Exterior ring or its points are null for a polygon.")
+            // Potresti voler restituire un poligono vuoto o gestire l'errore
         }
         osmdroidPolygon.points = exteriorRingPoints
 
-        if (ngaPolygon.rings.size > 1) {
+
+        if (ngaPolygon.rings != null && ngaPolygon.rings.size > 1) {
             val holes = mutableListOf<List<GeoPoint>>()
             ngaPolygon.rings.drop(1).forEach { interiorNgaRing ->
-                val holePath = mutableListOf<GeoPoint>()
-                interiorNgaRing.points.forEach { ngaPoint ->
-                    holePath.add(GeoPoint(ngaPoint.y, ngaPoint.x))
+                if (interiorNgaRing != null && interiorNgaRing.points != null) { // Controlli aggiunti
+                    val holePath = mutableListOf<GeoPoint>()
+                    interiorNgaRing.points.forEach { ngaPoint ->
+                        if (ngaPoint != null) { // Controllo aggiunto
+                            holePath.add(GeoPoint(ngaPoint.y, ngaPoint.x))
+                        } else {
+                            Log.w(TAG, "Null point found in an interior ring (hole) of polygon.")
+                        }
+                    }
+                    if (holePath.isNotEmpty()) { // Aggiungi solo se il percorso del buco ha punti
+                        holes.add(holePath)
+                    }
+                } else {
+                    Log.w(TAG, "An interior ring (hole) or its points are null for a polygon.")
                 }
-                holes.add(holePath)
             }
-            osmdroidPolygon.holes = holes
+            if (holes.isNotEmpty()) {
+                osmdroidPolygon.holes = holes
+            }
         }
         // Opzione A: Crea la label ora e memorizzala (più semplice se la label non è troppo grande)
         val labelForPolygon =
@@ -1917,6 +1947,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun mostraAlertDialogSemplice(message: String, titolo: String) {
+        if (!isAdded || context == null) {
+            Log.w(TAG, "Fragment non attaccato o contesto nullo, impossibile mostrare AlertDialog.")
+            return // Esci dalla funzione per evitare il crash
+        }
         val builder = AlertDialog.Builder(requireContext()) // 'this' è il Context dell'Activity
         builder.setTitle(titolo) // Imposta il titolo
         builder.setMessage(message) // Imposta il messaggio

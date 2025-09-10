@@ -1,70 +1,177 @@
 package com.apstudio.sentieri.layer
 
+import android.app.Application
 import android.graphics.Color
-import androidx.lifecycle.ViewModel
+import android.util.Log
+import androidx.lifecycle.AndroidViewModel
 import mil.nga.geopackage.GeoPackage
+import mil.nga.geopackage.GeoPackageFactory
+import mil.nga.geopackage.GeoPackageManager
 import mil.nga.geopackage.features.user.FeatureRow
 import org.osmdroid.gpkg.overlay.features.PolygonOptions
+import java.io.File
 import kotlin.random.Random
-import kotlin.random.nextInt
 
-class LayerViewModel : ViewModel() {
-    val featureList = mutableListOf<FeatureTableInfo>()
+// Scegli una delle due basi per il ViewModel:
+// Opzione A: AndroidViewModel (ha accesso al contesto dell'applicazione)
+class LayerViewModel(application: Application) : AndroidViewModel(application) {
+// Opzione B: ViewModel (passerai il contesto quando necessario)
+ //class LayerViewModel : ViewModel() {
+companion object {
+    private const val TAG = "LayerViewModel"
+    private const val DATABASE_NAME = "Layers.gpkg"
+    private const val CONFIG_FILE_NAME = "db_schema_config.xml"
+}
+
     var geoPackageInstance: GeoPackage? = null
-        set(value) {
-            // If the new value is different from the current field
-            if (field != value) {
-                field = value // Update the field with the new value
-                if (value != null) {
-                    // New GeoPackage is set (and it's different or was null)
-                    loadFeaturesFromGeoPackage()
-                } else {
-                    // GeoPackage is cleared (set to null)
-                    featureList.clear()
-                }
-            }
-        }
-    // PARAMETRI per Polyline e Polygon
+        private set // Rendi il setter privato se l'apertura è gestita internamente
+
+    // Assumendo che featureList e labelConfig siano ancora qui
+    val featureList: MutableList<FeatureTableInfo> = mutableListOf() // Inizializza come necessario
+    var labelConfig: MutableMap<String, List<Pair<String, Boolean>>> = mutableMapOf()
+    var currentActiveTableName: String? = null
     val polygonOptions = PolygonOptions().apply {
         strokeWidth = 2f
         fillColor = Color.argb(50, 255, 0, 255)
         strokeColor = Color.argb(100, 0, 0, 0)
     }
-    var labelConfig = mutableMapOf<String, List<Pair<String, Boolean>>>()
-    val TAG = "LayerViewModel"
-    var currentActiveTableName: String? = null // Era DATABASE_TABLE_NAME
 
-    // Chiamato quando geoPackageInstance viene impostato per la prima volta
-    fun loadFeaturesFromGeoPackage() {
-        if (featureList.isEmpty()) { // Carica solo se la lista è vuota (per evitare ricariche non necessarie)
-            geoPackageInstance?.featureTables?.map { tableName ->
+
+    /**
+     * Apre il GeoPackage se non è già aperto e carica la configurazione.
+     * Se usi ViewModel semplice, aggiungi: context: Context come parametro.
+     */
+    fun openGeoPackageAndLoadConfig() { // Rinominato per chiarezza
+        getApplication<Application>() // Per AndroidViewModel
+
+        if (geoPackageInstance != null) {
+            // Potrebbe essere già aperto, ma verifichiamo se la configurazione necessita di essere ricaricata
+            // o se l'istanza è valida. Se fosse chiusa, le operazioni fallirebbero.
+            Log.d(TAG, "GeoPackage instance exists. Verifying and loading config if needed.")
+            try {
+                // Una semplice operazione per vedere se è vivo, es. ottenere il path.
+                // Se chiuso, questo potrebbe lanciare un'eccezione.
+                geoPackageInstance?.path
+                loadConfigIfNeeded( geoPackageInstance!!) // Passa l'istanza esistente
+            } catch (e: Exception) {
+                Log.e(TAG, "Error using existing GeoPackage instance. It might be closed. Re-opening.", e)
+                actuallyOpenAndConfigGeoPackage()
+            }
+            return
+        }
+        actuallyOpenAndConfigGeoPackage()
+    }
+
+    private fun actuallyOpenAndConfigGeoPackage() {
+        val context = getApplication<Application>()
+        val dataDir = context.getDatabasePath(DATABASE_NAME).parentFile
+        val geoPackageFile = File(dataDir, DATABASE_NAME)
+        if (!geoPackageFile.exists()) {
+            Log.e(TAG, "GeoPackage file does not exist at: ${geoPackageFile.absolutePath}")
+            // Qui potresti voler aggiornare uno StateFlow/LiveData per notificare l'UI
+            return
+        }
+        val geoPackageManager: GeoPackageManager = GeoPackageFactory.getManager(context)
+        try {
+            Log.d(TAG, "Attempting to open GeoPackage: ${geoPackageFile.name}")
+            val openedGeoPackage = geoPackageManager.openExternal(geoPackageFile)
+            if (openedGeoPackage == null) {
+                Log.e(TAG, "Error opening GeoPackage: ${geoPackageFile.name}")
+                // Aggiorna StateFlow/LiveData
+                return
+            }
+            geoPackageInstance = openedGeoPackage
+            Log.i(TAG, "GeoPackage '${openedGeoPackage.name}' opened successfully by ViewModel.")
+
+            // Carica la configurazione e popola featureList dopo l'apertura
+            loadConfigAndPopulateFeatures(openedGeoPackage)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception while opening GeoPackage: ${geoPackageFile.name}", e)
+            geoPackageInstance = null // Assicura che sia null in caso di fallimento
+            // Aggiorna StateFlow/LiveData
+        }
+    }
+
+    /**
+     * Metodo interno che carica la configurazione dell'etichetta E popola la featureList.
+     * Chiamato dopo che il GeoPackage è stato aperto con successo.
+     */
+    private fun loadConfigAndPopulateFeatures(geoPackage: GeoPackage) {
+        val context = getApplication<Application>()
+        val pathGeoPackage = geoPackage.path ?: run {
+            Log.e(TAG, "GeoPackage path is null, cannot load config.")
+            return
+        }
+        val configurator = DatabaseSchemaConfigurator(context, pathGeoPackage)
+        val configFile = File(context.filesDir, CONFIG_FILE_NAME)
+        if (!configFile.exists()) {
+            Log.i(TAG, "Config file not found, generating: ${configFile.absolutePath}")
+            configurator.generateAndWriteConfigFile()
+        }
+        (configurator.loadConfigFromFile() as? MutableMap<String, List<Pair<String, Boolean>>>)?.also {
+            labelConfig = it
+            Log.d(TAG, "LabelConfig loaded successfully.")
+        } ?: Log.e(TAG, "Failed to load or cast labelConfig.")
+
+        // 2. Popola featureList
+        featureList.clear() // Pulisci la lista prima di ripopolarla
+        try {
+            geoPackage.featureTables.forEach { tableName ->
+                val featureDao = geoPackage.getFeatureDao(tableName)
+                featureDao.count() // Conteggio degli elementi
                 val contentsDao = geoPackageInstance?.contentsDao
                 val contents = contentsDao?.queryForId(tableName)
-                FeatureTableInfo(
-                    tableName,
-                    isVisible = false, // Lo stato iniziale è false, verrà ripristinato se necessario
-                    descrTabella = contents?.identifier ?: "Nessuna descrizione",
-                    colore = contents?.description ?: "#0000FF",
-                    readData = false,
-                    clusterIconResId = 0,
-                    listOverlay = null
+                // Logica per determinare isVisible (es. da preferenze, o default)
+                val isVisibleInitially = false // O leggi da una configurazione persistente
+                // Descrizione - potresti volerla rendere più dinamica o configurabile
+                val description = contents?.identifier ?: "Nessuna descrizione"
+                // Colore - default o da configurazione
+                val color = contents?.description ?: "#0000FF"
 
+                featureList.add(
+                    FeatureTableInfo(
+                        name = tableName,
+                        isVisible = isVisibleInitially,
+                        descrTabella = description,
+                        //numRecord = count.toInt(),
+                        colore = color,
+                        readData = false, // Inizia come non letta
+                        listOverlay = null // Inizia senza overlay
+                    )
                 )
-            }?.let {
-                featureList.addAll(it)
             }
+            Log.i(TAG, "FeatureList populated with ${featureList.size} tables.")
+            // Qui potresti voler notificare l'UI che featureList è pronta, es. tramite LiveData/StateFlow
+            // _featureListLiveData.postValue(featureList)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error populating featureList from GeoPackage.", e)
+            // Gestisci l'errore, magari pulendo featureList o notificando l'UI
+            featureList.clear()
         }
     }
 
-    // Metodo per ripristinare lo stato (chiamato da onSaveInstanceState o simile se non usi ViewModel per tutto)
-    // Se usi ViewModel correttamente, questo potrebbe non essere necessario se featureList stessa
-    // è la source of truth e viene aggiornata direttamente.
-    fun restoreVisibilityStates(visibilityMap: Map<String, Boolean>) {
-        featureList.forEach { featureInfo ->
-            featureInfo.isVisible = visibilityMap[featureInfo.name] ?: false
-        }
-    }
 
+    // Questo metodo è stato rinominato da `loadConfigIfNeeded` per evitare confusione,
+    // dato che ora la configurazione viene caricata insieme alle feature.
+    // Se hai bisogno di ricaricare SOLO la configurazione per un GeoPackage già aperto,
+    // puoi creare un metodo separato.
+    private fun loadConfigIfNeeded(geoPackage: GeoPackage) {
+        val context = getApplication<Application>()
+        val pathGeoPackage = geoPackage.path ?: run {
+            Log.e(TAG, "GeoPackage path is null, cannot load config.")
+            return
+        }
+        val configurator = DatabaseSchemaConfigurator(context, pathGeoPackage)
+        val configFile = File(context.filesDir, CONFIG_FILE_NAME)
+        if (!configFile.exists()) {
+            configurator.generateAndWriteConfigFile()
+        }
+        (configurator.loadConfigFromFile() as? MutableMap<String, List<Pair<String, Boolean>>>)?.also {
+            labelConfig = it
+            Log.d(TAG, "LabelConfig (re)loaded successfully.")
+        } ?: Log.e(TAG, "Failed to (re)load or cast labelConfig.")
+    }
 
     fun creaLabel(featureRow: FeatureRow, tableName: String): String {
         val campiLabel = labelConfig[tableName]
@@ -92,18 +199,21 @@ class LayerViewModel : ViewModel() {
         return Color.argb(alpha, red, green, blue)
     }
 
-    fun getFeaturesForLayer(tableName: String): List<Map<String, Any>> {
-        val geoPackage = geoPackageInstance ?: return emptyList() // Assicurati che geoPackage sia aperto
-        val featureDao = geoPackage.getFeatureDao(tableName)
-        val results = mutableListOf<Map<String, Any>>()
-        featureDao.queryForAll().use { cursor -> // Usa use per chiudere il cursore
-            while (cursor.moveToNext()) {
-                val featureRow = cursor.row
-                results.add(featureRow.values as Map<String, Any>) // featureRow.values è Map<String, Any?>
+
+    override fun onCleared() {
+        super.onCleared()
+        geoPackageInstance?.let { geoPkg ->
+            try {
+                geoPkg.close()
+                Log.i(TAG, "GeoPackage '${geoPkg.name}' closed in onCleared.")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error closing GeoPackage '${geoPkg.name}' in onCleared.", e)
             }
         }
-        return results
+        geoPackageInstance = null
+        Log.d(TAG, "LayerViewModel cleared.")
     }
-
 }
+
+
 

@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import androidx.compose.ui.graphics.vector.path
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
@@ -15,52 +16,35 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.R
+import mil.nga.geopackage.GeoPackage
 import mil.nga.geopackage.GeoPackageFactory
 import mil.nga.geopackage.GeoPackageManager
 import java.io.File
 
 const val LAYER_DIALOG_REQUEST_KEY = "layerDialogRequest"
 
-class GpkgLayer: DialogFragment(), FeatureAdapter.OnItemClickListener {
+class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
     private val layerModel: LayerViewModel by lazy {
-        ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[LayerViewModel::class.java]
+        // Se LayerViewModel è un AndroidViewModel, il provider è leggermente diverso
+        // o se hai un factory personalizzato.
+        // Assumendo che il provider di default per AndroidViewModel funzioni:
+        //ViewModelProvider(this)[LayerViewModel::class.java]
+        // Se prima usavi `requireActivity().application as ViewModelStoreOwner`
+        // e vuoi che il ViewModel sia a livello di Application, mantieni quel provider:
+         ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[LayerViewModel::class.java]
     }
 
     private lateinit var recyclerView: RecyclerView
+    private lateinit var adapter: FeatureAdapter // FeatureAdapter deve essere definito
 
-    //private lateinit var adapter: DynamicColumnAdapter
-    private lateinit var adapter: FeatureAdapter
-
-    val TAG = "GpkgLayer"
+    val TAG = "GpkgLayer" // Già presente
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        creaGeopackage(requireContext())
-    }
-
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.dlg_gpkg_layer, container, false)
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        // Crea il RecyclerView
-        recyclerView = view.findViewById(R.id.my_recycler_view)
-        // Crea e imposta l'adapter
-        val layoutManager = GridLayoutManager(requireContext(), 1)
-        recyclerView.layoutManager = layoutManager
-        // L'adapter ora prende la lista direttamente dal ViewModel
-        // La lista nel ViewModel è la "source of truth"
-        adapter = FeatureAdapter(layerModel.featureList, this)
-        recyclerView.adapter = adapter
-        val btnOk: Button = view.findViewById(R.id.btnOk)
-        btnOk.setOnClickListener {
-            dismiss()
-        }
+        // Chiama il metodo del ViewModel per aprire il GeoPackage e caricare la configurazione
+        // Passa il contesto se il tuo ViewModel non è un AndroidViewModel
+        Log.d(TAG, "onCreate: Requesting GeoPackage open and config load from ViewModel.")
+        layerModel.openGeoPackageAndLoadConfig()
     }
 
     override fun onStart() {
@@ -75,62 +59,100 @@ class GpkgLayer: DialogFragment(), FeatureAdapter.OnItemClickListener {
             // attributes.gravity = Gravity.CENTER
         }
     }
-    override fun onItemClick(position: Int) {
-        // Gestisci qui il click sull'item
-        // Ad esempio, mostra dettagli, naviga, ecc.
-        //Log.d(TAG, "Item clicked: $position}")
-        layerModel.currentActiveTableName = layerModel.featureList[position].name
-        this@GpkgLayer.findNavController().navigate(R.id.action_gpkgLayer_to_featureList)
-        // Fai qualcosa con l'oggetto 'feature' cliccato
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        return inflater.inflate(R.layout.dlg_gpkg_layer, container, false)
     }
 
-    override fun onSwitchCheckedChanged(position: Int, isChecked: Boolean) {
-        val featureInfo = layerModel.featureList[position]
-        // 1. Aggiorna lo stato nel ViewModel. Questa è la "source of truth".
-        featureInfo.isVisible = isChecked // L'oggetto featureInfo è quello dentro layerModel.featureList
-        Log.d("SwitchDebug", "Model isVisible for ${featureInfo.name} UPDATED TO: ${featureInfo.isVisible}")
-        layerModel.currentActiveTableName = featureInfo.name
-        adapter.notifyItemChanged(position)
-    }
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        recyclerView = view.findViewById(R.id.my_recycler_view)
+        val layoutManager = GridLayoutManager(requireContext(), 1)
+        recyclerView.layoutManager = layoutManager
 
+        // L'adapter ora prende la lista direttamente dal ViewModel
+        // La lista nel ViewModel è la "source of truth"
+        // Assicurati che FeatureAdapter sia in grado di gestire una lista vuota inizialmente
+        // e si aggiorni quando layerModel.featureList cambia (es. usando LiveData/StateFlow e osservandolo)
+        adapter = FeatureAdapter(layerModel.featureList, this)
+        recyclerView.adapter = adapter
 
-    fun creaGeopackage(context: Context) {
-        // Crea e gestisce il GeoPackage.
-        // il geopackage non viene importato ma letto dalla cartella dati interni data/data
-        val databaseName = "Layers.gpkg"
-        val dataDir = context.getDatabasePath(databaseName).parentFile
-        val geoPackageFile = File(dataDir, databaseName)
-        val geoPackageManager: GeoPackageManager = GeoPackageFactory.getManager(context)
-        val openedGeoPackage = geoPackageManager.openExternal(geoPackageFile) // Non assegnare direttamente a layerModel.DATABASE_NAME
+        // Esempio se featureList fosse un LiveData nel ViewModel:
+        // layerModel.featuresLiveData.observe(viewLifecycleOwner) { features ->
+        //     adapter.updateData(features) // Dovresti creare un metodo nell'adapter per aggiornare i dati
+        // }
 
-        if (openedGeoPackage == null) {
-            Log.d(TAG, "Errore durante apertura del GeoPackage")
-            // Gestisci errore e return
-            return
+        val btnOk: Button = view.findViewById(R.id.btnOk)
+        btnOk.setOnClickListener {
+            dismiss()
         }
-        // Imposta il GeoPackage nel ViewModel. Questo scatenerà il caricamento
-        // dei feature names la prima volta.
-        layerModel.geoPackageInstance = openedGeoPackage
 
-        // Carica il file di configurazione Xml
-        val pathGeoPackage = geoPackageFile.toString()
-        val configurator = DatabaseSchemaConfigurator(context, pathGeoPackage)
-        // Prima, potresti voler generare il file se non esiste o se è la prima esecuzione
-        if (!File(context.filesDir, "db_schema_config.xml").exists()) {
-            configurator.generateAndWriteConfigFile()
-        }
-        (configurator.loadConfigFromFile() as MutableMap<String, List<Pair<String, Boolean>>>).also {
-            layerModel.labelConfig = it
+        // Se featureList non è LiveData, potresti dover notificare l'adapter dopo che onCreate
+        // ha chiamato openGeoPackageAndLoadConfig e la lista è stata popolata.
+        // Questo è un punto delicato se il popolamento è asincrono.
+        // Per ora, assumiamo che al momento della creazione dell'adapter, featureList
+        // sia già popolata o che l'adapter gestisca una lista vuota e si aggiorni.
+        // Se non è così, potresti aver bisogno di aggiornare l'adapter dopo che i dati sono pronti.
+        if (layerModel.featureList.isNotEmpty() && adapter.itemCount == 0) {
+            adapter.notifyDataSetChanged() // o un modo più specifico per aggiornare
         }
     }
+
+    // ... (onStart, onItemClick, onSwitchCheckedChanged rimangono simili,
+    //      ma operano sulla featureList del layerModel) ...
+
+    // La funzione creaGeopackage non è più necessaria qui, è gestita dal ViewModel
+    // La funzione loadConfigIfNeeded non è più necessaria qui, è gestita dal ViewModel
+
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
-        // Invia un risultato generico quando il dialogo viene chiuso.
-        // Puoi anche passare un Bundle con dati specifici se necessario.
-        //parentFragmentManager.setFragmentResult(LAYER_DIALOG_REQUEST_KEY, bundleOf("userAction" to "closed"))
-        parentFragmentManager.setFragmentResult(LAYER_DIALOG_REQUEST_KEY, Bundle.EMPTY) // Invia un bundle vuoto se non ci sono dati specifici
-        Log.d(TAG, "GpkgLayer dismissed, result sent.")
+        Log.d(TAG, "GpkgLayer onDismiss called.")
+        parentFragmentManager.setFragmentResult(LAYER_DIALOG_REQUEST_KEY, Bundle.EMPTY)
+        // Non è più necessario chiamare closeGeoPackage() qui,
+        // il ViewModel lo gestirà in onCleared() se ha scope Application.
+        // Se lo scope del ViewModel è legato al Fragment, onCleared verrà chiamato
+        // quando il Fragment viene distrutto.
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d(TAG, "GpkgLayer onDestroy called.")
+        // Nessuna chiusura esplicita del GeoPackage qui.
+    }
+
+    // onItemClick e onSwitchCheckedChanged dovrebbero già usare layerModel.featureList,
+    // quindi dovrebbero continuare a funzionare, assumendo che featureList sia aggiornata correttamente.
+    // Esempio per onSwitchCheckedChanged:
+    override fun onSwitchCheckedChanged(position: Int, isChecked: Boolean) {
+        if (position < 0 || position >= layerModel.featureList.size) {
+            Log.e(TAG, "Invalid position in onSwitchCheckedChanged: $position")
+            return
+        }
+        val featureInfo = layerModel.featureList[position]
+        featureInfo.isVisible = isChecked
+        Log.d(
+            "SwitchDebug",
+            "Model isVisible for ${featureInfo.name} UPDATED TO: ${featureInfo.isVisible}"
+        )
+        // Qui dovresti anche gestire la logica per mostrare/nascondere gli overlay sulla mappa.
+        // Ad esempio, chiamando un metodo in MappaFragment o tramite un LiveData condiviso.
+        // Se MappaFragment osserva featureList, potrebbe reagire a questo cambiamento.
+        layerModel.currentActiveTableName = featureInfo.name
+        // Notifica l'adapter che l'item è cambiato per ridisegnarlo (se necessario)
+        adapter.notifyItemChanged(position)
+    }
+
+    override fun onItemClick(position: Int) {
+        if (position < 0 || position >= layerModel.featureList.size) {
+            Log.e(TAG, "Invalid position in onItemClick: $position")
+            return
+        }
+        layerModel.currentActiveTableName = layerModel.featureList[position].name
+        // Potresti voler passare dati aggiuntivi o usare Safe Args
+        this@GpkgLayer.findNavController().navigate(R.id.action_gpkgLayer_to_featureList)
+    }
 }
