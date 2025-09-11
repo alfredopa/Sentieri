@@ -24,6 +24,10 @@
             android:icon="@drawable/ic_baseline_photo_24"
             android:title="Elenco Layers" />
         <item
+            android:id="@+id/toponimiFragment"
+            android:icon="@drawable/ic_search"
+            android:title="Ricerca toponimi" />
+        <item
             android:id="@id/barometro"
             android:icon="@android:drawable/ic_menu_manage"
             android:title="Calibrazione barometro" />

@@ -15,6 +15,7 @@ class FeatureAdapter (
     private val featureTableInfo: MutableList<FeatureTableInfo>,
     private val listener: OnItemClickListener
 ) : RecyclerView.Adapter<FeatureAdapter.FeatureViewHolder>() {
+
     private val coloreDefault = "#0000FF"
 
     interface OnItemClickListener {
@@ -23,7 +24,6 @@ class FeatureAdapter (
         fun onItemClick(position: Int)
         fun onSwitchCheckedChanged(position: Int, isChecked: Boolean)
     }
-
 
     inner class FeatureViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView), View.OnClickListener {
         val coloreTabella: TextView = itemView.findViewById(R.id.txColore)

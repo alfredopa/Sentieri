@@ -149,4 +149,13 @@
         android:name="com.apstudio.sentieri.layer.FeatureList"
         android:label="fragment_feature_list_list"
         tools:layout="@layout/fragment_feature_list_list" />
+    <fragment
+        android:id="@+id/toponimiFragment"
+        android:name="com.apstudio.sentieri.layer.ToponimiFragment"
+        android:label="Ricerca toponimi"
+        tools:layout="@layout/fragment_toponimi_list" >
+        <action
+            android:id="@+id/action_toponimiFragment_to_mappaFragment"
+            app:destination="@id/mappaFragment" />
+    </fragment>
 </navigation>

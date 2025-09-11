@@ -171,18 +171,29 @@ class MainActivity :
             }
         }
         // controllo esistenza file db Geopackage
-        val databaseName = "Layers.gpkg"
-        val geoPackageFile = copyToInternalStorage(databaseName, "databases")
-        // copia anche dbschema
-        copyToInternalStorage("db_schema_config.xml")
-        if (!geoPackageFile.exists()) {
-            AlertDialog.Builder(this)
-                .setTitle("Errore")
-                .setMessage("File geopackage non trovato: ${geoPackageFile.absolutePath}")
-                .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
-                .show()
-            return
+        val filesToInitialize = mapOf(
+            "Layers.gpkg" to "databases",
+            "Toponimi.gpkg" to "databases",
+            "db_schema_config.xml" to null // 'null' indica che copyToInternalStorage userà this.filesDir
+        )
+        for ((fileName, subDir) in filesToInitialize) {
+            val copiedFile = copyToInternalStorage(fileName, subDir)
+            if (!copiedFile.exists()) {
+                AlertDialog.Builder(this)
+                    .setTitle("Errore di Inizializzazione")
+                    .setMessage("File essenziale non trovato o non è stato possibile copiarlo:\n${copiedFile.name}\nNel percorso: ${copiedFile.absolutePath}")
+                    .setPositiveButton("OK") { dialog, _ ->
+                        dialog.dismiss()
+                        // Potresti voler prendere ulteriori azioni qui, come chiudere l'activity
+                        // se l'app non può funzionare senza questi file.
+                        // E.g., finish()
+                    }
+                    .setCancelable(false) // Impedisce all'utente di chiudere il dialogo senza premere OK
+                    .show()
+                return // Esce dalla funzione verificaCartelleDB se un file cruciale manca
+            }
         }
+        // Tutti i file sono stati verificati e copiati con successo.
     }
 
     private fun creaCartelle(folderPath: String): Boolean {

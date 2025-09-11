@@ -237,40 +237,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    fun onReturnFromLayerDialog(featureInfo: FeatureTableInfo) {
-        // Metti qui la logica che vuoi eseguire al ritorno da GpkgLayer
-        // Ad esempio, aggiornare la mappa, ricaricare dei dati, etc.
-        Log.d("MappaFragment", "Funzione onReturnFromLayerDialog chiamata!")
-        if (featureInfo.isVisible) {
-            if (!featureInfo.readData || featureInfo.listOverlay.isNullOrEmpty()) {
-                layerModel.geoPackageInstance?.let { // Usa l'istanza dal ViewModel
-                    // Passa il geoPackage corretto e tableName
-                    puntiSuMappa(
-                        featureInfo.name,
-                        featureInfo
-                    ) // Assicurati che puntiSuMappa usi layerModel.geoPackageInstance
-                    featureInfo.readData = true
-                } ?: run {
-                    Log.e(
-                        "SwitchDebug",
-                        "geoPackageInstance in ViewModel is null. Cannot load points."
-                    )
-                }
-            } else {
-                featureInfo.listOverlay?.forEach { tabOverlay ->
-                    if (!mapView.overlays.contains(tabOverlay)) {
-                        mapView.overlays.add(tabOverlay)
-                    }
-                }
-            }
-        } else {
-            featureInfo.listOverlay?.forEach { tabOverlay ->
-                mapView.overlays.remove(tabOverlay)
-                featureInfo.readData = false
-            }
+    private fun onReturnFromLayerDialog(featureInfo: FeatureTableInfo) {
+        // 1. Rimuovi i vecchi overlay per questa featureInfo dalla mappa
+        featureInfo.listOverlay?.forEach { oldOverlay ->
+            mapView.overlayManager.remove(oldOverlay)
         }
-        // Esempio: viewModel.refreshMapLayers()
-        mapView.invalidate()
+        // 2. Svuota la lista nel ViewModel
+        featureInfo.listOverlay?.clear() // o featureInfo.listOverlay = mutableListOf() se può essere null
+
+        // Se il layer non è più visibile, non aggiungere nulla e aggiorna la mappa
+        if (!featureInfo.isVisible) {
+            mapView.invalidate()
+            return
+        }
+        // 3. Ora crea e aggiungi i nuovi overlay
+        // Questo popolerà di nuovo featureInfo.listOverlay (se usato da creaOverlayPoligoni etc.)
+        // e aggiungerà i nuovi overlay alla mappa.
+        puntiSuMappa(featureInfo.name, featureInfo)
+
+        mapView.invalidate() // Aggiorna la mappa
     }
 
     override fun onCreateView(
@@ -296,15 +281,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 val longitude = bundle.getDouble("clicked_longitude")
                 // Elevation è opzionale
                 val elevation = if (bundle.containsKey("clicked_elevation")) bundle.getDouble("clicked_elevation") else null
-
                 // Ora hai le coordinate, usale come preferisci
                 // Esempio: centra la mappa su questo punto
                 val clickedPoint = GeoPoint(latitude, longitude)
                 elevation?.let { clickedPoint.altitude = it }
-
                 mapView.controller.animateTo(clickedPoint) // o setCenter
                 Toast.makeText(requireContext(), "Punto cliccato: Lat $latitude, Lon $longitude", Toast.LENGTH_LONG).show()
-
                 // Potresti anche voler aggiornare viewModel.poi se necessario
                 viewModel.poi = clickedPoint // Assumendo che viewModel.poi sia un GeoPoint
             }
@@ -322,7 +304,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
             }
         }
-
         // Assegna un listener alla mappa per gestire la pressione dei tasti
         mapView.isFocusableInTouchMode = true
         mapView.requestFocus()
@@ -1396,6 +1377,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
+    // MappaFragment.kt
+    override fun onDestroyView() {
+        super.onDestroyView()
+        mapView.overlayManager.clear() // Rimuove tutti gli overlay dalla mappa
+        //mapView.onDetach()             // Importante per OSMDroid per un corretto cleanup
+        // Se usi mapView.destroy(), assicurati che _binding sia nullificato dopo
+        _binding = null
+    }
+
 
     override fun onDestroy() {
 //ondestroy viene richiamato al termine dell'app
@@ -1679,93 +1669,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    /*private fun geoPackage() {
-        val mapFiles: MutableSet<File> = HashSet()
-        mapFiles.add(File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe/prova.gpkg"))
-        //var maps: Array<File?> = arrayOfNulls(mapFiles.size)
-        var maps: Array<File?> = arrayOfNulls(1)
-
-        if (Build.VERSION.SDK_INT >= 34) {
-            maps = mapFiles.toArray(maps)
-        }
-        val geoPackageProvider = GeoPackageProvider(maps, this)
-        val sources = geoPackageProvider.geoPackageMapTileModuleProvider().tileSources
-
-        val tileSource: XYTileSource = geoPackageProvider.getTileSource(
-            sources[0].database,
-            sources[0].tableDao
-        )
-        val bbox: BoundingBox = sources[0].bounds
-        mapView.setTileProvider(geoPackageProvider)
-        mapView.setTileSource(tileSource)
-
-
-        //-----------------------------------------------------------------------------------------------------------------------
-        // altra soluzione
-        //val currentSource: XYTileSource? = null
-        val geoMappa =
-            File(Environment.getExternalStorageDirectory().absolutePath + "/Sentieri/Mappe")
-        // val f = activity?.getExternalFilesDir(null)
-
-        if (geoMappa.exists()) {
-            val list = geoMappa.listFiles()
-            if (list != null) {
-                for (aList in list) {
-                    if (aList.isDirectory) {
-                        continue
-                    }
-                    aList.name.lowercase(Locale.getDefault())
-                    if (aList.name.contains(".gpkg")) {
-                        val maps: Array<File?> = arrayOfNulls(1)
-                        maps[0] = aList
-                        val geoPackageProvider = GeoPackageProvider(maps, requireContext())
-                        val sources =
-                            geoPackageProvider.geoPackageMapTileModuleProvider().tileSources
-                        val tileSource: XYTileSource = geoPackageProvider.getTileSource(
-                            sources[0].database,
-                            sources[0].tableDao
-                        )
-                        val bbox: BoundingBox = sources[0].bounds
-                        mapView.setTileProvider(geoPackageProvider)
-                        mapView.setTileSource(tileSource)
-                        val mapController: IMapController = MapController(mapView)
-                        mapController.setCenter(viewModel.ultPosizione)
-                        mapView.invalidate()
-
-                        /*mapView.setTileProvider(geoPackageProvider)
-                        //get the list of sources
-                       // val tileSources = geoPackageProvider.geoPackageMapTileModuleProvider().tileSources
-                        var sourceSet = false
-                        val tileSources = geoPackageProvider.geoPackageMapTileModuleProvider().tileSources
-                        if (!tileSources.isEmpty()) {
-                            mapView.setTileSource(tileSources[0])
-                            mapView.zoomToBoundingBox(tileSources[0].bounds, true)
-                            mapView.getController().setZoom(tileSources[0].maximumZoomLevel)
-                            sourceSet = true
-
-                        }*/
-
-                    }
-                }
-            }
-        }
-    }*/
-
     private fun addGeopackageTiles() {
         try {
             val mediaDir = requireContext().externalMediaDirs
             val documentsDir = mediaDir[0]
             val geoPackageFile = File("$documentsDir/Mappe/parchi.gpkg")
             val manager = GeoPackageFactory.getManager(requireContext())
-
-            /*try {
-                val imported = manager.importGeoPackage(geoPackageFile)
-                //Log.d("packgage", "is imported ? $imported")
-            } catch (ex: Exception) {
-                //Log.d("packgage", "import exception " + ex.message)
-            }*/
             val databases = manager.databases()
-            //val geoPackage = manager.open(databases[0])
             val geoPackage = manager.openExternal(geoPackageFile)
             val features = geoPackage.featureTables   //tileTables
             val markerRenderingOptions = MarkerOptions()
@@ -1784,7 +1694,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 polylineRenderingOptions,
                 polygonOptions
             )
-            //val featureTable: String = features[1]
             val featureTable = "iba"
             val featureDao = geoPackage.getFeatureDao(featureTable)
             val featureCursor = featureDao.queryForAll()
@@ -1804,53 +1713,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             geoPackage.close()
             mapView.invalidate()
-
-            /*if (features != null) {
-                // Layer di Tiles
-                for (tableName in features) {
-                    val tileDao = geoPackage.getTileDao(tableName)
-
-                    val boundingBox = tileDao.boundingBox
-
-                    Log.d("packgage",tileDao.projection.crs.name + " , " + tileDao.projection.code)
-                    //Log.d("packgage","isGoogleTiles " + tileDao.isGoogleTiles)
-
-                    var projection = ProjectionFactory.getProjection(
-                        tileDao.projection.authority,
-                        tileDao.projection.code
-                    )
-                    //var bbox = transform(boundingBox, projection)
-
-                    val bounds = BoundingBox(
-                        boundingBox.maxLatitude,
-                        boundingBox.maxLongitude,
-                        boundingBox.minLatitude,
-                        boundingBox.minLongitude
-                    )
-                    val geopackageRasterTileSource = GeopackageRasterTileSource(
-                        databases[0],
-                        tableName,
-                        tileDao.minZoom.toInt(),
-                        tileDao.maxZoom.toInt(),
-                        bounds
-                    )
-
-                    Log.d("packgage","absolutepath " + geoPackageFile.absolutePath)
-
-                    val geoPackageProvider = GeoPackageProvider(arrayOf(geoPackageFile), requireContext())
-                    geoPackageProvider.tileSource = geopackageRasterTileSource
-
-
-                    val tilesOverlay = TilesOverlay(geoPackageProvider, requireContext())
-
-                    mapView.overlayManager.add(tilesOverlay)
-                    mapView.minZoomLevel = tileDao.minZoom.toDouble()
-                    mapView.maxZoomLevel = tileDao.maxZoom.toDouble()
-                    mapView.zoomToBoundingBox(bounds, true)
-                    mapView.controller.setZoom(tileDao.minZoom.toDouble())
-                    mapView.invalidate()
-                }
-            }*/
         } catch (ex: Exception) {
             Log.d("packgage", "inside geopackage exception " + ex.message)
         }
@@ -1858,6 +1720,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun createOsmPolygonFromNgaPolygon(
         ngaPolygon: mil.nga.sf.Polygon,
+        tableName: String,
         featureRow: FeatureRow,
         colore: String
     ): Polygon {
@@ -1875,7 +1738,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         } else {
             Log.w(TAG, "Exterior ring or its points are null for a polygon.")
-            // Potresti voler restituire un poligono vuoto o gestire l'errore
         }
         osmdroidPolygon.points = exteriorRingPoints
 
@@ -1905,32 +1767,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         // Opzione A: Crea la label ora e memorizzala (più semplice se la label non è troppo grande)
         val labelForPolygon =
-            layerModel.creaLabel(featureRow, layerModel.currentActiveTableName!!)
+            layerModel.creaLabel(featureRow, tableName)
         osmdroidPolygon.relatedObject = labelForPolygon // Memorizza la stringa della label
 
         //Devi associare l' OnClickListener a ogni singola istanza di Polygon che crei.
         // Imposta l'OnClickListener
         osmdroidPolygon.setOnClickListener { polygon, map, eventPos ->
-            // 'polygon' è l'istanza di org.osmdroid.views.overlay.Polygon che è stata cliccata
-            // 'mapView' è la mappa
-            // 'eventPos' è il GeoPoint del click
-            // Puoi aprire un InfoWindow personalizzato o eseguire altre azioni
-            // Per l'InfoWindow di default (se hai titolo e snippet):
-            /*if (polygon.isInfoWindowOpen) {
-                InfoWindow.closeAllInfoWindowsOn(mapView)
-            } else {
-                // Chiudi altri InfoWindow prima di aprirne uno nuovo
-                InfoWindow.closeAllInfoWindowsOn(mapView)
-                polygon.showInfoWindow() // Mostra l'InfoWindow nel punto cliccato
-            }*/
             val retrievedLabel = polygon.relatedObject as? String
             if (retrievedLabel != null) {
-                val featureInfo =
-                    layerModel.featureList.find { it.name == layerModel.currentActiveTableName } // Trova la FeatureTableInfo corretta per il titolo
-                // DA CREARE UN LIVEDATA?
                 mostraAlertDialogSemplice(
                     retrievedLabel,
-                    featureInfo?.descrTabella ?: "Dettagli Feature"
+                    tableName
                 )
             }
             true // Indica che l'evento è stato gestito
@@ -1952,7 +1799,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             return // Esci dalla funzione per evitare il crash
         }
         val builder = AlertDialog.Builder(requireContext()) // 'this' è il Context dell'Activity
-        builder.setTitle(titolo) // Imposta il titolo
+        //builder.setTitle(titolo) // Imposta il titolo
         builder.setMessage(message) // Imposta il messaggio
         builder.setPositiveButton("Chiudi") { dialog, which ->
             dialog.dismiss() // Chiude esplicitamente il dialogo (spesso non necessario per setPositiveButton)
@@ -1992,11 +1839,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     GeometryType.POINT -> processPointGeometry(featureRow, tableName, points)
                     GeometryType.MULTIPOLYGON -> processMultiPolygonGeometry(
                         featureRow,
+                        tableName,
                         osmdroidPolygonsToAdd,
                         colore
                     )
                     GeometryType.POLYGON -> processPolygonGeometry(
                         featureRow,
+                        tableName,
                         osmdroidPolygonsToAdd,
                         colore
                     )
@@ -2005,7 +1854,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         tableName,
                         lineStringToAdd
                     )
-                    // ... other types
                     else -> Log.w(
                         TAG,
                         "Geometry type ${geometry.geometryType.name} not yet handled for display."
@@ -2032,22 +1880,18 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun creaOverlayPoligoni(
         osmdroidPolygonsToAdd: MutableList<Polygon>,
-        featureInfo: FeatureTableInfo // Questo è l'oggetto che deve contenere la lista degli overlay
+        featureInfo: FeatureTableInfo
     ) {
-        val polyOverlay =
-            FolderOverlay() // Questo è l'overlay che deve essere in featureInfo.listOverlay
+        val polyOverlay = FolderOverlay()
         osmdroidPolygonsToAdd.forEach {
-            polyOverlay.add(it) // Aggiungi i singoli poligoni al FolderOverlay
+            polyOverlay.add(it) // 'it' è il nuovo poligono con il nuovo listener
         }
         if (featureInfo.listOverlay == null) {
             featureInfo.listOverlay = mutableListOf()
         }
-        featureInfo.listOverlay?.add(polyOverlay) // AGGIUNGI IL FOLDER OVERLAY ALLA LISTA!
-        if (!mapView.overlays.contains(polyOverlay)) {
-            mapView.overlays.add(polyOverlay)
-        }
+        featureInfo.listOverlay?.add(polyOverlay) // Aggiungi il nuovo FolderOverlay alla lista (ora pulita o appena inizializzata)
+        mapView.overlayManager.add(polyOverlay) // Aggiungi il nuovo FolderOverlay alla mappa
     }
-
 
     private fun creaOverlayPunti(
         points: MutableList<IGeoPoint>,
@@ -2166,6 +2010,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun processPolygonGeometry(
         featureRow: FeatureRow,
+        tableName: String,
         osmdroidPolygonsToAdd: MutableList<Polygon>,
         colore: String
     ) {
@@ -2175,6 +2020,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         osmdroidPolygonsToAdd.add(
             createOsmPolygonFromNgaPolygon(
                 ngaPolygon,
+                tableName,
                 featureRow,
                 colore
             )
@@ -2183,6 +2029,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun processMultiPolygonGeometry(
         featureRow: FeatureRow,
+        tableName: String,
         osmdroidPolygonsToAdd: MutableList<Polygon>,
         colore: String
     ) {
@@ -2193,6 +2040,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             osmdroidPolygonsToAdd.add(
                 createOsmPolygonFromNgaPolygon(
                     ngaPolygon,
+                    tableName,
                     featureRow,
                     colore
                 )
@@ -2209,13 +2057,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val geometryData = featureRow.geometry
         val geometry = geometryData.geometry
         if (geometry is LineString) {
-            val label = layerModel.creaLabel(featureRow, tableName) // Assumendo che esista questa funzione
-            val description = "layer:$tableName" // Esempio
+            val label = layerModel.creaLabel(featureRow, tableName)
+            val description = "layer:$tableName"
             lineStringToAdd.add(LineStringFeature(geometry, label, description))
         }
-        //lineStringToAdd.add(editLinestring)
     }
 
+    // --- Inizio Funzioni di Registrazione Audio ---
     @RequiresApi(Build.VERSION_CODES.S)
     private fun startAudioRecording(button: Button) {
         if (isAudioRecording) return
@@ -2369,7 +2217,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         audioHandler.removeCallbacksAndMessages(null)
     }
 
-
     // Sovrascrivi onStop per rilasciare il MediaRecorder
     override fun onStop() {
         super.onStop()
@@ -2390,8 +2237,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
     }
-
     // --- Fine Funzioni di Registrazione Audio ---
-
 
 }
