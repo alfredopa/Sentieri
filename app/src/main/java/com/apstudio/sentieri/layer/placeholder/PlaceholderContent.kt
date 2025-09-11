@@ -32,11 +32,11 @@ object PlaceholderContent {
 
     private fun addItem(item: PlaceholderItem) {
         ITEMS.add(item)
-        ITEM_MAP.put(item.id, item)
+        //ITEM_MAP.put(item.id, item)
     }
 
     private fun createPlaceholderItem(position: Int): PlaceholderItem {
-        return PlaceholderItem(position.toString(), "Item " + position, makeDetails(position))
+        return PlaceholderItem( "Item $position", makeDetails(position))
     }
 
     private fun makeDetails(position: Int): String {
@@ -47,11 +47,10 @@ object PlaceholderContent {
         }
         return builder.toString()
     }
-
     /**
      * A placeholder item representing a piece of content.
      */
-    data class PlaceholderItem(val id: String, val content: String, val details: String) {
+    data class PlaceholderItem(val content: String, val details: String) {
         override fun toString(): String = content
     }
 }

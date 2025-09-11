@@ -12,11 +12,8 @@ import org.osmdroid.gpkg.overlay.features.PolygonOptions
 import java.io.File
 import kotlin.random.Random
 
-// Scegli una delle due basi per il ViewModel:
-// Opzione A: AndroidViewModel (ha accesso al contesto dell'applicazione)
 class LayerViewModel(application: Application) : AndroidViewModel(application) {
-// Opzione B: ViewModel (passerai il contesto quando necessario)
- //class LayerViewModel : ViewModel() {
+
 companion object {
     private const val TAG = "LayerViewModel"
     private const val DATABASE_NAME = "Layers.gpkg"
@@ -35,8 +32,6 @@ companion object {
         fillColor = Color.argb(50, 255, 0, 255)
         strokeColor = Color.argb(100, 0, 0, 0)
     }
-
-
     /**
      * Apre il GeoPackage se non è già aperto e carica la configurazione.
      * Se usi ViewModel semplice, aggiungi: context: Context come parametro.
@@ -151,7 +146,6 @@ companion object {
         }
     }
 
-
     // Questo metodo è stato rinominato da `loadConfigIfNeeded` per evitare confusione,
     // dato che ora la configurazione viene caricata insieme alle feature.
     // Se hai bisogno di ricaricare SOLO la configurazione per un GeoPackage già aperto,
@@ -175,21 +169,34 @@ companion object {
 
     fun creaLabel(featureRow: FeatureRow, tableName: String): String {
         val campiLabel = labelConfig[tableName]
-        // val fieldsConfig = campiLabel // Non serve una variabile separata
-        val labelBuilder = StringBuilder() // Usa StringBuilder
+        val labelBuilder = StringBuilder()
+
+        // 1. Aggiungi il tableName come valore iniziale, se non è vuoto.
+        if (tableName.isNotEmpty()) {
+            labelBuilder.append(tableName)
+        }
+
         campiLabel?.forEachIndexed { index, (fieldName, isVisible) ->
             if (isVisible) {
-                // Usa append() per costruire la stringa
-                val testo : String = featureRow.values[index]?.toString() ?: "null"
-                if (testo != "null") {
+                // Ottieni il valore del campo direttamente da featureRow.values
+                val fieldValue = featureRow.values[index]?.toString()
+
+                // Controlla che fieldValue non sia null e non sia la stringa "null"
+                if (fieldValue != null && fieldValue != "null") {
+                    // 2. Se labelBuilder ha già del contenuto (tableName o un campo precedente),
+                    //    aggiungi un carattere di nuova riga per separare.
+                    if (labelBuilder.isNotEmpty()) {
+                        labelBuilder.append("\n")
+                    }
+
+                    // 3. Accoda il nome del campo e il suo valore.
                     labelBuilder.append(fieldName)
                         .append(": ")
-                        .append(featureRow.values[index]?.toString()) // Aggiunto controllo null per featureRow.values[index]
-                        .append("\n")
+                        .append(fieldValue)
                 }
             }
         }
-        return labelBuilder.toString() // Converti StringBuilder in String alla fine
+        return labelBuilder.toString()
     }
 
     fun getRandomIntColor(alpha: Int = 255): Int { // alpha da 0 (trasparente) a 255 (opaco)
