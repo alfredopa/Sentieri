@@ -31,6 +31,7 @@ import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -42,6 +43,7 @@ import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.compose.ui.semantics.onLongClick
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -269,6 +271,30 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         // verifica se sono passati argomenti
+        // punto passato da ricerca Toponimi
+        arguments?.let { bundle ->
+            val latitude = bundle.getDouble("latitude", Double.NaN) // Usa un valore di default o controlla se esiste la chiave
+            val longitude = bundle.getDouble("longitude", Double.NaN)
+            val toponimoName = bundle.getString("toponimo_name")
+
+            if (!latitude.isNaN() && !longitude.isNaN()) {
+                val targetPoint = GeoPoint(latitude, longitude)
+                mapView.controller.setCenter(targetPoint)
+                mapView.controller.setZoom(15.0) // Imposta un livello di zoom appropriato
+                val topoMarker = TopoMarker(mapView)
+                topoMarker.icon = requireContext().let {
+                    AppCompatResources.getDrawable(
+                        it,
+                        R.drawable.pin_rosso
+                    )
+                }
+                topoMarker.title = toponimoName
+                topoMarker.position = targetPoint
+                mapView.overlays?.add(topoMarker)
+                mapView.controller.animateTo(targetPoint)
+            }
+        }
+        // verifica se sono passati argomenti da gpx
         arguments?.getString("gpx_file_uri")?.let { uriString ->
             val gpxUri = uriString.toUri()
             caricaGPX(gpxUri)
@@ -2062,6 +2088,40 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             lineStringToAdd.add(LineStringFeature(geometry, label, description))
         }
     }
+
+    // Esempio di custom marker (più adatto per marker creati programmaticamente)
+    class TopoMarker(mapView: MapView) : Marker(mapView) {
+        interface OnLongClickListener {
+            fun onLongClick(marker: TopoMarker)
+        }
+        var longClickListener: OnLongClickListener? = null
+
+        override fun onLongPress(event: MotionEvent?, mapView: MapView?): Boolean {
+            if (isEnabled && mapView != null) { // Aggiunto controllo per mapView != null
+                val currentManager = mapView.overlayManager // Ottiene l'OverlayManager che gestisce questo marker
+
+                if (currentManager is FolderOverlay) {
+                    // Se il marker è gestito da un FolderOverlay, rimuovilo da quel folder
+                    currentManager.remove(this)
+                } else {
+                    // Altrimenti, si presume sia gestito direttamente dalla MapView.
+                    // La lista mapView.overlays è essa stessa un OverlayManager.
+                    mapView.overlays.remove(this)
+                }
+
+                // È cruciale invalidare la MapView per aggiornare la visualizzazione
+                mapView.invalidate()
+
+                // Puoi ancora chiamare il tuo listener se hai bisogno di eseguire
+                // altre azioni dopo la rimozione o notificare un altro componente.
+                longClickListener?.onLongClick(this)
+
+                return true // Indica che l'evento di long press è stato gestito
+            }
+            return false // L'evento non è stato gestito se il marker non è abilitato o mapView è null
+        }
+    }
+
 
     // --- Inizio Funzioni di Registrazione Audio ---
     @RequiresApi(Build.VERSION_CODES.S)
