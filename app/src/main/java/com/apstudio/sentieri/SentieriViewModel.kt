@@ -39,6 +39,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val traccia : LiveData<Polyline> = _traccia
     val listaTracce = FolderOverlay()
     val recTraccia = FolderOverlay()
+    val topoLayer = FolderOverlay()
     var line : Polyline = Polyline()
     // liste di punti gps e waypoint
     val puntiGPS = mutableListOf<WayPoint>()

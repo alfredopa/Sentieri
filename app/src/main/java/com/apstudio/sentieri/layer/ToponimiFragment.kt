@@ -108,7 +108,7 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
 
     private fun creaGeopackage(context: Context) {
          if (openedGeoPackage != null && featureDao != null) {
-             Log.d("ToponimiFragment", "GeoPackage already open.")
+             //Log.d("ToponimiFragment", "GeoPackage already open.")
              return
          }
 
@@ -117,7 +117,7 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
         val geoPackageFile = File(dataDir, databaseName)
 
         if (!geoPackageFile.exists()) {
-            Log.e("ToponimiFragment", "GeoPackage file does not exist at: ${geoPackageFile.absolutePath}")
+            //Log.e("ToponimiFragment", "GeoPackage file does not exist at: ${geoPackageFile.absolutePath}")
             return
         }
 
@@ -125,21 +125,21 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
         try {
             openedGeoPackage = geoPackageManager.openExternal(geoPackageFile)
             if (openedGeoPackage == null) {
-                Log.e("ToponimiFragment", "Errore durante apertura del GeoPackage: ${geoPackageFile.name}")
+                //Log.e("ToponimiFragment", "Errore durante apertura del GeoPackage: ${geoPackageFile.name}")
                 return
             }
             featureDao = openedGeoPackage?.getFeatureDao("Toponimi")
             if (featureDao == null) {
-                Log.e("ToponimiFragment", "FeatureDao 'Toponimi' non trovato nel GeoPackage.")
+                //Log.e("ToponimiFragment", "FeatureDao 'Toponimi' non trovato nel GeoPackage.")
             }
         } catch (e: Exception) {
-            Log.e("ToponimiFragment", "Eccezione durante apertura GeoPackage: ${e.message}", e)
+            //Log.e("ToponimiFragment", "Eccezione durante apertura GeoPackage: ${e.message}", e)
         }
     }
 
     private fun cercaRecord(query: String?) {
         if (featureDao == null) {
-            Log.e("ToponimiFragment", "FeatureDao è null, impossibile eseguire la query.")
+            //Log.e("ToponimiFragment", "FeatureDao è null, impossibile eseguire la query.")
             toponimiAdapter.updateData(emptyList())
             return
         }
@@ -148,7 +148,7 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
         // Se query è null/blank da qui, e lastQuery non lo era, dovremmo pulire lastQuery?
         // Per ora, assumiamo che se cercaRecord è chiamato con null/blank, è intenzionale pulire.
         if (query.isNullOrBlank()) {
-            Log.d("ToponimiFragment", "Query è nulla o vuota, pulizia dei risultati.")
+            //Log.d("ToponimiFragment", "Query è nulla o vuota, pulizia dei risultati.")
             // lastQuery = null // Considera se vuoi pulire lastQuery anche qui
             toponimiAdapter.updateData(emptyList())
             return
@@ -167,13 +167,13 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
         val condizioneWhere = "toponimo LIKE ?"
         val argomentiWhere = arrayOf("%$query%")
 
-        Log.d("ToponimiFragment", "Eseguo query con condizione: $condizioneWhere e argomenti: ${argomentiWhere.joinToString()}")
+        //Log.d("ToponimiFragment", "Eseguo query con condizione: $condizioneWhere e argomenti: ${argomentiWhere.joinToString()}")
 
         try {
             val featureCursor = featureDao!!.query(condizioneWhere, argomentiWhere)
             featureCursor?.use { cursor ->
                 val itemCount = cursor.count
-                Log.d("ToponimiFragment", "La query ha restituito $itemCount elementi per '$query'.")
+                //Log.d("ToponimiFragment", "La query ha restituito $itemCount elementi per '$query'.")
 
                 if (cursor.moveToFirst()) {
                     do {
@@ -187,21 +187,21 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
                             if (geometry is Point) {
                                 lon = geometry.x
                                 lat = geometry.y
-                                Log.d("ToponimiFragment", "Toponimo: $valoreToponimo, Lat: $lat, Lon: $lon")
+                                //Log.d("ToponimiFragment", "Toponimo: $valoreToponimo, Lat: $lat, Lon: $lon")
                             } else {
-                                Log.w("ToponimiFragment", "Geometria per $valoreToponimo non è un punto: ${geometry?.geometryType}")
+                                //Log.w("ToponimiFragment", "Geometria per $valoreToponimo non è un punto: ${geometry?.geometryType}")
                             }
                         } else {
-                            Log.w("ToponimiFragment", "Dati geometrici mancanti per $valoreToponimo")
+                            //Log.w("ToponimiFragment", "Dati geometrici mancanti per $valoreToponimo")
                         }
                         risultatiRicerca.add(PlaceholderItem(valoreToponimo, "Dettagli per $valoreToponimo", lat, lon))
                     } while (cursor.moveToNext())
                 } else {
-                    Log.d("ToponimiFragment", "Nessun risultato trovato per la query: '$query'")
+                    //Log.d("ToponimiFragment", "Nessun risultato trovato per la query: '$query'")
                 }
             }
         } catch (e: Exception) {
-            Log.e("ToponimiFragment", "Errore durante l'esecuzione della query: ${e.message}", e)
+            //Log.e("ToponimiFragment", "Errore durante l'esecuzione della query: ${e.message}", e)
         }
         toponimiAdapter.updateData(risultatiRicerca)
     }
@@ -209,7 +209,7 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
     override fun onItemClick(position: Int) {
         val clickedItem = toponimiAdapter.getItem(position)
         if (clickedItem != null) {
-            Log.d("ToponimiFragment", "Clicked item: ${clickedItem.content}, Lat: ${clickedItem.latitude}, Lon: ${clickedItem.longitude}")
+            //Log.d("ToponimiFragment", "Clicked item: ${clickedItem.content}, Lat: ${clickedItem.latitude}, Lon: ${clickedItem.longitude}")
             if (clickedItem.latitude != null && clickedItem.longitude != null) {
                 val bundle = Bundle().apply {
                     putDouble("latitude", clickedItem.latitude)
@@ -218,11 +218,11 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
                 }
                 findNavController().navigate(R.id.action_toponimiFragment_to_mappaFragment, bundle)
             } else {
-                Log.w("ToponimiFragment", "Coordinate non disponibili per ${clickedItem.content}. Navigazione standard.")
+                //Log.w("ToponimiFragment", "Coordinate non disponibili per ${clickedItem.content}. Navigazione standard.")
                 findNavController().navigate(R.id.action_toponimiFragment_to_mappaFragment)
             }
         } else {
-            Log.e("ToponimiFragment", "Invalid position or item not found in onItemClick: $position")
+            //Log.e("ToponimiFragment", "Invalid position or item not found in onItemClick: $position")
         }
     }
 
@@ -236,7 +236,7 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
         try {
             openedGeoPackage?.close()
         } catch (e: Exception) {
-            Log.e("ToponimiFragment", "Errore chiusura GeoPackage: ${e.message}", e)
+            //Log.e("ToponimiFragment", "Errore chiusura GeoPackage: ${e.message}", e)
         }
         openedGeoPackage = null
         featureDao = null

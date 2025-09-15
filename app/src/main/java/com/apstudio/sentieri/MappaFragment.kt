@@ -43,7 +43,6 @@ import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
-import androidx.compose.ui.semantics.onLongClick
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -122,6 +121,7 @@ import org.osmdroid.views.MapController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.compass.CompassOverlay
@@ -139,6 +139,11 @@ import java.util.Date
 import java.util.Locale
 
 private const val TAG = "MappaFragment"
+
+// Sposta l'interfaccia qui, a livello di MappaFragment
+interface TopoMarkerLongClickListener { // Rinominata per chiarezza, se preferisci
+    fun onLongClick(marker: MappaFragment.TopoMarker) // Specifica il tipo di marker
+}
 
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
     View.OnKeyListener {
@@ -282,6 +287,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.controller.setCenter(targetPoint)
                 mapView.controller.setZoom(15.0) // Imposta un livello di zoom appropriato
                 val topoMarker = TopoMarker(mapView)
+                topoMarker.id = java.util.UUID.randomUUID().toString()
                 topoMarker.icon = requireContext().let {
                     AppCompatResources.getDrawable(
                         it,
@@ -290,7 +296,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
                 topoMarker.title = toponimoName
                 topoMarker.position = targetPoint
-                mapView.overlays?.add(topoMarker)
+                topoMarker.longClickListener = object : TopoMarkerLongClickListener {
+                    override fun onLongClick(marker: TopoMarker) {
+                        Log.d(TAG, "Listener ESTERNO onLongClick chiamato per marker: ${marker.title}, ID: ${marker.id}")
+                        context?.let {
+                            Toast.makeText(it, "Long Click (esterno) su: ${marker.title}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                viewModel.topoLayer.add(topoMarker)
                 mapView.controller.animateTo(targetPoint)
             }
         }
@@ -371,13 +385,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
-        SimpleFileLogger.log("Mappa", "onViewCreated ")
+        //SimpleFileLogger.log("Mappa", "onViewCreated ")
         //aggiunge i folder overlay, listaTracce che conterrà tutte le tracce aggiunte  overlays alla mapview
         // e rectraccia che conterrà la traccia corrente
         if (mapView.overlays.isEmpty()) {
             //val overlayManager = mapView.overlayManager
             mapView.overlayManager.add(viewModel.listaTracce)
             mapView.overlayManager.add(viewModel.recTraccia)
+            mapView.overlayManager.add(viewModel.topoLayer) // folder overlay toponimi
             // Reimposta il listener per ogni polyline nel FolderOverlay, necessario per mantenere l'evento dopo il cambio del fragment
             for (overlay in viewModel.listaTracce.items) {
                 if (overlay is Polyline) {
@@ -2089,36 +2104,131 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    // Esempio di custom marker (più adatto per marker creati programmaticamente)
-    class TopoMarker(mapView: MapView) : Marker(mapView) {
-        interface OnLongClickListener {
-            fun onLongClick(marker: TopoMarker)
-        }
-        var longClickListener: OnLongClickListener? = null
+    inner class TopoMarker(mapView: MapView) : Marker(mapView) {
+        var longClickListener: TopoMarkerLongClickListener? = null
 
         override fun onLongPress(event: MotionEvent?, mapView: MapView?): Boolean {
-            if (isEnabled && mapView != null) { // Aggiunto controllo per mapView != null
-                val currentManager = mapView.overlayManager // Ottiene l'OverlayManager che gestisce questo marker
+            Log.d(TAG, "======== TopoMarker onLongPress START ========")
+            Log.d(TAG, "PRESS ON: ${this.title}, ID: ${this.id}, HashCode: ${this.hashCode()}")
 
-                if (currentManager is FolderOverlay) {
-                    // Se il marker è gestito da un FolderOverlay, rimuovilo da quel folder
-                    currentManager.remove(this)
-                } else {
-                    // Altrimenti, si presume sia gestito direttamente dalla MapView.
-                    // La lista mapView.overlays è essa stessa un OverlayManager.
-                    mapView.overlays.remove(this)
+            if (this.isEnabled && mapView != null) {
+                Log.d(TAG, "CONDITION: TRUE (isEnabled=${this.isEnabled}, mapView!=null)")
+
+                val folderOverlay = this@MappaFragment.viewModel.topoLayer
+                Log.d(TAG, "FolderOverlay instance: ${folderOverlay.hashCode()}")
+
+                Log.d(TAG, "BEFORE REMOVAL - topoLayer items (${folderOverlay.items.size}):")
+                folderOverlay.items.forEachIndexed { index, item ->
+                    when (item) {
+                        is TopoMarker -> Log.d(TAG, "  [$index]: TM: ${item.title}, ID: ${item.id}, Hash: ${item.hashCode()}")
+                        is Marker -> Log.d(TAG, "  [$index]: M: ${item.title}, ID: ${item.id}, Hash: ${item.hashCode()}")
+                        else -> Log.d(TAG, "  [$index]: Other: ${item.javaClass.simpleName}")
+                    }
                 }
 
-                // È cruciale invalidare la MapView per aggiornare la visualizzazione
-                mapView.invalidate()
+                var removalSuccessful = false
+                val indexToRemove = folderOverlay.items.indexOf(this) // Find the index of the current marker instance
 
-                // Puoi ancora chiamare il tuo listener se hai bisogno di eseguire
-                // altre azioni dopo la rimozione o notificare un altro componente.
+                if (indexToRemove != -1) {
+                    Log.d(TAG, "Marker '${this.title}' (ID: ${this.id}) found at index: $indexToRemove. Attempting removal by index using removeAt.")
+                    try {
+                        // Use removeAt on the underlying list (cast to MutableList)
+                        val removedItem: Overlay? = (folderOverlay.items as? MutableList<Overlay>)?.removeAt(indexToRemove)
+
+                        if (removedItem == this) {
+                            removalSuccessful = true
+                            Log.d(TAG, "Successfully removed THIS marker (by index using removeAt). Removed item hash: ${removedItem?.hashCode()}")
+                        } else if (removedItem != null) {
+                            // This case means something was removed at the index, but it wasn't 'this' marker.
+                            // This would be very strange if indexOf(this) just returned that index.
+                            Log.w(TAG, "Removed item by index using removeAt, but it wasn't THIS marker. Removed: ${removedItem.javaClass.simpleName} (Hash: ${removedItem.hashCode()}), Expected: ${this.id}. THIS marker hash: ${this.hashCode()}")
+                            // Fallback: Check if 'this' is still in the list and try to remove it by object reference.
+                            if (folderOverlay.items.contains(this)) {
+                                if (folderOverlay.remove(this)) { // This is the remove(Overlay) method
+                                    Log.d(TAG, "Fallback: Successfully removed THIS marker by object reference after removeAt mismatch.")
+                                    removalSuccessful = true
+                                } else {
+                                    Log.e(TAG, "Fallback: Failed to remove THIS marker by object reference after removeAt mismatch.")
+                                }
+                            } else {
+                                // If it's not in the list anymore, perhaps it was the one removed, despite the hash mismatch?
+                                Log.w(TAG, "THIS marker is no longer in the list after removeAt mismatch, assuming it was the one removed despite hash/instance inequality.")
+                                // This situation is ambiguous. Let's assume removal was successful if something was removed at the expected index.
+                                // However, the `removedItem == this` check should ideally be true.
+                            }
+                        } else {
+                            // removeAt returned null (e.g., if the list was modified concurrently, or cast failed)
+                            Log.w(TAG, "removeAt($indexToRemove) returned null or cast failed. List size: ${folderOverlay.items.size}. Attempting fallback.")
+                            if (folderOverlay.items.contains(this)) {
+                                if (folderOverlay.remove(this)) {
+                                    Log.d(TAG, "Fallback: Successfully removed THIS marker by object reference after removeAt returned null.")
+                                    removalSuccessful = true
+                                } else {
+                                    Log.e(TAG, "Fallback: Failed to remove THIS marker by object reference after removeAt returned null.")
+                                }
+                            } else {
+                                Log.d(TAG,"Marker ${this.title} was already gone when removeAt returned null or after a failed cast.")
+                                // If it's already gone, it might have been removed successfully by another means or our state is inconsistent.
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error removing by index $indexToRemove using removeAt: ${e.message}", e)
+                        // Fallback to remove by object if index removal with removeAt failed
+                        if (folderOverlay.items.contains(this)) {
+                            if (folderOverlay.remove(this)) {
+                                Log.d(TAG, "Fallback: Successfully removed THIS marker by object reference after removeAt exception.")
+                                removalSuccessful = true
+                            } else {
+                                Log.e(TAG, "Fallback: Failed to remove THIS marker by object reference after removeAt exception.")
+                            }
+                        }
+                    }
+                } else {
+                    Log.w(TAG, "Marker '${this.title}' (ID: ${this.id}) NOT FOUND in folderOverlay.items by indexOf(this). Attempting removal by object reference.")
+                    // Fallback: if indexOf failed (shouldn't happen for 'this'), try original method
+                    if (folderOverlay.remove(this)) {
+                        removalSuccessful = true
+                        Log.d(TAG, "Fallback: Successfully removed THIS marker by object reference (indexOf failed).")
+                    } else {
+                        Log.e(TAG, "Fallback: Failed to remove THIS marker by object reference (indexOf also failed).")
+                    }
+                }
+
+                // ... (inside onLongPress, after all the removal logic and setting removalSuccessful)
+
+                Log.d(TAG, "FINAL REMOVAL STATUS for '${this.title}': $removalSuccessful")
+
+                // Log the items AFTER removal attempt (already present in your code)
+                Log.d(TAG, "AFTER REMOVAL ATTEMPT - topoLayer items (${folderOverlay.items.size}):")
+                folderOverlay.items.forEachIndexed { index, item ->
+                    when (item) {
+                        is TopoMarker -> Log.d(TAG, "  [$index]: TM: ${item.title}, ID: ${item.id}, Hash: ${item.hashCode()}")
+                        is Marker -> Log.d(TAG, "  [$index]: M: ${item.title}, ID: ${item.id}, Hash: ${item.hashCode()}")
+                        else -> Log.d(TAG, "  [$index]: Other: ${item.javaClass.simpleName}")
+                    }
+                }
+
+                if (removalSuccessful) {
+                    val parentMapOverlays = mapView.overlays
+                    if (parentMapOverlays.remove(folderOverlay)) {
+                        parentMapOverlays.add(folderOverlay)
+                        Log.d(TAG, "topoLayer (FolderOverlay) removed and re-added to map's overlay list.")
+                        mapView.invalidate() // Explicitly invalidate AFTER re-adding
+                    } else {
+                        Log.w(TAG, "Could not remove topoLayer from map's overlay list for re-adding. Falling back to simple invalidate.")
+                        mapView.invalidate() // Fallback if removing the folderOverlay failed
+                    }
+                }
+
+                Log.d(TAG, "Calling external longClickListener for '${this.title}'...")
                 longClickListener?.onLongClick(this)
-
-                return true // Indica che l'evento di long press è stato gestito
+                Log.d(TAG, "======== TopoMarker onLongPress END ========")
+                return true
+            } else {
+                Log.d(TAG, "CONDITION: FALSE (isEnabled=${this.isEnabled}, mapView==null=${mapView == null}) for '${this.title}'")
+                Log.d(TAG, "======== TopoMarker onLongPress END ========")
+                return false
             }
-            return false // L'evento non è stato gestito se il marker non è abilitato o mapView è null
         }
     }
 
