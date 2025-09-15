@@ -117,12 +117,12 @@ class PoiFragment : Fragment() {
         adapter.setOnItemClickListener(object : OnItemClickListener {
             override fun onItemClick(position: Int) {
                 if (position < 0 || position >= waypointsToShow.size) return // Controllo di sicurezza
-
                 val clickedWayPoint = waypointsToShow[position]
+                val altitudine = clickedWayPoint.elevation?: 0.0 // Gestisci elevation nullabile
                 val destPoi = GeoPoint(
                     clickedWayPoint.latitude,
                     clickedWayPoint.longitude,
-                    clickedWayPoint.elevation!! // Gestisci elevation nullabile
+                    altitudine
                 )
 
                 viewModel.poi = destPoi // viewModel.poi è un GeoPoint, quindi questo è corretto

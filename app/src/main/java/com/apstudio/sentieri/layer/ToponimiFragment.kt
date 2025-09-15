@@ -18,6 +18,7 @@ import mil.nga.geopackage.GeoPackage
 import mil.nga.geopackage.GeoPackageFactory
 import mil.nga.geopackage.GeoPackageManager
 import mil.nga.geopackage.features.user.FeatureDao
+import mil.nga.sf.Point
 import java.io.File
 
 /**
@@ -29,67 +30,94 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
     private val binding get() = _binding!!
     private var openedGeoPackage: GeoPackage? = null
     private var featureDao: FeatureDao? = null
-    // private var querySearch: String? = null // Non più necessario come variabile di istanza se gestito localmente
-    private lateinit var toponimiAdapter: ToponimiRecyclerViewAdapter // Riferimento all'adapter
+    private lateinit var toponimiAdapter: ToponimiRecyclerViewAdapter
+
+    // Variabile per memorizzare l'ultima query
+    private var lastQuery: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
             columnCount = it.getInt(ARG_COLUMN_COUNT)
         }
-        creaGeopackage(requireContext())
+        // Potremmo voler ripristinare lastQuery da savedInstanceState qui se necessario
+        savedInstanceState?.getString("last_query")?.let { lastQuery = it }
     }
+
+
+    // Se vuoi una persistenza più robusta (es. attraverso la distruzione del processo)
+    // dovresti salvare e ripristinare lastQuery in onSaveInstanceState.
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        if (!lastQuery.isNullOrBlank()) {
+            outState.putString("last_query", lastQuery)
+        }
+    }
+
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View { // Rimosso ? da View se il binding è garantito non nullo qui
+    ): View {
         _binding = FragmentToponimiListBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        // Setup RecyclerView
-        toponimiAdapter = ToponimiRecyclerViewAdapter(this, mutableListOf()) // Inizia con una lista vuota
-        binding.list.apply { // Assumendo che l'ID del RecyclerView nel layout sia 'list'
+        creaGeopackage(requireContext())
+        toponimiAdapter = ToponimiRecyclerViewAdapter(this, mutableListOf())
+        binding.list.apply {
             layoutManager = when {
                 columnCount <= 1 -> LinearLayoutManager(context)
                 else -> GridLayoutManager(context, columnCount)
             }
             adapter = toponimiAdapter
+            if (!lastQuery.isNullOrBlank()) {
+                cercaRecord(lastQuery)
+            }
         }
 
         binding.searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
+                lastQuery = query // Salva l'ultima query
                 cercaRecord(query)
-                binding.searchView.clearFocus() // Nasconde la tastiera
-                return true // Evento gestito
+                binding.searchView.clearFocus()
+                return true
             }
 
             override fun onQueryTextChange(newText: String?): Boolean {
-                // Potresti voler implementare una ricerca dinamica qui (con debounce)
-                // Oppure lasciare che la ricerca avvenga solo al submit
-                if (newText.isNullOrEmpty()) {
-                    toponimiAdapter.updateData(emptyList()) // Pulisce i risultati se la query è vuota
+                if (newText.isNullOrEmpty() && !binding.searchView.isIconified) {
+                    // Se l'utente cancella manualmente il testo, pulisci i risultati e lastQuery
+                    lastQuery = null
+                    toponimiAdapter.updateData(emptyList())
                 }
-                return true // Evento gestito
+                return true
             }
         })
+
+        // Ripristina l'ultima ricerca se presente
+        if (!lastQuery.isNullOrBlank()) {
+            // Imposta il testo nella SearchView senza sottomettere la query
+            // (onQueryTextSubmit verrà chiamato dal submit manuale o da cercaRecord)
+            binding.searchView.setQuery(lastQuery, false)
+            // Esegui la ricerca
+            cercaRecord(lastQuery)
+        }
     }
 
     private fun creaGeopackage(context: Context) {
+         if (openedGeoPackage != null && featureDao != null) {
+             Log.d("ToponimiFragment", "GeoPackage already open.")
+             return
+         }
+
         val databaseName = "Toponimi.gpkg"
-        // Assicurati che il file esista e sia copiato correttamente dalla cartella assets
-        // (come fatto in MainActivity) prima di tentare di aprirlo.
-        // Questo frammento assume che il file sia già nel posto giusto.
         val dataDir = context.getDatabasePath(databaseName).parentFile
         val geoPackageFile = File(dataDir, databaseName)
 
         if (!geoPackageFile.exists()) {
             Log.e("ToponimiFragment", "GeoPackage file does not exist at: ${geoPackageFile.absolutePath}")
-            // Mostra un messaggio all'utente o gestisci l'errore
             return
         }
 
@@ -112,17 +140,30 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
     private fun cercaRecord(query: String?) {
         if (featureDao == null) {
             Log.e("ToponimiFragment", "FeatureDao è null, impossibile eseguire la query.")
-            toponimiAdapter.updateData(emptyList()) // Pulisce i risultati se DAO non è disponibile
+            toponimiAdapter.updateData(emptyList())
             return
         }
+        // Aggiorna lastQuery anche qui, nel caso cercaRecord sia chiamato da altrove
+        // o per consistenza, anche se onQueryTextSubmit dovrebbe già farlo.
+        // Se query è null/blank da qui, e lastQuery non lo era, dovremmo pulire lastQuery?
+        // Per ora, assumiamo che se cercaRecord è chiamato con null/blank, è intenzionale pulire.
         if (query.isNullOrBlank()) {
             Log.d("ToponimiFragment", "Query è nulla o vuota, pulizia dei risultati.")
+            // lastQuery = null // Considera se vuoi pulire lastQuery anche qui
             toponimiAdapter.updateData(emptyList())
             return
         }
 
+        // Se siamo qui, la query non è blank, quindi la consideriamo la "lastQuery" valida
+        lastQuery = query
+        // E aggiorniamo anche la SearchView nel caso questa chiamata non origini dalla SearchView stessa
+        // ma solo se il testo attuale della SearchView è diverso, per evitare loop o comportamenti imprevisti.
+        if (binding.searchView.query.toString() != query) {
+             binding.searchView.setQuery(query, false)
+        }
+
+
         val risultatiRicerca = mutableListOf<PlaceholderItem>()
-        // Usiamo '?' per un argomento sicuro. La colonna dei toponimi deve chiamarsi 'toponimo'.
         val condizioneWhere = "toponimo LIKE ?"
         val argomentiWhere = arrayOf("%$query%")
 
@@ -135,20 +176,25 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
                 Log.d("ToponimiFragment", "La query ha restituito $itemCount elementi per '$query'.")
 
                 if (cursor.moveToFirst()) {
-                    var recordIdCounter = 1 // Per generare un ID progressivo se la PK non è usata
                     do {
                         val featureRow = cursor.row
                         val valoreToponimo = featureRow.getValue("toponimo")?.toString() ?: "N/D"
-
-                        // Ottieni l'ID della chiave primaria, se disponibile, altrimenti usa un contatore
-                        val pkColumnName = featureRow.pkColumn.name // pkColumn è deprecato, usa pkColumnName
-                        val idValore = if (pkColumnName != null) {
-                            featureRow.getValue(pkColumnName).toString()
+                        var lat: Double? = null
+                        var lon: Double? = null
+                        val geometryData = featureRow.geometry
+                        if (geometryData != null && !geometryData.isEmpty) {
+                            val geometry = geometryData.geometry
+                            if (geometry is Point) {
+                                lon = geometry.x
+                                lat = geometry.y
+                                Log.d("ToponimiFragment", "Toponimo: $valoreToponimo, Lat: $lat, Lon: $lon")
+                            } else {
+                                Log.w("ToponimiFragment", "Geometria per $valoreToponimo non è un punto: ${geometry?.geometryType}")
+                            }
                         } else {
-                            recordIdCounter++.toString()
+                            Log.w("ToponimiFragment", "Dati geometrici mancanti per $valoreToponimo")
                         }
-
-                        risultatiRicerca.add(PlaceholderItem( valoreToponimo, "Dettagli per $valoreToponimo"))
+                        risultatiRicerca.add(PlaceholderItem(valoreToponimo, "Dettagli per $valoreToponimo", lat, lon))
                     } while (cursor.moveToNext())
                 } else {
                     Log.d("ToponimiFragment", "Nessun risultato trovato per la query: '$query'")
@@ -157,27 +203,36 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
         } catch (e: Exception) {
             Log.e("ToponimiFragment", "Errore durante l'esecuzione della query: ${e.message}", e)
         }
-        // Aggiorna l'adapter del RecyclerView con i risultati
         toponimiAdapter.updateData(risultatiRicerca)
     }
 
-    // In ToponimiFragment.kt
     override fun onItemClick(position: Int) {
-        val clickedItem = toponimiAdapter.getItem(position) // Usa il nuovo metodo
+        val clickedItem = toponimiAdapter.getItem(position)
         if (clickedItem != null) {
-            Log.d("ToponimiFragment", "Clicked item: ${clickedItem.content} ")
-            // Naviga o esegui altre azioni con i dati dell'item cliccato
-            findNavController().navigate(R.id.action_toponimiFragment_to_mappaFragment)
+            Log.d("ToponimiFragment", "Clicked item: ${clickedItem.content}, Lat: ${clickedItem.latitude}, Lon: ${clickedItem.longitude}")
+            if (clickedItem.latitude != null && clickedItem.longitude != null) {
+                val bundle = Bundle().apply {
+                    putDouble("latitude", clickedItem.latitude)
+                    putDouble("longitude", clickedItem.longitude)
+                    putString("toponimo_name", clickedItem.content)
+                }
+                findNavController().navigate(R.id.action_toponimiFragment_to_mappaFragment, bundle)
+            } else {
+                Log.w("ToponimiFragment", "Coordinate non disponibili per ${clickedItem.content}. Navigazione standard.")
+                findNavController().navigate(R.id.action_toponimiFragment_to_mappaFragment)
+            }
         } else {
             Log.e("ToponimiFragment", "Invalid position or item not found in onItemClick: $position")
         }
     }
 
-
-
     override fun onDestroyView() {
         super.onDestroyView()
+        onSaveInstanceState(Bundle())
+        // Non resettare lastQuery qui, altrimenti non verrà ripristinato al ritorno.
+        // Verrà resettato solo se l'utente cancella la query o ne inizia una nuova.
         _binding = null
+        // La chiusura del GeoPackage e il null-check di featureDao sono corretti qui
         try {
             openedGeoPackage?.close()
         } catch (e: Exception) {
@@ -189,7 +244,5 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
 
     companion object {
         const val ARG_COLUMN_COUNT = "column-count"
-        // Non è necessario un newInstance se gli argomenti vengono passati tramite il Navigation Component
-        // o se non ci sono argomenti obbligatori per la creazione.
     }
 }
