@@ -17,6 +17,7 @@ import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
+import com.apstudio.sentieri.db.TopoMarkerData // Added import
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -49,6 +50,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val fotoList = mutableListOf<Uri>()
     val layerItems = mutableListOf<LayerItem>()
     val geoPuntiPercorso = mutableListOf<GeoPoint>()
+    val toponimiSelezionati = mutableListOf<TopoMarkerData>() // New list
     var alertFuoriTraccia : Boolean = false
     var tracciaDaSeguire : String = ""
     var poi = GeoPoint(0.0, 0.0, 0.0)

@@ -121,7 +121,6 @@ import org.osmdroid.views.MapController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.compass.CompassOverlay
@@ -140,11 +139,6 @@ import java.util.Locale
 
 private const val TAG = "MappaFragment"
 
-// Sposta l'interfaccia qui, a livello di MappaFragment
-interface TopoMarkerLongClickListener { // Rinominata per chiarezza, se preferisci
-    fun onLongClick(marker: MappaFragment.TopoMarker) // Specifica il tipo di marker
-}
-
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
     View.OnKeyListener {
     private lateinit var viewModel: SentieriViewModel
@@ -155,6 +149,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private val gpsViewModel: GpsViewModel by lazy {
         ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[GpsViewModel::class.java]
     }
+
     //val layerModel: LayerViewModel by lazy {
     //    ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[LayerViewModel::class.java]
     //}
@@ -175,7 +170,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private val SELECT_GPX_FILE = 10
     private val SELECT_MAP_FILE = 20
     private lateinit var gpsMarker: Marker
-
+    private val displayedTopoMarkers = mutableListOf<Marker>()
     private var uri: Uri? = null
 
     private lateinit var osservaMappa: Observer<Polyline>
@@ -276,57 +271,51 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         // verifica se sono passati argomenti
-        // punto passato da ricerca Toponimi
-        arguments?.let { bundle ->
-            val latitude = bundle.getDouble("latitude", Double.NaN) // Usa un valore di default o controlla se esiste la chiave
-            val longitude = bundle.getDouble("longitude", Double.NaN)
-            val toponimoName = bundle.getString("toponimo_name")
 
-            if (!latitude.isNaN() && !longitude.isNaN()) {
-                val targetPoint = GeoPoint(latitude, longitude)
-                mapView.controller.setCenter(targetPoint)
-                mapView.controller.setZoom(15.0) // Imposta un livello di zoom appropriato
-                val topoMarker = TopoMarker(mapView)
-                topoMarker.id = java.util.UUID.randomUUID().toString()
-                topoMarker.icon = requireContext().let {
-                    AppCompatResources.getDrawable(
-                        it,
-                        R.drawable.pin_rosso
-                    )
-                }
-                topoMarker.title = toponimoName
-                topoMarker.position = targetPoint
-                topoMarker.longClickListener = object : TopoMarkerLongClickListener {
-                    override fun onLongClick(marker: TopoMarker) {
-                        Log.d(TAG, "Listener ESTERNO onLongClick chiamato per marker: ${marker.title}, ID: ${marker.id}")
-                        context?.let {
-                            Toast.makeText(it, "Long Click (esterno) su: ${marker.title}", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-                viewModel.topoLayer.add(topoMarker)
-                mapView.controller.animateTo(targetPoint)
-            }
-        }
         // verifica se sono passati argomenti da gpx
         arguments?.getString("gpx_file_uri")?.let { uriString ->
             val gpxUri = uriString.toUri()
             caricaGPX(gpxUri)
             arguments?.remove("gpx_file_uri")
         }
+
+        // punto passato da ricerca Toponimi
+        arguments?.let { bundle ->
+            val latitude = bundle.getDouble(
+                "latitude",
+                Double.NaN
+            ) // Usa un valore di default o controlla se esiste la chiave
+            val longitude = bundle.getDouble("longitude", Double.NaN)
+
+            if (!latitude.isNaN() && !longitude.isNaN()) {
+                val targetPoint = GeoPoint(latitude, longitude)
+                mapView.controller.setCenter(targetPoint)
+                mapView.controller.setZoom(15.0)
+                mapView.controller.animateTo(targetPoint)
+            }
+            arguments?.clear()
+        }
         // Ascolta i risultati da FeatureList
-        parentFragmentManager.setFragmentResultListener("feature_click_request", this) { requestKey, bundle ->
+        parentFragmentManager.setFragmentResultListener(
+            "feature_click_request",
+            this
+        ) { requestKey, bundle ->
             if (requestKey == "feature_click_request") {
                 val latitude = bundle.getDouble("clicked_latitude")
                 val longitude = bundle.getDouble("clicked_longitude")
                 // Elevation è opzionale
-                val elevation = if (bundle.containsKey("clicked_elevation")) bundle.getDouble("clicked_elevation") else null
+                val elevation =
+                    if (bundle.containsKey("clicked_elevation")) bundle.getDouble("clicked_elevation") else null
                 // Ora hai le coordinate, usale come preferisci
                 // Esempio: centra la mappa su questo punto
                 val clickedPoint = GeoPoint(latitude, longitude)
                 elevation?.let { clickedPoint.altitude = it }
                 mapView.controller.animateTo(clickedPoint) // o setCenter
-                Toast.makeText(requireContext(), "Punto cliccato: Lat $latitude, Lon $longitude", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    requireContext(),
+                    "Punto cliccato: Lat $latitude, Lon $longitude",
+                    Toast.LENGTH_LONG
+                ).show()
                 // Potresti anche voler aggiornare viewModel.poi se necessario
                 viewModel.poi = clickedPoint // Assumendo che viewModel.poi sia un GeoPoint
             }
@@ -490,14 +479,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             updateGpsIcon(status)
             //Log.d("gps", "status $status")
         }
-
     }
 
     // aggiunge il click listener alla polyline per aprire l'info window
     private fun setPolylineClickListener(polyline: Polyline) {
         polyline.setOnClickListener { mpolyline, mapView, eventPos ->
             // Il layout è stato copiato nelle risorse potrebbe differire dall'originale
-            Log.d("MappaFragment", "OnClickListener della Polyline ATTIVATO! Titolo: ${mpolyline.title}")
+            //Log.d("MappaFragment", "OnClickListener della Polyline ATTIVATO! Titolo: ${mpolyline.title}")
             mpolyline.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
             mpolyline.infoWindowLocation = eventPos
             mpolyline.showInfoWindow()
@@ -620,6 +608,62 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             if (featureInfo.isVisible)
                 onReturnFromLayerDialog(featureInfo)
         }
+
+        // toponimi
+        // Clear existing toponym markers
+        displayedTopoMarkers.forEach { mapView.overlays.remove(it) }
+        displayedTopoMarkers.clear()
+        // Process selected toponyms from ViewModel
+        if (viewModel.toponimiSelezionati.isNotEmpty()) {
+            viewModel.toponimiSelezionati.forEach { topoData -> // topoData.id ora esiste
+                val newMarker = RemovableMarker(mapView)
+                newMarker.id = topoData.id // Imposta l'ID univoco sul marker!
+                newMarker.position = GeoPoint(topoData.latitude, topoData.longitude)
+                newMarker.title = topoData.name
+                newMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
+                //Log.d("MappaFragment_Debug", "Creating marker: ID='${newMarker.id}', Title='${newMarker.title}'")
+
+                newMarker.icon = ResourcesCompat.getDrawable(
+                    requireContext().resources,
+                    R.drawable.pin_rosso,requireContext().theme
+                )
+
+                newMarker.setOnMarkerClickListener { marker, mv ->
+                    // ... (codice invariato per il click normale) ...
+                    if (marker.isInfoWindowShown) {
+                        marker.closeInfoWindow()
+                    } else {
+                        if (marker.infoWindow == null) {
+                            marker.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mv)
+                        }
+                        marker.showInfoWindow()
+                        mv.controller.animateTo(marker.position)
+                    }
+                    true
+                }
+
+                newMarker.onMarkerLongClick = { markerInstance -> // markerInstance è il RemovableMarker
+                    val toponimoDataToRemove = viewModel.toponimiSelezionati.find {
+                        it.id == markerInstance.id // Cerca per ID univoco
+                    }
+
+                    if (toponimoDataToRemove != null) {
+                        viewModel.toponimiSelezionati.remove(toponimoDataToRemove)
+                        mapView.overlays.remove(markerInstance)
+                        displayedTopoMarkers.remove(markerInstance)
+                        mapView.invalidate()
+                        Toast.makeText(requireContext(), "Rimosso ${markerInstance.title}", Toast.LENGTH_SHORT).show()
+                    } else {
+                        //Log.w("MappaFragment_Debug", "TopoData not found for removal. Marker ID='${markerInstance.id}', Title='${markerInstance.title}'")
+                    }
+                    true // Event consumed
+                }
+                displayedTopoMarkers.add(newMarker)
+                mapView.overlays.add(newMarker)
+            }
+        }
+        mapView.invalidate()
+
     }
 
     override fun onPrepareMenu(menu: Menu) {
@@ -633,7 +677,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onPause() {
         super.onPause()
         // memorizza valori per ripristinare la mappa
-        //if (viewModel.isRecording)  gpsMarker.setVisible(false)
         viewModel.ultZoom = mapView.zoomLevel
         viewModel.ultPosizione = mapView.mapCenter as GeoPoint
         //memorizza stato del bottomSheet
@@ -658,7 +701,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         try {
             // Prova ad inizializzare OsmDroid qui
         } catch (e: Exception) {
-            Log.e("AppTestPlayStore", "Errore inizializzazione OsmDroid", e)
+            Log.e("Sentieri", "Errore inizializzazione OsmDroid", e)
         }
         //--------------------------------------------------------------------------------------------------
         val maps: Array<File?> = arrayOfNulls(1)
@@ -690,8 +733,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             if (folderTema.exists()) {
                 theme = ExternalRenderTheme("$documentsDir/Mappe/4UMaps/4UMaps.xml")
                 nomeTema = "4UMaps"
-            }
-            else {
+            } else {
                 theme = InternalRenderTheme.OSMARENDER
             }
             val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, nomeTema)
@@ -776,8 +818,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
+    // FINE REGISTRAZIONE TRACCIA
     private fun stopGPS() {
-// FINE REGISTRAZIONE TRACCIA
         // se non ha fixato non chiede di salvare
         if (!viewModel.isFixed) {
             stopObserver() // Arresta gli observer
@@ -993,10 +1035,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 oldPunto = GeoPoint(it.latitude, it.longitude, it.elevation ?: 0.0)
                 line.addPoint(punto)
             }
-            //Log.d(
-            //    "Punto",
-            //    "${viewModel.trackDistanza}   ${viewModel.trackAscesa}  ${viewModel.trackDiscesa}"
-            //)
             disegnaLine(line)
             viewModel.listaTracce.add(line)
             addMarker(line)
@@ -1272,9 +1310,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.controller?.animateTo(viewModel.newPunto)
             }
             // Orienta display sorgente in OpenMap demo di Osmdroid: Location - SampleHeadingCompassUp
-            //Log.d("loc", "${loc.bearing} - ${loc.speed}")
             val gpsbearing = loc.bearing
-
             //use gps bearing instead of the compass
             var t: Float = 360 - gpsbearing
             if (t < 0) {
@@ -1355,13 +1391,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     // i Wp sono caricati nelle liste wayPoint per quelli che sono caricati da dB e Gpx
 // e in poiDBList per quelli ripresi durante registrazione traccia e devono essere salvati nel db PoiDB
 // In MappaFragment.kt
-
-// ... altre parti di MappaFragment ...
-
     private fun salvaWayPoint(nome: String, descr: String /*, audioPath: String? */) {
-        // NON aggiungere il nuovo waypoint a viewModel.wayPoint
-        // viewModel.wayPoint.add(...) // ASSICURATI CHE QUESTA RIGA SIA RIMOSSA O COMMENTATA SE ESISTEVA
-
         // Aggiungi il nuovo waypoint SOLO a viewModel.poiDBList come PoiDB
         viewModel.poiDBList.add(
             PoiDB(
@@ -1611,19 +1641,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             audioOutputFile = null
             alertDialog.dismiss() // Chiudi il dialogo
         }
-
         // Sovrascrivi i bottoni standard per evitare la chiusura automatica se necessario,
         // oppure gestisci la logica e poi chiama dialog.dismiss().
         // Per semplicità, li lasciamo come Positive/Negative per ora,
         // ma per un controllo fine (es. non chiudere se la registrazione è in corso),
         // dovresti implementare i bottoni nel layout custom e gestire tu il dismiss.
-
         // Invece di builder.show(), usiamo l'istanza creata per poterla gestire.
         // Se si usa setPositive/NegativeButton, non c'è bisogno di creare prima l'alertDialog
         // e poi chiamare show. builder.show() è sufficiente.
         // Però per accedere ad `alertDialog.dismiss()` nei listener dei bottoni del layout custom,
         // serve l'istanza. Qui li manteniamo come bottoni del builder.
-
         // Mostra il dialogo (il builder viene modificato, quindi ricreiamo o mostriamo direttamente)
         val finalDialog = builder.show() // builder.create() e poi show() è un'alternativa
 
@@ -1884,17 +1911,20 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         osmdroidPolygonsToAdd,
                         colore
                     )
+
                     GeometryType.POLYGON -> processPolygonGeometry(
                         featureRow,
                         tableName,
                         osmdroidPolygonsToAdd,
                         colore
                     )
+
                     GeometryType.LINESTRING -> processLineStringGeometry(
                         featureRow,
                         tableName,
                         lineStringToAdd
                     )
+
                     else -> Log.w(
                         TAG,
                         "Geometry type ${geometry.geometryType.name} not yet handled for display."
@@ -1990,7 +2020,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         lineStringToAdd: MutableList<LineStringFeature>, // Questa è una lista di mil.nga.sf.LineString
         featureInfo: FeatureTableInfo
     ) {
-        val lineOverlayFolder = FolderOverlay() // Questo è l'overlay che deve essere in featureInfo.listOverlay
+        val lineOverlayFolder =
+            FolderOverlay() // Questo è l'overlay che deve essere in featureInfo.listOverlay
 
         lineStringToAdd.forEachIndexed { index, lineFeature ->
             // 1. Crea un Polyline di osmdroid dalla LineString NGA
@@ -1998,7 +2029,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val osmdroidPolyline = Polyline(mapView)
             val geoPoints = mutableListOf<GeoPoint>()
             ngaLineString.lineString.points.forEach { point ->
-                geoPoints.add(GeoPoint(point.y, point.x)) // Assicurati che l'ordine sia (latitudine, longitudine)
+                geoPoints.add(
+                    GeoPoint(
+                        point.y,
+                        point.x
+                    )
+                ) // Assicurati che l'ordine sia (latitudine, longitudine)
             }
             osmdroidPolyline.setPoints(geoPoints)
             // Puoi personalizzare l'aspetto della Polyline qui (colore, spessore, ecc.)
@@ -2013,8 +2049,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView
             )
             osmdroidPolyline.setOnClickListener { clickedPolyline, map, eventPosition ->
-                Log.d(TAG, "Polyline da GeoPackage cliccata: ${clickedPolyline.title}")
-                clickedPolyline.infoWindowLocation = eventPosition // Usa il punto del click per posizionare l'InfoWindow
+                //Log.d(TAG, "Polyline da GeoPackage cliccata: ${clickedPolyline.title}")
+                clickedPolyline.infoWindowLocation =
+                    eventPosition // Usa il punto del click per posizionare l'InfoWindow
                 clickedPolyline.showInfoWindow() // Mostra l'InfoWindow
                 map.controller.animateTo(eventPosition)
                 true // Indica che l'evento è stato gestito
@@ -2101,134 +2138,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val label = layerModel.creaLabel(featureRow, tableName)
             val description = "layer:$tableName"
             lineStringToAdd.add(LineStringFeature(geometry, label, description))
-        }
-    }
-
-    inner class TopoMarker(mapView: MapView) : Marker(mapView) {
-        var longClickListener: TopoMarkerLongClickListener? = null
-
-        override fun onLongPress(event: MotionEvent?, mapView: MapView?): Boolean {
-            Log.d(TAG, "======== TopoMarker onLongPress START ========")
-            Log.d(TAG, "PRESS ON: ${this.title}, ID: ${this.id}, HashCode: ${this.hashCode()}")
-
-            if (this.isEnabled && mapView != null) {
-                Log.d(TAG, "CONDITION: TRUE (isEnabled=${this.isEnabled}, mapView!=null)")
-
-                val folderOverlay = this@MappaFragment.viewModel.topoLayer
-                Log.d(TAG, "FolderOverlay instance: ${folderOverlay.hashCode()}")
-
-                Log.d(TAG, "BEFORE REMOVAL - topoLayer items (${folderOverlay.items.size}):")
-                folderOverlay.items.forEachIndexed { index, item ->
-                    when (item) {
-                        is TopoMarker -> Log.d(TAG, "  [$index]: TM: ${item.title}, ID: ${item.id}, Hash: ${item.hashCode()}")
-                        is Marker -> Log.d(TAG, "  [$index]: M: ${item.title}, ID: ${item.id}, Hash: ${item.hashCode()}")
-                        else -> Log.d(TAG, "  [$index]: Other: ${item.javaClass.simpleName}")
-                    }
-                }
-
-                var removalSuccessful = false
-                val indexToRemove = folderOverlay.items.indexOf(this) // Find the index of the current marker instance
-
-                if (indexToRemove != -1) {
-                    Log.d(TAG, "Marker '${this.title}' (ID: ${this.id}) found at index: $indexToRemove. Attempting removal by index using removeAt.")
-                    try {
-                        // Use removeAt on the underlying list (cast to MutableList)
-                        val removedItem: Overlay? = (folderOverlay.items as? MutableList<Overlay>)?.removeAt(indexToRemove)
-
-                        if (removedItem == this) {
-                            removalSuccessful = true
-                            Log.d(TAG, "Successfully removed THIS marker (by index using removeAt). Removed item hash: ${removedItem?.hashCode()}")
-                        } else if (removedItem != null) {
-                            // This case means something was removed at the index, but it wasn't 'this' marker.
-                            // This would be very strange if indexOf(this) just returned that index.
-                            Log.w(TAG, "Removed item by index using removeAt, but it wasn't THIS marker. Removed: ${removedItem.javaClass.simpleName} (Hash: ${removedItem.hashCode()}), Expected: ${this.id}. THIS marker hash: ${this.hashCode()}")
-                            // Fallback: Check if 'this' is still in the list and try to remove it by object reference.
-                            if (folderOverlay.items.contains(this)) {
-                                if (folderOverlay.remove(this)) { // This is the remove(Overlay) method
-                                    Log.d(TAG, "Fallback: Successfully removed THIS marker by object reference after removeAt mismatch.")
-                                    removalSuccessful = true
-                                } else {
-                                    Log.e(TAG, "Fallback: Failed to remove THIS marker by object reference after removeAt mismatch.")
-                                }
-                            } else {
-                                // If it's not in the list anymore, perhaps it was the one removed, despite the hash mismatch?
-                                Log.w(TAG, "THIS marker is no longer in the list after removeAt mismatch, assuming it was the one removed despite hash/instance inequality.")
-                                // This situation is ambiguous. Let's assume removal was successful if something was removed at the expected index.
-                                // However, the `removedItem == this` check should ideally be true.
-                            }
-                        } else {
-                            // removeAt returned null (e.g., if the list was modified concurrently, or cast failed)
-                            Log.w(TAG, "removeAt($indexToRemove) returned null or cast failed. List size: ${folderOverlay.items.size}. Attempting fallback.")
-                            if (folderOverlay.items.contains(this)) {
-                                if (folderOverlay.remove(this)) {
-                                    Log.d(TAG, "Fallback: Successfully removed THIS marker by object reference after removeAt returned null.")
-                                    removalSuccessful = true
-                                } else {
-                                    Log.e(TAG, "Fallback: Failed to remove THIS marker by object reference after removeAt returned null.")
-                                }
-                            } else {
-                                Log.d(TAG,"Marker ${this.title} was already gone when removeAt returned null or after a failed cast.")
-                                // If it's already gone, it might have been removed successfully by another means or our state is inconsistent.
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error removing by index $indexToRemove using removeAt: ${e.message}", e)
-                        // Fallback to remove by object if index removal with removeAt failed
-                        if (folderOverlay.items.contains(this)) {
-                            if (folderOverlay.remove(this)) {
-                                Log.d(TAG, "Fallback: Successfully removed THIS marker by object reference after removeAt exception.")
-                                removalSuccessful = true
-                            } else {
-                                Log.e(TAG, "Fallback: Failed to remove THIS marker by object reference after removeAt exception.")
-                            }
-                        }
-                    }
-                } else {
-                    Log.w(TAG, "Marker '${this.title}' (ID: ${this.id}) NOT FOUND in folderOverlay.items by indexOf(this). Attempting removal by object reference.")
-                    // Fallback: if indexOf failed (shouldn't happen for 'this'), try original method
-                    if (folderOverlay.remove(this)) {
-                        removalSuccessful = true
-                        Log.d(TAG, "Fallback: Successfully removed THIS marker by object reference (indexOf failed).")
-                    } else {
-                        Log.e(TAG, "Fallback: Failed to remove THIS marker by object reference (indexOf also failed).")
-                    }
-                }
-
-                // ... (inside onLongPress, after all the removal logic and setting removalSuccessful)
-
-                Log.d(TAG, "FINAL REMOVAL STATUS for '${this.title}': $removalSuccessful")
-
-                // Log the items AFTER removal attempt (already present in your code)
-                Log.d(TAG, "AFTER REMOVAL ATTEMPT - topoLayer items (${folderOverlay.items.size}):")
-                folderOverlay.items.forEachIndexed { index, item ->
-                    when (item) {
-                        is TopoMarker -> Log.d(TAG, "  [$index]: TM: ${item.title}, ID: ${item.id}, Hash: ${item.hashCode()}")
-                        is Marker -> Log.d(TAG, "  [$index]: M: ${item.title}, ID: ${item.id}, Hash: ${item.hashCode()}")
-                        else -> Log.d(TAG, "  [$index]: Other: ${item.javaClass.simpleName}")
-                    }
-                }
-
-                if (removalSuccessful) {
-                    val parentMapOverlays = mapView.overlays
-                    if (parentMapOverlays.remove(folderOverlay)) {
-                        parentMapOverlays.add(folderOverlay)
-                        Log.d(TAG, "topoLayer (FolderOverlay) removed and re-added to map's overlay list.")
-                        mapView.invalidate() // Explicitly invalidate AFTER re-adding
-                    } else {
-                        Log.w(TAG, "Could not remove topoLayer from map's overlay list for re-adding. Falling back to simple invalidate.")
-                        mapView.invalidate() // Fallback if removing the folderOverlay failed
-                    }
-                }
-
-                Log.d(TAG, "Calling external longClickListener for '${this.title}'...")
-                longClickListener?.onLongClick(this)
-                Log.d(TAG, "======== TopoMarker onLongPress END ========")
-                return true
-            } else {
-                Log.d(TAG, "CONDITION: FALSE (isEnabled=${this.isEnabled}, mapView==null=${mapView == null}) for '${this.title}'")
-                Log.d(TAG, "======== TopoMarker onLongPress END ========")
-                return false
-            }
         }
     }
 
@@ -2362,7 +2271,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
             }
             File.createTempFile(audioFileName, ".3gp", storageDir).also {
-                Log.d(TAG_AUDIO, "File audio creato: ${it.absolutePath}")
+                //Log.d(TAG_AUDIO, "File audio creato: ${it.absolutePath}")
             }
         } catch (ex: IOException) {
             Log.e(TAG_AUDIO, "Errore nella creazione del file audio: ${ex.message}")
@@ -2374,7 +2283,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (deleteFileOnError) {
             audioOutputFile?.let {
                 if (it.exists()) it.delete()
-                Log.d(TAG_AUDIO, "File audio cancellato a causa di errore nel rilascio.")
+                //Log.d(TAG_AUDIO, "File audio cancellato a causa di errore nel rilascio.")
             }
             audioOutputFile = null
             currentAudioFilePath = null
@@ -2408,5 +2317,27 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         ) == PackageManager.PERMISSION_GRANTED
     }
     // --- Fine Funzioni di Registrazione Audio ---
+
+    inner class RemovableMarker(mapView: MapView) : Marker(mapView) {
+        var onMarkerLongClick: ((RemovableMarker) -> Boolean)? = null
+
+        // Override per vedere quando MapView chiama questo specifico marker per un long press
+        override fun onLongPress(event: MotionEvent?, mapView: MapView?): Boolean {
+            if (mapView == null || event == null) return false
+            val wasHit = hitTest(event, mapView) // Controlla se l'evento è DENTRO questo marker
+            if (wasHit && this.isEnabled) {
+                return onMarkerLongClick?.invoke(this) ?: super.onLongPress(event, mapView)
+            }
+            // Se non è stato colpito o non è abilitato, restituisce false per far continuare il dispatching
+            // o chiama super.onLongPress che farà la sua logica.
+            return super.onLongPress(event, mapView)
+        }
+
+        // Override per vedere l'hit test in azione
+        override fun hitTest(event: MotionEvent, mapView: MapView): Boolean {
+            val hit = super.hitTest(event, mapView)
+            return hit
+        }
+    }
 
 }
