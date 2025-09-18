@@ -8,6 +8,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.R
+import com.apstudio.sentieri.db.FieldSchemaInfo
+
 /**
  * Adapter per visualizzare una lista di feature (come Map<String, Any>)
  * in un RecyclerView, mostrando dinamicamente i campi basati sulla configurazione.
@@ -19,7 +21,7 @@ import com.apstudio.sentieri.R
  */
 class DynamicFeatureAdapter(
     private val features: List<Map<String, Any?>>,
-    private val fieldConfiguration: List<Pair<String, Boolean>>
+    private val fieldConfiguration: List<FieldSchemaInfo>
     // Non sono più necessari i nomi dei campi delle coordinate qui se FeatureList li pre-processa
 ) : RecyclerView.Adapter<DynamicFeatureAdapter.FeatureViewHolder>() {
 
@@ -74,18 +76,18 @@ class DynamicFeatureAdapter(
             }
         }
 
-        fun bind(featureData: Map<String, Any?>, config: List<Pair<String, Boolean>>) {
+        fun bind(featureData: Map<String, Any?>, config: List<FieldSchemaInfo>) {
             fieldsContainer.removeAllViews()
-            val visibleFields = config.filter { it.second }
-            visibleFields.forEachIndexed { index, (fieldName, _) ->
+            val visibleFields = config.filter { it.isVisible }
+            visibleFields.forEachIndexed { index, (campo: String, descrizione: String) ->
                 // Non mostrare i campi interni delle coordinate se non vuoi
-                if (fieldName == "__INTERNAL_LATITUDE__" || fieldName == "__INTERNAL_LONGITUDE__" || fieldName == "__INTERNAL_ELEVATION__") {
+                if (campo == "__INTERNAL_LATITUDE__" || campo == "__INTERNAL_LONGITUDE__" || campo == "__INTERNAL_ELEVATION__") {
                     // Salta questi campi se non devono essere visualizzati direttamente
                     // return@forEachIndexed // 'return' qui non è corretto per forEachIndexed
                 } else {
-                    val fieldValue = featureData[fieldName]?.toString() ?: "N/D"
+                    val fieldValue = featureData[campo]?.toString() ?: "N/D"
                     val textView = TextView(fieldsContainer.context).apply {
-                        text = "$fieldName: $fieldValue"
+                        text = "$descrizione: $fieldValue"
                         val padding = (8 * resources.displayMetrics.density).toInt()
                         setPadding(0, padding / 4, 0, padding / 4)
                         textSize = 14f
@@ -93,7 +95,7 @@ class DynamicFeatureAdapter(
                     fieldsContainer.addView(textView)
 
                     // Aggiungi un separatore se vuoi (Opzione 3 della risposta precedente)
-                    if (index < visibleFields.filterNot { it.first.startsWith("__INTERNAL_") }.size - 1) { // Evita il separatore dopo l'ultimo campo visibile *reale*
+                    if (index < visibleFields.filterNot { it.name.startsWith("__INTERNAL_") }.size - 1) { // Evita il separatore dopo l'ultimo campo visibile *reale*
                         val separator = View(fieldsContainer.context).apply {
                             layoutParams = LinearLayout.LayoutParams(
                                 LinearLayout.LayoutParams.MATCH_PARENT,

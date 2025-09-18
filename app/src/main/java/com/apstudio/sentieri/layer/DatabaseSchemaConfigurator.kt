@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import android.util.Xml
+import com.apstudio.sentieri.db.FieldSchemaInfo // Assicurati che FieldSchemaInfo sia una data class ad es. data class FieldSchemaInfo(val name: String, val description: String, val visible: Boolean)
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlSerializer
@@ -12,7 +13,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.StringWriter
-import kotlin.collections.iterator
+// import kotlin.collections.iterator // Questo import potrebbe non essere necessario se non usi esplicitamente iterator()
 
 class DatabaseSchemaConfigurator(
     private val context: Context,
@@ -27,21 +28,15 @@ class DatabaseSchemaConfigurator(
         private const val XML_ATTR_TABLE_NAME = "name"
         private const val XML_TAG_FIELD = "field"
         private const val XML_ATTR_FIELD_NAME = "name"
+        private const val XML_DESCR_FIELD_NAME = "description"
         private const val XML_ATTR_FIELD_VISIBLE = "visible"
         private val ns: String? = null
     }
 
-    /**
-     * Legge lo schema del database e scrive un file di configurazione XML.
-     * Ogni campo avrà un valore booleano iniziale (es. true di default).
-     *
-     * @param defaultVisibility Il valore booleano predefinito per la visibilità di ogni campo.
-     * @return True se il file XML è stato scritto con successo, false altrimenti.
-     */
     fun generateAndWriteConfigFile(defaultVisibility: Boolean = true): Boolean {
-        val dbHelper = GenericDbHelper(context, dbName) // Un semplice helper per aprire il DB
+        val dbHelper = GenericDbHelper(context, dbName)
         val db: SQLiteDatabase? = try {
-            dbHelper.readableDatabase // Usiamo readableDatabase, ma potremmo aver bisogno di writable
+            dbHelper.readableDatabase
         } catch (e: Exception) {
             Log.e(TAG, "Errore nell'aprire il database: $dbName", e)
             return false
@@ -52,14 +47,10 @@ class DatabaseSchemaConfigurator(
             return false
         }
 
-        val schemaData = mutableMapOf<String, MutableList<Pair<String, Boolean>>>()
+        // MODIFICATO: Usa FieldSchemaInfo qui
+        val schemaData = mutableMapOf<String, MutableList<FieldSchemaInfo>>()
 
         try {
-            // 1. Ottenere i nomi delle tabelle
-            /*val tableCursor = db.rawQuery(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'android_%' AND name NOT LIKE 'sqlite_%'",
-                null
-            )*/
             val tableCursor = db.rawQuery(
                 "SELECT table_name FROM gpkg_contents WHERE data_type='features'",
                 null
@@ -68,20 +59,20 @@ class DatabaseSchemaConfigurator(
                 if (tc.moveToFirst()) {
                     do {
                         val tableName = tc.getString(0)
-                        val fieldsList = mutableListOf<Pair<String, Boolean>>()
+                        val fieldsList : MutableList<FieldSchemaInfo> = mutableListOf() // Questo è corretto
 
-                        // 2. Ottenere i nomi dei campi per ogni tabella
                         val fieldCursor = db.rawQuery("PRAGMA table_info('$tableName')", null)
                         fieldCursor.use { fc ->
                             if (fc.moveToFirst()) {
                                 do {
                                     val fieldName = fc.getString(fc.getColumnIndexOrThrow("name"))
-                                    fieldsList.add(Pair(fieldName, defaultVisibility))
+                                    // Assumiamo che FieldSchemaInfo abbia un costruttore (String, String, Boolean)
+                                    fieldsList.add(FieldSchemaInfo(fieldName, fieldName.lowercase(), defaultVisibility))
                                 } while (fc.moveToNext())
                             }
                         }
                         if (fieldsList.isNotEmpty()) {
-                            schemaData[tableName] = fieldsList
+                            schemaData[tableName] = fieldsList // Ora i tipi corrispondono
                         }
                     } while (tc.moveToNext())
                 }
@@ -95,16 +86,16 @@ class DatabaseSchemaConfigurator(
 
         if (schemaData.isEmpty()) {
             Log.w(TAG, "Nessuna tabella trovata o schema vuoto per il database: $dbName")
-            return false // O true se un file vuoto è accettabile
+            return false
         }
 
-        // 3. Scrivere i dati in un file XML
         return writeSchemaToXml(schemaData)
     }
 
-    private fun writeSchemaToXml(schemaData: Map<String, List<Pair<String, Boolean>>>): Boolean {
+    // MODIFICATO: Il parametro ora usa List<FieldSchemaInfo>
+    private fun writeSchemaToXml(schemaData: Map<String, List<FieldSchemaInfo>>): Boolean {
         val serializer: XmlSerializer = Xml.newSerializer()
-        val writer = StringWriter() // Scriviamo prima su una stringa
+        val writer = StringWriter()
         try {
             serializer.setOutput(writer)
             serializer.startDocument("UTF-8", true)
@@ -113,10 +104,12 @@ class DatabaseSchemaConfigurator(
             for ((tableName, fields) in schemaData) {
                 serializer.startTag(null, XML_TAG_TABLE)
                 serializer.attribute(null, XML_ATTR_TABLE_NAME, tableName)
-                for ((fieldName, isVisible) in fields) {
+                // MODIFICATO: Itera su FieldSchemaInfo
+                for (fieldInfo in fields) { // Accedi alle proprietà di fieldInfo
                     serializer.startTag(null, XML_TAG_FIELD)
-                    serializer.attribute(null, XML_ATTR_FIELD_NAME, fieldName)
-                    serializer.attribute(null, XML_ATTR_FIELD_VISIBLE, isVisible.toString())
+                    serializer.attribute(null, XML_ATTR_FIELD_NAME, fieldInfo.name)
+                    serializer.attribute(null, XML_DESCR_FIELD_NAME, fieldInfo.description)
+                    serializer.attribute(null, XML_ATTR_FIELD_VISIBLE, fieldInfo.isVisible.toString())
                     serializer.endTag(null, XML_TAG_FIELD)
                 }
                 serializer.endTag(null, XML_TAG_TABLE)
@@ -125,7 +118,6 @@ class DatabaseSchemaConfigurator(
             serializer.endTag(null, XML_TAG_ROOT)
             serializer.endDocument()
 
-            // Scrivi la stringa XML nel file
             val file = File(context.filesDir, CONFIG_FILE_NAME)
             FileOutputStream(file).use {
                 it.write(writer.toString().toByteArray())
@@ -140,29 +132,25 @@ class DatabaseSchemaConfigurator(
         return false
     }
 
-    /**
-     * Legge il file di configurazione XML e carica i dati in una mappa.
-     *
-     * @return Una mappa dove la chiave è il nome della tabella e il valore è una lista di coppie
-     *         (nome campo, visibilità booleana). Restituisce una mappa vuota in caso di errore
-     *         o se il file non esiste.
-     */
-    fun loadConfigFromFile(): Map<String, List<Pair<String, Boolean>>> {
+    // MODIFICATO: Il tipo di ritorno ora usa List<FieldSchemaInfo>
+    fun loadConfigFromFile(): Map<String, List<FieldSchemaInfo>> {
         val configFile = File(context.filesDir, CONFIG_FILE_NAME)
         if (!configFile.exists()) {
             Log.w(TAG, "File di configurazione non trovato: ${configFile.absolutePath}")
             return emptyMap()
         }
 
-        val schemaConfig = mutableMapOf<String, MutableList<Pair<String, Boolean>>>()
+        // MODIFICATO: Usa FieldSchemaInfo qui
+        val schemaConfig = mutableMapOf<String, MutableList<FieldSchemaInfo>>()
         var currentTableName: String? = null
-        var currentFieldsList: MutableList<Pair<String, Boolean>>? = null
+        // currentFieldsList è già correttamente MutableList<FieldSchemaInfo>?
+        var currentFieldsList: MutableList<FieldSchemaInfo>? = null
 
         try {
             FileInputStream(configFile).use { fis ->
                 val parser: XmlPullParser = Xml.newPullParser()
                 parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
-                parser.setInput(fis, null) // null per l'encoding, il parser lo rileverà
+                parser.setInput(fis, null)
 
                 var eventType = parser.eventType
                 while (eventType != XmlPullParser.END_DOCUMENT) {
@@ -172,8 +160,8 @@ class DatabaseSchemaConfigurator(
                                 XML_TAG_TABLE -> {
                                     currentTableName = parser.getAttributeValue(ns, XML_ATTR_TABLE_NAME)
                                     if (currentTableName != null) {
-                                        currentFieldsList = mutableListOf()
-                                        schemaConfig[currentTableName] = currentFieldsList
+                                        currentFieldsList = mutableListOf() // Crea una lista di FieldSchemaInfo
+                                        schemaConfig[currentTableName!!] = currentFieldsList!! // Ora i tipi corrispondono
                                     } else {
                                         Log.w(TAG, "Attributo '$XML_ATTR_TABLE_NAME' mancante per il tag '$XML_TAG_TABLE'")
                                     }
@@ -181,10 +169,18 @@ class DatabaseSchemaConfigurator(
                                 XML_TAG_FIELD -> {
                                     if (currentTableName != null && currentFieldsList != null) {
                                         val fieldName = parser.getAttributeValue(ns, XML_ATTR_FIELD_NAME)
+                                        // Leggi la descrizione, usa il nome del campo in minuscolo come fallback se non presente
+                                        var fieldDescr = parser.getAttributeValue(ns, XML_DESCR_FIELD_NAME)
                                         val fieldVisibleStr = parser.getAttributeValue(ns, XML_ATTR_FIELD_VISIBLE)
+
                                         if (fieldName != null && fieldVisibleStr != null) {
-                                            val isVisible = fieldVisibleStr.toBooleanStrictOrNull() ?: false // Default a false se non parsabile
-                                            currentFieldsList.add(Pair(fieldName, isVisible))
+                                            if (fieldDescr == null) { // Fallback per la descrizione
+                                                fieldDescr = fieldName.lowercase()
+                                                Log.w(TAG, "Attributo '$XML_DESCR_FIELD_NAME' mancante per il tag '$XML_TAG_FIELD' nella tabella '$currentTableName'. Uso '$fieldDescr' come fallback.")
+                                            }
+                                            val isVisible = fieldVisibleStr.toBooleanStrictOrNull() ?: false
+                                            // MODIFICATO: Crea e aggiungi FieldSchemaInfo
+                                            currentFieldsList.add(FieldSchemaInfo(fieldName, fieldDescr, isVisible))
                                         } else {
                                             Log.w(TAG, "Attributi '$XML_ATTR_FIELD_NAME' o '$XML_ATTR_FIELD_VISIBLE' mancanti per il tag '$XML_TAG_FIELD' nella tabella '$currentTableName'")
                                         }
@@ -195,7 +191,7 @@ class DatabaseSchemaConfigurator(
                         XmlPullParser.END_TAG -> {
                             if (parser.name == XML_TAG_TABLE) {
                                 currentTableName = null
-                                currentFieldsList = null
+                                currentFieldsList = null // Resetta la lista corrente
                             }
                         }
                     }
@@ -204,7 +200,7 @@ class DatabaseSchemaConfigurator(
             }
         } catch (e: XmlPullParserException) {
             Log.e(TAG, "Errore durante il parsing del file XML di configurazione", e)
-            return emptyMap() // Restituisce mappa vuota in caso di errore di parsing
+            return emptyMap()
         } catch (e: IOException) {
             Log.e(TAG, "Errore di I/O durante la lettura del file XML di configurazione", e)
             return emptyMap()
@@ -217,4 +213,3 @@ class DatabaseSchemaConfigurator(
         return schemaConfig
     }
 }
-

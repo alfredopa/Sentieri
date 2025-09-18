@@ -256,7 +256,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // Questo popolerà di nuovo featureInfo.listOverlay (se usato da creaOverlayPoligoni etc.)
         // e aggiungerà i nuovi overlay alla mappa.
         puntiSuMappa(featureInfo.name, featureInfo)
-
         mapView.invalidate() // Aggiorna la mappa
     }
 
