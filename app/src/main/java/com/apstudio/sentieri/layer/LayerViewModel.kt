@@ -4,6 +4,7 @@ import android.app.Application
 import android.graphics.Color
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
+import com.apstudio.sentieri.db.FieldSchemaInfo
 import mil.nga.geopackage.GeoPackage
 import mil.nga.geopackage.GeoPackageFactory
 import mil.nga.geopackage.GeoPackageManager
@@ -14,18 +15,18 @@ import kotlin.random.Random
 
 class LayerViewModel(application: Application) : AndroidViewModel(application) {
 
-companion object {
-    private const val TAG = "LayerViewModel"
-    private const val DATABASE_NAME = "Layers.gpkg"
-    private const val CONFIG_FILE_NAME = "db_schema_config.xml"
-}
+    companion object {
+        private const val TAG = "LayerViewModel"
+        private const val DATABASE_NAME = "Layers.gpkg"
+        private const val CONFIG_FILE_NAME = "db_schema_config.xml"
+    }
 
     var geoPackageInstance: GeoPackage? = null
         private set // Rendi il setter privato se l'apertura è gestita internamente
 
     // Assumendo che featureList e labelConfig siano ancora qui
     val featureList: MutableList<FeatureTableInfo> = mutableListOf() // Inizializza come necessario
-    var labelConfig: MutableMap<String, List<Pair<String, Boolean>>> = mutableMapOf()
+    var labelConfig: MutableMap<String, List<FieldSchemaInfo>> = mutableMapOf()
     var currentActiveTableName: String? = null
     val polygonOptions = PolygonOptions().apply {
         strokeWidth = 2f
@@ -104,7 +105,8 @@ companion object {
             Log.i(TAG, "Config file not found, generating: ${configFile.absolutePath}")
             configurator.generateAndWriteConfigFile()
         }
-        (configurator.loadConfigFromFile() as? MutableMap<String, List<Pair<String, Boolean>>>)?.also {
+        (configurator.loadConfigFromFile() as? MutableMap<String, List<FieldSchemaInfo>>)?.also {
+            //(configurator.loadConfigFromFile() as? MutableMap<String, List<Pair<String, Boolean>>>)?.also {
             labelConfig = it
             Log.d(TAG, "LabelConfig loaded successfully.")
         } ?: Log.e(TAG, "Failed to load or cast labelConfig.")
@@ -161,7 +163,7 @@ companion object {
         if (!configFile.exists()) {
             configurator.generateAndWriteConfigFile()
         }
-        (configurator.loadConfigFromFile() as? MutableMap<String, List<Pair<String, Boolean>>>)?.also {
+        (configurator.loadConfigFromFile() as? MutableMap<String, List<FieldSchemaInfo>>)?.also {
             labelConfig = it
             Log.d(TAG, "LabelConfig (re)loaded successfully.")
         } ?: Log.e(TAG, "Failed to (re)load or cast labelConfig.")
@@ -176,7 +178,7 @@ companion object {
             labelBuilder.append(tableName)
         }
 
-        campiLabel?.forEachIndexed { index, (fieldName, isVisible) ->
+        campiLabel?.forEachIndexed { index, (fieldName, description,  isVisible) ->
             if (isVisible) {
                 // Ottieni il valore del campo direttamente da featureRow.values
                 val fieldValue = featureRow.values[index]?.toString()
@@ -221,6 +223,3 @@ companion object {
         Log.d(TAG, "LayerViewModel cleared.")
     }
 }
-
-
-
