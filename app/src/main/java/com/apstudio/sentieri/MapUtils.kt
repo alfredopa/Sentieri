@@ -184,6 +184,7 @@ object MapUtils {
         tipo: Int
     ) {
         // aggiunge marker inizio oppure fine percorso in base al valore tipo 0 = inizio, 1 = fine
+        val folderMarker = overTraccia
         val marker = Marker(mappa)
         if (tipo == 0) {
             marker.icon = contesto.let {
@@ -205,7 +206,7 @@ object MapUtils {
             marker.id =  "Fine"
         }
         marker.position = punto
-        overTraccia.add(marker)
+        folderMarker.add(marker)
     }
 
     fun alertSegui(context: Context, viewModel: SentieriViewModel, line: Polyline) {

@@ -55,7 +55,6 @@ import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewModelScope
@@ -141,6 +140,12 @@ private const val TAG = "MappaFragment"
 
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
     View.OnKeyListener {
+
+    companion object {
+        const val SEND_LOCATION_ACTION = "com.apstudio.sentieri.posizione"
+        private const val TAG_AUDIO = "AudioRecording" // Tag per log audio
+    }
+
     private lateinit var viewModel: SentieriViewModel
     private val METERS_IN_A_KILOMETER = 1000.0 // Changed from Int to Double for precision
     private val SECONDS_IN_AN_HOUR = 3600.0 // Changed from Int to Double for precision
@@ -150,9 +155,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[GpsViewModel::class.java]
     }
 
-    //val layerModel: LayerViewModel by lazy {
-    //    ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[LayerViewModel::class.java]
-    //}
     val layerModel: LayerViewModel by lazy {
         val application = requireActivity().application
         ViewModelProvider(
@@ -173,7 +175,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private val displayedTopoMarkers = mutableListOf<Marker>()
     private var uri: Uri? = null
 
-    private lateinit var osservaMappa: Observer<Polyline>
+    //private lateinit var osservaMappa: Observer<Polyline>
     private var alertDialog: AlertDialog? = null
 
     // memorizza istanza del menu per aggiornare icone
@@ -200,8 +202,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel =
-            ViewModelProvider(requireActivity().applicationContext as AppSentieri)[SentieriViewModel::class.java]
+        try {
+            // Assicurati che AppSentieri sia il nome corretto della tua classe Application
+            // e che il ViewModelProvider sia configurato correttamente.
+            viewModel = ViewModelProvider(requireActivity().application as AppSentieri)[SentieriViewModel::class.java]
+            Log.d(TAG, "ViewModel inizializzato in onCreate: $viewModel. Fragment: $this")
+        } catch (e: Exception) {
+            Log.e(TAG, "FATALE: Errore durante l'inizializzazione del ViewModel in onCreate!", e)
+            // Considera di gestire questo errore in modo più drastico se l'app non può funzionare senza viewModel
+        }
         // Inizializza le preferenze e registra il listener
         preferenze = PreferenceManager.getDefaultSharedPreferences(requireContext())
         preferenze.registerOnSharedPreferenceChangeListener(this)
@@ -420,9 +429,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapController.setCenter(viewModel.ultPosizione)
         mapController.setZoom(viewModel.ultZoom)
 
+        aggiornaUIFabBlocMappa()
+        btnAllarme() // Questa aggiorna la UI in base a viewModel.alertFuoriTraccia
+
         // Bottone per bloccare ancoraggio mappa al gps
         binding.fabBlocMappa.setOnClickListener {
-            bloccaMappa()
+            viewModel.bloccaMappa = !viewModel.bloccaMappa // Cambia lo stato nel ViewModel
+            aggiornaUIFabBlocMappa() // Aggiorna la UI del FAB
         }
 
         // Bottone per attivare la fotocamera
@@ -478,6 +491,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             updateGpsIcon(status)
             //Log.d("gps", "status $status")
         }
+        // Observer per la traccia LiveData
+        viewModel.traccia.observe(viewLifecycleOwner) { nuovaPolyline ->
+            if (viewModel.isRecording) { // Controlla se la registrazione è attiva
+                // Pulisci il FolderOverlay recTraccia prima di aggiungere la nuova Polyline aggiornata
+                val existingRecPolyline = viewModel.recTraccia.items.find { it is Polyline && it.title == "Registrazione" }
+                existingRecPolyline?.let { viewModel.recTraccia.remove(it) }
+                // Clona la Polyline per evitare problemi di riutilizzo dell'oggetto
+                val polylineToDisplay = Polyline(mapView) // Assicurati che mapView sia accessibile
+                polylineToDisplay.setPoints(nuovaPolyline.actualPoints)
+                polylineToDisplay.title = "Registrazione" // O qualsiasi altro titolo                // Applica eventuali stili qui se necessario (colore, spessore)
+                // Esempio:
+                // polylineToDisplay.outlinePaint.color = Color.RED
+                // polylineToDisplay.outlinePaint.strokeWidth = 5f
+
+                viewModel.recTraccia.add(polylineToDisplay)
+                mapView.invalidate() // Forza il ridisegno della mappa
+                Log.d(TAG, "Observer traccia: Polyline aggiornata e aggiunta a recTraccia. Punti: ${polylineToDisplay.actualPoints.size}")
+            }
+        }
     }
 
     // aggiunge il click listener alla polyline per aprire l'info window
@@ -506,6 +538,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onResume() {
         super.onResume()
+        // Registra il receiver quando il fragment è attivo e visibile
+        val filter = IntentFilter(MappaFragment.SEND_LOCATION_ACTION) // Assicurati che SEND_LOCATION_ACTION sia la stringa corretta
+        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
+        Log.d(TAG, "mReceiver registrato")
+
         mapView.onResume()
         //Log.d("Mappa", "MappaFragment onResume ")
         // Controlli per verificare valori da altri fragment da scheda sentieri e visualizzazione waypoint
@@ -624,7 +661,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
                 newMarker.icon = ResourcesCompat.getDrawable(
                     requireContext().resources,
-                    R.drawable.pin_rosso,requireContext().theme
+                    R.drawable.pin_rosso, requireContext().theme
                 )
 
                 newMarker.setOnMarkerClickListener { marker, mv ->
@@ -641,22 +678,27 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     true
                 }
 
-                newMarker.onMarkerLongClick = { markerInstance -> // markerInstance è il RemovableMarker
-                    val toponimoDataToRemove = viewModel.toponimiSelezionati.find {
-                        it.id == markerInstance.id // Cerca per ID univoco
-                    }
+                newMarker.onMarkerLongClick =
+                    { markerInstance -> // markerInstance è il RemovableMarker
+                        val toponimoDataToRemove = viewModel.toponimiSelezionati.find {
+                            it.id == markerInstance.id // Cerca per ID univoco
+                        }
 
-                    if (toponimoDataToRemove != null) {
-                        viewModel.toponimiSelezionati.remove(toponimoDataToRemove)
-                        mapView.overlays.remove(markerInstance)
-                        displayedTopoMarkers.remove(markerInstance)
-                        mapView.invalidate()
-                        Toast.makeText(requireContext(), "Rimosso ${markerInstance.title}", Toast.LENGTH_SHORT).show()
-                    } else {
-                        //Log.w("MappaFragment_Debug", "TopoData not found for removal. Marker ID='${markerInstance.id}', Title='${markerInstance.title}'")
+                        if (toponimoDataToRemove != null) {
+                            viewModel.toponimiSelezionati.remove(toponimoDataToRemove)
+                            mapView.overlays.remove(markerInstance)
+                            displayedTopoMarkers.remove(markerInstance)
+                            mapView.invalidate()
+                            Toast.makeText(
+                                requireContext(),
+                                "Rimosso ${markerInstance.title}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            //Log.w("MappaFragment_Debug", "TopoData not found for removal. Marker ID='${markerInstance.id}', Title='${markerInstance.title}'")
+                        }
+                        true // Event consumed
                     }
-                    true // Event consumed
-                }
                 displayedTopoMarkers.add(newMarker)
                 mapView.overlays.add(newMarker)
             }
@@ -675,6 +717,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onPause() {
         super.onPause()
+        try {
+            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
+            Log.d(TAG, "mReceiver de-registrato in onPause. Fragment: $this")
+        } catch (e: IllegalArgumentException) {
+            // Questo può accadere se il receiver non era registrato o già de-registrato (es. doppia chiamata a onPause)
+            Log.w(TAG, "Tentativo di de-registrare mReceiver non registrato in onPause.", e)
+        }
         // memorizza valori per ripristinare la mappa
         viewModel.ultZoom = mapView.zoomLevel
         viewModel.ultPosizione = mapView.mapCenter as GeoPoint
@@ -778,18 +827,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.invalidate()
     }
 
-    private fun bloccaMappa() {
-        if (viewModel.isRecording) {
-            val iconResId = if (viewModel.bloccaMappa) PIN_BLACK else PIN_RED
-            val icon = ContextCompat.getDrawable(requireContext(), iconResId)
-
-            binding.fabBlocMappa.apply {
-                setImageDrawable(icon)
-            }
-            viewModel.bloccaMappa = !viewModel.bloccaMappa
-        }
-    }
-
     private fun MappaMapBox(): MapTileProviderBasic {
         val MAPBOXSATELLITELABELLED: OnlineTileSourceBase =
             MapBoxTileSource("MapBox", 1, 19, 256, ".png")
@@ -866,7 +903,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (fine) {
             MapUtils.markInizioFine(
                 requireContext(),
-                viewModel.newPunto,
+                viewModel.currentPosition.value ?: viewModel.newPunto,
                 mapView,
                 viewModel.recTraccia,
                 1
@@ -939,14 +976,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.oraInizio = System.currentTimeMillis()
         //viewModel.oraInizio = SystemClock.elapsedRealtime()
 // crea observer per aggiornamento punti traccia
-        osservaMappa = Observer {
+/*        osservaMappa = Observer {
             viewModel.traccia.observe(viewLifecycleOwner) { traccia ->
                 //Log.d("observer", "rectraccia ${viewModel.recTraccia.items.size}")
                 traccia.title = "Registrazione"
                 viewModel.recTraccia.add(traccia)
             }
         }
-        viewModel.traccia.observe(viewLifecycleOwner, osservaMappa)
+        viewModel.traccia.observe(viewLifecycleOwner, osservaMappa)*/
         viewModel.startUpdates()
 // avvia il servizio per tracciare locazione in background
         requireActivity().startService(Intent(context, LocationService::class.java))
@@ -1271,34 +1308,64 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
 
     // riceve aggiornamento posizione da servizio in Broadcast
-    private
-    val mReceiver: BroadcastReceiver = object : BroadcastReceiver() {
+    private val mReceiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            val loc: Location
-            if (Build.VERSION.SDK_INT >= 34) {
-                loc = intent.getParcelableExtra("posizione", Location::class.java)!!
+            Log.d(TAG, "mReceiver: Broadcast ricevuto. Azione: ${intent.action}")
+
+            if (!this@MappaFragment.lifecycle.currentState.isAtLeast(Lifecycle.State.CREATED)) {
+                Log.w(TAG, "mReceiver: Fragment non è almeno CREATED. Ignorando.")
+                return
+            }
+
+            val currentViewModelInstance: SentieriViewModel? = try {
+                if (this@MappaFragment::viewModel.isInitialized) this@MappaFragment.viewModel else null
+            } catch (e: Exception) {
+                Log.e(TAG, "mReceiver: Eccezione accesso viewModel", e); null
+            }
+
+            if (currentViewModelInstance == null) {
+                Log.e(TAG, "mReceiver: viewModel è null. Ignorando.")
+                return
+            }
+            Log.d(TAG, "mReceiver: viewModel OK.")
+
+            val location: Location? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA, Location::class.java)
             } else {
                 @Suppress("DEPRECATION")
-                loc = intent.getParcelableExtra("posizione")!!
+                intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA)
             }
-            val altitudine: Double = intent.getDoubleExtra("altitudine", 0.0)
-            val milliBar = intent.getFloatExtra("milliBar", 0.0F)
-            //Log.d("Receiver", "alti $altitudine mb $milliBar")
-            // aggiorna posizione ed inserisce nuovo punto
-            // riceve il valore in millibar letti da barometro e lo passa al viewModel
-            // aggiorna dati nel viewModel
-            //SimpleFileLogger.log("BroadcastReceiver", "altitudine $altitudine  millibar $milliBar")
-            viewModel.aggiornaDati(loc, altitudine, milliBar)
-            //in debug visualizza altitudine su mappa
-            //binding.cruscotto.tvCalcQuota.text = altitudine.toString()
-            //se non è visualizzata la mappa non aggiorna dati cruscotto
+            Log.d(TAG, "mReceiver: Location estratta: $location (Chiave usata: ${LocationService.EXTRA_LOCATION_DATA})")
+
+            val altitudine = intent.getDoubleExtra("altitudine", 0.0)
+            Log.d(TAG, "mReceiver: Altitudine estratta: $altitudine")
+
+            val baroPress = intent.getFloatExtra("milliBar", 0f)
+            Log.d(TAG, "mReceiver: BaroPress estratto: $baroPress")
+
+            if (location != null) {
+                Log.d(TAG, "mReceiver: Location NON è null. Chiamando processNewLocationData.")
+                try {
+                    currentViewModelInstance.processNewLocationData(location, altitudine, baroPress) // Questa è la presunta riga 1379
+                    Log.d(TAG, "mReceiver: processNewLocationData chiamato con successo.")
+                } catch (e: Exception) {
+                    Log.e(TAG, "mReceiver: ERRORE durante la chiamata a processNewLocationData.", e) // Logga l'eccezione esatta
+                }
+            } else {
+                Log.w(TAG, "mReceiver: Location È null. Non chiamando processNewLocationData.")
+
+            }
+            Log.d(TAG, "mReceiver: onReceive completato.")
+
+
+    //se non è visualizzata la mappa non aggiorna dati cruscotto
             if (!isFragmentVisibleAndActive())
                 return
             // al primo punto aggiunge il marker d'inizio
             if (viewModel.traccia.value?.actualPoints?.size == 1)
                 MapUtils.markInizioFine(
                     requireContext(),
-                    viewModel.newPunto,
+                    viewModel.currentPosition.value ?: viewModel.newPunto,
                     mapView,
                     viewModel.recTraccia,
                     0
@@ -1309,7 +1376,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.controller?.animateTo(viewModel.newPunto)
             }
             // Orienta display sorgente in OpenMap demo di Osmdroid: Location - SampleHeadingCompassUp
-            val gpsbearing = loc.bearing
+            val gpsbearing = location!!.bearing
             //use gps bearing instead of the compass
             var t: Float = 360 - gpsbearing
             if (t < 0) {
@@ -1465,11 +1532,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         super.onDestroy()
         preferenze.unregisterOnSharedPreferenceChangeListener(this)
         database.close()
-    }
-
-    companion object {
-        const val SEND_LOCATION_ACTION = "com.apstudio.sentieri.posizione"
-        private const val TAG_AUDIO = "AudioRecording" // Tag per log audio
     }
 
 
@@ -1721,6 +1783,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             binding.cruscotto.btnAllarme.text = "Allarme off"
             binding.cruscotto.btnAllarme.backgroundTintList =
                 ColorStateList.valueOf(Color.GREEN)
+        }
+    }
+
+    private fun aggiornaUIFabBlocMappa() {
+        if (viewModel.bloccaMappa) {
+            // Se la mappa è bloccata, mostra l'icona "bloccata" (es. PIN_RED)
+            binding.fabBlocMappa.setImageResource(PIN_RED)
+        } else {
+            // Se la mappa è sbloccata, mostra l'icona "sbloccata" (es. PIN_BLACK)
+            binding.fabBlocMappa.setImageResource(PIN_BLACK)
         }
     }
 
