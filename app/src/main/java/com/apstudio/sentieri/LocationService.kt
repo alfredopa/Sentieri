@@ -85,6 +85,7 @@ import com.apstudio.sentieri.MappaFragment.Companion.SEND_LOCATION_ACTION
 class LocationService : LifecycleService() {
 
     companion object {
+        const val EXTRA_LOCATION_DATA = "com.apstudio.sentieri.service.EXTRA_LOCATION_DATA"
         private const val LOCATION_SERVICE_CHANNEL = 1234 // canale delle notifiche
         private const val LOCATION_UPDATE_INTERVAL_MS = 2000L
         private const val MIN_DISTANCE_CHANGE_METERS = 3f
@@ -154,12 +155,12 @@ class LocationService : LifecycleService() {
 
     private fun initializeLocationListener() {
         locationListener = LocationListener { newLocation ->
-            //Log.d(TAG, "onLocationChanged: Accuracy = ${newLocation.accuracy}")
+            Log.d(TAG, "LocationService: onLocationChanged: $newLocation, Accuracy = ${newLocation.accuracy}")
             if (newLocation.accuracy > MIN_ACCURACY_METERS) {
-                //Log.w(TAG, "Location accuracy is too low: ${newLocation.accuracy}")
+                Log.w(TAG, "LocationService: Accuratezza troppo bassa: ${newLocation.accuracy}. Location ignorata.")
                 return@LocationListener
             }
-            sendBroadcast(newLocation)
+            sendBroadcast(newLocation) // Passa la newLocation non nulla
         }
     }
 
@@ -207,10 +208,20 @@ class LocationService : LifecycleService() {
         }
     }
 
-    private fun sendBroadcast(newLocation: Location) {
+    private fun sendBroadcast(newLocation: Location?) {
+        if (newLocation == null) {
+            Log.e(TAG, "LocationService: newLocation è null in sendBroadcast. Non inviando Location.")
+            // Potresti voler inviare un broadcast con altri dati se necessario,
+            // o semplicemente non inviare nulla se la location è cruciale.
+            // Per ora, ritorniamo per evitare di mettere un null nell'intent con la chiave EXTRA_LOCATION_DATA.
+            return
+        }
+
+        Log.d(TAG, "LocationService: Inviando broadcast con Location: $newLocation")
         val broadcastIntent = Intent().apply {
             action = SEND_LOCATION_ACTION
-            putExtra("posizione", newLocation)
+            action = MappaFragment.SEND_LOCATION_ACTION
+            putExtra(EXTRA_LOCATION_DATA, newLocation) // newLocation qui è garantito non essere null
             putExtra("altitudine", gpsViewModel.mslAltitude.value!!)
             //SimpleFileLogger.log(TAG, "sendBroadcast - Android < 14: Using NMEA for MSL. Current gpsViewModel.mslAltitude = ${gpsViewModel.mslAltitude.value}, newLocation.altitude (WGS84) = ${newLocation.altitude}")
 

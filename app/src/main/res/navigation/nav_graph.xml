@@ -147,7 +147,7 @@
     <fragment
         android:id="@+id/featureList"
         android:name="com.apstudio.sentieri.layer.FeatureList"
-        android:label="fragment_feature_list_list"
+        android:label="Elenco dati del layer"
         tools:layout="@layout/fragment_feature_list_list" />
     <fragment
         android:id="@+id/toponimiFragment"
