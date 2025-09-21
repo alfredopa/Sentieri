@@ -57,6 +57,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.fragment.findNavController
@@ -82,6 +83,7 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import mil.nga.geopackage.GeoPackageFactory
 import mil.nga.geopackage.features.user.FeatureCursor
 import mil.nga.geopackage.features.user.FeatureDao
@@ -145,6 +147,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         const val SEND_LOCATION_ACTION = "com.apstudio.sentieri.posizione"
         private const val TAG_AUDIO = "AudioRecording" // Tag per log audio
     }
+
+    // Struttura dati per contenere i risultati dell'elaborazione in background
+    private data class ProcessedFeatureData(
+        val points: MutableList<IGeoPoint>?,
+        val polygons: MutableList<Polygon>?,
+        val lineStrings: MutableList<LineStringFeature>?
+    )
 
     private lateinit var viewModel: SentieriViewModel
     private val METERS_IN_A_KILOMETER = 1000.0 // Changed from Int to Double for precision
@@ -717,12 +726,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onPause() {
         super.onPause()
-        try {
-            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
-            Log.d(TAG, "mReceiver de-registrato in onPause. Fragment: $this")
-        } catch (e: IllegalArgumentException) {
-            // Questo può accadere se il receiver non era registrato o già de-registrato (es. doppia chiamata a onPause)
-            Log.w(TAG, "Tentativo di de-registrare mReceiver non registrato in onPause.", e)
+        // Non de-registrare il receiver se la registrazione è in corso
+        if (!viewModel.isRecording) {
+            try {
+                LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
+                Log.d(TAG, "mReceiver de-registrato in onPause (non in registrazione). Fragment: $this")
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onPause.", e)
+            }
+        } else {
+            Log.d(TAG, "mReceiver NON de-registrato in onPause perché la registrazione è attiva. Fragment: $this")
         }
         // memorizza valori per ripristinare la mappa
         viewModel.ultZoom = mapView.zoomLevel
@@ -1310,7 +1323,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     // riceve aggiornamento posizione da servizio in Broadcast
     private val mReceiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            Log.d(TAG, "mReceiver: Broadcast ricevuto. Azione: ${intent.action}")
+            Log.d(TAG, "mReceiver: Broadcast ricevuto. Azione: ${intent.action}. Fragment: ${this@MappaFragment}")
 
             if (!this@MappaFragment.lifecycle.currentState.isAtLeast(Lifecycle.State.CREATED)) {
                 Log.w(TAG, "mReceiver: Fragment non è almeno CREATED. Ignorando.")
@@ -1327,7 +1340,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 Log.e(TAG, "mReceiver: viewModel è null. Ignorando.")
                 return
             }
-            Log.d(TAG, "mReceiver: viewModel OK.")
 
             val location: Location? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA, Location::class.java)
@@ -1335,114 +1347,91 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 @Suppress("DEPRECATION")
                 intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA)
             }
-            Log.d(TAG, "mReceiver: Location estratta: $location (Chiave usata: ${LocationService.EXTRA_LOCATION_DATA})")
 
             val altitudine = intent.getDoubleExtra("altitudine", 0.0)
-            Log.d(TAG, "mReceiver: Altitudine estratta: $altitudine")
-
             val baroPress = intent.getFloatExtra("milliBar", 0f)
-            Log.d(TAG, "mReceiver: BaroPress estratto: $baroPress")
 
             if (location != null) {
-                Log.d(TAG, "mReceiver: Location NON è null. Chiamando processNewLocationData.")
-                try {
-                    currentViewModelInstance.processNewLocationData(location, altitudine, baroPress) // Questa è la presunta riga 1379
-                    Log.d(TAG, "mReceiver: processNewLocationData chiamato con successo.")
-                } catch (e: Exception) {
-                    Log.e(TAG, "mReceiver: ERRORE durante la chiamata a processNewLocationData.", e) // Logga l'eccezione esatta
-                }
-            } else {
-                Log.w(TAG, "mReceiver: Location È null. Non chiamando processNewLocationData.")
+                currentViewModelInstance.processNewLocationData(location, altitudine, baroPress)
 
+                // Tutta la logica UI che dipende da 'location' e 'currentViewModelInstance' va qui dentro
+                // e anche dentro isFragmentVisibleAndActive()
+                if (isFragmentVisibleAndActive()) {
+                    // al primo punto aggiunge il marker d'inizio
+                    if (currentViewModelInstance.isRecording && currentViewModelInstance.traccia.value?.actualPoints?.size == 1) {
+                        if (isAdded && getContext() != null) { // Ulteriore controllo di sicurezza per il contesto
+                            MapUtils.markInizioFine(
+                                requireContext(),
+                                currentViewModelInstance.currentPosition.value ?: currentViewModelInstance.newPunto,
+                                mapView,
+                                currentViewModelInstance.recTraccia,
+                                0
+                            )
+                        }
+                    }
+
+                    if (::gpsMarker.isInitialized) {
+                        gpsMarker.position = currentViewModelInstance.newPunto
+                    }
+
+                    if (currentViewModelInstance.bloccaMappa) {
+                        mapView.controller?.animateTo(currentViewModelInstance.newPunto)
+                        val gpsbearing = location.bearing
+                        var t: Float = 360 - gpsbearing
+                        if (t < 0) {
+                            t += 360f
+                        }
+                        if (t > 360) {
+                            t -= 360f
+                        }
+                        t = t.toInt().toFloat()
+                        t /= 5
+                        t = t.toInt().toFloat()
+                        t *= 5
+                        mapView.mapOrientation = t
+                    }
+
+                    if (currentViewModelInstance.alertFuoriTraccia && currentViewModelInstance.tracciaDaSeguire.isNotEmpty()) {
+                        if (!isAlertDialogShowing()) {
+                            var indice = -1 // Inizializza a -1 per indicare non trovato
+                            currentViewModelInstance.listaTracce.items.forEachIndexed { index, it ->
+                                if (it is Polyline && it.title == currentViewModelInstance.tracciaDaSeguire) {
+                                    indice = index
+                                }
+                            }
+                            if (indice != -1) { // Controlla se l'indice è stato trovato
+                                val traccia = currentViewModelInstance.listaTracce.items[indice] as Polyline
+                                if (!traccia.isCloseTo(currentViewModelInstance.newPunto, 30.0, mapView)) {
+                                    val allarme = EditText(requireActivity())
+                                    val builder =
+                                        AlertDialog.Builder(
+                                            requireContext(),
+                                            R.style.AlertDialogCustom
+                                        )
+                                    with(builder)
+                                    {
+                                        setTitle("Fuori traccia")
+                                        val layout = LinearLayout(context)
+                                        layout.orientation = LinearLayout.VERTICAL
+                                        allarme.setText("ATTENZIONE SEI FUORI TRACCIA")
+                                        layout.addView(allarme)
+                                        builder.setView(layout)
+                                        setNegativeButton(android.R.string.cancel) { _, _ ->
+                                        }
+                                        alertDialog = create()
+                                        alertDialog?.show()
+                                    }
+                                }
+                            } else {
+                                Log.w(TAG, "Traccia da seguire '${currentViewModelInstance.tracciaDaSeguire}' non trovata.")
+                            }
+                        }
+                    }
+                } // Fine if (isFragmentVisibleAndActive())
+            } else {
+                Log.w(TAG, "mReceiver: Location È null. Non aggiornando UI.")
             }
             Log.d(TAG, "mReceiver: onReceive completato.")
-
-
-    //se non è visualizzata la mappa non aggiorna dati cruscotto
-            if (!isFragmentVisibleAndActive())
-                return
-            // al primo punto aggiunge il marker d'inizio
-            if (viewModel.traccia.value?.actualPoints?.size == 1)
-                MapUtils.markInizioFine(
-                    requireContext(),
-                    viewModel.currentPosition.value ?: viewModel.newPunto,
-                    mapView,
-                    viewModel.recTraccia,
-                    0
-                )
-            // sposta il marker su nuova posizione con animazione
-            gpsMarker.position = (viewModel.newPunto)
-            if (viewModel.bloccaMappa) {
-                mapView.controller?.animateTo(viewModel.newPunto)
-            }
-            // Orienta display sorgente in OpenMap demo di Osmdroid: Location - SampleHeadingCompassUp
-            val gpsbearing = location!!.bearing
-            //use gps bearing instead of the compass
-            var t: Float = 360 - gpsbearing
-            if (t < 0) {
-                t += 360f
-            }
-            if (t > 360) {
-                t -= 360f
-            }
-//help smooth everything out
-            t = t.toInt().toFloat()
-            t /= 5
-            t = t.toInt().toFloat()
-            t *= 5
-// DA riabilitare rotazione solo in movimento?
-//if (gpsspeed >= 0.01) {
-            mapView.mapOrientation = t
-//otherwise let the compass take over
-//}
-
-// Controllo del fuori traccia basato sulla distanza dai punti della traccia da seguire
-            if (viewModel.alertFuoriTraccia && viewModel.tracciaDaSeguire != "") {
-//  verifica che non sia già visualizzato l'alert fuori traccia altrimenti lo aprirebbe ogni seoondo
-                if (!isAlertDialogShowing()) {
-                    //Log.d("Mappa", "segui traccia ${viewModel.listaTracce.items.size}")
-                    var indice = 0
-                    viewModel.listaTracce.items.forEachIndexed { index, it ->
-                        if (it is Polyline && it.title == viewModel.tracciaDaSeguire) {
-                            indice = index
-                        }
-                    }
-                    val traccia = viewModel.listaTracce.items[indice] as Polyline
-                    // restituisce se il punto è vicino con una tolleranza di 30 pixel alla posizione corrente della mappa
-                    if (!traccia.isCloseTo(viewModel.newPunto, 30.0, mapView)) {
-                        val allarme = EditText(requireActivity())
-                        val builder =
-                            AlertDialog.Builder(
-                                requireContext(),
-                                R.style.AlertDialogCustom
-                            )
-                        with(builder)
-                        {
-                            setTitle("Fuori traccia")
-                            val layout = LinearLayout(context)
-                            layout.orientation = LinearLayout.VERTICAL
-                            allarme.setText("ATTENZIONE SEI FUORI TRACCIA")
-                            layout.addView(allarme)
-                            // Set the LinearLayout as the view for the dialog
-                            builder.setView(layout)
-                            /*setPositiveButton(
-                                "Disabilita allarme"
-                            ) { _, _ ->
-                                //viewModel.alertFuoriTraccia = false
-                                // simula pressione pulsante allarme per cambiare stato allarme
-                                viewModel.alertDialogMostrato = false
-                                btnAllarme.text = "Allarme off"
-                                btnAllarme.backgroundTintList = ColorStateList.valueOf(Color.GREEN)
-                                btnAllarme.postInvalidate()
-                            }*/
-                            setNegativeButton(android.R.string.cancel) { _, _ ->
-                            }
-                            alertDialog = create()
-                            alertDialog?.show()
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -1514,26 +1503,41 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    // MappaFragment.kt
     override fun onDestroyView() {
-        super.onDestroyView()
-        mapView.overlayManager.clear() // Rimuove tutti gli overlay dalla mappa
-        //mapView.onDetach()             // Importante per OSMDroid per un corretto cleanup
-        // Se usi mapView.destroy(), assicurati che _binding sia nullificato dopo
+        alertDialog?.dismiss()
+        alertDialog = null
+
+        try {
+            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
+            Log.d(TAG, "mReceiver de-registrato in onDestroyView. Fragment: $this")
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onDestroyView.", e)
+        }
+
+        if (_binding != null) {
+            mapView.overlayManager.clear() // Rimuove tutti gli overlay dalla mappa
+            mapView.onDetach()             // Importante per OSMDroid per un corretto cleanup
+        }
+        super.onDestroyView() // Chiamare super prima di nullificare _binding
         _binding = null
     }
 
 
     override fun onDestroy() {
-//ondestroy viene richiamato al termine dell'app
+        super.onDestroy() // Chiamare super per primo
         if (!viewModel.isRecording) {
-            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
+            try {
+                LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
+                Log.d(TAG, "mReceiver de-registrato in onDestroy (non in registrazione). Fragment: $this")
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onDestroy.", e)
+            }
         }
-        super.onDestroy()
         preferenze.unregisterOnSharedPreferenceChangeListener(this)
-        database.close()
+        if (::database.isInitialized && database.isOpen) {
+            database.close()
+        }
     }
-
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
         menuInflater.inflate(R.menu.main_menu, menu)
@@ -1947,7 +1951,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         alertDialog.show()
     }
 
-    private fun puntiSuMappa(tableName: String, featureInfo: FeatureTableInfo) {
+    /*private fun puntiSuMappa(tableName: String, featureInfo: FeatureTableInfo) {
         // Assicurati che usi il GeoPackage dal ViewModel
         val currentGeoPackage = layerModel.geoPackageInstance
         if (currentGeoPackage == null) {
@@ -2018,6 +2022,44 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             creaOverlayPoligoni(osmdroidPolygonsToAdd, featureInfo)
         }
         mapView.invalidate()
+    }*/
+    private fun puntiSuMappa(tableName: String, featureInfo: FeatureTableInfo) {
+        // 1. Mostra l'indicatore di caricamento
+        _binding?.let {
+            it.loadingProgressBar.visibility = View.VISIBLE
+        }
+
+        lifecycleScope.launch {
+            val processedData = loadAndProcessFeaturesInBackground(tableName, featureInfo)
+
+            // Torna al thread principale per aggiornare la UI
+            withContext(Dispatchers.Main) {
+                // 2. Nascondi l'indicatore di caricamento
+                _binding?.let {
+                    it.loadingProgressBar.visibility = View.GONE
+                }
+
+                // Crea e carica i layer se ci sono dati
+                processedData.points?.let {
+                    if (it.isNotEmpty()) {
+                        creaOverlayPunti(it, featureInfo)
+                    }
+                }
+                processedData.lineStrings?.let {
+                    if (it.isNotEmpty()) {
+                        creaOverlayLinee(it, featureInfo)
+                    }
+                }
+                processedData.polygons?.let {
+                    if (it.isNotEmpty()) {
+                        creaOverlayPoligoni(it, featureInfo)
+                    }
+                }
+                if (_binding != null) { // Controlla se mapView è inizializzata e binding non è nullo
+                    mapView.invalidate()
+                }
+            }
+        }
     }
 
     private fun creaOverlayPoligoni(
@@ -2209,6 +2251,74 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val label = layerModel.creaLabel(featureRow, tableName)
             val description = "layer:$tableName"
             lineStringToAdd.add(LineStringFeature(geometry, label, description))
+        }
+    }
+
+    private suspend fun loadAndProcessFeaturesInBackground(
+        tableName: String,
+        featureInfo: FeatureTableInfo
+    ): ProcessedFeatureData {
+        return withContext(Dispatchers.IO) {
+            val currentGeoPackage = layerModel.geoPackageInstance
+            if (currentGeoPackage == null) {
+                Log.e(TAG, "GeoPackage is null in loadAndProcessFeaturesInBackground for table $tableName")
+                return@withContext ProcessedFeatureData(null, null, null)
+            }
+
+            val colore = featureInfo.colore
+            val points = mutableListOf<IGeoPoint>()
+            val osmdroidPolygonsToAdd = mutableListOf<Polygon>()
+            val lineStringToAdd = mutableListOf<LineStringFeature>()
+
+            try {
+                val featureDao: FeatureDao = currentGeoPackage.getFeatureDao(tableName)
+                val featureCursor: FeatureCursor = featureDao.queryForAll()
+
+                featureCursor.use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val featureRow: FeatureRow = cursor.row
+                        val geometryData: GeoPackageGeometryData? = featureRow.geometry
+
+                        if (geometryData?.geometry == null || geometryData.isEmpty) {
+                            Log.w(TAG, "Skipping feature row with null or empty geometry.")
+                            continue
+                        }
+
+                        val geometry = geometryData.geometry
+
+                        when (geometry.geometryType) {
+                            GeometryType.POINT -> processPointGeometry(featureRow, tableName, points)
+                            GeometryType.MULTIPOLYGON -> processMultiPolygonGeometry(
+                                featureRow,
+                                tableName,
+                                osmdroidPolygonsToAdd,
+                                colore
+                            )
+                            GeometryType.POLYGON -> processPolygonGeometry(
+                                featureRow,
+                                tableName,
+                                osmdroidPolygonsToAdd,
+                                colore
+                            )
+                            GeometryType.LINESTRING -> processLineStringGeometry(
+                                featureRow,
+                                tableName,
+                                lineStringToAdd
+                            )
+                            else -> Log.w(
+                                TAG,
+                                "Geometry type ${geometry.geometryType.name} not yet handled for display."
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error processing feature cursor for table $tableName in background", e)
+                // In caso di errore, è comunque buona pratica ritornare i dati parzialmente processati
+                // o almeno una struttura dati valida (anche se vuota).
+                return@withContext ProcessedFeatureData(points, osmdroidPolygonsToAdd, lineStringToAdd)
+            }
+            ProcessedFeatureData(points, osmdroidPolygonsToAdd, lineStringToAdd)
         }
     }
 

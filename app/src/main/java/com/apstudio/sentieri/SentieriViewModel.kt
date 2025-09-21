@@ -17,7 +17,7 @@ import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
-import com.apstudio.sentieri.db.TopoMarkerData // Added import
+import com.apstudio.sentieri.db.TopoMarkerData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -28,7 +28,6 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.sql.Timestamp
-import kotlin.math.abs
 
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
@@ -75,9 +74,9 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     // valori visualizzati nel cruscotto
     private val _distanzaMetri = MutableLiveData(0)
     val distanzaMetri : LiveData<Int> = _distanzaMetri
-    private val _dislivPiu = MutableLiveData<Double>(0.0)
+    private val _dislivPiu = MutableLiveData(0.0)
     val dislivPiu: LiveData<Double> = _dislivPiu
-    private val _dislivMeno = MutableLiveData<Double>(0.0)
+    private val _dislivMeno = MutableLiveData(0.0)
     val dislivMeno: LiveData<Double> = _dislivMeno
     private val _velocita = MutableLiveData(0)
     val velocita : LiveData<Int> = _velocita
@@ -90,9 +89,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private val _secondiMovimento = MutableLiveData<Long>(0)
     val secondiMovimento: LiveData<Long> = _secondiMovimento
 
-    // valori per il calcolo del dislivello con GPS con filtro MovingAverage
-    //private var previousAltitude: Double? = null
-    //private val altitudeHistory = mutableListOf<Double>()
     private val gpsAltitudeHistory: ArrayDeque<Double> = ArrayDeque(MOVING_AVERAGE_WINDOW_SIZE)
     private var previousFilteredAltitude: Double? = null
     // valori di riferimento della traccia da seguire
@@ -109,8 +105,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     // coefficiente per filtro passa basso quota barometro da 0 ad 1
     // con 0.1 da valori troppo bassi (-200 dislivello)
     private val alfa: Double = 0.21
-    private val alfaGPS: Double = 0.25
-    private var millibar = 0F
+    private val alfaGPS: Double = 0.23  //0.25 prec
     var NORMAL_PRESSURE = 1013.25F
     private val _isCalibrato = MutableLiveData(false)
     val isCalibrato : LiveData<Boolean> = _isCalibrato
@@ -161,7 +156,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             oldPunto = currentNewPunto
             isFixed = true
             // Log.d("SentieriViewModel", "Primo fix GPS. OldPunto: $oldPunto")
-            return@_performDataUpdate // o semplicemente return, a seconda di come strutturi
+            return // o semplicemente return, a seconda di come strutturi
         }
 
         // Aggiorna velocità (usa postValue per LiveData da background thread)
@@ -187,8 +182,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         withContext(Dispatchers.Main) {
             val currentPolyline = _traccia.value
             currentPolyline?.addPoint(currentNewPunto)
-            _traccia.value = currentPolyline // Forza l'aggiornamento del LiveData
-            Log.d("SentieriViewModel", "Traccia LiveData aggiornata con nuovo punto: $currentNewPunto. Tot punti: ${currentPolyline?.actualPoints?.size}")
+            _traccia.value = currentPolyline!! // Forza l'aggiornamento del LiveData
+            Log.d("SentieriViewModel", "Traccia LiveData aggiornata con nuovo punto: $currentNewPunto. Tot punti: ${currentPolyline.actualPoints?.size}")
         }
 
         // Salva punto GPS (nella lista in memoria)
@@ -199,7 +194,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     }
 
 
-    fun aggiornaDati(loc: Location?, altitudine: Double, baroPress: Float) {
+    /*fun aggiornaDati(loc: Location?, altitudine: Double, baroPress: Float) {
         if (loc == null) {
             //Log.w("GGA", "Location is null, cannot update data")
             return
@@ -273,7 +268,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         salvaPuntoGPS(newPunto)
         // memorizza punto come oldpunto per confronto col prossimo aggiornamento
         oldPunto = newPunto
-    }
+    }*/
 
     private fun dislivelloBaro(altitudineBaro: Int) {
         if (oldQuota == 0) {
@@ -340,19 +335,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
         //SimpleFileLogger.log("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
         //Log.d("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
-    }
-
-
-    /**
-     * Applies a moving average filter to the given altitude.
-     * Adds the altitude to the history and ensures the history does not exceed the window size.
-     */
-    private fun applyMovingAverage(altitude: Double): Double {
-        gpsAltitudeHistory.addLast(altitude)
-        if (gpsAltitudeHistory.size > MOVING_AVERAGE_WINDOW_SIZE) {
-            gpsAltitudeHistory.removeFirst()
-        }
-        return gpsAltitudeHistory.average()
     }
 
     fun resetCruscotto() {
@@ -516,17 +498,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
     }
 
-    fun cercaPoi(id: Int): List<PoiDB> {
-        return repository.cercaPoi(id)
-    }
-
     fun listaFotoId(id: Int): List<FotoPoi> {
         return repository.listaFotoId(id)
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        //Log.d("Mappa", "onCleared")
     }
 
 }

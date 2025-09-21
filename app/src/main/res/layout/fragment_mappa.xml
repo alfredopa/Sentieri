@@ -17,12 +17,12 @@
         android:contentDescription="@string/app_name"
         android:outlineProvider="none"
         android:src="@drawable/pin_rosso"
-        app:tint="@null"
         app:fabCustomSize="36dp"
         app:layout_anchorGravity="right|top"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="@null" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/camera"
@@ -46,6 +46,17 @@
         android:backgroundTint="@color/common_google_signin_btn_text_dark_disabled"
         app:layout_anchorGravity="center" />
 
-    <include layout="@layout/cruscotto" android:id="@+id/cruscotto"/>
+    <ProgressBar
+        android:id="@+id/loadingProgressBar"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
+    <include
+        android:id="@+id/cruscotto"
+        layout="@layout/cruscotto" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
