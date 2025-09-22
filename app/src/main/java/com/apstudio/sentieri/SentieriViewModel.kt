@@ -148,7 +148,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         val currentNewPunto = GeoPoint(loc.latitude, loc.longitude, altitudineCalcolata)
         _currentPosition.postValue(currentNewPunto) // Aggiorna il LiveData per la posizione corrente
         newPunto = currentNewPunto // Continua ad aggiornare newPunto per compatibilità
-        // Log.d("SentieriViewModel", "processNewLocationData currentNewPunto: $currentNewPunto") // Log più specifico
+         Log.d("SentieriViewModel", "processNewLocationData currentNewPunto: $currentNewPunto") // Log più specifico
         // Logica del primo fix
         if (!isFixed) {
             // Sincronizza l'accesso a oldPunto e isFixed se necessario,

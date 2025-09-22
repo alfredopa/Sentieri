@@ -118,6 +118,7 @@ class LocationService : LifecycleService() {
         requestLocationUpdates()
         initializeBarometer()
         createNotificationChannel()
+        Log.d("LocationService_ViewModel", "GpsViewModel instance in LocationService: $gpsViewModel")
     }
 
     private fun initializeGnssCallback() {
@@ -135,8 +136,10 @@ class LocationService : LifecycleService() {
 
             override fun onFirstFix(ttffMillis: Int) {
                 super.onFirstFix(ttffMillis)
+                Log.d("LocationService_Debug", "onFirstFix chiamato. Tento di aggiornare lo stato a 'fixed'. ViewModel: $gpsViewModel")
+                Log.d("LocationService_Debug", "Valore ATTUALE di gpsStatus PRIMA dell'update: ${gpsViewModel.gpsStatus.value}") // <-- NUOVO LOG
+                Log.d("LocationService_Thread", "onFirstFix eseguito su thread: ${Thread.currentThread().name}")
                 gpsViewModel.updateGpsStatus("fixed")
-                //Log.d(TAG, "First fix in $ttffMillis ms")
             }
 
             override fun onStarted() {
