@@ -1,17 +1,12 @@
 package com.apstudio.sentieri
 
-import android.location.GnssStatus
-import android.location.GpsStatus
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
 class GpsViewModel  : ViewModel(){
-    private val _gpsStatus = MutableLiveData("started")
+    private val _gpsStatus = MutableLiveData("stopped")
     val gpsStatus: LiveData<String> = _gpsStatus
     private val _isTraceRecordingActive = MutableLiveData(false)
     val isTraceRecordingActive: LiveData<Boolean> = _isTraceRecordingActive
@@ -30,9 +25,21 @@ class GpsViewModel  : ViewModel(){
         //Log.d("GpsView", "gps status $altitude")
     }
 
-    fun updateGpsStatus(status: String) {
-        _gpsStatus.value = status
-        //Log.d("GpsView", "gps status $status")
+    fun updateGpsStatus(newStatus: String) {
+        val oldValue = _gpsStatus.value
+        // Log dettagliato per capire chi sta chiamando e lo stato degli observer
+        Log.d("GpsViewModel_Debug", "Attempting to updateGpsStatus to: $newStatus. Previous value: $oldValue. HasActiveObservers: ${_gpsStatus.hasActiveObservers()}. Thread: ${Thread.currentThread().name}")
+
+        if (oldValue == newStatus) {
+            Log.d("GpsViewModel_Debug", "Status is already $newStatus. Not re-emitting.")
+            // Considera se vuoi forzare una ri-emissione in alcuni casi specifici per il primo avvio,
+            // ma la modifica in onCreateOptionsMenu dovrebbe gestire meglio l'aggiornamento UI iniziale.
+            return
+        }
+        // Quando chiami da un ViewModel (che di solito è manipolato dal main thread o da coroutines nel viewModelScope),
+        // setValue è appropriato. LiveData si occuperà di notificare gli observer sul main thread.
+        _gpsStatus.value = newStatus // Usa setValue se le modifiche avvengono prevalentemente dal main thread o viewModelScope
+        Log.d("GpsViewModel_Debug", "GpsStatus LiveData new value set to: $newStatus")
     }
 
     fun updateVelocita(velocita: Double) {
@@ -41,6 +48,12 @@ class GpsViewModel  : ViewModel(){
     }
     fun updateRecordingStatus(isRecording: Boolean) {
         _isTraceRecordingActive.value = !isRecording
+    }
+
+    // In GpsViewModel.kt
+    fun testForceGpsStatus(newStatus: String) {
+        Log.d("GpsViewModel_Debug", "testForceGpsStatus chiamato con: $newStatus. Valore precedente: ${_gpsStatus.value}")
+        _gpsStatus.value = newStatus
     }
 
 }

@@ -82,6 +82,7 @@ import com.apstudio.sentieri.layer.LineStringFeature
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mil.nga.geopackage.GeoPackageFactory
@@ -214,8 +215,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         try {
             // Assicurati che AppSentieri sia il nome corretto della tua classe Application
             // e che il ViewModelProvider sia configurato correttamente.
-            viewModel = ViewModelProvider(requireActivity().application as AppSentieri)[SentieriViewModel::class.java]
-            Log.d(TAG, "ViewModel inizializzato in onCreate: $viewModel. Fragment: $this")
+            viewModel =
+                ViewModelProvider(requireActivity().application as AppSentieri)[SentieriViewModel::class.java]
         } catch (e: Exception) {
             Log.e(TAG, "FATALE: Errore durante l'inizializzazione del ViewModel in onCreate!", e)
             // Considera di gestire questo errore in modo più drastico se l'app non può funzionare senza viewModel
@@ -285,6 +286,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         return binding.root
     }
 
+    override fun onStart() {
+        super.onStart()
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         // verifica se sono passati argomenti
@@ -308,6 +313,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 val targetPoint = GeoPoint(latitude, longitude)
                 mapView.controller.setCenter(targetPoint)
                 mapView.controller.setZoom(15.0)
+                Log.d(TAG, "MapView onviewcreated: $targetPoint")
                 mapView.controller.animateTo(targetPoint)
             }
             arguments?.clear()
@@ -461,7 +467,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             btnAllarme()
             //binding.cruscotto.btnAllarme.postInvalidate()
         }
-
         // avvia gli observer per aggiornamento dati cruscotto
         val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
         viewModel.distanzaMetri.observe(viewLifecycleOwner) { distanzaMetri ->
@@ -497,26 +502,27 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
         gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
-            updateGpsIcon(status)
-            //Log.d("gps", "status $status")
+            updateGpsIcon(status) // Aggiorna l'icona in base al nuovo stato
         }
         // Observer per la traccia LiveData
         viewModel.traccia.observe(viewLifecycleOwner) { nuovaPolyline ->
             if (viewModel.isRecording) { // Controlla se la registrazione è attiva
                 // Pulisci il FolderOverlay recTraccia prima di aggiungere la nuova Polyline aggiornata
-                val existingRecPolyline = viewModel.recTraccia.items.find { it is Polyline && it.title == "Registrazione" }
+                val existingRecPolyline =
+                    viewModel.recTraccia.items.find { it is Polyline && it.title == "Registrazione" }
                 existingRecPolyline?.let { viewModel.recTraccia.remove(it) }
                 // Clona la Polyline per evitare problemi di riutilizzo dell'oggetto
                 val polylineToDisplay = Polyline(mapView) // Assicurati che mapView sia accessibile
                 polylineToDisplay.setPoints(nuovaPolyline.actualPoints)
-                polylineToDisplay.title = "Registrazione" // O qualsiasi altro titolo                // Applica eventuali stili qui se necessario (colore, spessore)
+                polylineToDisplay.title =
+                    "Registrazione" // O qualsiasi altro titolo                // Applica eventuali stili qui se necessario (colore, spessore)
                 // Esempio:
                 // polylineToDisplay.outlinePaint.color = Color.RED
                 // polylineToDisplay.outlinePaint.strokeWidth = 5f
 
                 viewModel.recTraccia.add(polylineToDisplay)
                 mapView.invalidate() // Forza il ridisegno della mappa
-                Log.d(TAG, "Observer traccia: Polyline aggiornata e aggiunta a recTraccia. Punti: ${polylineToDisplay.actualPoints.size}")
+                //Log.d(TAG, "Observer traccia: Polyline aggiornata e aggiunta a recTraccia. Punti: ${polylineToDisplay.actualPoints.size}")
             }
         }
     }
@@ -548,9 +554,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onResume() {
         super.onResume()
         // Registra il receiver quando il fragment è attivo e visibile
-        val filter = IntentFilter(MappaFragment.SEND_LOCATION_ACTION) // Assicurati che SEND_LOCATION_ACTION sia la stringa corretta
+        val filter =
+            IntentFilter(MappaFragment.SEND_LOCATION_ACTION) // Assicurati che SEND_LOCATION_ACTION sia la stringa corretta
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
-        Log.d(TAG, "mReceiver registrato")
 
         mapView.onResume()
         //Log.d("Mappa", "MappaFragment onResume ")
@@ -730,12 +736,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (!viewModel.isRecording) {
             try {
                 LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
-                Log.d(TAG, "mReceiver de-registrato in onPause (non in registrazione). Fragment: $this")
             } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onPause.", e)
+                Log.w(
+                    TAG,
+                    "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onPause.",
+                    e
+                )
             }
-        } else {
-            Log.d(TAG, "mReceiver NON de-registrato in onPause perché la registrazione è attiva. Fragment: $this")
         }
         // memorizza valori per ripristinare la mappa
         viewModel.ultZoom = mapView.zoomLevel
@@ -939,7 +946,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.dislivPiu.removeObservers(viewLifecycleOwner)
         viewModel.dislivMeno.removeObservers(viewLifecycleOwner)
         viewModel.secondiMovimento.removeObservers(viewLifecycleOwner)
-        gpsViewModel.gpsStatus.removeObservers(viewLifecycleOwner)
+        //gpsViewModel.gpsStatus.removeObservers(viewLifecycleOwner)
     }
 
     private fun attivaGps() {
@@ -987,16 +994,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // inizio registrazione posizione
         viewModel.isRecording = true
         viewModel.oraInizio = System.currentTimeMillis()
-        //viewModel.oraInizio = SystemClock.elapsedRealtime()
-// crea observer per aggiornamento punti traccia
-/*        osservaMappa = Observer {
-            viewModel.traccia.observe(viewLifecycleOwner) { traccia ->
-                //Log.d("observer", "rectraccia ${viewModel.recTraccia.items.size}")
-                traccia.title = "Registrazione"
-                viewModel.recTraccia.add(traccia)
-            }
-        }
-        viewModel.traccia.observe(viewLifecycleOwner, osservaMappa)*/
         viewModel.startUpdates()
 // avvia il servizio per tracciare locazione in background
         requireActivity().startService(Intent(context, LocationService::class.java))
@@ -1005,6 +1002,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         bottomSheetBehavior.halfExpandedRatio = 0.5f
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
         gpsViewModel.updateGpsStatus("started")
+        //updateGpsIcon("started")
     }
 
     @Deprecated("Deprecated in Java")
@@ -1133,15 +1131,28 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    private fun updateGpsIcon(status: String) {
-        val iconRes = when (status) {
-            "started" -> R.drawable.gps_started
-            "fixed" -> R.drawable.gps_on
-            "stopped" -> R.drawable.gps_off
-            else -> R.drawable.gps_off
+    private fun updateGpsIcon(status: String?) {
+        val menuItem = menu?.findItem(R.id.gps) ?: run { // Usa l'ID corretto qui
+            Log.w(
+                TAG,
+                "updateGpsIcon: Tentativo di aggiornare l'icona ma il MENU o L'ITEM (R.id.gps) E' NULL."
+            )
+            return
         }
-        menu?.findItem(R.id.gps)?.setIcon(iconRes)
-        //Log.d("GpsView", "gps status $status")
+
+        val iconRes = when (status) {
+            "started" -> R.drawable.gps_started // O l'icona che usi per "ricerca GPS"
+            "fixed" -> R.drawable.gps_on     // Icona per GPS fixato
+            "stopped" -> R.drawable.gps_off   // Icona per GPS spento/non attivo
+            else -> R.drawable.gps_off      // Default a spento se lo stato è null o non riconosciuto
+        }
+
+        try {
+            // menuItem qui non dovrebbe essere nullo grazie al check precedente
+            menuItem.icon = ContextCompat.getDrawable(requireContext(), iconRes)
+        } catch (e: Exception) {
+            Log.e(TAG, "Errore durante l'aggiornamento dell'icona GPS", e)
+        }
     }
 
     private fun mediaSpeed(): Double {
@@ -1323,7 +1334,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     // riceve aggiornamento posizione da servizio in Broadcast
     private val mReceiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            Log.d(TAG, "mReceiver: Broadcast ricevuto. Azione: ${intent.action}. Fragment: ${this@MappaFragment}")
 
             if (!this@MappaFragment.lifecycle.currentState.isAtLeast(Lifecycle.State.CREATED)) {
                 Log.w(TAG, "mReceiver: Fragment non è almeno CREATED. Ignorando.")
@@ -1352,17 +1362,21 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val baroPress = intent.getFloatExtra("milliBar", 0f)
 
             if (location != null) {
+                // Controlla se le coordinate sono (0.0, 0.0)
+                if (location.latitude == 0.0 && location.longitude == 0.0) {
+                    Log.w(TAG, "mReceiver: Ricevuta posizione con coordinate (0,0). Ignorando.")
+                    return
+                }
                 currentViewModelInstance.processNewLocationData(location, altitudine, baroPress)
-
                 // Tutta la logica UI che dipende da 'location' e 'currentViewModelInstance' va qui dentro
                 // e anche dentro isFragmentVisibleAndActive()
                 if (isFragmentVisibleAndActive()) {
                     // al primo punto aggiunge il marker d'inizio
                     if (currentViewModelInstance.isRecording && currentViewModelInstance.traccia.value?.actualPoints?.size == 1) {
                         if (isAdded && getContext() != null) { // Ulteriore controllo di sicurezza per il contesto
-                            MapUtils.markInizioFine(
-                                requireContext(),
-                                currentViewModelInstance.currentPosition.value ?: currentViewModelInstance.newPunto,
+                            MapUtils.markInizioFine( requireContext(),
+                                currentViewModelInstance.currentPosition.value
+                                    ?: currentViewModelInstance.newPunto,
                                 mapView,
                                 currentViewModelInstance.recTraccia,
                                 0
@@ -1370,25 +1384,27 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         }
                     }
 
+
                     if (::gpsMarker.isInitialized) {
                         gpsMarker.position = currentViewModelInstance.newPunto
-                    }
 
-                    if (currentViewModelInstance.bloccaMappa) {
-                        mapView.controller?.animateTo(currentViewModelInstance.newPunto)
-                        val gpsbearing = location.bearing
-                        var t: Float = 360 - gpsbearing
-                        if (t < 0) {
-                            t += 360f
+                        if (currentViewModelInstance.bloccaMappa) {
+                            val gpsbearing = location.bearing
+                            var t: Float = 360 - gpsbearing
+                            if (t < 0) {
+                                t += 360f
+                            }
+                            if (t > 360) {
+                                t -= 360f
+                            }
+                            t = t.toInt().toFloat()
+                            t /= 5
+                            t = t.toInt().toFloat()
+                            t *= 5
+                            mapView.mapOrientation = t
+                            Log.d(TAG, "MapView onreceive: ${currentViewModelInstance.newPunto}")
+                            mapView.controller?.animateTo(currentViewModelInstance.newPunto)
                         }
-                        if (t > 360) {
-                            t -= 360f
-                        }
-                        t = t.toInt().toFloat()
-                        t /= 5
-                        t = t.toInt().toFloat()
-                        t *= 5
-                        mapView.mapOrientation = t
                     }
 
                     if (currentViewModelInstance.alertFuoriTraccia && currentViewModelInstance.tracciaDaSeguire.isNotEmpty()) {
@@ -1400,8 +1416,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                                 }
                             }
                             if (indice != -1) { // Controlla se l'indice è stato trovato
-                                val traccia = currentViewModelInstance.listaTracce.items[indice] as Polyline
-                                if (!traccia.isCloseTo(currentViewModelInstance.newPunto, 30.0, mapView)) {
+                                val traccia =
+                                    currentViewModelInstance.listaTracce.items[indice] as Polyline
+                                if (!traccia.isCloseTo(
+                                        currentViewModelInstance.newPunto,
+                                        30.0,
+                                        mapView
+                                    )
+                                ) {
                                     val allarme = EditText(requireActivity())
                                     val builder =
                                         AlertDialog.Builder(
@@ -1423,7 +1445,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                                     }
                                 }
                             } else {
-                                Log.w(TAG, "Traccia da seguire '${currentViewModelInstance.tracciaDaSeguire}' non trovata.")
+                                Log.w(
+                                    TAG,
+                                    "Traccia da seguire '${currentViewModelInstance.tracciaDaSeguire}' non trovata."
+                                )
                             }
                         }
                     }
@@ -1431,7 +1456,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             } else {
                 Log.w(TAG, "mReceiver: Location È null. Non aggiornando UI.")
             }
-            Log.d(TAG, "mReceiver: onReceive completato.")
+            //Log.d(TAG, "mReceiver: onReceive completato.")
         }
     }
 
@@ -1509,9 +1534,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         try {
             LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
-            Log.d(TAG, "mReceiver de-registrato in onDestroyView. Fragment: $this")
+            //Log.d(TAG, "mReceiver de-registrato in onDestroyView. Fragment: $this")
         } catch (e: IllegalArgumentException) {
-            Log.w(TAG, "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onDestroyView.", e)
+            Log.w(
+                TAG,
+                "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onDestroyView.",
+                e
+            )
         }
 
         if (_binding != null) {
@@ -1528,9 +1557,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (!viewModel.isRecording) {
             try {
                 LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
-                Log.d(TAG, "mReceiver de-registrato in onDestroy (non in registrazione). Fragment: $this")
+                //Log.d(TAG, "mReceiver de-registrato in onDestroy (non in registrazione). Fragment: $this")
             } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onDestroy.", e)
+                Log.w(
+                    TAG,
+                    "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onDestroy.",
+                    e
+                )
             }
         }
         preferenze.unregisterOnSharedPreferenceChangeListener(this)
@@ -1543,6 +1576,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         menuInflater.inflate(R.menu.main_menu, menu)
 // viene richiamata alla creazione del menu, quindi  anche quando si cambia il fragment
         this.menu = menu
+        // Aggiorna l'icona con lo stato corrente del GPS ViewModel
+        // Questo gestisce il caso in cui l'observer iniziale è scattato prima che il menu fosse pronto
+        updateGpsIcon(gpsViewModel.gpsStatus.value)
     }
 
     @RequiresApi(Build.VERSION_CODES.S)
@@ -1635,6 +1671,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         return false
     }
 
+
     @RequiresApi(Build.VERSION_CODES.S)
     private fun creaWayPoint() {
         val nomePoiEditText = EditText(requireActivity())
@@ -1700,7 +1737,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             audioOutputFile?.let {
                 if (it.exists()) {
                     it.delete()
-                    Log.d(TAG_AUDIO, "File audio temporaneo cancellato: ${it.absolutePath}")
+                    //Log.d(TAG_AUDIO, "File audio temporaneo cancellato: ${it.absolutePath}")
                 }
             }
             audioOutputFile = null
@@ -2261,7 +2298,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         return withContext(Dispatchers.IO) {
             val currentGeoPackage = layerModel.geoPackageInstance
             if (currentGeoPackage == null) {
-                Log.e(TAG, "GeoPackage is null in loadAndProcessFeaturesInBackground for table $tableName")
+                Log.e(
+                    TAG,
+                    "GeoPackage is null in loadAndProcessFeaturesInBackground for table $tableName"
+                )
                 return@withContext ProcessedFeatureData(null, null, null)
             }
 
@@ -2287,24 +2327,32 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         val geometry = geometryData.geometry
 
                         when (geometry.geometryType) {
-                            GeometryType.POINT -> processPointGeometry(featureRow, tableName, points)
+                            GeometryType.POINT -> processPointGeometry(
+                                featureRow,
+                                tableName,
+                                points
+                            )
+
                             GeometryType.MULTIPOLYGON -> processMultiPolygonGeometry(
                                 featureRow,
                                 tableName,
                                 osmdroidPolygonsToAdd,
                                 colore
                             )
+
                             GeometryType.POLYGON -> processPolygonGeometry(
                                 featureRow,
                                 tableName,
                                 osmdroidPolygonsToAdd,
                                 colore
                             )
+
                             GeometryType.LINESTRING -> processLineStringGeometry(
                                 featureRow,
                                 tableName,
                                 lineStringToAdd
                             )
+
                             else -> Log.w(
                                 TAG,
                                 "Geometry type ${geometry.geometryType.name} not yet handled for display."
@@ -2316,7 +2364,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 Log.e(TAG, "Error processing feature cursor for table $tableName in background", e)
                 // In caso di errore, è comunque buona pratica ritornare i dati parzialmente processati
                 // o almeno una struttura dati valida (anche se vuota).
-                return@withContext ProcessedFeatureData(points, osmdroidPolygonsToAdd, lineStringToAdd)
+                return@withContext ProcessedFeatureData(
+                    points,
+                    osmdroidPolygonsToAdd,
+                    lineStringToAdd
+                )
             }
             ProcessedFeatureData(points, osmdroidPolygonsToAdd, lineStringToAdd)
         }
