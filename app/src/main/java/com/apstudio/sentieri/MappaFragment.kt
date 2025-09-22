@@ -259,23 +259,99 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun onReturnFromLayerDialog(featureInfo: FeatureTableInfo) {
-        // 1. Rimuovi i vecchi overlay per questa featureInfo dalla mappa
-        featureInfo.listOverlay?.forEach { oldOverlay ->
-            mapView.overlayManager.remove(oldOverlay)
-        }
-        // 2. Svuota la lista nel ViewModel
-        featureInfo.listOverlay?.clear() // o featureInfo.listOverlay = mutableListOf() se può essere null
-
-        // Se il layer non è più visibile, non aggiungere nulla e aggiorna la mappa
-        if (!featureInfo.isVisible) {
-            mapView.invalidate()
+        if (_binding == null) {
+            Log.w(TAG, "onReturnFromLayerDialog called when _binding is null. Aborting.")
             return
         }
-        // 3. Ora crea e aggiungi i nuovi overlay
-        // Questo popolerà di nuovo featureInfo.listOverlay (se usato da creaOverlayPoligoni etc.)
-        // e aggiungerà i nuovi overlay alla mappa.
-        puntiSuMappa(featureInfo.name, featureInfo)
-        mapView.invalidate() // Aggiorna la mappa
+
+        var needsInvalidate = false
+
+        if (featureInfo.listOverlay == null) {
+            featureInfo.listOverlay = mutableListOf()
+        }
+
+        featureInfo.listOverlay?.forEach { existingOverlay ->
+            mapView.overlayManager.remove(existingOverlay)
+        }
+
+        if (featureInfo.isVisible) {
+            if (featureInfo.listOverlay!!.isNotEmpty()) {
+                featureInfo.listOverlay!!.forEach { overlay ->
+                    overlay.isEnabled = true
+                    if (!mapView.overlays.contains(overlay)) {
+                        mapView.overlayManager.add(overlay)
+                    }
+                    // Re-attach listeners now that the overlay is added to the new map
+                    reattachListenersToOverlay(overlay, featureInfo)
+                }
+                needsInvalidate = true
+            } else {
+                puntiSuMappa(featureInfo.name, featureInfo)
+                // puntiSuMappa is responsible for initial listener setup and invalidation
+            }
+        } else {
+            featureInfo.listOverlay!!.forEach { overlay ->
+                overlay.isEnabled = false
+                // Listeners don't need to be re-attached if not visible,
+                // but ensure they are properly configured if they become visible again.
+                // The reattachListenersToOverlay call when isVisible becomes true will handle it.
+            }
+            needsInvalidate = true
+        }
+
+        if (needsInvalidate) {
+            mapView.invalidate()
+        }
+    }
+
+    // Helper function to re-attach listeners
+    private fun reattachListenersToOverlay(overlay: org.osmdroid.views.overlay.Overlay, featureInfo: FeatureTableInfo) {
+        if (!isAdded || context == null) { // Ensure fragment is attached and has context
+            Log.w(TAG, "reattachListenersToOverlay: Fragment not attached or context is null.")
+            return
+        }
+
+        when (overlay) {
+            is SimpleFastPointOverlay -> {
+                // Re-attach listener for SimpleFastPointOverlay (created by creaOverlayPunti)
+                overlay.setOnClickListener { points, pointClicked ->
+                    (points[pointClicked] as? LabelledGeoPoint)?.label?.let { label ->
+                        mostraAlertDialogSemplice(label, featureInfo.descrTabella)
+                    }
+                }
+            }
+            is FolderOverlay -> {
+                // Re-attach listeners for items within a FolderOverlay
+                overlay.items.forEach { item ->
+                    when (item) {
+                        is Polygon -> {
+                            // Re-attach listener for Polygons
+                            item.setOnClickListener { polygon, map, eventPos ->
+                                val retrievedLabel = polygon.relatedObject as? String
+                                if (retrievedLabel != null) {
+                                    mostraAlertDialogSemplice(retrievedLabel,
+                                        featureInfo.descrTabella
+                                    )
+                                }
+                                true
+                            }
+                        }
+                        is Polyline -> {
+                            // Re-attach listener for Polylines
+                            // Crucially, re-initialize InfoWindow with the current mapView instance
+                            item.infoWindow = BasicInfoWindow(org.osmdroid.library.R.layout.bonuspack_bubble, mapView)
+                            item.setOnClickListener { clickedPolyline, map, eventPosition ->
+                                clickedPolyline.infoWindowLocation = eventPosition
+                                clickedPolyline.showInfoWindow()
+                                map.controller.animateTo(eventPosition)
+                                true
+                            }
+                        }
+                    }
+                }
+            }
+            // Add other overlay types here if necessary
+        }
     }
 
     override fun onCreateView(
@@ -656,7 +732,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         // ridisegna eventuali layer aggiunti da GpkgLayer
         layerModel.featureList.forEach { featureInfo ->
-            if (featureInfo.isVisible)
+            //if (featureInfo.isVisible)
                 onReturnFromLayerDialog(featureInfo)
         }
 
