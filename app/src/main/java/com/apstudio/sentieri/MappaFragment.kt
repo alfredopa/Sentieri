@@ -99,6 +99,7 @@ import net.federicomatera.agpxp.models.Gpx
 import net.federicomatera.agpxp.models.GpxMetadata
 import net.federicomatera.agpxp.models.Link
 import net.federicomatera.agpxp.models.Track
+import net.federicomatera.agpxp.models.WayPoint
 import org.mapsforge.map.rendertheme.ExternalRenderTheme
 import org.mapsforge.map.rendertheme.InternalRenderTheme
 import org.mapsforge.map.rendertheme.XmlRenderTheme
@@ -138,6 +139,7 @@ import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
+import com.apstudio.sentieri.R
 
 private const val TAG = "MappaFragment"
 
@@ -239,23 +241,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // predispone broadcast per servizio aggiornamento posizione
         val filter = IntentFilter(SEND_LOCATION_ACTION)
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
-
-        // Imposta il listener per il risultato da GpkgLayer
-        parentFragmentManager.setFragmentResultListener(
-            LAYER_DIALOG_REQUEST_KEY,
-            this
-        ) { requestKey, bundle ->
-            // Questo blocco viene eseguito quando GpkgLayer invia un risultato
-            // con la LAYER_DIALOG_REQUEST_KEY specificata.
-            if (requestKey == LAYER_DIALOG_REQUEST_KEY) {
-                layerModel.featureList.forEach { featureInfo ->
-                    //if (featureInfo.isVisible)
-                    onReturnFromLayerDialog(featureInfo)
-                }
-                // Puoi recuperare dati dal bundle se GpkgLayer li ha inviati
-                // val userAction = bundle.getString("userAction")
-            }
-        }
     }
 
     private fun onReturnFromLayerDialog(featureInfo: FeatureTableInfo) {
@@ -316,7 +301,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 // Re-attach listener for SimpleFastPointOverlay (created by creaOverlayPunti)
                 overlay.setOnClickListener { points, pointClicked ->
                     (points[pointClicked] as? LabelledGeoPoint)?.label?.let { label ->
-                        mostraAlertDialogSemplice(label, featureInfo.descrTabella)
+                        mostraAlertDialogSemplice(label) //, featureInfo.descrTabella)
                     }
                 }
             }
@@ -329,9 +314,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                             item.setOnClickListener { polygon, map, eventPos ->
                                 val retrievedLabel = polygon.relatedObject as? String
                                 if (retrievedLabel != null) {
-                                    mostraAlertDialogSemplice(retrievedLabel,
-                                        featureInfo.descrTabella
-                                    )
+                                    mostraAlertDialogSemplice(retrievedLabel) //, featureInfo.descrTabella)
                                 }
                                 true
                             }
@@ -393,6 +376,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.controller.animateTo(targetPoint)
             }
             arguments?.clear()
+        }
+
+        // Imposta il listener per il risultato da GpkgLayer
+        parentFragmentManager.setFragmentResultListener(
+            LAYER_DIALOG_REQUEST_KEY,
+            viewLifecycleOwner
+        ) { requestKey, bundle ->
+            // Questo blocco viene eseguito quando GpkgLayer invia un risultato
+            // con la LAYER_DIALOG_REQUEST_KEY specificata.
+            if (requestKey == LAYER_DIALOG_REQUEST_KEY) {
+                layerModel.featureList.forEach { featureInfo ->
+                    //if (featureInfo.isVisible)
+                    Log.d(TAG, "FragmentResultListener processing layer: " + featureInfo.name + ", isVisible: " + featureInfo.isVisible)
+                    onReturnFromLayerDialog(featureInfo)
+                }
+                // Puoi recuperare dati dal bundle se GpkgLayer li ha inviati
+                // val userAction = bundle.getString("userAction")
+                mapView.invalidate()
+            }
         }
         // Ascolta i risultati da FeatureList
         parentFragmentManager.setFragmentResultListener(
@@ -629,10 +631,20 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onResume() {
         super.onResume()
-        // Registra il receiver quando il fragment è attivo e visibile
-        val filter =
-            IntentFilter(MappaFragment.SEND_LOCATION_ACTION) // Assicurati che SEND_LOCATION_ACTION sia la stringa corretta
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
+        // Registra il receiver quando il fragment è in registrazione
+        if (!viewModel.isRecording) {
+            try {
+                val filter =
+                    IntentFilter(MappaFragment.SEND_LOCATION_ACTION) // Assicurati che SEND_LOCATION_ACTION sia la stringa corretta
+                LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
+            } catch (e: IllegalArgumentException) {
+                Log.w(
+                    TAG,
+                    "Tentativo di ri-registrare mReceiver già registrato in onResume",
+                    e
+                )
+            }
+        }
 
         mapView.onResume()
         //Log.d("Mappa", "MappaFragment onResume ")
@@ -685,9 +697,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         R.drawable.ic_finish,
                         requireContext().theme
                     )
-                    poiMarker.position.latitude = it.Latit.toDouble()
-                    poiMarker.position.longitude = it.Longit.toDouble()
-                    poiMarker.position.altitude = it.Ele.toDouble()
+                    poiMarker.position.latitude = it.Latit
+                    poiMarker.position.longitude = it.Longit
+                    poiMarker.position.altitude = it.Ele
                     viewModel.listaTracce.add(poiMarker)
                 }
             }
@@ -733,7 +745,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // ridisegna eventuali layer aggiunti da GpkgLayer
         layerModel.featureList.forEach { featureInfo ->
             //if (featureInfo.isVisible)
-                onReturnFromLayerDialog(featureInfo)
+            Log.d(TAG, "onResume processing layer: " + featureInfo.name + ", isVisible: " + featureInfo.isVisible);
+            onReturnFromLayerDialog(featureInfo)
         }
 
         // toponimi
@@ -747,7 +760,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 newMarker.id = topoData.id // Imposta l'ID univoco sul marker!
                 newMarker.position = GeoPoint(topoData.latitude, topoData.longitude)
                 newMarker.title = topoData.name
-                newMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
+                newMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                 //Log.d("MappaFragment_Debug", "Creating marker: ID='${newMarker.id}', Title='${newMarker.title}'")
 
                 newMarker.icon = ResourcesCompat.getDrawable(
@@ -868,7 +881,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // Mappe MapsForge estensione .map il path del rendertheme è hard coded, da cambiare
         val forgeMappa: MapsForgeTileProvider
         val offlineMappa: OfflineTileProvider
-        var theme: XmlRenderTheme? = null
+        var theme: XmlRenderTheme?
         if (f.name.contains(".map")) {
             val mediaDir = requireContext().externalMediaDirs
             val documentsDir = mediaDir[0]
@@ -1026,7 +1039,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun attivaGps() {
-        var locationManager =
+        val locationManager =
             requireActivity().getSystemService(Context.LOCATION_SERVICE) as LocationManager
         // Check if GPS provider is enabled
         val isGpsProviderEnabled =
@@ -1566,7 +1579,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // La logica per visualizzare il marker sulla mappa può rimanere,
         // creando un'istanza temporanea di WayPoint se necessario per il marker,
         // ma NON aggiungerla a viewModel.wayPoint.
-        val markerDisplayWayPoint = net.federicomatera.agpxp.models.WayPoint(
+        val markerDisplayWayPoint = WayPoint(
             latitude = viewModel.newPunto.latitude,
             longitude = viewModel.newPunto.longitude,
             elevation = viewModel.newPunto.altitude,
@@ -2032,8 +2045,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val retrievedLabel = polygon.relatedObject as? String
             if (retrievedLabel != null) {
                 mostraAlertDialogSemplice(
-                    retrievedLabel,
-                    tableName
+                    retrievedLabel
                 )
             }
             true // Indica che l'evento è stato gestito
@@ -2049,7 +2061,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         return osmdroidPolygon
     }
 
-    private fun mostraAlertDialogSemplice(message: String, titolo: String) {
+    private fun mostraAlertDialogSemplice(message: String) {
         if (!isAdded || context == null) {
             Log.w(TAG, "Fragment non attaccato o contesto nullo, impossibile mostrare AlertDialog.")
             return // Esci dalla funzione per evitare il crash
@@ -2232,8 +2244,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             points[point].toString()
             (points[point] as LabelledGeoPoint).label?.let {
                 mostraAlertDialogSemplice(
-                    it,
-                    featureInfo.descrTabella
+                    it
                 )
             }
         }
@@ -2579,9 +2590,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     return null
                 }
             }
-            File.createTempFile(audioFileName, ".3gp", storageDir).also {
-                //Log.d(TAG_AUDIO, "File audio creato: ${it.absolutePath}")
-            }
+            File.createTempFile(audioFileName!!, ".3gp", storageDir)
         } catch (ex: IOException) {
             Log.e(TAG_AUDIO, "Errore nella creazione del file audio: ${ex.message}")
             null
