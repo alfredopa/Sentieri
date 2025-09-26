@@ -3,6 +3,7 @@ package com.apstudio.sentieri
 import android.Manifest
 import android.app.Activity
 import android.content.BroadcastReceiver
+import android.content.ComponentCallbacks2
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -82,7 +83,6 @@ import com.apstudio.sentieri.layer.LineStringFeature
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mil.nga.geopackage.GeoPackageFactory
@@ -139,12 +139,11 @@ import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
-import com.apstudio.sentieri.R
 
 private const val TAG = "MappaFragment"
 
 class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
-    View.OnKeyListener {
+    View.OnKeyListener, ComponentCallbacks2 {
 
     companion object {
         const val SEND_LOCATION_ACTION = "com.apstudio.sentieri.posizione"
@@ -267,7 +266,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         mapView.overlayManager.add(overlay)
                     }
                     // Re-attach listeners now that the overlay is added to the new map
-                    reattachListenersToOverlay(overlay, featureInfo)
+                    reattachListenersToOverlay(overlay)
                 }
                 needsInvalidate = true
             } else {
@@ -290,7 +289,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     // Helper function to re-attach listeners
-    private fun reattachListenersToOverlay(overlay: org.osmdroid.views.overlay.Overlay, featureInfo: FeatureTableInfo) {
+    private fun reattachListenersToOverlay(
+        overlay: org.osmdroid.views.overlay.Overlay
+    ) {
         if (!isAdded || context == null) { // Ensure fragment is attached and has context
             Log.w(TAG, "reattachListenersToOverlay: Fragment not attached or context is null.")
             return
@@ -305,6 +306,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     }
                 }
             }
+
             is FolderOverlay -> {
                 // Re-attach listeners for items within a FolderOverlay
                 overlay.items.forEach { item ->
@@ -319,10 +321,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                                 true
                             }
                         }
+
                         is Polyline -> {
                             // Re-attach listener for Polylines
                             // Crucially, re-initialize InfoWindow with the current mapView instance
-                            item.infoWindow = BasicInfoWindow(org.osmdroid.library.R.layout.bonuspack_bubble, mapView)
+                            item.infoWindow = BasicInfoWindow(
+                                org.osmdroid.library.R.layout.bonuspack_bubble,
+                                mapView
+                            )
                             item.setOnClickListener { clickedPolyline, map, eventPosition ->
                                 clickedPolyline.infoWindowLocation = eventPosition
                                 clickedPolyline.showInfoWindow()
@@ -343,10 +349,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     ): View {
         _binding = FragmentMappaBinding.inflate(inflater, container, false)
         return binding.root
-    }
-
-    override fun onStart() {
-        super.onStart()
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -388,7 +390,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             if (requestKey == LAYER_DIALOG_REQUEST_KEY) {
                 layerModel.featureList.forEach { featureInfo ->
                     //if (featureInfo.isVisible)
-                    Log.d(TAG, "FragmentResultListener processing layer: " + featureInfo.name + ", isVisible: " + featureInfo.isVisible)
+                    Log.d(
+                        TAG,
+                        "FragmentResultListener processing layer: " + featureInfo.name + ", isVisible: " + featureInfo.isVisible
+                    )
                     onReturnFromLayerDialog(featureInfo)
                 }
                 // Puoi recuperare dati dal bundle se GpkgLayer li ha inviati
@@ -635,8 +640,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (!viewModel.isRecording) {
             try {
                 val filter =
-                    IntentFilter(MappaFragment.SEND_LOCATION_ACTION) // Assicurati che SEND_LOCATION_ACTION sia la stringa corretta
-                LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
+                    IntentFilter(SEND_LOCATION_ACTION) // Assicurati che SEND_LOCATION_ACTION sia la stringa corretta
+                LocalBroadcastManager.getInstance(requireContext())
+                    .registerReceiver(mReceiver, filter)
             } catch (e: IllegalArgumentException) {
                 Log.w(
                     TAG,
@@ -745,7 +751,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // ridisegna eventuali layer aggiunti da GpkgLayer
         layerModel.featureList.forEach { featureInfo ->
             //if (featureInfo.isVisible)
-            Log.d(TAG, "onResume processing layer: " + featureInfo.name + ", isVisible: " + featureInfo.isVisible);
+            Log.d(
+                TAG,
+                "onResume processing layer: " + featureInfo.name + ", isVisible: " + featureInfo.isVisible
+            )
             onReturnFromLayerDialog(featureInfo)
         }
 
@@ -1463,7 +1472,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     // al primo punto aggiunge il marker d'inizio
                     if (currentViewModelInstance.isRecording && currentViewModelInstance.traccia.value?.actualPoints?.size == 1) {
                         if (isAdded && getContext() != null) { // Ulteriore controllo di sicurezza per il contesto
-                            MapUtils.markInizioFine( requireContext(),
+                            MapUtils.markInizioFine(
+                                requireContext(),
                                 currentViewModelInstance.currentPosition.value
                                     ?: currentViewModelInstance.newPunto,
                                 mapView,
@@ -2635,6 +2645,37 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         ) == PackageManager.PERMISSION_GRANTED
     }
     // --- Fine Funzioni di Registrazione Audio ---
+
+    // --- ComponentCallbacks2 Implementation ---
+    override fun onTrimMemory(level: Int) {
+        //super.onTrimMemory(level) // È buona norma chiamare super
+        Log.i(TAG, "onTrimMemory called with level: $level")
+        if (_binding != null) { // Check if mapView is initialized
+            onTrimMemory(level) // Chiama onTrimMemory sull'istanza di mapView
+        }
+        // You might want to clear other caches here based on the level
+        // For example, if level is TRIM_MEMORY_RUNNING_CRITICAL or TRIM_MEMORY_COMPLETE
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) {
+            // Aggressively free up resources
+            // layerModel.clearCache() // Example
+            // viewModel.clearCache() // Example
+        }
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory() // It's good practice to call super
+        Log.w(TAG, "onLowMemory called. System is critically low on memory.")
+        if (_binding != null) { // Check if mapView is initialized
+            onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_COMPLETE)
+        }
+        // This is a more severe signal. You should release any resources that are not
+        // absolutely essential for the current user experience.
+        // layerModel.evictAll() // Example: Clear all caches in LayerViewModel
+        // viewModel.evictAll()  // Example: Clear all caches in SentieriViewModel
+        // Consider releasing other resources like GeoPackage instances if they can be reopened later.
+        layerModel.closeGeoPackage() // Example
+    }
+    // --- End ComponentCallbacks2 Implementation ---
 
     inner class RemovableMarker(mapView: MapView) : Marker(mapView) {
         var onMarkerLongClick: ((RemovableMarker) -> Boolean)? = null
