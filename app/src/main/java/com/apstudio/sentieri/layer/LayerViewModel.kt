@@ -208,9 +208,7 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
         return Color.argb(alpha, red, green, blue)
     }
 
-
-    override fun onCleared() {
-        super.onCleared()
+    fun closeGeoPackage() {
         geoPackageInstance?.let { geoPkg ->
             try {
                 geoPkg.close()
@@ -220,6 +218,11 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         geoPackageInstance = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        closeGeoPackage()
         Log.d(TAG, "LayerViewModel cleared.")
     }
 }
