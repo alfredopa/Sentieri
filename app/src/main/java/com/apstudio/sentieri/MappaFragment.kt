@@ -2474,9 +2474,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     // --- Inizio Funzioni di Registrazione Audio ---
     @RequiresApi(Build.VERSION_CODES.S)
+// In MappaFragment.kt
+
     private fun startAudioRecording(button: Button) {
         if (isAudioRecording) return
 
+        // This now creates a file with the final, correct name.
         audioOutputFile = createAudioFileInternal()
         if (audioOutputFile == null) {
             Toast.makeText(
@@ -2489,7 +2492,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         currentAudioFilePath = audioOutputFile?.absolutePath // Salva il percorso
 
         mediaRecorder =
-            MediaRecorder(requireContext()) // Usa il costruttore con Context se API >= 31, altrimenti il default
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(requireContext())
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+
         mediaRecorder?.apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
@@ -2504,6 +2513,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 Toast.makeText(requireContext(), "Registrazione avviata...", Toast.LENGTH_SHORT)
                     .show()
 
+                // Schedules the stop call correctly
                 audioHandler.postDelayed({
                     if (isAudioRecording) {
                         stopAudioRecording(button)
@@ -2528,71 +2538,41 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun stopAudioRecording(button: Button, forceRelease: Boolean = false) {
-        if (!isAudioRecording && !forceRelease) return // Se non sta registrando e non è un rilascio forzato, non fare nulla
+        if (!isAudioRecording && !forceRelease) return
 
-        try {
-            if (isAudioRecording) { // Solo se stava registrando
-                // NON chiamare createAudioFileInternal() qui di nuovo.
-                // Usa la variabile membro this.audioOutputFile che contiene il file registrato.
-                val finalAudioTargetName =
-                    audioFileName // Assumendo che audioFileName contenga il nome finale desiderato (es. AUD_timestamp.3gp)
-                if (finalAudioTargetName != null && this.audioOutputFile != null) {
-                    val storageDir = requireContext().getExternalFilesDir("VoiceNotesWaypoints")
-                    val finalAudioFile = File(storageDir, finalAudioTargetName)
-                    if (this.audioOutputFile!!.renameTo(finalAudioFile)) {
-                        // Rinomina riuscita
-                        currentAudioFilePath =
-                            finalAudioFile.absolutePath // Aggiorna il percorso al nuovo file
-                        Toast.makeText(
-                            requireContext(),
-                            "Registrazione salvata: ${finalAudioFile.name}",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } else {
-                        // Rinomina fallita, il file rimane con il nome temporaneo
-                        Toast.makeText(
-                            requireContext(),
-                            "Salvataggio con nome finale fallito. File: ${this.audioOutputFile!!.name}",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        // currentAudioFilePath punterebbe ancora al file temporaneo se non lo aggiorni
-                    }
-                } else {
-                    // audioFileName o this.audioOutputFile erano null, gestisci l'errore
-                    Toast.makeText(
-                        requireContext(),
-                        "Errore: impossibile definire il nome finale del file.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        } catch (e: RuntimeException) {
-            Log.e(TAG_AUDIO, "stop() failed: ${e.message}")
-            if (isAudioRecording) { // Mostra errore solo se l'utente si aspettava uno stop normale
+        if (isAudioRecording) {
+            try {
+                // THE CRUCIAL MISSING CALL: Stop the recording.
+                mediaRecorder?.stop()
+                Toast.makeText(
+                    requireContext(),
+                    "Registrazione salvata: ${audioFileName}",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (e: RuntimeException) {
+                Log.e(TAG_AUDIO, "stop() failed: ${e.message}")
+                currentAudioFilePath = null // Invalidate the path if stop failed
+                audioOutputFile?.delete()    // Delete the potentially corrupt file
                 Toast.makeText(
                     requireContext(),
                     "Interruzione registrazione fallita",
                     Toast.LENGTH_SHORT
                 ).show()
             }
-            // In alcuni casi, il file potrebbe essere corrotto o parziale
-            // audioOutputFile?.delete() // Considera se cancellare
-            currentAudioFilePath = null // La registrazione non è valida
-        } finally {
-            isAudioRecording = false
-            button.text = "Registra Commento Vocale (5s)"
-            audioHandler.removeCallbacksAndMessages(null)
-            if (forceRelease) {
-                releaseMediaRecorderInternal(false) // Non cancellare il file se lo stop è forzato ma riuscito
-            }
         }
+
+        // Always release the recorder and update the state.
+        releaseMediaRecorderInternal(false) // Release resources, keep the file if stop was successful
+        isAudioRecording = false
+        button.text = "Registra Commento Vocale (5s)"
+        audioHandler.removeCallbacksAndMessages(null)
     }
 
     private fun createAudioFileInternal(): File? {
         return try {
             val timeStamp: String =
                 SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            audioFileName = "AUD_${timeStamp}.3gp"
+            audioFileName = "AUD_${timeStamp}.3gp" // This is the final name
             val storageDir: File? = requireContext().getExternalFilesDir("VoiceNotesWaypoints")
             if (storageDir != null && !storageDir.exists()) {
                 if (!storageDir.mkdirs()) {
@@ -2600,7 +2580,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     return null
                 }
             }
-            File.createTempFile(audioFileName!!, ".3gp", storageDir)
+            // Create the file directly with its final name. No temp file, no renaming.
+            File(storageDir, audioFileName)
         } catch (ex: IOException) {
             Log.e(TAG_AUDIO, "Errore nella creazione del file audio: ${ex.message}")
             null
