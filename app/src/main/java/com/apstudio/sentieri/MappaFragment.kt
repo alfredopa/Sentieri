@@ -71,6 +71,7 @@ import com.apstudio.sentieri.MapUtils.getFileNameFromUri
 import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
+import com.apstudio.sentieri.db.LocationRepository
 import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.PoiDao
 import com.apstudio.sentieri.db.Sentieri
@@ -162,9 +163,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private val SECONDS_IN_AN_HOUR = 3600.0 // Changed from Int to Double for precision
 
     // viewModel del LocationService con scope Application
-    private val gpsViewModel: GpsViewModel by lazy {
-        ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[GpsViewModel::class.java]
-    }
 
     val layerModel: LayerViewModel by lazy {
         val application = requireActivity().application
@@ -185,8 +183,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private lateinit var gpsMarker: Marker
     private val displayedTopoMarkers = mutableListOf<Marker>()
     private var uri: Uri? = null
-
-    //private lateinit var osservaMappa: Observer<Polyline>
+    private lateinit var currentTrackPolyline: Polyline // La traccia che disegna sulla mappa
     private var alertDialog: AlertDialog? = null
 
     // memorizza istanza del menu per aggiornare icone
@@ -354,8 +351,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         // verifica se sono passati argomenti
-
-        // verifica se sono passati argomenti da gpx
+        // argomenti da gpx
         arguments?.getString("gpx_file_uri")?.let { uriString ->
             val gpxUri = uriString.toUri()
             caricaGPX(gpxUri)
@@ -555,7 +551,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.distanzaMetri.observe(viewLifecycleOwner) { distanzaMetri ->
             binding.cruscotto.tvDist.text = MapUtils.formattastring(distanzaMetri)
         }
-        gpsViewModel.velocita.observe(viewLifecycleOwner) { velocita ->
+        LocationRepository.velocita.observe(viewLifecycleOwner) { velocita ->
             binding.cruscotto.tvVelo.text = getString(R.string.kmh, velocita.toInt())
         }
         viewModel.quota.observe(viewLifecycleOwner) { quota ->
@@ -578,35 +574,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.isCalibrato.observe(viewLifecycleOwner) {
             if (it) {
                 binding.cruscotto.tvCalcQuota.text = "BARO"
-                gpsViewModel.usaBaro = true
+                LocationRepository.usaBaro = true
             } else {
                 binding.cruscotto.tvCalcQuota.text = "GPS"
-                gpsViewModel.usaBaro = false
+                LocationRepository.usaBaro = false
             }
         }
-        gpsViewModel.gpsStatus.observe(viewLifecycleOwner) { status ->
+        LocationRepository.gpsStatus.observe(viewLifecycleOwner) { status ->
             updateGpsIcon(status) // Aggiorna l'icona in base al nuovo stato
         }
         // Observer per la traccia LiveData
-        viewModel.traccia.observe(viewLifecycleOwner) { nuovaPolyline ->
-            if (viewModel.isRecording) { // Controlla se la registrazione è attiva
-                // Pulisci il FolderOverlay recTraccia prima di aggiungere la nuova Polyline aggiornata
-                val existingRecPolyline =
-                    viewModel.recTraccia.items.find { it is Polyline && it.title == "Registrazione" }
-                existingRecPolyline?.let { viewModel.recTraccia.remove(it) }
-                // Clona la Polyline per evitare problemi di riutilizzo dell'oggetto
-                val polylineToDisplay = Polyline(mapView) // Assicurati che mapView sia accessibile
-                polylineToDisplay.setPoints(nuovaPolyline.actualPoints)
-                polylineToDisplay.title =
-                    "Registrazione" // O qualsiasi altro titolo                // Applica eventuali stili qui se necessario (colore, spessore)
-                // Esempio:
-                // polylineToDisplay.outlinePaint.color = Color.RED
-                // polylineToDisplay.outlinePaint.strokeWidth = 5f
+        currentTrackPolyline = Polyline()
+        // ... configura stile, colore, ecc.
+        mapView.overlays.add(currentTrackPolyline)
 
-                viewModel.recTraccia.add(polylineToDisplay)
-                mapView.invalidate() // Forza il ridisegno della mappa
-                //Log.d(TAG, "Observer traccia: Polyline aggiornata e aggiunta a recTraccia. Punti: ${polylineToDisplay.actualPoints.size}")
-            }
+        // 2. Osserva il LiveData dal ViewModel
+        LocationRepository.trackPoints.observe(viewLifecycleOwner) { points ->
+            // L'observer verrà chiamato con la lista completa di punti ogni volta che cambia
+            currentTrackPolyline.setPoints(points)
+            mapView.invalidate() // Ridisegna la mappa
         }
     }
 
@@ -637,7 +623,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onResume() {
         super.onResume()
         // Registra il receiver quando il fragment è in registrazione
-        if (!viewModel.isRecording) {
             try {
                 val filter =
                     IntentFilter(SEND_LOCATION_ACTION) // Assicurati che SEND_LOCATION_ACTION sia la stringa corretta
@@ -650,7 +635,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     e
                 )
             }
-        }
 
         mapView.onResume()
         //Log.d("Mappa", "MappaFragment onResume ")
@@ -733,7 +717,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         if (viewModel.isRecording) {
             // in registrazione ripristina marker gps,bottomsheet allo stato precedente
-            gpsViewModel.updateGpsStatus(gpsViewModel.gpsStatus.value!!)
+            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
             accendiSchermo()
             gpsMarker.position = (viewModel.newPunto)
             gpsMarker.setVisible(true)
@@ -824,14 +808,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         super.onPrepareMenu(menu)
         // soluzione per aggiornare icona gps dopo cambio fragment in quanto observer non aggiorna
         if (viewModel.isRecording) {
-            gpsViewModel.updateGpsStatus(gpsViewModel.gpsStatus.value!!)
+            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
         }
     }
 
     override fun onPause() {
         super.onPause()
         // Non de-registrare il receiver se la registrazione è in corso
-        if (!viewModel.isRecording) {
+        //if (!viewModel.isRecording) {
             try {
                 LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
             } catch (e: IllegalArgumentException) {
@@ -841,7 +825,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     e
                 )
             }
-        }
+        //}
         // memorizza valori per ripristinare la mappa
         viewModel.ultZoom = mapView.zoomLevel
         viewModel.ultPosizione = mapView.mapCenter as GeoPoint
@@ -1014,7 +998,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.stopUpdates()
         viewModel.isRecording = false
         gpsMarker.setVisible(false)
-        gpsViewModel.updateGpsStatus("stopped")
+        LocationRepository.updateGpsStatus("stopped")
 // rimuove impostazione schermo sempre acceso
         requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 // aggiunge marker fine percorso
@@ -1084,6 +1068,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 return
             }
         }
+        // pulizia eventuali registrazione precedente
+        LocationRepository.clearTrack()
         viewModel.isFixed = false
 // Cambia stato GPS ON
         gpsMarker.setVisible(true)
@@ -1099,7 +1085,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         bottomSheetBehavior.peekHeight = 120
         bottomSheetBehavior.halfExpandedRatio = 0.5f
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
-        gpsViewModel.updateGpsStatus("started")
+        LocationRepository.updateGpsStatus("started")
         //updateGpsIcon("started")
     }
 
@@ -1470,7 +1456,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 // e anche dentro isFragmentVisibleAndActive()
                 if (isFragmentVisibleAndActive()) {
                     // al primo punto aggiunge il marker d'inizio
-                    if (currentViewModelInstance.isRecording && currentViewModelInstance.traccia.value?.actualPoints?.size == 1) {
+                    if (currentViewModelInstance.isRecording && currentViewModelInstance.trackPoints.value?.size == 1) {
                         if (isAdded && getContext() != null) { // Ulteriore controllo di sicurezza per il contesto
                             MapUtils.markInizioFine(
                                 requireContext(),
@@ -1677,7 +1663,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         this.menu = menu
         // Aggiorna l'icona con lo stato corrente del GPS ViewModel
         // Questo gestisce il caso in cui l'observer iniziale è scattato prima che il menu fosse pronto
-        updateGpsIcon(gpsViewModel.gpsStatus.value)
+        updateGpsIcon(LocationRepository.gpsStatus.value)
     }
 
     @RequiresApi(Build.VERSION_CODES.S)

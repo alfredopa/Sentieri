@@ -1,11 +1,14 @@
-package com.apstudio.sentieri
+package com.apstudio.sentieri.db
 
+
+import android.location.Location
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
+import org.osmdroid.util.GeoPoint
 
-class GpsViewModel  : ViewModel(){
+// Usa un "object" per creare un Singleton in modo semplice e sicuro
+object LocationRepository {
     private val _gpsStatus = MutableLiveData("stopped")
     val gpsStatus: LiveData<String> = _gpsStatus
     private val _isTraceRecordingActive = MutableLiveData(false)
@@ -13,16 +16,23 @@ class GpsViewModel  : ViewModel(){
     private val _mslAltitude = MutableLiveData(0.0)
     val mslAltitude : LiveData<Double> = _mslAltitude
     var usaBaro : Boolean = false
-    var numSat : Int = 0
     private val _velocita = MutableLiveData(0.0)
     val velocita: LiveData<Double> = _velocita
-    // aggiungere tutti i livedata utili
-    //private val _numSat = MutableLiveData(0)
-    //var numSat: LiveData<Int> = _numSat
+    var numSat : Int = 0
 
-    fun updateMslAltitude(altitude: Double) {
-        _mslAltitude.value = altitude
-        //Log.d("GpsView", "gps status $altitude")
+    private val _trackPoints = MutableLiveData<List<GeoPoint>>(emptyList())
+    val trackPoints: LiveData<List<GeoPoint>> = _trackPoints
+
+    // Questo è il metodo che il LocationService chiamerà
+    fun addTrackPoint(location: Location) {
+        val newPoint = GeoPoint(location.latitude, location.longitude, location.altitude)
+        val currentList = _trackPoints.value ?: emptyList()
+        // Usa postValue perché questo metodo sarà chiamato da un background thread nel service
+        _trackPoints.postValue(currentList + newPoint)
+    }
+
+    fun clearTrack() {
+        _trackPoints.postValue(emptyList())
     }
 
     fun updateGpsStatus(newStatus: String) {
@@ -42,18 +52,13 @@ class GpsViewModel  : ViewModel(){
         Log.d("GpsViewModel_Debug", "GpsStatus LiveData new value set to: $newStatus")
     }
 
+    fun updateMslAltitude(altitude: Double) {
+        _mslAltitude.value = altitude
+        //Log.d("GpsView", "gps status $altitude")
+    }
+
     fun updateVelocita(velocita: Double) {
         _velocita.value = velocita
         //Log.d("GpsView", "gps status $velocita")
     }
-    fun updateRecordingStatus(isRecording: Boolean) {
-        _isTraceRecordingActive.value = !isRecording
-    }
-
-    // In GpsViewModel.kt
-    fun testForceGpsStatus(newStatus: String) {
-        Log.d("GpsViewModel_Debug", "testForceGpsStatus chiamato con: $newStatus. Valore precedente: ${_gpsStatus.value}")
-        _gpsStatus.value = newStatus
-    }
-
 }

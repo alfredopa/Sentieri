@@ -25,6 +25,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.NavDeepLinkBuilder
 import com.apstudio.sentieri.MappaFragment.Companion.SEND_LOCATION_ACTION
+import com.apstudio.sentieri.db.LocationRepository
 
 /**
  * LocationService is a foreground service responsible for tracking the device's location
@@ -102,9 +103,6 @@ class LocationService : LifecycleService() {
     private var hasMslAltitude = false
     private var speedKnots: Double = 0.0
     private var speedKmh: Double = 0.0
-    private val gpsViewModel: GpsViewModel by lazy {
-        ViewModelProvider(application as ViewModelStoreOwner)[GpsViewModel::class.java]
-    }
 
     override fun onCreate() {
         super.onCreate()
@@ -118,7 +116,6 @@ class LocationService : LifecycleService() {
         requestLocationUpdates()
         initializeBarometer()
         createNotificationChannel()
-        Log.d("LocationService_ViewModel", "GpsViewModel instance in LocationService: $gpsViewModel")
     }
 
     private fun initializeGnssCallback() {
@@ -131,25 +128,25 @@ class LocationService : LifecycleService() {
                         usedSatellites++
                     }
                 }
-                gpsViewModel.numSat = satelliteCount
+                LocationRepository.numSat = satelliteCount
             }
 
             override fun onFirstFix(ttffMillis: Int) {
                 super.onFirstFix(ttffMillis)
-                Log.d("LocationService_Debug", "onFirstFix chiamato. Tento di aggiornare lo stato a 'fixed'. ViewModel: $gpsViewModel")
-                Log.d("LocationService_Debug", "Valore ATTUALE di gpsStatus PRIMA dell'update: ${gpsViewModel.gpsStatus.value}") // <-- NUOVO LOG
+                Log.d("LocationService_Debug", "onFirstFix chiamato. Tento di aggiornare lo stato a 'fixed'")
+                Log.d("LocationService_Debug", "Valore ATTUALE di gpsStatus PRIMA dell'update: ${LocationRepository.gpsStatus.value}") // <-- NUOVO LOG
                 Log.d("LocationService_Thread", "onFirstFix eseguito su thread: ${Thread.currentThread().name}")
-                gpsViewModel.updateGpsStatus("fixed")
+                LocationRepository.updateGpsStatus("fixed")
             }
 
             override fun onStarted() {
-                gpsViewModel.updateGpsStatus("started")
+                LocationRepository.updateGpsStatus("started")
                 //Log.d(TAG, "GNSS started")
                 super.onStarted()
             }
 
             override fun onStopped() {
-                gpsViewModel.updateGpsStatus("stopped")
+                LocationRepository.updateGpsStatus("stopped")
                 //Log.d(TAG, "GNSS stopped")
                 super.onStopped()
             }
@@ -163,7 +160,11 @@ class LocationService : LifecycleService() {
                 Log.w(TAG, "LocationService: Accuratezza troppo bassa: ${newLocation.accuracy}. Location ignorata.")
                 return@LocationListener
             }
-            sendBroadcast(newLocation) // Passa la newLocation non nulla
+            // NUOVA LOGICA: Aggiorna direttamente il ViewModel
+            LocationRepository.addTrackPoint(newLocation)
+            // Puoi ancora inviare il broadcast se altre parti dell'app ne hanno bisogno
+            // per aggiornamenti istantanei (es. la posizione dell'icona utente).
+            sendBroadcast(newLocation)
         }
     }
 
@@ -204,9 +205,8 @@ class LocationService : LifecycleService() {
     }
 
     private fun initializeBarometer() {
-        if (gpsViewModel.usaBaro) {
+        if (LocationRepository.usaBaro) {
             //Log.d(TAG, "Starting barometer sensor updates")
-            //baroRepo = BaroRepo(this)
             baroRepo.startSensorUpdates()
         }
     }
@@ -225,17 +225,17 @@ class LocationService : LifecycleService() {
             action = SEND_LOCATION_ACTION
             action = MappaFragment.SEND_LOCATION_ACTION
             putExtra(EXTRA_LOCATION_DATA, newLocation) // newLocation qui è garantito non essere null
-            putExtra("altitudine", gpsViewModel.mslAltitude.value!!)
-            //SimpleFileLogger.log(TAG, "sendBroadcast - Android < 14: Using NMEA for MSL. Current gpsViewModel.mslAltitude = ${gpsViewModel.mslAltitude.value}, newLocation.altitude (WGS84) = ${newLocation.altitude}")
+            putExtra("altitudine", LocationRepository.mslAltitude.value!!)
+            //SimpleFileLogger.log(TAG, "sendBroadcast - Android < 14: Using NMEA for MSL. Current LocationRepository.mslAltitude = ${LocationRepository.mslAltitude.value}, newLocation.altitude (WGS84) = ${newLocation.altitude}")
 
-            if (gpsViewModel.usaBaro && baroRepo.baroData.isInitialized) {
+            if (LocationRepository.usaBaro && baroRepo.baroData.isInitialized) {
                 milliBar = baroRepo.baroData.value ?: 0.0F
                 putExtra("milliBar", milliBar)
             }
             setClass(this@LocationService, MainActivity::class.java)
         }
         LocalBroadcastManager.getInstance(this).sendBroadcast(broadcastIntent)
-        //Log.d(TAG, "Location broadcast sent: MilliBar = $milliBar, MSL Altitude = ${gpsViewModel.mslAltitude}")
+        //Log.d(TAG, "Location broadcast sent: MilliBar = $milliBar, MSL Altitude = ${LocationRepository.mslAltitude}")
     }
 
     private fun parseNmeaMessage(message: String) {
@@ -261,8 +261,8 @@ class LocationService : LifecycleService() {
             val mslFromNmea = nmeaParts[9].toDoubleOrNull()
             //SimpleFileLogger.log(TAG, "parseNmeaMessage - GGA Fix Quality: $fixQuality, MSL from NMEA string: ${nmeaParts[9]}, Parsed: $mslFromNmea")
             if (fixQuality != "0" && mslFromNmea != null) { // O controlla anche altri codici di fix validi
-                gpsViewModel.updateMslAltitude(mslFromNmea)
-                SimpleFileLogger.log(TAG, "parseNmeaMessage - Updated gpsViewModel.mslAltitude from NMEA: ${gpsViewModel.mslAltitude.value}")
+                LocationRepository.updateMslAltitude(mslFromNmea)
+                SimpleFileLogger.log(TAG, "parseNmeaMessage - Updated LocationRepository.mslAltitude from NMEA: ${LocationRepository.mslAltitude.value}")
             }
         }
     }
@@ -272,7 +272,7 @@ class LocationService : LifecycleService() {
         if (parts.size > 7 && parts[3].isNotEmpty()) { // Check if the message is valid and has enough fields
             speedKnots = parts[7].toDoubleOrNull() ?: 0.0
             speedKmh = speedKnots * 1.852
-            gpsViewModel.updateVelocita(speedKmh)
+            LocationRepository.updateVelocita(speedKmh)
             //Log.d("NMEA",  "Velocità (GPRMC): %.2f nodi, %.2f km/h, $speedKnots, $speedKmh")
         }
     }
@@ -282,7 +282,7 @@ class LocationService : LifecycleService() {
         if (parts.size > 7) {
             speedKnots = parts[5].toDoubleOrNull() ?: 0.0
             speedKmh = parts[7].toDoubleOrNull() ?: (speedKnots * 1.852)
-            gpsViewModel.updateVelocita(speedKmh)
+            LocationRepository.updateVelocita(speedKmh)
             //Log.d("NMEA",  "Velocità (GNVTG): %.2f nodi, %.2f km/h, $speedKnots, $speedKmh")
         }
     }
@@ -291,12 +291,12 @@ class LocationService : LifecycleService() {
         super.onDestroy()
         //Log.d(TAG, "Service destroyed")
         stopBarometer()
-        gpsViewModel.updateGpsStatus("stopped")
+        LocationRepository.updateGpsStatus("stopped")
         removeLocationUpdates()
     }
 
     private fun stopBarometer() {
-        if (gpsViewModel.usaBaro) {
+        if (LocationRepository.usaBaro) {
             //Log.d(TAG, "Stopping barometer sensor updates")
             baroRepo.stopSensorUpdates()
         }
