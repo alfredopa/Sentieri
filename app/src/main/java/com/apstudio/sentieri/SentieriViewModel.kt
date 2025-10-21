@@ -28,6 +28,9 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.sql.Timestamp
+import java.util.concurrent.CopyOnWriteArrayList
+
+data class LocationData(val geoPoint: GeoPoint, val bearing: Float)
 
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
@@ -43,7 +46,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val topoLayer = FolderOverlay()
     var line : Polyline = Polyline()
     // liste di punti gps e waypoint
-    val puntiGPS = mutableListOf<WayPoint>()
+    val puntiGPS = CopyOnWriteArrayList<WayPoint>()
     var wayPoint = mutableListOf<WayPoint>()
     var poiDBList = mutableListOf<PoiDB>()
     val fotoInPoiDB = mutableListOf<Uri>()
@@ -51,7 +54,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val layerItems = mutableListOf<LayerItem>()
     val geoPuntiPercorso = mutableListOf<GeoPoint>()
     val toponimiSelezionati = mutableListOf<TopoMarkerData>() // New list
-    var alertFuoriTraccia : Boolean = false
+    var alertFuoriTraccia : Boolean = true
     var tracciaDaSeguire : String = ""
     var poi = GeoPoint(0.0, 0.0, 0.0)
     var bloccaMappa = true
@@ -64,9 +67,10 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var isRecording = false
     var ricerca = String()
     var ultPosizione = GeoPoint(40.120875, 9.012893, 40.0)   // posizione iniziale mappa
-    private val _currentPosition = MutableLiveData<GeoPoint>()
-    val currentPosition: LiveData<GeoPoint> = _currentPosition
-    var newPunto =  GeoPoint(0.0,0.0,0.0)
+
+    private val _locationData = MutableLiveData<LocationData>()
+    val locationData: LiveData<LocationData> = _locationData
+    
     private var oldPunto =  GeoPoint(0.0,0.0,0.0)
     var ultZoom = (9)
 
@@ -111,9 +115,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     fun processNewLocationData(loc: Location, altitudine: Double, baroPress: Float) {
         viewModelScope.launch(Dispatchers.IO) { // Esegui su un thread in background
-            // Qui ora chiami la logica che prima era in aggiornaDati
-            // o sposti il contenuto di aggiornaDati qui.
-            // Per esempio, rinominiamo la vecchia aggiornaDati in _performDataUpdate
             _performDataUpdate(loc, altitudine, baroPress)
         }
     }
@@ -122,7 +123,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         if (loc == null) {
             return
         }
-
         // Calcola altitudine effettiva (GPS o Baro)
         var altitudineCalcolata = altitudineOriginale
         var usaAltitudineBaro = false
@@ -138,17 +138,14 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
 
         val currentNewPunto = GeoPoint(loc.latitude, loc.longitude, altitudineCalcolata)
-        _currentPosition.postValue(currentNewPunto) // Aggiorna il LiveData per la posizione corrente
-        newPunto = currentNewPunto // Continua ad aggiornare newPunto per compatibilità
-         Log.d("SentieriViewModel", "processNewLocationData currentNewPunto: $currentNewPunto") // Log più specifico
+        _locationData.postValue(LocationData(currentNewPunto, loc.bearing))
+        Log.d("SentieriViewModel", "processNewLocationData currentNewPunto: $currentNewPunto") // Log più specifico
         // Logica del primo fix
         if (!isFixed) {
-            // Sincronizza l'accesso a oldPunto e isFixed se necessario,
-            // anche se viewModelScope dovrebbe serializzare le chiamate a processNewLocationData
             oldPunto = currentNewPunto
             isFixed = true
             // Log.d("SentieriViewModel", "Primo fix GPS. OldPunto: $oldPunto")
-            return // o semplicemente return, a seconda di come strutturi
+            return
         }
 
         // Aggiorna velocità (usa postValue per LiveData da background thread)
@@ -244,8 +241,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         previousFilteredAltitude = null // Resetta anche lo stato del filtro GPS
         oldQuota = 0 // Resetta lo stato del filtro barometrico
         gpsAltitudeHistory.clear()
-        _currentPosition.value = GeoPoint(0.0,0.0,0.0) // Resetta la posizione corrente
-        newPunto = GeoPoint(0.0,0.0,0.0)
+        _locationData.value = LocationData(GeoPoint(0.0,0.0,0.0), 0f) // Resetta la posizione corrente
         oldPunto = GeoPoint(0.0,0.0,0.0)
         isFixed = false
     }
@@ -336,7 +332,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     fun stopUpdates() {
         updatesJob?.cancel()
         updatesJob = null
-//Log.d("Mappa", "Stop running")
+        //Log.d("Mappa", "Stop running")
     }
 
     /*// filtro basato su velocità ascensionale in m/sec
