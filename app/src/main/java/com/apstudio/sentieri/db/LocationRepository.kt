@@ -16,19 +16,37 @@ object LocationRepository {
     val velocita: LiveData<Int> = _velocita
     var numSat : Int = 0
 
-    private val _trackPoints = MutableLiveData<List<GeoPoint>>(emptyList())
+    // Lista privata che contiene l'intera traccia.
+    private val trackPointsList = mutableListOf<GeoPoint>()
+
+    // LiveData che espone la lista COMPLETA.
+    // Utile per ridisegnare la traccia dopo una rotazione dello schermo.
+    private val _trackPoints = MutableLiveData<List<GeoPoint>>()
     val trackPoints: LiveData<List<GeoPoint>> = _trackPoints
 
-    // Questo è il metodo che il LocationService chiamerà
+    // NUOVO LiveData che emette SOLO l'ultimo punto aggiunto.
+    // L'interfaccia utente osserverà questo per aggiornamenti efficienti in tempo reale.
+    private val _newTrackPoint = MutableLiveData<GeoPoint>()
+    val newTrackPoint: LiveData<GeoPoint> = _newTrackPoint
+
+    // Questo metodo ora è molto più efficiente.
     fun addTrackPoint(location: Location) {
         val newPoint = GeoPoint(location.latitude, location.longitude, location.altitude)
-        val currentList = _trackPoints.value ?: emptyList()
-        // Usa postValue perché questo metodo sarà chiamato da un background thread nel service
-        _trackPoints.postValue(currentList + newPoint)
+        // 1. Aggiungi il punto alla nostra lista interna.
+        trackPointsList.add(newPoint)
+        // 2. Notifica gli observer che c'è un SOLO nuovo punto.
+        _newTrackPoint.postValue(newPoint)
     }
 
     fun clearTrack() {
+        trackPointsList.clear()
+        // Quando puliamo, notifichiamo che la lista completa è ora vuota.
         _trackPoints.postValue(emptyList())
+    }
+
+    // Metodo per richiedere la traccia completa quando necessario (es. rotazione schermo)
+    fun requestFullTrack() {
+        _trackPoints.postValue(trackPointsList.toList())
     }
 
     fun updateGpsStatus(newStatus: String) {

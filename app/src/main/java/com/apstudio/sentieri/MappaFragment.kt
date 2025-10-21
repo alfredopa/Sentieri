@@ -600,7 +600,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
 
             // Aggiunge il marker d'inizio al primo punto della registrazione
-            if (viewModel.isRecording && viewModel.trackPoints.value?.size == 1) {
+            if (viewModel.isRecording && LocationRepository.trackPoints.value?.size == 1) {
                 if (isAdded && context != null) {
                     MapUtils.markInizioFine(
                         requireContext(),
@@ -640,35 +640,26 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
 
+        // 1. Inizializza la Polyline per la traccia in registrazione
         currentTrackPolyline = Polyline()
-        // IMPOSTA LO STILE PER RENDERE VISIBILE LA TRACCIA
+        // Imposta lo stile per renderla visibile
         currentTrackPolyline.outlinePaint.color = Color.RED
         currentTrackPolyline.outlinePaint.strokeWidth = 10f
         mapView.overlays.add(currentTrackPolyline)
 
-        // 2. Osserva il LiveData dal ViewModel in modo EFFICIENTE
-        viewModel.trackPoints.observe(viewLifecycleOwner) { points ->
-            // Se la lista di punti che arriva non è vuota...
-            if (points.isNotEmpty()) {
-                // Prendi solo l'ultimo punto, che è quello nuovo
-                val lastPoint = points.last()
+        // 2. Observer per la LISTA COMPLETA (per il disegno iniziale/dopo rotazione)
+        LocationRepository.trackPoints.observe(viewLifecycleOwner) { fullTrack ->
+            Log.d(TAG, "Observer 'trackPoints' (lista completa) attivato con ${fullTrack.size} punti.")
+            // Imposta tutti i punti in una volta. Questo accade raramente.
+            currentTrackPolyline.setPoints(fullTrack)
+            mapView.invalidate()
+        }
 
-                // Se la polyline sulla mappa è vuota (es. inizio registrazione o rotazione schermo),
-                // disegnala tutta per la prima volta.
-                if (currentTrackPolyline.actualPoints.isEmpty()) {
-                    Log.d(TAG, "Polyline vuota, impostando tutti i ${points.size} punti in una volta.")
-                    currentTrackPolyline.setPoints(points)
-                } else {
-                    // Altrimenti, aggiungi solo l'ultimo punto. Questo è molto più veloce.
-                    Log.d(TAG, "Aggiungendo solo l'ultimo punto alla polyline.")
-                    currentTrackPolyline.addPoint(lastPoint)
-                }
-            } else {
-                // Se la lista di punti è vuota (es. dopo aver fermato e salvato), pulisci la polyline
-                Log.d(TAG, "La lista di punti è vuota, pulendo la polyline.")
-                currentTrackPolyline.actualPoints.clear()
-            }
-            // Aggiorna la mappa
+        // 3. Observer per il NUOVO PUNTO (per aggiornamenti efficienti)
+        LocationRepository.newTrackPoint.observe(viewLifecycleOwner) { newPoint ->
+            Log.d(TAG, "Observer 'newTrackPoint' (punto singolo) attivato.")
+            // Aggiungi solo l'ultimo punto alla linea. Questo è molto più veloce.
+            currentTrackPolyline.addPoint(newPoint)
             mapView.invalidate()
         }
 
@@ -820,7 +811,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = 120
             bottomSheetBehavior.state = viewModel.bottomState
-
+            // RICHIEDI LA TRACCIA COMPLETA PER RIDISEGNARLA CORRETTAMENTE
+            LocationRepository.requestFullTrack()
             val toast =
                 Toast.makeText(requireActivity(), "Registrazione in corso", Toast.LENGTH_SHORT)
             toast.view?.setBackgroundColor(getColor(requireActivity(), R.color.purple_500))

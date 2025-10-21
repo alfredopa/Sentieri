@@ -70,14 +70,28 @@ class LayerDialog : Fragment() {
             }
 
             override fun onbtnSeguiClick(position: Int) {
-                // camobio traccia da seguire
-                viewModel.tracciaDaSeguire = viewModel.layerItems[position].nome
-                for (i in 0 until viewModel.layerItems.size) {
-                    if (i != position) {
-                        viewModel.layerItems[i].segui = false
+                val clickedItem = viewModel.layerItems[position]
+                val isTurningOn = !clickedItem.segui // The new state it will have
+
+                // If we are turning this item ON
+                if (isTurningOn) {
+                    // Set it as the track to follow
+                    viewModel.tracciaDaSeguire = clickedItem.nome
+                    clickedItem.segui = true
+
+                    // Unselect all other items
+                    for (i in 0 until viewModel.layerItems.size) {
+                        if (i != position) {
+                            viewModel.layerItems[i].segui = false
+                        }
                     }
+                } else { // If we are turning this item OFF
+                    // Clear the track to follow
+                    viewModel.tracciaDaSeguire = ""
+                    clickedItem.segui = false
                 }
-                viewModel.layerItems[position].segui = !viewModel.layerItems[position].segui
+
+                // Refresh the adapter to show the changes
                 recyclerView.adapter?.notifyDataSetChanged()
             }
 
