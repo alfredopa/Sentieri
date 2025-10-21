@@ -13,7 +13,6 @@ import androidx.lifecycle.viewModelScope
 import com.apstudio.sentieri.MapUtils.disegnaLine
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.LayerItem
-import com.apstudio.sentieri.db.LocationRepository
 import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
@@ -40,7 +39,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         private const val MOVING_AVERAGE_WINDOW_SIZE = 9 // Numero di valori da tenere in memoria per la media
         private const val MAX_ALTITUDE_JUMP_METERS_PER_UPDATE = 10.0
     }
-    val trackPoints: LiveData<List<GeoPoint>> = LocationRepository.trackPoints
+
     val listaTracce = FolderOverlay()
     val recTraccia = FolderOverlay()
     val topoLayer = FolderOverlay()
