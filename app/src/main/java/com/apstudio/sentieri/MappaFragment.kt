@@ -544,7 +544,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // Dis/Abilita allarme fuori tracce
             viewModel.alertFuoriTraccia = !viewModel.alertFuoriTraccia
             btnAllarme()
-            //binding.cruscotto.btnAllarme.postInvalidate()
         }
         // avvia gli observer per aggiornamento dati cruscotto
         val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
@@ -580,19 +579,115 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 LocationRepository.usaBaro = false
             }
         }
+
+        // Aggiorna la posizione del marker GPS
         LocationRepository.gpsStatus.observe(viewLifecycleOwner) { status ->
             updateGpsIcon(status) // Aggiorna l'icona in base al nuovo stato
         }
-        // Observer per la traccia LiveData
+
+        // Observer per i dati di localizzazione (posizione e orientamento)
+        viewModel.locationData.observe(viewLifecycleOwner) { locationData ->
+            if (!isFragmentVisibleAndActive()) return@observe
+
+            val newGeoPoint = locationData.geoPoint
+            if (newGeoPoint.latitude == 0.0 && newGeoPoint.longitude == 0.0) {
+                return@observe // Ignora posizioni non valide o iniziali
+
+            }
+            // Aggiorna la posizione del marker GPS
+            if (::gpsMarker.isInitialized) {
+                gpsMarker.position = newGeoPoint
+            }
+
+            // Aggiunge il marker d'inizio al primo punto della registrazione
+            if (viewModel.isRecording && viewModel.trackPoints.value?.size == 1) {
+                if (isAdded && context != null) {
+                    MapUtils.markInizioFine(
+                        requireContext(),
+                        newGeoPoint,
+                        mapView,
+                        viewModel.recTraccia,
+                        0
+                    )
+                }
+            }
+
+            // Se il blocco mappa è attivo, orienta e centra la mappa
+            if (viewModel.bloccaMappa) {
+                val gpsbearing = locationData.bearing
+                var t: Float = 360 - gpsbearing
+                if (t < 0) t += 360f
+                if (t > 360) t -= 360f
+                t = (t.toInt() / 5 * 5).toFloat() // Arrotonda ai 5 gradi più vicini
+
+                mapView.mapOrientation = t
+                mapView.controller?.animateTo(newGeoPoint)
+            }
+
+            // Logica per l'allarme "Fuori Traccia"
+            if (viewModel.alertFuoriTraccia && viewModel.tracciaDaSeguire.isNotEmpty()) {
+                if (!isAlertDialogShowing()) {
+                    val tracciaDaSeguire = viewModel.listaTracce.items.find {
+                        it is Polyline && it.title == viewModel.tracciaDaSeguire
+                    } as? Polyline
+
+                    tracciaDaSeguire?.let {
+                        if (!it.isCloseTo(newGeoPoint, 30.0, mapView)) {
+                            mostraAllarmeFuoriTraccia()
+                        }
+                    }
+                }
+            }
+        }
+
         currentTrackPolyline = Polyline()
-        // ... configura stile, colore, ecc.
+        // IMPOSTA LO STILE PER RENDERE VISIBILE LA TRACCIA
+        currentTrackPolyline.outlinePaint.color = Color.RED
+        currentTrackPolyline.outlinePaint.strokeWidth = 10f
         mapView.overlays.add(currentTrackPolyline)
 
-        // 2. Osserva il LiveData dal ViewModel
-        LocationRepository.trackPoints.observe(viewLifecycleOwner) { points ->
-            // L'observer verrà chiamato con la lista completa di punti ogni volta che cambia
-            currentTrackPolyline.setPoints(points)
-            mapView.invalidate() // Ridisegna la mappa
+        // 2. Osserva il LiveData dal ViewModel in modo EFFICIENTE
+        viewModel.trackPoints.observe(viewLifecycleOwner) { points ->
+            // Se la lista di punti che arriva non è vuota...
+            if (points.isNotEmpty()) {
+                // Prendi solo l'ultimo punto, che è quello nuovo
+                val lastPoint = points.last()
+
+                // Se la polyline sulla mappa è vuota (es. inizio registrazione o rotazione schermo),
+                // disegnala tutta per la prima volta.
+                if (currentTrackPolyline.actualPoints.isEmpty()) {
+                    Log.d(TAG, "Polyline vuota, impostando tutti i ${points.size} punti in una volta.")
+                    currentTrackPolyline.setPoints(points)
+                } else {
+                    // Altrimenti, aggiungi solo l'ultimo punto. Questo è molto più veloce.
+                    Log.d(TAG, "Aggiungendo solo l'ultimo punto alla polyline.")
+                    currentTrackPolyline.addPoint(lastPoint)
+                }
+            } else {
+                // Se la lista di punti è vuota (es. dopo aver fermato e salvato), pulisci la polyline
+                Log.d(TAG, "La lista di punti è vuota, pulendo la polyline.")
+                currentTrackPolyline.actualPoints.clear()
+            }
+            // Aggiorna la mappa
+            mapView.invalidate()
+        }
+
+    }
+
+    private fun mostraAllarmeFuoriTraccia() {
+        val allarme = EditText(requireActivity())
+        val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+        with(builder)
+        {
+            setTitle("Fuori traccia")
+            val layout = LinearLayout(context)
+            layout.orientation = LinearLayout.VERTICAL
+            allarme.setText("ATTENZIONE SEI FUORI TRACCIA")
+            layout.addView(allarme)
+            builder.setView(layout)
+            setNegativeButton(android.R.string.cancel) { _, _ -> }
+            alertDialog = create()
+            alertDialog?.show()
         }
     }
 
@@ -719,7 +814,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // in registrazione ripristina marker gps,bottomsheet allo stato precedente
             LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
             accendiSchermo()
-            gpsMarker.position = (viewModel.newPunto)
+            viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
             gpsMarker.setVisible(true)
             btnAllarme()
             bottomSheetBehavior.isHideable = false
@@ -1003,13 +1098,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 // aggiunge marker fine percorso
         if (fine) {
-            MapUtils.markInizioFine(
-                requireContext(),
-                viewModel.currentPosition.value ?: viewModel.newPunto,
-                mapView,
-                viewModel.recTraccia,
-                1
-            )
+            viewModel.locationData.value?.geoPoint?.let {
+                MapUtils.markInizioFine(
+                    requireContext(),
+                    it,
+                    mapView,
+                    viewModel.recTraccia,
+                    1
+                )
+            }
         }
 //setBaro indica se si preferisce usare il sensore barometrico fisico oppure no
 // a fine registrazione ripristina preferenza barometro
@@ -1212,6 +1309,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.zoomToBoundingBox(line.bounds.increaseByScale(1.2f), false)
             }
             MapUtils.alertSegui(requireContext(), viewModel, line)
+            btnAllarme()
         }
     }
 
@@ -1410,139 +1508,33 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun azzeraCruscotto() {
-// azzera i valori del viewModel visualizzati nel cruscotto
+    // azzera i valori del viewModel visualizzati nel cruscotto
         viewModel.resetCruscotto()
     }
 
-
     // riceve aggiornamento posizione da servizio in Broadcast
-    private val mReceiver: BroadcastReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-
-            if (!this@MappaFragment.lifecycle.currentState.isAtLeast(Lifecycle.State.CREATED)) {
-                Log.w(TAG, "mReceiver: Fragment non è almeno CREATED. Ignorando.")
-                return
-            }
-
-            val currentViewModelInstance: SentieriViewModel? = try {
-                if (this@MappaFragment::viewModel.isInitialized) this@MappaFragment.viewModel else null
-            } catch (e: Exception) {
-                Log.e(TAG, "mReceiver: Eccezione accesso viewModel", e); null
-            }
-
-            if (currentViewModelInstance == null) {
-                Log.e(TAG, "mReceiver: viewModel è null. Ignorando.")
-                return
-            }
-
-            val location: Location? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA, Location::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA)
-            }
-
-            val altitudine = intent.getDoubleExtra("altitudine", 0.0)
-            val baroPress = intent.getFloatExtra("milliBar", 0f)
-
-            if (location != null) {
-                // Controlla se le coordinate sono (0.0, 0.0)
-                if (location.latitude == 0.0 && location.longitude == 0.0) {
-                    Log.w(TAG, "mReceiver: Ricevuta posizione con coordinate (0,0). Ignorando.")
-                    return
-                }
-                currentViewModelInstance.processNewLocationData(location, altitudine, baroPress)
-                // Tutta la logica UI che dipende da 'location' e 'currentViewModelInstance' va qui dentro
-                // e anche dentro isFragmentVisibleAndActive()
-                if (isFragmentVisibleAndActive()) {
-                    // al primo punto aggiunge il marker d'inizio
-                    if (currentViewModelInstance.isRecording && currentViewModelInstance.trackPoints.value?.size == 1) {
-                        if (isAdded && getContext() != null) { // Ulteriore controllo di sicurezza per il contesto
-                            MapUtils.markInizioFine(
-                                requireContext(),
-                                currentViewModelInstance.currentPosition.value
-                                    ?: currentViewModelInstance.newPunto,
-                                mapView,
-                                currentViewModelInstance.recTraccia,
-                                0
-                            )
-                        }
-                    }
-
-
-                    if (::gpsMarker.isInitialized) {
-                        gpsMarker.position = currentViewModelInstance.newPunto
-
-                        if (currentViewModelInstance.bloccaMappa) {
-                            val gpsbearing = location.bearing
-                            var t: Float = 360 - gpsbearing
-                            if (t < 0) {
-                                t += 360f
-                            }
-                            if (t > 360) {
-                                t -= 360f
-                            }
-                            t = t.toInt().toFloat()
-                            t /= 5
-                            t = t.toInt().toFloat()
-                            t *= 5
-                            mapView.mapOrientation = t
-                            Log.d(TAG, "MapView onreceive: ${currentViewModelInstance.newPunto}")
-                            mapView.controller?.animateTo(currentViewModelInstance.newPunto)
-                        }
-                    }
-
-                    if (currentViewModelInstance.alertFuoriTraccia && currentViewModelInstance.tracciaDaSeguire.isNotEmpty()) {
-                        if (!isAlertDialogShowing()) {
-                            var indice = -1 // Inizializza a -1 per indicare non trovato
-                            currentViewModelInstance.listaTracce.items.forEachIndexed { index, it ->
-                                if (it is Polyline && it.title == currentViewModelInstance.tracciaDaSeguire) {
-                                    indice = index
-                                }
-                            }
-                            if (indice != -1) { // Controlla se l'indice è stato trovato
-                                val traccia =
-                                    currentViewModelInstance.listaTracce.items[indice] as Polyline
-                                if (!traccia.isCloseTo(
-                                        currentViewModelInstance.newPunto,
-                                        30.0,
-                                        mapView
-                                    )
-                                ) {
-                                    val allarme = EditText(requireActivity())
-                                    val builder =
-                                        AlertDialog.Builder(
-                                            requireContext(),
-                                            R.style.AlertDialogCustom
-                                        )
-                                    with(builder)
-                                    {
-                                        setTitle("Fuori traccia")
-                                        val layout = LinearLayout(context)
-                                        layout.orientation = LinearLayout.VERTICAL
-                                        allarme.setText("ATTENZIONE SEI FUORI TRACCIA")
-                                        layout.addView(allarme)
-                                        builder.setView(layout)
-                                        setNegativeButton(android.R.string.cancel) { _, _ ->
-                                        }
-                                        alertDialog = create()
-                                        alertDialog?.show()
-                                    }
-                                }
-                            } else {
-                                Log.w(
-                                    TAG,
-                                    "Traccia da seguire '${currentViewModelInstance.tracciaDaSeguire}' non trovata."
-                                )
-                            }
-                        }
-                    }
-                } // Fine if (isFragmentVisibleAndActive())
-            } else {
-                Log.w(TAG, "mReceiver: Location È null. Non aggiornando UI.")
-            }
-            //Log.d(TAG, "mReceiver: onReceive completato.")
+    private val mReceiver: BroadcastReceiver = object : BroadcastReceiver() {override fun onReceive(context: Context, intent: Intent) {
+        val location: Location? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA, Location::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA)
         }
+
+        val altitudine = intent.getDoubleExtra("altitudine", 0.0)
+        val baroPress = intent.getFloatExtra("milliBar", 0f)
+
+        location?.let {
+            if (it.latitude == 0.0 && it.longitude == 0.0) {
+                Log.w(TAG, "mReceiver: Ignorando coordinate (0,0).")
+                return@let
+            }
+
+            // L'UNICO compito del receiver è aggiornare il ViewModel per i dati della UI (cruscotto, marker).
+            // Il LocationRepository è già stato aggiornato dal service.
+            viewModel.processNewLocationData(it, altitudine, baroPress)
+        }
+    }
     }
 
     fun isAlertDialogShowing(): Boolean {
@@ -1558,13 +1550,19 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // In MappaFragment.kt
     private fun salvaWayPoint(nome: String, descr: String /*, audioPath: String? */) {
         // Aggiungi il nuovo waypoint SOLO a viewModel.poiDBList come PoiDB
+        val currentGeoPoint = viewModel.locationData.value?.geoPoint
+        if (currentGeoPoint == null || (currentGeoPoint.latitude == 0.0 && currentGeoPoint.longitude == 0.0)) {
+            Toast.makeText(requireContext(), "Posizione non disponibile per salvare il waypoint.", Toast.LENGTH_SHORT).show()
+            return
+        }
+// Aggiungi il nuovo waypoint SOLO a viewModel.poiDBList come PoiDB
         viewModel.poiDBList.add(
             PoiDB(
-                Id = 0, // Gestisci l'ID come appropriato per i nuovi record
-                Trackid = 0, // Gestisci il TrackId come appropriato
-                Latit = viewModel.newPunto.latitude,
-                Longit = viewModel.newPunto.longitude,
-                Ele = viewModel.newPunto.altitude,
+                Id = 0,
+                Trackid = 0,
+                Latit = currentGeoPoint.latitude,
+                Longit = currentGeoPoint.longitude,
+                Ele = currentGeoPoint.altitude,
                 NomePOI = nome,
                 DescrPOI = descr,
                 UriPath = currentAudioFilePath ?: "",
@@ -1576,9 +1574,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // creando un'istanza temporanea di WayPoint se necessario per il marker,
         // ma NON aggiungerla a viewModel.wayPoint.
         val markerDisplayWayPoint = WayPoint(
-            latitude = viewModel.newPunto.latitude,
-            longitude = viewModel.newPunto.longitude,
-            elevation = viewModel.newPunto.altitude,
+            latitude = currentGeoPoint.latitude,
+            longitude = currentGeoPoint.longitude,
+            elevation = currentGeoPoint.altitude,
             name = nome,
             description = descr,
             src = currentAudioFilePath // Esempio se UriPath mappa a source
@@ -1902,7 +1900,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun btnAllarme() {
-        if (!viewModel.alertFuoriTraccia) {
+        if (viewModel.alertFuoriTraccia) {
             binding.cruscotto.btnAllarme.text = "Allarme on"
             binding.cruscotto.btnAllarme.backgroundTintList = ColorStateList.valueOf(Color.RED)
         } else {

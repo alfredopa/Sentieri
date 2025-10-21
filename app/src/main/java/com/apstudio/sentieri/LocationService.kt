@@ -102,7 +102,7 @@ class LocationService : LifecycleService() {
     private var milliBar = 0.0F
     private var hasMslAltitude = false
     private var speedKnots: Double = 0.0
-    private var speedKmh: Double = 0.0
+    private var speedKmh: Int = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -160,10 +160,15 @@ class LocationService : LifecycleService() {
                 Log.w(TAG, "LocationService: Accuratezza troppo bassa: ${newLocation.accuracy}. Location ignorata.")
                 return@LocationListener
             }
-            // NUOVA LOGICA: Aggiorna direttamente il ViewModel
+            // UNICA FONTE DI AGGIORNAMENTO PER IL REPOSITORY
+            // Aggiorna la traccia
             LocationRepository.addTrackPoint(newLocation)
-            // Puoi ancora inviare il broadcast se altre parti dell'app ne hanno bisogno
-            // per aggiornamenti istantanei (es. la posizione dell'icona utente).
+            // Aggiorna lo stato (necessario per ripristinare l'icona se il fragment viene ricreato)
+            LocationRepository.updateGpsStatus("fixed")
+            // Aggiorna la velocità come fallback, anche se NMEA è preferito
+            val speedKmh = (newLocation.speed * 3.6).toInt()
+            LocationRepository.updateVelocita(speedKmh)
+            // Invia il broadcast per aggiornare il resto della UI (cruscotto, marker)
             sendBroadcast(newLocation)
         }
     }
@@ -271,7 +276,7 @@ class LocationService : LifecycleService() {
         val parts = message.split(",")
         if (parts.size > 7 && parts[3].isNotEmpty()) { // Check if the message is valid and has enough fields
             speedKnots = parts[7].toDoubleOrNull() ?: 0.0
-            speedKmh = speedKnots * 1.852
+            speedKmh = (speedKnots * 1.852).toInt()
             LocationRepository.updateVelocita(speedKmh)
             //Log.d("NMEA",  "Velocità (GPRMC): %.2f nodi, %.2f km/h, $speedKnots, $speedKmh")
         }
@@ -281,7 +286,7 @@ class LocationService : LifecycleService() {
         val parts = message.split(",")
         if (parts.size > 7) {
             speedKnots = parts[5].toDoubleOrNull() ?: 0.0
-            speedKmh = parts[7].toDoubleOrNull() ?: (speedKnots * 1.852)
+            speedKmh = (parts[7].toDoubleOrNull() ?: (speedKnots * 1.852)).toInt()
             LocationRepository.updateVelocita(speedKmh)
             //Log.d("NMEA",  "Velocità (GNVTG): %.2f nodi, %.2f km/h, $speedKnots, $speedKmh")
         }
@@ -353,6 +358,5 @@ class LocationService : LifecycleService() {
         // LOCATION_SERVICE_CHANNEL è l'ID della notifica, non del canale qui
         startForeground(LOCATION_SERVICE_CHANNEL, notification) // Usa l'ID definito nella companion object
     }
-
 
 }
