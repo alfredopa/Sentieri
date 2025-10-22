@@ -197,7 +197,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     //icone blocco mappa
     private val PIN_RED = R.drawable.pin_rosso
     private val PIN_BLACK = R.drawable.pin_nero
-
+    private var coloreTraccia: Int = 0
     // Variabili per la registrazione audio
     private var audioFileName: String? = null
     private var mediaRecorder: MediaRecorder? = null
@@ -323,7 +323,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                             // Re-attach listener for Polylines
                             // Crucially, re-initialize InfoWindow with the current mapView instance
                             item.infoWindow = BasicInfoWindow(
-                                org.osmdroid.library.R.layout.bonuspack_bubble,
+                                R.layout.bonuspack_bubble,
                                 mapView
                             )
                             item.setOnClickListener { clickedPolyline, map, eventPosition ->
@@ -474,6 +474,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             viewModel.menuMap = 1 // indica mappa OpenStreetMap
         }
 
+        val coloreDefault = R.color.black
+        if (preferenze.contains("colore_traccia")) {
+            coloreTraccia = preferenze.getInt("colore_traccia", coloreDefault)
+        } else {
+            coloreTraccia = coloreDefault
+        }
+
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
         //SimpleFileLogger.log("Mappa", "onViewCreated ")
@@ -600,7 +607,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
 
             // Aggiunge il marker d'inizio al primo punto della registrazione
-            if (viewModel.isRecording && LocationRepository.trackPoints.value?.size == 1) {
+            if (viewModel.isRecording && LocationRepository.trackPointsList.size == 1) {
                 if (isAdded && context != null) {
                     MapUtils.markInizioFine(
                         requireContext(),
@@ -643,13 +650,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // 1. Inizializza la Polyline per la traccia in registrazione
         currentTrackPolyline = Polyline()
         // Imposta lo stile per renderla visibile
-        currentTrackPolyline.outlinePaint.color = Color.RED
+        currentTrackPolyline.outlinePaint.color = coloreTraccia //Color.RED
         currentTrackPolyline.outlinePaint.strokeWidth = 10f
         mapView.overlays.add(currentTrackPolyline)
 
         // 2. Observer per la LISTA COMPLETA (per il disegno iniziale/dopo rotazione)
         LocationRepository.trackPoints.observe(viewLifecycleOwner) { fullTrack ->
-            Log.d(TAG, "Observer 'trackPoints' (lista completa) attivato con ${fullTrack.size} punti.")
+            Log.d(
+                TAG,
+                "Observer 'trackPoints' (lista completa) attivato con ${fullTrack.size} punti."
+            )
             // Imposta tutti i punti in una volta. Questo accade raramente.
             currentTrackPolyline.setPoints(fullTrack)
             mapView.invalidate()
@@ -709,18 +719,18 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onResume() {
         super.onResume()
         // Registra il receiver quando il fragment è in registrazione
-            try {
-                val filter =
-                    IntentFilter(SEND_LOCATION_ACTION) // Assicurati che SEND_LOCATION_ACTION sia la stringa corretta
-                LocalBroadcastManager.getInstance(requireContext())
-                    .registerReceiver(mReceiver, filter)
-            } catch (e: IllegalArgumentException) {
-                Log.w(
-                    TAG,
-                    "Tentativo di ri-registrare mReceiver già registrato in onResume",
-                    e
-                )
-            }
+        try {
+            val filter =
+                IntentFilter(SEND_LOCATION_ACTION) // Assicurati che SEND_LOCATION_ACTION sia la stringa corretta
+            LocalBroadcastManager.getInstance(requireContext())
+                .registerReceiver(mReceiver, filter)
+        } catch (e: IllegalArgumentException) {
+            Log.w(
+                TAG,
+                "Tentativo di ri-registrare mReceiver già registrato in onResume",
+                e
+            )
+        }
 
         mapView.onResume()
         //Log.d("Mappa", "MappaFragment onResume ")
@@ -903,15 +913,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         super.onPause()
         // Non de-registrare il receiver se la registrazione è in corso
         //if (!viewModel.isRecording) {
-            try {
-                LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
-            } catch (e: IllegalArgumentException) {
-                Log.w(
-                    TAG,
-                    "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onPause.",
-                    e
-                )
-            }
+        try {
+            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
+        } catch (e: IllegalArgumentException) {
+            Log.w(
+                TAG,
+                "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onPause.",
+                e
+            )
+        }
         //}
         // memorizza valori per ripristinare la mappa
         viewModel.ultZoom = mapView.zoomLevel
@@ -1351,7 +1361,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val sentiero = Sentieri(
             id = 0,
             nome = nomeTraccia,
-            descrizione = "prova",
+            descrizione = "Traccia",
             lunghezza = viewModel.distanzaMetri.value!!.toDouble(),
             dislivello = viewModel.dislivPiu.value!!.toInt(),
             discesa = viewModel.dislivMeno.value!!.toInt(),
@@ -1500,33 +1510,34 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun azzeraCruscotto() {
-    // azzera i valori del viewModel visualizzati nel cruscotto
+        // azzera i valori del viewModel visualizzati nel cruscotto
         viewModel.resetCruscotto()
     }
 
     // riceve aggiornamento posizione da servizio in Broadcast
-    private val mReceiver: BroadcastReceiver = object : BroadcastReceiver() {override fun onReceive(context: Context, intent: Intent) {
-        val location: Location? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA, Location::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA)
-        }
-
-        val altitudine = intent.getDoubleExtra("altitudine", 0.0)
-        val baroPress = intent.getFloatExtra("milliBar", 0f)
-
-        location?.let {
-            if (it.latitude == 0.0 && it.longitude == 0.0) {
-                Log.w(TAG, "mReceiver: Ignorando coordinate (0,0).")
-                return@let
+    private val mReceiver: BroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val location: Location? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA, Location::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA)
             }
 
-            // L'UNICO compito del receiver è aggiornare il ViewModel per i dati della UI (cruscotto, marker).
-            // Il LocationRepository è già stato aggiornato dal service.
-            viewModel.processNewLocationData(it, altitudine, baroPress)
+            val altitudine = intent.getDoubleExtra("altitudine", 0.0)
+            val baroPress = intent.getFloatExtra("milliBar", 0f)
+
+            location?.let {
+                if (it.latitude == 0.0 && it.longitude == 0.0) {
+                    Log.w(TAG, "mReceiver: Ignorando coordinate (0,0).")
+                    return@let
+                }
+
+                // L'UNICO compito del receiver è aggiornare il ViewModel per i dati della UI (cruscotto, marker).
+                // Il LocationRepository è già stato aggiornato dal service.
+                viewModel.processNewLocationData(it, altitudine, baroPress)
+            }
         }
-    }
     }
 
     fun isAlertDialogShowing(): Boolean {
@@ -1544,7 +1555,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // Aggiungi il nuovo waypoint SOLO a viewModel.poiDBList come PoiDB
         val currentGeoPoint = viewModel.locationData.value?.geoPoint
         if (currentGeoPoint == null || (currentGeoPoint.latitude == 0.0 && currentGeoPoint.longitude == 0.0)) {
-            Toast.makeText(requireContext(), "Posizione non disponibile per salvare il waypoint.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                requireContext(),
+                "Posizione non disponibile per salvare il waypoint.",
+                Toast.LENGTH_SHORT
+            ).show()
             return
         }
 // Aggiungi il nuovo waypoint SOLO a viewModel.poiDBList come PoiDB
@@ -2268,7 +2283,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             osmdroidPolyline.title = ngaLineString.title // Titolo per l'InfoWindow
             osmdroidPolyline.snippet = ngaLineString.description // Snippet/sottotitolo
             osmdroidPolyline.infoWindow = BasicInfoWindow(
-                org.osmdroid.library.R.layout.bonuspack_bubble, // Layout di default
+                R.layout.bonuspack_bubble, // Layout di default
                 mapView
             )
             osmdroidPolyline.setOnClickListener { clickedPolyline, map, eventPosition ->

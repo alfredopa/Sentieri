@@ -17,7 +17,7 @@ object LocationRepository {
     var numSat : Int = 0
 
     // Lista privata che contiene l'intera traccia.
-    private val trackPointsList = mutableListOf<GeoPoint>()
+    val trackPointsList = mutableListOf<GeoPoint>()
 
     // LiveData che espone la lista COMPLETA.
     // Utile per ridisegnare la traccia dopo una rotazione dello schermo.

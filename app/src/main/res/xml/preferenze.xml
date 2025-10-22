@@ -16,10 +16,12 @@
 
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="Mappe">
-        <SwitchPreferenceCompat
-            app:key="isMapOnline"
-            app:title="Mappa online" />
-    </PreferenceCategory>
+    <PreferenceCategory app:title="Personalizzazione">
+        <com.apstudio.sentieri.ColorPickerPreference
+            app:key="colore_traccia"
+            app:title="Colore Traccia"
+            app:summary="Seleziona il colore per la linea della traccia"
+            app:defaultValue="@android:color/holo_red_dark" />
 
+    </PreferenceCategory>
 </PreferenceScreen>
