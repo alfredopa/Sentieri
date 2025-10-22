@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Un semplice cerchio (shape) per fare da sfondo all'anteprima -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@android:color/transparent" /> <!-- Il colore verrà impostato programmaticamente -->
+    <stroke
+        android:width="1dp"
+        android:color="#888888" /> <!-- Un piccolo bordo grigio -->
+</shape>
