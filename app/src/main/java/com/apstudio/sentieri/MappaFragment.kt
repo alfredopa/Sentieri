@@ -2,19 +2,16 @@ package com.apstudio.sentieri
 
 import android.Manifest
 import android.app.Activity
-import android.content.BroadcastReceiver
 import android.content.ComponentCallbacks2
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Paint
 import android.icu.text.SimpleDateFormat
-import android.location.Location
 import android.location.LocationManager
 import android.media.MediaRecorder
 import android.net.Uri
@@ -60,7 +57,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.fragment.findNavController
 import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.MapUtils.convertMillisToISO8601JavaTime
@@ -234,9 +230,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         // Get the database instance (using the singleton)
         database = SentieriDB.getInstance(requireContext())
-        // predispone broadcast per servizio aggiornamento posizione
-        val filter = IntentFilter(SEND_LOCATION_ACTION)
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(mReceiver, filter)
     }
 
     private fun onReturnFromLayerDialog(featureInfo: FeatureTableInfo) {
@@ -350,6 +343,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        // Dì al sistema che questa View può ricevere il focus.
+        view.isFocusableInTouchMode = true
+        // Richiedi esplicitamente il focus per questa View.
+        view.requestFocus()
+        // Imposta il listener per gli eventi della tastiera su questa View.
+        view.setOnKeyListener(this)
         // verifica se sono passati argomenti
         // argomenti da gpx
         arguments?.getString("gpx_file_uri")?.let { uriString ->
@@ -531,7 +530,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapController.setZoom(viewModel.ultZoom)
 
         aggiornaUIFabBlocMappa()
-        btnAllarme() // Questa aggiorna la UI in base a viewModel.alertFuoriTraccia
 
         // Bottone per bloccare ancoraggio mappa al gps
         binding.fabBlocMappa.setOnClickListener {
@@ -547,11 +545,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             this@MappaFragment.findNavController().navigate(directions)
         }
 
+        // Imposta il listener per il click del bottone Allarma
         binding.cruscotto.btnAllarme.setOnClickListener {
-            // Dis/Abilita allarme fuori tracce
-            viewModel.alertFuoriTraccia = !viewModel.alertFuoriTraccia
-            btnAllarme()
+            viewModel.toggleAllarmeState()
         }
+
         // avvia gli observer per aggiornamento dati cruscotto
         val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
         viewModel.distanzaMetri.observe(viewLifecycleOwner) { distanzaMetri ->
@@ -575,6 +573,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.secondiMovimento.observe(viewLifecycleOwner) { secondiMovimento ->
             binding.cruscotto.tvTempoMov.text = formatSeconds(secondiMovimento)
         }
+        // Osserva il LiveData dello stato dell'allarme
+        viewModel.isAllarmeAttivo.observe(viewLifecycleOwner) { isAttivo ->
+            // Quando lo stato cambia (o alla prima osservazione), aggiorna la UI
+            updateBtnAllarmeUI(isAttivo)
+        }
+
         // determina se l'altitudine deve essere barometrica o dal GPS
         // setta il flag is_Calibrato nel gpsViewModel, utilizzato da LocationService
         viewModel.isCalibrato.observe(viewLifecycleOwner) {
@@ -718,20 +722,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onResume() {
         super.onResume()
-        // Registra il receiver quando il fragment è in registrazione
-        try {
-            val filter =
-                IntentFilter(SEND_LOCATION_ACTION) // Assicurati che SEND_LOCATION_ACTION sia la stringa corretta
-            LocalBroadcastManager.getInstance(requireContext())
-                .registerReceiver(mReceiver, filter)
-        } catch (e: IllegalArgumentException) {
-            Log.w(
-                TAG,
-                "Tentativo di ri-registrare mReceiver già registrato in onResume",
-                e
-            )
-        }
-
         mapView.onResume()
         //Log.d("Mappa", "MappaFragment onResume ")
         // Controlli per verificare valori da altri fragment da scheda sentieri e visualizzazione waypoint
@@ -817,7 +807,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             accendiSchermo()
             viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
             gpsMarker.setVisible(true)
-            btnAllarme()
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = 120
             bottomSheetBehavior.state = viewModel.bottomState
@@ -911,18 +900,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onPause() {
         super.onPause()
-        // Non de-registrare il receiver se la registrazione è in corso
-        //if (!viewModel.isRecording) {
-        try {
-            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
-        } catch (e: IllegalArgumentException) {
-            Log.w(
-                TAG,
-                "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onPause.",
-                e
-            )
-        }
-        //}
         // memorizza valori per ripristinare la mappa
         viewModel.ultZoom = mapView.zoomLevel
         viewModel.ultPosizione = mapView.mapCenter as GeoPoint
@@ -1311,7 +1288,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.zoomToBoundingBox(line.bounds.increaseByScale(1.2f), false)
             }
             MapUtils.alertSegui(requireContext(), viewModel, line)
-            btnAllarme()
         }
     }
 
@@ -1514,32 +1490,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.resetCruscotto()
     }
 
-    // riceve aggiornamento posizione da servizio in Broadcast
-    private val mReceiver: BroadcastReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            val location: Location? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA, Location::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                intent.getParcelableExtra(LocationService.EXTRA_LOCATION_DATA)
-            }
-
-            val altitudine = intent.getDoubleExtra("altitudine", 0.0)
-            val baroPress = intent.getFloatExtra("milliBar", 0f)
-
-            location?.let {
-                if (it.latitude == 0.0 && it.longitude == 0.0) {
-                    Log.w(TAG, "mReceiver: Ignorando coordinate (0,0).")
-                    return@let
-                }
-
-                // L'UNICO compito del receiver è aggiornare il ViewModel per i dati della UI (cruscotto, marker).
-                // Il LocationRepository è già stato aggiornato dal service.
-                viewModel.processNewLocationData(it, altitudine, baroPress)
-            }
-        }
-    }
-
     fun isAlertDialogShowing(): Boolean {
         return alertDialog?.isShowing == true
     }
@@ -1621,18 +1571,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onDestroyView() {
         alertDialog?.dismiss()
         alertDialog = null
-
-        try {
-            LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
-            //Log.d(TAG, "mReceiver de-registrato in onDestroyView. Fragment: $this")
-        } catch (e: IllegalArgumentException) {
-            Log.w(
-                TAG,
-                "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onDestroyView.",
-                e
-            )
-        }
-
         if (_binding != null) {
             mapView.overlayManager.clear() // Rimuove tutti gli overlay dalla mappa
             mapView.onDetach()             // Importante per OSMDroid per un corretto cleanup
@@ -1644,18 +1582,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onDestroy() {
         super.onDestroy() // Chiamare super per primo
-        if (!viewModel.isRecording) {
-            try {
-                LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(mReceiver)
-                //Log.d(TAG, "mReceiver de-registrato in onDestroy (non in registrazione). Fragment: $this")
-            } catch (e: IllegalArgumentException) {
-                Log.w(
-                    TAG,
-                    "Tentativo di de-registrare mReceiver non registrato/già de-registrato in onDestroy.",
-                    e
-                )
-            }
-        }
         preferenze.unregisterOnSharedPreferenceChangeListener(this)
         if (::database.isInitialized && database.isOpen) {
             database.close()
@@ -1885,35 +1811,29 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     override fun onKey(v: View?, keyCode: Int, event: KeyEvent?): Boolean {
-        val mapController = mapView.controller
-        when (keyCode) {
-            KEYCODE_VOLUME_UP -> {
-                // Solo se l'azione è KEY_DOWN per evitare doppie chiamate
-                if (event?.action == KeyEvent.ACTION_DOWN) {
-                    mapController?.zoomIn()
+        if (event?.action == KeyEvent.ACTION_DOWN) {
+            when (keyCode) {
+                KEYCODE_VOLUME_UP -> {
+                    mapView.controller.zoomIn()
+                    return true // Evento gestito
                 }
-                return true // Evento volume gestito
-            }
-
-            KEYCODE_VOLUME_DOWN -> {
-                // Solo se l'azione è KEY_DOWN
-                if (event?.action == KeyEvent.ACTION_DOWN) {
-                    mapController?.zoomOut()
+                KEYCODE_VOLUME_DOWN -> {
+                    mapView.controller.zoomOut()
+                    return true // Evento gestito
                 }
-                return true // Evento volume gestito
             }
         }
         return false // Non abbiamo gestito questo evento di tasto, lascialo propagare
     }
 
-    private fun btnAllarme() {
-        if (viewModel.alertFuoriTraccia) {
+    // Questa funzione aggiorna la vista in base allo stato ricevuto dal ViewModel.
+    private fun updateBtnAllarmeUI(isAttivo: Boolean) {
+        if (isAttivo) {
             binding.cruscotto.btnAllarme.text = "Allarme on"
             binding.cruscotto.btnAllarme.backgroundTintList = ColorStateList.valueOf(Color.RED)
         } else {
             binding.cruscotto.btnAllarme.text = "Allarme off"
-            binding.cruscotto.btnAllarme.backgroundTintList =
-                ColorStateList.valueOf(Color.GREEN)
+            binding.cruscotto.btnAllarme.backgroundTintList = ColorStateList.valueOf(Color.GREEN)
         }
     }
 
