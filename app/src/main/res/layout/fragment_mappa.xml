@@ -39,12 +39,39 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_select_destination"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center|right|top"
+        android:layout_marginTop="110dp"
+        android:contentDescription="Seleziona destinazione"
+        app:fabCustomSize="36dp"
+        android:src="@drawable/ic_distance"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <org.osmdroid.views.MapView
         android:id="@+id/Mapview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:backgroundTint="@color/common_google_signin_btn_text_dark_disabled"
-        app:layout_anchorGravity="center" />
+        app:layout_anchorGravity="center" >
+    </org.osmdroid.views.MapView>
+
+    <Button
+        android:id="@+id/button_confirm_destination"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="Conferma Destinazione"
+        android:visibility="gone"
+        android:layout_gravity="center|top"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:visibility="visible" /> <!-- 'tools:visibility' lo rende visibile solo nell'anteprima -->
 
     <ProgressBar
         android:id="@+id/loadingProgressBar"
