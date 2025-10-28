@@ -4,10 +4,12 @@ import android.Manifest
 import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.ComponentCallbacks2
+import android.content.ComponentName
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -22,6 +24,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import android.provider.MediaStore
 import android.util.Log
@@ -63,6 +66,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.fragment.findNavController
 import androidx.preference.PreferenceManager
+import btools.routingapp.IBRouterService
 import com.apstudio.sentieri.MapUtils.convertMillisToISO8601JavaTime
 import com.apstudio.sentieri.MapUtils.dataOraIso8601
 import com.apstudio.sentieri.MapUtils.disegnaLine
@@ -136,6 +140,7 @@ import org.osmdroid.views.overlay.simplefastpoint.SimpleFastPointOverlayOptions
 import org.osmdroid.views.overlay.simplefastpoint.SimplePointTheme
 import java.io.File
 import java.io.IOException
+import java.io.StringReader
 import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
@@ -149,6 +154,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     companion object {
         const val SEND_LOCATION_ACTION = "com.apstudio.sentieri.posizione"
         private const val TAG_AUDIO = "AudioRecording" // Tag per log audio
+        // Il nome del package dell'app BRouter e il nome del servizio (dal manifest di BRouter)
+        private const val BROUTER_PACKAGE = "btools.routingapp"
+        private const val BROUTER_SERVICE_CLASS = "btools.routingapp.BRouterService"
     }
 
     // Struttura dati per contenere i risultati dell'elaborazione in background
@@ -207,6 +215,35 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private var isAudioRecording = false
     private val recordingDurationMs: Long = 5000 // 5 secondi
     private val audioHandler = Handler(Looper.getMainLooper())
+    // BRouter
+    private var brouterService: IBRouterService? = null
+    private var isBound = false
+    private var destinationMarker: Marker? = null
+    private var isSelectingDestination = false
+    private var startPointForRouting: GeoPoint? = null
+    private var endPointForRouting: GeoPoint? = null
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(className: ComponentName, service: IBinder) {
+            brouterService = IBRouterService.Stub.asInterface(service)
+            isBound = true
+            Log.d(TAG, "BRouterService connesso con successo.")
+
+            // Se ci sono punti in attesa (impostati dal click del pulsante), calcola il percorso ora.
+            if (startPointForRouting != null && endPointForRouting != null) {
+                calculateRoute(startPointForRouting!!, endPointForRouting!!)
+                // Pulisci i punti per evitare ricalcoli indesiderati
+                startPointForRouting = null
+                endPointForRouting = null
+            }
+        }
+
+        override fun onServiceDisconnected(arg0: ComponentName) {
+            brouterService = null
+            isBound = false
+            Log.d(TAG, "BRouterService disconnesso.")
+        }
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -552,6 +589,61 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             viewModel.alertFuoriTraccia = !viewModel.alertFuoriTraccia
             btnAllarme()
         }
+
+        // Listener per il Floating Action Button
+        binding.fabSelectDestination.setOnClickListener {
+            if (!isSelectingDestination) {
+                enterDestinationSelectionMode()
+            } else {
+                exitDestinationSelectionMode()
+            }
+        }
+
+// Listener per il pulsante di conferma
+        binding.buttonConfirmDestination.setOnClickListener {
+            // 1. Prendi il punto di destinazione dal marker
+            val destinationPoint = destinationMarker?.position
+            if (destinationPoint == null) {
+                Toast.makeText(requireContext(), "Posizione di destinazione non valida.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // 2. Salva i punti nelle variabili di istanza
+            //    Usa la posizione GPS corrente come partenza, o una fissa se non disponibile
+            startPointForRouting = gpsMarker.position?:currentTrackPolyline.points[0]
+            endPointForRouting = destinationPoint
+
+            // 3. Avvia il processo di binding. La logica in onServiceConnected farà il resto.
+            if (!isBound) {
+                val intent = Intent().apply {
+                    component = ComponentName(
+                        BROUTER_PACKAGE,
+                        BROUTER_SERVICE_CLASS
+                    )
+                }
+                try {
+                    requireContext().bindService(intent, connection, Context.BIND_AUTO_CREATE)
+                    Log.d(TAG, "Tentativo di connessione a BRouterService per il calcolo del percorso...")
+                    Toast.makeText(requireContext(), "Calcolo percorso in corso...", Toast.LENGTH_SHORT).show()
+                } catch (e: SecurityException) {
+                    Log.e(TAG, "Impossibile connettersi: BRouter non è installato o mancano i permessi. ${e.message}")
+                    Toast.makeText(requireContext(), "Impossibile avviare BRouter.", Toast.LENGTH_LONG).show()
+                    // Pulisci i punti in caso di errore
+                    startPointForRouting = null
+                    endPointForRouting = null
+                }
+            } else {
+                // Se il servizio è GIÀ connesso, possiamo calcolare direttamente.
+                calculateRoute(startPointForRouting!!, endPointForRouting!!)
+                startPointForRouting = null
+                endPointForRouting = null
+            }
+
+            // Esci dalla modalità selezione
+            exitDestinationSelectionMode()
+        }
+
+
         // avvia gli observer per aggiornamento dati cruscotto
         val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
         viewModel.distanzaMetri.observe(viewLifecycleOwner) { distanzaMetri ->
@@ -1750,7 +1842,24 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
 
             R.id.Geopackage -> {
-                addGeopackageTiles()
+                // Avvia il processo di binding quando l'activity diventa visibile.
+                val intent = Intent().apply {
+                    component = ComponentName(
+                        BROUTER_PACKAGE,
+                        BROUTER_SERVICE_CLASS
+                    )
+                }
+                try {
+                    requireContext().bindService(intent, connection, Context.BIND_AUTO_CREATE)
+                    Log.d(TAG, "Tentativo di connessione a BRouterService...")
+                } catch (e: SecurityException) {
+                    Log.e(
+                        TAG,
+                        "Impossibile connettersi al servizio. L'app BRouter è installata? ${e.message}"
+                    )
+                    // Qui potresti mostrare un messaggio all'utente.
+                }
+                //addGeopackageTiles()
                 //geoPackage()
             }
             /*R.id.layerGPkg -> {
@@ -2599,6 +2708,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     // Sovrascrivi onStop per rilasciare il MediaRecorder
     override fun onStop() {
         super.onStop()
+        // se collegato rilascia servizio Brouter
+        if (isBound) {
+            requireContext().unbindService(connection)
+            brouterService = null
+            isBound = false
+            Log.d(TAG, "Disconnessione da BRouterService.")
+        }
         if (isAudioRecording) {
             // Potresti voler cambiare il testo del bottone, ma il dialogo potrebbe non essere più visibile.
             // Per semplicità, ci concentriamo sul rilascio delle risorse.
@@ -2617,6 +2733,171 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         ) == PackageManager.PERMISSION_GRANTED
     }
     // --- Fine Funzioni di Registrazione Audio ---
+
+    // funzioni di servizio BRouter
+    private fun calculateRoute(startPoint: GeoPoint, endPoint: GeoPoint) {
+        if (!isBound || brouterService == null) {
+            Log.w(TAG, "Calcolo del percorso annullato: servizio non connesso.")
+            return
+        }
+
+        // Lancia una coroutine legata al ciclo di vita del fragment.
+        // Verrà cancellata automaticamente quando il Fragment viene distrutto.
+        viewLifecycleOwner.lifecycleScope.launch {
+            Log.d(TAG, "Avvio del calcolo del percorso in background...")
+
+            val params = Bundle().apply {
+                putDoubleArray("lons", doubleArrayOf(startPoint.longitude, endPoint.longitude))
+                putDoubleArray("lats", doubleArrayOf(startPoint.latitude, endPoint.latitude))
+                putString("profile", "trekking")
+                putString("trackFormat", "gpx")
+            }
+
+            // Esegui la chiamata di rete, il parsing del GPX e la conversione dei punti
+            // su un thread in background (Dispatchers.IO).
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    // 1. Chiamata bloccante al servizio
+                    val gpxString = brouterService?.getTrackFromParams(params)
+
+                    // 2. Gestione preliminare del risultato
+                    if (gpxString == null) {
+                        Log.i(TAG, "BRouter ha restituito un risultato nullo.")
+                        // Usiamo una classe wrapper per passare sia il messaggio che i dati
+                        Result.failure(Exception("BRouter: Nessun percorso restituito."))
+                    } else if (gpxString.startsWith("Error")) {
+                        Log.e(TAG, "Errore da BRouter: $gpxString")
+                        Result.failure(Exception("Errore da BRouter: $gpxString"))
+                    } else {
+                        Log.d(TAG, "Tracciato GPX ricevuto, inizio parsing...")
+
+                        // 3. Parsing del GPX (operazione potenzialmente pesante)
+                        val parser = GpxParser()
+                        val inputStream = gpxString.byteInputStream(Charsets.UTF_8)
+                        // Esegui il parsing dall'InputStream
+                        val gpx = parser.parse(inputStream)
+
+                        val trackPoints = gpx.tracks?.firstOrNull()?.trackPoints
+                        if (trackPoints.isNullOrEmpty()) {
+                            Log.w(TAG, "Il GPX da BRouter non contiene punti traccia validi.")
+                            Result.failure(Exception("BRouter ha restituito un percorso vuoto."))
+                        } else {
+                            // 4. Conversione dei punti (altra operazione pesante)
+                            val geoPoints = trackPoints.map { wayPoint ->
+                                GeoPoint(wayPoint.latitude, wayPoint.longitude, wayPoint.elevation ?: 0.0)
+                            }
+                            // Restituisci i dati pronti per la UI
+                            Result.success(geoPoints)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Errore durante il calcolo o il parsing del percorso.", e)
+                    Result.failure(Exception("Errore nell'elaborare il percorso: ${e.message}"))
+                }
+            }
+
+            // Torna sul thread principale per gestire il risultato e aggiornare la UI.
+            handleResult(result)
+        }
+    }
+
+    private fun handleResult(result: Result<List<GeoPoint>>) {
+        result.onSuccess { geoPoints ->
+            // Se il risultato è un successo, disegna la traccia
+            Log.d(TAG, "Disegno della traccia sulla mappa...")
+            disegnaTracciaBrouter(geoPoints)
+        }.onFailure { exception ->
+            // Se c'è stato un errore in qualsiasi punto, mostra un Toast
+            Log.e(TAG, "Fallimento nel processare il percorso: ${exception.message}")
+            Toast.makeText(requireContext(), exception.message, Toast.LENGTH_LONG).show()
+        }
+
+        // Disconnettiti dal servizio in ogni caso (successo o fallimento)
+        if (isBound) {
+            try {
+                requireContext().unbindService(connection)
+                brouterService = null
+                isBound = false
+                Log.d(TAG, "Disconnessione da BRouterService.")
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "Servizio già disconnesso.")
+            }
+        }
+    }
+
+    /**
+     * Disegna sulla mappa la traccia calcolata e ricevuta da BRouter.
+     */
+    private fun disegnaTracciaBrouter(points: List<GeoPoint>) {
+        val brouterPolyline = Polyline(mapView)
+        brouterPolyline.setPoints(points)
+        brouterPolyline.outlinePaint.color = Color.BLUE // Colore blu per distinguerla
+        brouterPolyline.outlinePaint.strokeWidth = 12f
+        brouterPolyline.title = "Percorso BRouter"
+
+        // Aggiungi un listener per il click (opzionale)
+        setPolylineClickListener(brouterPolyline)
+
+        // Aggiungi la nuova linea al folder delle tracce e aggiorna la mappa
+        viewModel.listaTracce.add(brouterPolyline)
+        mapView.invalidate()
+
+        // Esegui uno zoom per inquadrare la nuova traccia
+        if (points.isNotEmpty()) {
+            mapView.post {
+                mapView.zoomToBoundingBox(brouterPolyline.bounds.increaseByScale(1.2f), true)
+            }
+        }
+    }
+
+    private fun enterDestinationSelectionMode() {
+        isSelectingDestination = true
+
+        // Mostra il pulsante di conferma e cambia l'icona del FAB (opzionale)
+        binding.buttonConfirmDestination.visibility = View.VISIBLE
+        binding.fabSelectDestination.setImageResource(android.R.drawable.ic_menu_close_clear_cancel) // Icona di annullamento
+
+        // Se il marker non esiste, crealo al centro della mappa
+        if (destinationMarker == null) {
+            destinationMarker = Marker(mapView).apply {
+                // Imposta un'icona personalizzata se vuoi
+                // icon = ContextCompat.getDrawable(requireContext(), R.drawable.ic_destination_marker)
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                isDraggable = true // LA PROPRIETÀ CHIAVE!
+                title = "Trascina per impostare la destinazione"
+
+                // Listener per quando il trascinamento finisce
+                setOnMarkerDragListener(object : Marker.OnMarkerDragListener {
+                    override fun onMarkerDrag(marker: Marker) { /* Non serve fare nulla qui */ }
+                    override fun onMarkerDragEnd(marker: Marker) {
+                        // Puoi aggiornare un'infowindow o fare altro qui se vuoi
+                        Log.d("MappaFragment", "Destinazione impostata a: ${marker.position}")
+                    }
+                    override fun onMarkerDragStart(marker: Marker) { /* Non serve fare nulla qui */ }
+                })
+            }
+            mapView.overlays.add(destinationMarker)
+        }
+
+        // Posiziona il marker al centro della vista corrente e rendilo visibile
+        destinationMarker?.position = mapView.mapCenter as GeoPoint
+        destinationMarker?.isEnabled = true
+        mapView.invalidate() // Ridisegna la mappa per mostrare il marker
+
+        Toast.makeText(requireContext(), "Trascina il marker e conferma la destinazione", Toast.LENGTH_LONG).show()
+    }
+
+    private fun exitDestinationSelectionMode() {
+        isSelectingDestination = false
+
+        // Nascondi il pulsante di conferma e ripristina l'icona del FAB
+        binding.buttonConfirmDestination.visibility = View.GONE
+        binding.fabSelectDestination.setImageResource(R.drawable.ic_distance) // Icona originale
+
+        // Nascondi il marker (non rimuoverlo, così lo possiamo riutilizzare)
+        destinationMarker?.isEnabled = false
+        mapView.invalidate()
+    }
 
     // --- ComponentCallbacks2 Implementation ---
     override fun onTrimMemory(level: Int) {
