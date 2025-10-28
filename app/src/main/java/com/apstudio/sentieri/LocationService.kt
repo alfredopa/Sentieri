@@ -155,7 +155,7 @@ class LocationService : LifecycleService() {
 
     private fun initializeLocationListener() {
         locationListener = LocationListener { newLocation ->
-            Log.d(TAG, "LocationService: onLocationChanged: $newLocation, Accuracy = ${newLocation.accuracy}")
+            //Log.d(TAG, "LocationService: onLocationChanged: $newLocation, Accuracy = ${newLocation.accuracy}")
             if (newLocation.accuracy > MIN_ACCURACY_METERS) {
                 Log.w(TAG, "LocationService: Accuratezza troppo bassa: ${newLocation.accuracy}. Location ignorata.")
                 return@LocationListener
@@ -168,8 +168,11 @@ class LocationService : LifecycleService() {
             // Aggiorna la velocità come fallback, anche se NMEA è preferito
             val speedKmh = (newLocation.speed * 3.6).toInt()
             LocationRepository.updateVelocita(speedKmh)
-            // Invia il broadcast per aggiornare il resto della UI (cruscotto, marker)
-            sendBroadcast(newLocation)
+            // AGGIORNA LA PRESSIONE SE DISPONIBILE
+            if (LocationRepository.usaBaro && baroRepo.baroData.isInitialized) {
+                val milliBar = baroRepo.baroData.value ?: 0.0F
+                LocationRepository.updateBaroPressure(milliBar)
+            }
         }
     }
 

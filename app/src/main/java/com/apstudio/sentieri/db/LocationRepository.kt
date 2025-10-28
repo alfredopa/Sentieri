@@ -11,26 +11,28 @@ object LocationRepository {
     val gpsStatus: LiveData<String> = _gpsStatus
     private val _mslAltitude = MutableLiveData(0.0)
     val mslAltitude : LiveData<Double> = _mslAltitude
-    var usaBaro : Boolean = false
     private val _velocita = MutableLiveData(0)
     val velocita: LiveData<Int> = _velocita
+    private val _baroPressure = MutableLiveData<Float>()
+    val baroPressure: LiveData<Float> = _baroPressure
+    private val _location = MutableLiveData<Location>()
+    val location: LiveData<Location> = _location
+    var usaBaro : Boolean = false
     var numSat : Int = 0
-
     // Lista privata che contiene l'intera traccia.
     val trackPointsList = mutableListOf<GeoPoint>()
-
     // LiveData che espone la lista COMPLETA.
     // Utile per ridisegnare la traccia dopo una rotazione dello schermo.
     private val _trackPoints = MutableLiveData<List<GeoPoint>>()
     val trackPoints: LiveData<List<GeoPoint>> = _trackPoints
-
-    // NUOVO LiveData che emette SOLO l'ultimo punto aggiunto.
+    // LiveData che emette SOLO l'ultimo punto aggiunto.
     // L'interfaccia utente osserverà questo per aggiornamenti efficienti in tempo reale.
     private val _newTrackPoint = MutableLiveData<GeoPoint>()
     val newTrackPoint: LiveData<GeoPoint> = _newTrackPoint
 
     // Questo metodo ora è molto più efficiente.
     fun addTrackPoint(location: Location) {
+        _location.postValue(location)
         val newPoint = GeoPoint(location.latitude, location.longitude, location.altitude)
         // 1. Aggiungi il punto alla nostra lista interna.
         trackPointsList.add(newPoint)
@@ -65,6 +67,11 @@ object LocationRepository {
     fun updateVelocita(velocita: Int) {
         if (_velocita.value != velocita) {
             _velocita.postValue(velocita)
+        }
+    }
+    fun updateBaroPressure(pressure: Float) {
+        if (_baroPressure.value != pressure) {
+            _baroPressure.postValue(pressure)
         }
     }
 }
