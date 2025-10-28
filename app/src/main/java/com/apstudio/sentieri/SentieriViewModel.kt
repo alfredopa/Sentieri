@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asLiveData
@@ -13,6 +14,7 @@ import androidx.lifecycle.viewModelScope
 import com.apstudio.sentieri.MapUtils.disegnaLine
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.LayerItem
+import com.apstudio.sentieri.db.LocationRepository
 import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
@@ -73,6 +75,14 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private var oldPunto =  GeoPoint(0.0,0.0,0.0)
     var ultZoom = (9)
 
+    // LiveData per osservare i dati dal Repository
+    val locationFromRepo: LiveData<Location> = LocationRepository.location
+    val mslAltitudeFromRepo: LiveData<Double> = LocationRepository.mslAltitude
+    val baroPressureFromRepo: LiveData<Float> = LocationRepository.baroPressure
+
+    // NUOVO: MediatorLiveData per combinare tutte le fonti di dati
+    private val _combinedData = MediatorLiveData<Triple<Location, Double, Float>>()
+
     // valori visualizzati nel cruscotto
     private val _distanzaMetri = MutableLiveData(0)
     val distanzaMetri : LiveData<Int> = _distanzaMetri
@@ -90,6 +100,8 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val tempoTrascorso: LiveData<String> = _tempoTrascorso
     private val _secondiMovimento = MutableLiveData<Long>(0)
     val secondiMovimento: LiveData<Long> = _secondiMovimento
+    private val _isAllarmeAttivo = MutableLiveData<Boolean>(true)
+    val isAllarmeAttivo: LiveData<Boolean> = _isAllarmeAttivo
 
     private val gpsAltitudeHistory: ArrayDeque<Double> = ArrayDeque(MOVING_AVERAGE_WINDOW_SIZE)
     private var previousFilteredAltitude: Double? = null
@@ -111,6 +123,32 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private val _isCalibrato = MutableLiveData(false)
     val isCalibrato : LiveData<Boolean> = _isCalibrato
     var bottomState = 0
+
+    init {
+        // Combina i dati da diverse fonti in un unico LiveData
+        _combinedData.addSource(locationFromRepo) { location ->
+            val msl = mslAltitudeFromRepo.value ?: location.altitude
+            val baro = baroPressureFromRepo.value ?: 0.0f
+            _combinedData.value = Triple(location, msl, baro)
+        }
+        _combinedData.addSource(mslAltitudeFromRepo) { msl ->
+            locationFromRepo.value?.let { location ->
+                val baro = baroPressureFromRepo.value ?: 0.0f
+                _combinedData.value = Triple(location, msl, baro)
+            }
+        }
+        _combinedData.addSource(baroPressureFromRepo) { baro ->
+            locationFromRepo.value?.let { location ->
+                val msl = mslAltitudeFromRepo.value ?: location.altitude
+                _combinedData.value = Triple(location, msl, baro)
+            }
+        }
+
+        // Osserva i dati combinati e avvia l'elaborazione
+        _combinedData.observeForever { (location, mslAltitude, baroPressure) ->
+            processNewLocationData(location, mslAltitude, baroPressure)
+        }
+    }
 
     fun processNewLocationData(loc: Location, altitudine: Double, baroPress: Float) {
         viewModelScope.launch(Dispatchers.IO) { // Esegui su un thread in background
@@ -388,4 +426,9 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         return repository.listaFotoId(id)
     }
 
+    fun toggleAllarmeState() {
+        val newState = !(_isAllarmeAttivo.value ?: true)
+        _isAllarmeAttivo.value = newState
+        alertFuoriTraccia = newState // Aggiorna anche la vecchia variabile se serve altrove
+    }
 }
