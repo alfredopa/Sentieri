@@ -30,6 +30,9 @@ import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.sql.Timestamp
 import java.util.concurrent.CopyOnWriteArrayList
+import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
+import com.patrykandpatrick.vico.core.entry.FloatEntry
+import kotlin.math.roundToInt
 
 data class LocationData(val geoPoint: GeoPoint, val bearing: Float)
 
@@ -123,6 +126,9 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private val _isCalibrato = MutableLiveData(false)
     val isCalibrato : LiveData<Boolean> = _isCalibrato
     var bottomState = 0
+
+    val chartProducer = ChartEntryModelProducer()
+    val altimetriaXAxisLabels = mutableListOf<String>()
 
     init {
         // Combina i dati da diverse fonti in un unico LiveData
@@ -430,5 +436,74 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         val newState = !(_isAllarmeAttivo.value ?: true)
         _isAllarmeAttivo.value = newState
         alertFuoriTraccia = newState // Aggiorna anche la vecchia variabile se serve altrove
+    }
+
+
+    fun preparaDatiGrafico() {
+        if (chartProducer.getModel() != null || geoPuntiPercorso.isEmpty()) {
+            Log.d("GRAF_VM", "Dati grafico già presenti o punti assenti. Salto la generazione.")
+            return
+        }
+
+        Log.d("GRAF_VM", "Generazione dati grafico per la prima volta...")
+        // Chiama la nuova funzione che popola sia i punti che le etichette
+        creaPuntiEAssiGrafico(geoPuntiPercorso)
+    }
+
+    private fun creaPuntiEAssiGrafico(puntiTracciaOriginali: List<GeoPoint>) {
+        val puntiGrafico = mutableListOf<FloatEntry>()
+        altimetriaXAxisLabels.clear() // Pulisci le etichette vecchie
+
+        if (puntiTracciaOriginali.size < 2) {
+            chartProducer.setEntries(emptyList<FloatEntry>())
+            return
+        }
+
+        // Aggiungi sempre il punto di partenza
+        puntiGrafico.add(FloatEntry(0f, puntiTracciaOriginali.first().altitude.toFloat()))
+        altimetriaXAxisLabels.add("0") // Etichetta per il primo punto
+
+        var distanzaProgressivaMetri = 0.0
+        var puntoPrecedente = puntiTracciaOriginali.first()
+        var prossimoTraguardoKm = 1
+
+        for (i in 1 until puntiTracciaOriginali.size) {
+            val puntoCorrente = puntiTracciaOriginali[i]
+            val distanzaSegmento = puntoPrecedente.distanceToAsDouble(puntoCorrente)
+            val distanzaPrecedenteMetri = distanzaProgressivaMetri
+            distanzaProgressivaMetri += distanzaSegmento
+
+            while (distanzaProgressivaMetri >= prossimoTraguardoKm * 1000) {
+                val distanzaTraguardoMetri = (prossimoTraguardoKm * 1000).toDouble()
+                if (distanzaSegmento == 0.0) break
+
+                val frazioneSegmento = (distanzaTraguardoMetri - distanzaPrecedenteMetri) / distanzaSegmento
+                val altitudineInterpolata = puntoPrecedente.altitude + ( (puntoCorrente.altitude - puntoPrecedente.altitude) * frazioneSegmento )
+
+                // L'asse X è ora solo un contatore progressivo!
+                puntiGrafico.add(FloatEntry(puntiGrafico.size.toFloat(), altitudineInterpolata.toFloat()))
+                // L'etichetta è il chilometro corrispondente
+                altimetriaXAxisLabels.add(prossimoTraguardoKm.toString())
+
+                prossimoTraguardoKm++
+            }
+            puntoPrecedente = puntoCorrente
+        }
+
+        // Aggiungi l'ultimo punto esatto del percorso
+        val quotaFinale = puntiTracciaOriginali.last().altitude.toFloat()
+        puntiGrafico.add(FloatEntry(puntiGrafico.size.toFloat(), quotaFinale))
+        val distanzaFinaleKm = (distanzaProgressivaMetri / 1000.0)
+        val distanzaFinaleKmArrotondata = String.format("%.1f", distanzaFinaleKm) // Formatta a 1 decimale
+        altimetriaXAxisLabels.add(distanzaFinaleKmArrotondata)
+
+        Log.d("GRAF_VM", "Calcolo completato. Punti: ${puntiGrafico.size}, Etichette: ${altimetriaXAxisLabels.size}")
+        chartProducer.setEntries(puntiGrafico)
+    }
+
+    fun pulisciDatiGrafico() {
+        chartProducer.setEntries(emptyList<FloatEntry>())
+        altimetriaXAxisLabels.clear() // Pulisci anche le etichette
+        Log.d("GRAF_VM", "Dati del grafico puliti.")
     }
 }

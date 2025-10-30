@@ -26,7 +26,7 @@ class AltGrafFragment : Fragment() {
     private lateinit var viewModel: SentieriViewModel
     private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     private lateinit var binding: FragmentAltGrafBinding
-    private val chartEntryModelProducer: ChartEntryModelProducer = ChartEntryModelProducer()
+    //private val chartEntryModelProducer: ChartEntryModelProducer = ChartEntryModelProducer()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,37 +42,48 @@ class AltGrafFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        originalOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        chartEntryModelProducer.setEntries(getpunti())
-        val grafico = binding.chartView
-        with(grafico) {
-            runInitialAnimation = false
-            entryProducer = chartEntryModelProducer
-            (bottomAxis as Axis).guideline = null
+
+        // Forza l'orientamento solo la prima volta
+        if (savedInstanceState == null) {
+            originalOrientation = requireActivity().requestedOrientation
+            requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
-    }
 
-    private fun getpunti(): MutableList<FloatEntry> {
-        val listPunti = mutableListOf<FloatEntry>()
+        // --- INIZIO DELLA LOGICA CORRETTA ---
 
-        //  utilizza PointReducer (algoritmo douglasPeuckerReduction da osmdroid.util) per la riduzione del numero di punti
-        val listEle: ArrayList<GeoPoint> =
-            MapUtils.douglasPeucker(viewModel.geoPuntiPercorso as ArrayList<GeoPoint>, 200.0)
-        var quota: Float
-        var punto: FloatEntry
+        // 1. Collega la ChartView al Producer che vive nel ViewModel
+        binding.chartView.entryProducer = viewModel.chartProducer
 
-        listEle.forEach {
-            quota = it.altitude.toFloat()
-            punto = FloatEntry(listEle.indexOf(it).toFloat(), quota)
-            listPunti.add(punto)
+        // 2. Chiama la funzione di preparazione nel ViewModel.
+        //    La logica interna del ViewModel impedirà esecuzioni multiple.
+        viewModel.preparaDatiGrafico()
+
+        // 3. (Opzionale ma consigliato) Forza un aggiornamento della vista
+        //    se il modello esiste già (caso post-rotazione)
+        viewModel.chartProducer.getModel()?.let { model ->
+            viewModel.chartProducer.setEntries(model.entries.first())
         }
-        return listPunti
+
+        // --- FINE DELLA LOGICA CORRETTA ---
+
+        // Configurazione degli Assi
+        val bottomAxis = binding.chartView.bottomAxis as Axis
+        bottomAxis.title = "Distanza (km)"
+        bottomAxis.guideline = null
+
+        val startAxis = binding.chartView.startAxis as Axis
+        startAxis.title = "Altitudine (m)"
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
+        // Quando la vista viene distrutta, resetta l'orientamento
         activity?.requestedOrientation = originalOrientation
+
+        // Quando l'utente esce *definitivamente* dal fragment (es. tasto back),
+        // puliamo i dati del grafico nel ViewModel.
+        if (isRemoving) {
+            viewModel.pulisciDatiGrafico()
+        }
     }
 }
-
