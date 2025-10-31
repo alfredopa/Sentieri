@@ -1,6 +1,5 @@
 package com.apstudio.sentieri
 
-import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.util.Log
@@ -8,20 +7,15 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.ViewModelProvider
-import androidx.navigation.activity
-import com.apstudio.sentieri.databinding.FragmentAltGrafBinding
-import com.apstudio.sentieri.db.SentieriRepo
-import com.patrykandpatrick.vico.core.axis.Axis
-import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
-import com.patrykandpatrick.vico.core.entry.FloatEntry
-import org.osmdroid.util.GeoPoint
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
 import androidx.navigation.fragment.navArgs
+import com.apstudio.sentieri.databinding.FragmentAltGrafBinding
+import com.patrykandpatrick.vico.core.axis.Axis
+import com.patrykandpatrick.vico.views.scroll.ChartScrollSpec
+import com.patrykandpatrick.vico.core.axis.formatter.DefaultAxisValueFormatter
+import com.patrykandpatrick.vico.core.axis.formatter.AxisValueFormatter
+import com.patrykandpatrick.vico.core.axis.AxisItemPlacer
+
 
 class AltGrafFragment : Fragment() {
     private lateinit var viewModel: SentieriViewModel
@@ -72,8 +66,23 @@ class AltGrafFragment : Fragment() {
         val grafico = binding.chartView
         with(grafico) {
             runInitialAnimation = false
+            chartScrollSpec = ChartScrollSpec(isScrollEnabled = false)
             // entryProducer è già stato impostato sopra
             (bottomAxis as Axis).guideline = null
+            // 1. Crea un formattatore per l'asse Y che converte i float in interi
+            val yAxisValueFormatter = AxisValueFormatter<AxisPosition.Horizontal.Bottom> { value, _ ->
+                // 'value' è il valore numerico della quota (un Float)
+                // Lo convertiamo in un intero e poi in una stringa.
+                value.toInt().toString()
+            }
+            // Configurazione Asse Verticale (Start Axis) - AGGIUNGI LA FORMATTAZIONE
+            (startAxis as Axis).apply {
+                title = "Altitudine (m)"
+
+                // Questo è il comando chiave:
+                // Crea un formattatore che mostra i numeri con 0 cifre decimali.
+               // valueFormatter = DefaultAxisValueFormatter(decimals = 0)
+            }
         }
     }
 
