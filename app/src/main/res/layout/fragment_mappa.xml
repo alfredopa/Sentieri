@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#00FFFFFF"
-    android:backgroundTint="#00FFFFFF"
+    android:backgroundTint="@color/design_default_color_background"
     tools:context=".MappaFragment">
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -46,8 +46,8 @@
         android:layout_gravity="center|right|top"
         android:layout_marginTop="110dp"
         android:contentDescription="Seleziona destinazione"
-        app:fabCustomSize="36dp"
         android:src="@drawable/ic_distance"
+        app:fabCustomSize="36dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -56,21 +56,20 @@
         android:id="@+id/Mapview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:backgroundTint="@color/common_google_signin_btn_text_dark_disabled"
-        app:layout_anchorGravity="center" >
-    </org.osmdroid.views.MapView>
+        android:backgroundTint="@color/design_default_color_background"
+        app:layout_anchorGravity="center"></org.osmdroid.views.MapView>
 
     <Button
         android:id="@+id/button_confirm_destination"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="center|top"
         android:layout_marginBottom="16dp"
         android:text="Conferma Destinazione"
         android:visibility="gone"
-        android:layout_gravity="center|top"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         tools:visibility="visible" /> <!-- 'tools:visibility' lo rende visibile solo nell'anteprima -->
 
     <ProgressBar

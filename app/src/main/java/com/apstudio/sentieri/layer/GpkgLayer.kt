@@ -1,6 +1,5 @@
 package com.apstudio.sentieri.layer
 
-import android.content.Context
 import android.content.DialogInterface
 import android.os.Bundle
 import android.util.Log
@@ -8,7 +7,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import androidx.compose.ui.graphics.vector.path
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
@@ -16,10 +14,6 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.R
-import mil.nga.geopackage.GeoPackage
-import mil.nga.geopackage.GeoPackageFactory
-import mil.nga.geopackage.GeoPackageManager
-import java.io.File
 
 const val LAYER_DIALOG_REQUEST_KEY = "layerDialogRequest"
 

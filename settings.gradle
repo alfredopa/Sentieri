@@ -1,3 +1,5 @@
+// File: settings.gradle
+
 pluginManagement {
     repositories {
         google()
@@ -10,8 +12,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://jitpack.io") }
+        // Aggiungi JitPack qui, serve per MPAndroidChart
+        maven { url 'https://jitpack.io' }
     }
 }
+
 rootProject.name = "Sentieri"
 include ':app'
+    
