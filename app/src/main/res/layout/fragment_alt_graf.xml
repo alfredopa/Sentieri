@@ -14,6 +14,8 @@
         app:chartZoomEnabled="true"
         app:lineChartStyle="@style/Chart3Line1Style"
         app:showBottomAxis="true"
+        app:showEndAxis="false"
         app:showStartAxis="true"
+        app:showTopAxis="false"
         app:startAxisStyle="@style/Chart3StartAxisStyle" />
 </FrameLayout>
