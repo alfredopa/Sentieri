@@ -20,19 +20,20 @@ import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TopoMarkerData
+import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
+import com.patrykandpatrick.vico.core.entry.FloatEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.federicomatera.agpxp.models.WayPoint
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.sql.Timestamp
 import java.util.concurrent.CopyOnWriteArrayList
-import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
-import com.patrykandpatrick.vico.core.entry.FloatEntry
-import kotlin.math.roundToInt
+import kotlin.concurrent.thread
 
 data class LocationData(val geoPoint: GeoPoint, val bearing: Float)
 
@@ -103,7 +104,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val tempoTrascorso: LiveData<String> = _tempoTrascorso
     private val _secondiMovimento = MutableLiveData<Long>(0)
     val secondiMovimento: LiveData<Long> = _secondiMovimento
-    private val _isAllarmeAttivo = MutableLiveData<Boolean>(true)
+    private val _isAllarmeAttivo = MutableLiveData(true)
     val isAllarmeAttivo: LiveData<Boolean> = _isAllarmeAttivo
 
     private val gpsAltitudeHistory: ArrayDeque<Double> = ArrayDeque(MOVING_AVERAGE_WINDOW_SIZE)
@@ -305,45 +306,30 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     }
 
     // legge i punti della traccia dal DB Track
-    fun leggiTrack(mFinestra: Fragment, id: Int, poiList: MutableList<PoiDB>): Polyline {
-        var punto : GeoPoint
-        var percorso = Polyline()
-        var latit  : Double
-        var longit : Double
-        var elev    : Double
-        val appContext = mFinestra.context
-        val dao = appContext?.let { SentieriDB.getInstance(it).trackDao }
-        val poiDao = appContext?.let { SentieriDB.getInstance(it).poiDao }
-        geoPuntiPercorso.clear()
-        val thread = Thread {
-            dao?.getTraccia(id)?.forEach {
-                latit  = it.Latit.toDouble()
-                longit = it.Longit.toDouble()
-                elev   = it.Ele.toDouble()
-                punto = GeoPoint(latit, longit, elev)
+
+    suspend fun leggiTrack(id: Int, poiList: MutableList<PoiDB>): Polyline {
+        return withContext(Dispatchers.IO) {
+            val percorso = Polyline()
+            geoPuntiPercorso.clear()
+            poiList.clear()
+
+            // --- CHIAMATE PULITE AL REPOSITORY ---
+            val puntiTracciaDalDb = repository.getPuntiTraccia(id)
+            val puntiPoiDalDb = repository.getPuntiPoi(id)
+
+            puntiTracciaDalDb.forEach {
+                val punto = GeoPoint(it.Latit.toDouble(), it.Longit.toDouble(), it.Ele.toDouble())
                 percorso.addPoint(punto)
-                // serve per grafico altimetria
                 geoPuntiPercorso.add(punto)
-                //Log.v("thread", "$Latit : $Longit")
             }
-            // legge eventuali waypoint della traccia dal DB Poi
-            poiDao?.getPoibyID(id)?.forEach {
-                poiList.add(it)
-            }
-            if (percorso.actualPoints.isNotEmpty()) {
-                percorso = disegnaLine(percorso)
-            }
-            else
-                return@Thread
+
+            poiList.addAll(puntiPoiDalDb)
+
+            //  Crea la Polyline usando la funzione di MapUtils che la colora
+            //    Passa la lista di punti che abbiamo appena caricato.
+            val percorsoColorato = MapUtils.disegnaLine(percorso)
+            percorsoColorato
         }
-        thread.start()
-        try { // È buona norma usare try-join per InterruptedException
-            thread.join()
-        } catch (e: InterruptedException) {
-            Log.e("LeggiTrack", "Thread interrotto", e)
-            Thread.currentThread().interrupt() // Ripristina lo stato di interruzione
-        }
-        return percorso
     }
 
     private fun incrementMovementSeconds() {
@@ -405,7 +391,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     }*/
 
     fun getSavedSentieri() = liveData {
-        repository.sentieriDB.collect {
+        repository.getTuttiSentieri().collect {
             emit(it)
         }
     }
@@ -419,17 +405,17 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     }
 
     suspend fun salvaSentiero(sentiero: Sentieri): Long {
-        return repository.insertDB(sentiero)
+        return repository.insertSentiero(sentiero)
     }
 
     fun cancellaSentiero(id: Int) {
         viewModelScope.launch {
-            repository.cancellaSentiero(id)
+            repository.cancellaSentieroCompleto(id)
         }
     }
 
     fun listaFotoId(id: Int): List<FotoPoi> {
-        return repository.listaFotoId(id)
+        return repository.getFotoPoi(id)
     }
 
     fun toggleAllarmeState() {

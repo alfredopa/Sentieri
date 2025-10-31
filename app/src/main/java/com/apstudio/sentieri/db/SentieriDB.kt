@@ -9,10 +9,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(entities = [Sentieri::class, Track::class, PoiDB::class, FotoPoi::class], version = 1)
 abstract class SentieriDB : RoomDatabase() {
-    abstract val sentieriDao: SentieriDao
-    abstract val trackDao: TrackDao
-    abstract val poiDao: PoiDao
-    abstract val fotoPoiDao: FotoPoiDao
+    abstract fun sentieriDao(): SentieriDao
+    abstract fun trackDao(): TrackDao
+    abstract fun poiDao(): PoiDao
+    abstract fun fotoPoiDao(): FotoPoiDao
 
 
     companion object {

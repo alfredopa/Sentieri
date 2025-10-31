@@ -1451,7 +1451,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
 //ciclo caricamento punti GPS in lista punti db
             val tracciaDao: TrackDao =
-                SentieriDB.getInstance(requireActivity().application).trackDao
+                SentieriDB.getInstance(requireActivity().application).trackDao()
 
             viewModel.puntiGPS.forEach {
                 val trackPoint = com.apstudio.sentieri.db.Track(
@@ -1471,7 +1471,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // la lista è PoiDB
             if (viewModel.poiDBList.isNotEmpty()) {
                 val poiDao: PoiDao =
-                    SentieriDB.getInstance(requireActivity().application).poiDao
+                    SentieriDB.getInstance(requireActivity().application).poiDao()
                 viewModel.poiDBList.forEach {
                     val poi = PoiDB(
                         Id = 0,
@@ -1492,7 +1492,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // memorizza uri e nome file delle foto scattate in registrazione traccia
             if (viewModel.fotoInPoiDB.isNotEmpty()) {
                 val fotoDao: FotoPoiDao =
-                    SentieriDB.getInstance(requireActivity().application).fotoPoiDao
+                    SentieriDB.getInstance(requireActivity().application).fotoPoiDao()
                 viewModel.fotoInPoiDB.forEach {
                     val foto = FotoPoi(
                         id = 0,

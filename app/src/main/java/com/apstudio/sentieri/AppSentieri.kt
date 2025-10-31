@@ -19,10 +19,10 @@ class AppSentieri : Application(), ViewModelStoreOwner {
     private val database by lazy { SentieriDB.getInstance(this) }
 
     // Istanzia il DAO
-    private val sentieriDao: SentieriDao by lazy { database.sentieriDao } // Rinominato per chiarezza, SENZA ()
-    private val poiDao: PoiDao by lazy { database.poiDao }
-    private val fotoPoiDao: FotoPoiDao by lazy { database.fotoPoiDao }
-    private val trackDao: TrackDao by lazy { database.trackDao }
+    private val sentieriDao: SentieriDao by lazy { database.sentieriDao() } // Rinominato per chiarezza, SENZA ()
+    private val poiDao: PoiDao by lazy { database.poiDao() }
+    private val fotoPoiDao: FotoPoiDao by lazy { database.fotoPoiDao() }
+    private val trackDao: TrackDao by lazy { database.trackDao() }
     // Istanzia il Repository (singleton a livello di app)
     val sentieriRepository: SentieriRepo by lazy {
         SentieriRepo(sentieriDao,

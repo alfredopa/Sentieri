@@ -1,63 +1,69 @@
 package com.apstudio.sentieri.db
 
-import android.content.Context
-import androidx.activity.result.launch
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.asLiveData
-import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * Repository che gestisce tutte le interazioni con il database.
+ * È l'unica classe che dovrebbe parlare direttamente con i DAO.
+ * Il ViewModel parlerà solo con questo Repository.
+ */
 class SentieriRepo(
-    private val dao: SentieriDao,
+    private val sentieriDao: SentieriDao,
     private val poiDao: PoiDao,
     private val fotoPoiDao: FotoPoiDao,
-    private val trackDao: TrackDao) {
+    private val trackDao: TrackDao
+) {
 
-    //val database: SentieriDB = SentieriDB.getInstance(context)
-    //val sentieriDao: SentieriDao = SentieriDB.getInstance(context).sentieriDao
-    //val poiDao: PoiDao = SentieriDB.getInstance(context).poiDao
-    //val fotoPoiDao: FotoPoiDao = SentieriDB.getInstance(context).fotoPoiDao
-    //val sentieriDB = sentieriDao.getItems()
-    //val trackDao = database.trackDao
-    val sentieriDB = dao.getItems() // Usa 'dao' invece di 'sentieriDao' (variabile locale che hai rimosso)
+    // --- METODI PER I SENTIERI ---
 
-    suspend fun insertDB(item: Sentieri): Long { // Ho rinominato il parametro per chiarezza
-        return dao.insertDB(item)
+    fun getTuttiSentieri(): Flow<List<Sentieri>> {
+        return sentieriDao.getItems()
     }
 
     fun cercaId(id: Int): LiveData<Sentieri> {
-        return dao.getItem(id).asLiveData()
-    }
-
-    suspend fun updateDB(item: Sentieri): Int {
-        return dao.updateDB(item)
-    }
-
-    suspend fun deleteDB(item: Sentieri): Int {
-        return dao.deleteDB(item)
-    }
-
-    suspend fun deleteSentiero(id: Int): Int {
-        return dao.deleteSentiero(id)
+        return sentieriDao.getItem(id).asLiveData()
     }
 
     fun cercaNome(searchQuery: String): Flow<List<Sentieri>> {
-        return dao.cercaNome(searchQuery)
-    }
-    fun cercaPoi(id: Int): List<PoiDB> {
-        return poiDao.getPoibyID(id)
+        return sentieriDao.cercaNome(searchQuery)
     }
 
-    fun listaFotoId(id: Int): List<FotoPoi> {
-        return fotoPoiDao.getFotoPoibyID(id)
+    suspend fun insertSentiero(sentiero: Sentieri): Long {
+        return sentieriDao.insertDB(sentiero)
     }
 
-    suspend fun cancellaSentiero(id: Int) {
-        // non riesco ad attivare la transazione
-        //database.runInTransaction{
-        trackDao.deleteTrack(id)
-        dao.deleteSentiero(id)
-        //}
+    suspend fun ultimoIdSentiero(): Int {
+        return sentieriDao.ultimoId()
     }
 
+    // --- METODI PER I PUNTI DELLA TRACCIA (TRACK) ---
+
+    fun getPuntiTraccia(idTraccia: Int): List<Track> {
+        // Usa il trackDao passato nel costruttore
+        return trackDao.getTraccia(idTraccia)
+    }
+
+    // --- METODI PER I PUNTI DI INTERESSE (POI) ---
+
+    fun getPuntiPoi(idTraccia: Int): List<PoiDB> {
+        return poiDao.getPoibyID(idTraccia)
+    }
+
+    fun getFotoPoi(idPoi: Int): List<FotoPoi> {
+        return fotoPoiDao.getFotoPoibyID(idPoi)
+    }
+
+
+    // --- OPERAZIONI COMBINATE (TRANSAZIONI) ---
+
+    suspend fun cancellaSentieroCompleto(idSentiero: Int) {
+        // KSP e Room gestiscono le transazioni automaticamente se
+        // il metodo del DAO è annotato con @Transaction.
+        // Se non lo è, eseguire le operazioni in sequenza è comunque sicuro.
+        trackDao.deleteTrack(idSentiero)
+        // Aggiungi qui la cancellazione dei POI e delle foto se necessario
+        sentieriDao.deleteSentiero(idSentiero)
+    }
 }

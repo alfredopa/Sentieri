@@ -62,6 +62,8 @@ import java.io.FileOutputStream
 import java.util.Date
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 // Fragment che visualizza il dettaglio della traccia selezionata dall'elenco delle tracce
 // su una mappa ridotta e principali dati di riepilogo
@@ -223,120 +225,151 @@ class SchedaFragment : Fragment(), MenuProvider {
         mapView.maxZoomLevel = 19.0
         mapController!!.setZoom(19.0)
         // carica punti percorso ed eventuali waypoint
-        percorso = viewModel.leggiTrack(this, idSentiero, poiDBList)
+        viewLifecycleOwner.lifecycleScope.launch {
+            // Chiama la nuova suspend fun. Il codice aspetterà qui finché
+            // leggiTrack non avrà finito di caricare TUTTI i punti.
+            percorso = viewModel.leggiTrack( idSentiero, poiDBList)
 
-        if (percorso.actualPoints.isNotEmpty()) {
-            // aggiunge marker inizio e fine percorso
-            val startMarker = Marker(mapView)
-            startMarker.icon = requireContext().let {
-                AppCompatResources.getDrawable(
-                    it,
-                    R.drawable.ic_start
-                )
-            }
-            startMarker.title = "Inizio"
-            var punto: GeoPoint = percorso.actualPoints[0]
-            startMarker.position = punto
-            mapView.overlays?.add(startMarker)
-            val endMarker = Marker(mapView)
-            endMarker.icon = requireContext().let {
-                AppCompatResources.getDrawable(
-                    it,
-                    R.drawable.ic_finish
-                )
-            }
-            punto = percorso.actualPoints[percorso.actualPoints.size - 1]
-            endMarker.position = punto
-            endMarker.title = "Fine"
-            mapView.overlays?.add(endMarker)
-            mapView.overlays.add(percorso)
-        }
+            // Una volta che leggiTrack ha finito, E SOLO ALLORA,
+            // continua con il resto della configurazione della UI.
 
-        // il post serve per la corretta visualizzazione al termine del caricamento
-        mapView.post {
-            mapView.zoomToBoundingBox(percorso.bounds.increaseByScale(1.2f), false)
-        }
 
-        // switch per visualizzazione percorso con frecce direzionali
-        val swtchFrecce = binding.swtchFrecce
-        swtchFrecce.setOnClickListener {
-            if (swtchFrecce.isChecked)
-                percorso.usePath(true)
-            else
-                percorso.usePath(false)
-            mapView.invalidate()
-        }
-
-        val btnSegui: Button = binding.btnSegui
-        btnSegui.setOnClickListener {
-            // scrive i punti su polilinea d'appoggio in viewmodel
-            viewModel.line.title = binding.txNome.text.toString()
-            viewModel.line.setPoints(percorso.actualPoints)
-            // carica i waypoint nella viewmodel da visualizzare sulla mappa
-            poiDBList.forEach {
-                viewModel.wayPoint.add(
-                    WayPoint(
-                        latitude = it.Latit.toDouble(),
-                        longitude = it.Longit.toDouble(),
-                        elevation = it.Ele.toDouble(),
-                        name = it.NomePOI,
-                        description = it.DescrPOI,
-                        src = it.UriPath
-                    )
-                )
-            }
-            // necessario un thread per la lettura dal db delle foto della traccia
-            MainScope().launch(Dispatchers.IO) {
-                // aggiunge elenco foto traccia
-                viewModel.listaFotoId(idSentiero).forEach {
-                    viewModel.fotoList.add(
-                        it.uriPath.toUri()
+            if (percorso.actualPoints.isNotEmpty()) {
+                // aggiunge marker inizio e fine percorso
+                val startMarker = Marker(mapView)
+                startMarker.icon = requireContext().let {
+                    AppCompatResources.getDrawable(
+                        it,
+                        R.drawable.ic_start
                     )
                 }
+                startMarker.title = "Inizio"
+                var punto: GeoPoint = percorso.actualPoints[0]
+                startMarker.position = punto
+                mapView.overlays?.add(startMarker)
+                val endMarker = Marker(mapView)
+                endMarker.icon = requireContext().let {
+                    AppCompatResources.getDrawable(
+                        it,
+                        R.drawable.ic_finish
+                    )
+                }
+                punto = percorso.actualPoints[percorso.actualPoints.size - 1]
+                endMarker.position = punto
+                endMarker.title = "Fine"
+                mapView.overlays?.add(endMarker)
+                mapView.overlays.add(percorso)
             }
-            // verifica se traccia da seguire e se esiste già una traccia da seguire
-            if (swcSegui.isChecked) {
-                if (viewModel.tracciaDaSeguire != "") {
-                    alertVerificaSegui(requireContext()) { segui ->
-                        if (segui) {
-                            // resetta tracce con flag segui true
-                            viewModel.layerItems.forEach {
-                                it.segui = false
-                            }
-                            // aggiunge traccia con flag segui true alla lista layerItems e imposta alert
-                            viewModel.layerItems.add(LayerItem(viewModel.line.title, viewModel.line.isEnabled, false, true,
-                                viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
-                            viewModel.tracciaDaSeguire = viewModel.line.title
-                            viewModel.alertFuoriTraccia = true
-                            // L'utente ha premuto "Segui"
-                            // Esegui le azioni per seguire la traccia
-                        } else {
-                            // aggiunge traccia con flag segui false alla lista layerItems
-                            viewModel.layerItems.add(LayerItem(viewModel.line.title, viewModel.line.isEnabled, false, false,
-                                viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
-                            // L'utente ha premuto "Annulla"
-                            // Esegui le azioni per annullare l'operazione
-                        }
+
+            // il post serve per la corretta visualizzazione al termine del caricamento
+            mapView.post {
+                mapView.zoomToBoundingBox(percorso.bounds.increaseByScale(1.2f), false)
+            }
+
+            // switch per visualizzazione percorso con frecce direzionali
+            val swtchFrecce = binding.swtchFrecce
+            swtchFrecce.setOnClickListener {
+                if (swtchFrecce.isChecked)
+                    percorso.usePath(true)
+                else
+                    percorso.usePath(false)
+                mapView.invalidate()
+            }
+
+            val btnSegui: Button = binding.btnSegui
+            btnSegui.setOnClickListener {
+                // scrive i punti su polilinea d'appoggio in viewmodel
+                viewModel.line.title = binding.txNome.text.toString()
+                viewModel.line.setPoints(percorso.actualPoints)
+                // carica i waypoint nella viewmodel da visualizzare sulla mappa
+                poiDBList.forEach {
+                    viewModel.wayPoint.add(
+                        WayPoint(
+                            latitude = it.Latit.toDouble(),
+                            longitude = it.Longit.toDouble(),
+                            elevation = it.Ele.toDouble(),
+                            name = it.NomePOI,
+                            description = it.DescrPOI,
+                            src = it.UriPath
+                        )
+                    )
+                }
+                // necessario un thread per la lettura dal db delle foto della traccia
+                MainScope().launch(Dispatchers.IO) {
+                    // aggiunge elenco foto traccia
+                    viewModel.listaFotoId(idSentiero).forEach {
+                        viewModel.fotoList.add(
+                            it.uriPath.toUri()
+                        )
                     }
-                } else {
+                }
+                // verifica se traccia da seguire e se esiste già una traccia da seguire
+                if (swcSegui.isChecked) {
+                    if (viewModel.tracciaDaSeguire != "") {
+                        alertVerificaSegui(requireContext()) { segui ->
+                            if (segui) {
+                                // resetta tracce con flag segui true
+                                viewModel.layerItems.forEach {
+                                    it.segui = false
+                                }
+                                // aggiunge traccia con flag segui true alla lista layerItems e imposta alert
+                                viewModel.layerItems.add(
+                                    LayerItem(
+                                        viewModel.line.title,
+                                        viewModel.line.isEnabled,
+                                        false,
+                                        true,
+                                        viewModel.trackDistanza,
+                                        viewModel.trackAscesa,
+                                        viewModel.trackDiscesa
+                                    )
+                                )
+                                viewModel.tracciaDaSeguire = viewModel.line.title
+                                viewModel.alertFuoriTraccia = true
+                                // L'utente ha premuto "Segui"
+                                // Esegui le azioni per seguire la traccia
+                            } else {
+                                // aggiunge traccia con flag segui false alla lista layerItems
+                                viewModel.layerItems.add(
+                                    LayerItem(
+                                        viewModel.line.title,
+                                        viewModel.line.isEnabled,
+                                        false,
+                                        false,
+                                        viewModel.trackDistanza,
+                                        viewModel.trackAscesa,
+                                        viewModel.trackDiscesa
+                                    )
+                                )
+                                // L'utente ha premuto "Annulla"
+                                // Esegui le azioni per annullare l'operazione
+                            }
+                        }
+                    } else {
+                        viewModel.layerItems.add(
+                            LayerItem(
+                                viewModel.line.title,
+                                viewModel.line.isEnabled,
+                                false,
+                                true,
+                                viewModel.trackDistanza,
+                                viewModel.trackAscesa,
+                                viewModel.trackDiscesa
+                            )
+                        )
+                        viewModel.tracciaDaSeguire = viewModel.line.title
+                        viewModel.alertFuoriTraccia = true
+                    }
+                } else
                     viewModel.layerItems.add(
                         LayerItem(
-                            viewModel.line.title,
-                            viewModel.line.isEnabled,
-                            false,
-                            true,
+                            viewModel.line.title, viewModel.line.isEnabled, false, false,
                             viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa
                         )
                     )
-                    viewModel.tracciaDaSeguire = viewModel.line.title
-                    viewModel.alertFuoriTraccia = true
-                }
-            } else
-                viewModel.layerItems.add(LayerItem(viewModel.line.title, viewModel.line.isEnabled, false, false,
-                    viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
 
-            findNavController().navigate(R.id.action_schedaFragment_to_mappaFragment)
-        }
+                findNavController().navigate(R.id.action_schedaFragment_to_mappaFragment)
+            }
 
             val btnAltimetria: Button = binding.btnAltimetria
             btnAltimetria.setOnClickListener {
@@ -345,6 +378,7 @@ class SchedaFragment : Fragment(), MenuProvider {
                 findNavController().navigate(directions)
             }
         }
+    }
 
     // apertura mappa offline locale da Uri
     private fun apreMappa(uri: Uri) {
