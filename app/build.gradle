@@ -1,37 +1,37 @@
+// File: /app/build.gradle
+
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    id("com.google.devtools.ksp")
+    id 'com.google.devtools.ksp'
     id 'androidx.navigation.safeargs.kotlin'
 }
 
 android {
     namespace 'com.apstudio.sentieri'
-    compileSdk 36
+    compileSdk 34 // Usa la 34 che è l'ultima stabile, la 36 è in preview.
 
     defaultConfig {
         applicationId "com.apstudio.sentieri"
         minSdk 30
-        targetSdk 36
+        targetSdk 34
         versionCode 22
         versionName '1.9.7'
-
     }
+
     buildFeatures {
-        buildConfig = true
+        buildConfig true
+        // DataBinding è complesso e può causare problemi.
+        // Usa ViewBinding che è più moderno e leggero.
         dataBinding true
         viewBinding true
-        aidl = true
+        aidl true
     }
+
     buildTypes {
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-        debug {
-            debuggable true
-            minifyEnabled false
-            // ... altre configurazioni per debug ...
         }
     }
 
@@ -43,61 +43,70 @@ android {
         jvmTarget = '17'
     }
     packaging {
-        jniLibs {
-            useLegacyPackaging false
+        // Questa sezione è importante per evitare conflitti di licenze
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
         }
     }
 }
 
 dependencies {
-    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
+    // Forza tutte le dipendenze Kotlin ad allinearsi alla 2.0.0
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:2.0.0"))
+
+    // Dipendenze di base STABILI
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.preference:preference-ktx:1.2.1'
-    implementation 'androidx.camera:camera-lifecycle:1.4.2'
-    implementation 'com.google.firebase:firebase-firestore:26.0.0'
-    implementation 'androidx.compose.material3:material3:1.3.2'
-    implementation 'androidx.recyclerview:recyclerview:1.4.0'
-    implementation 'com.google.android.material:material:1.13.0'
-    implementation 'androidx.navigation:navigation-fragment-ktx:2.9.4'
-    implementation 'androidx.navigation:navigation-ui-ktx:2.9.4'
-    def room_version = '2.7.2'
+
+    // Navigation STABILE
+    def nav_version = "2.7.7"
+    implementation "androidx.navigation:navigation-fragment-ktx:$nav_version"
+    implementation "androidx.navigation:navigation-ui-ktx:$nav_version"
+
+    // Fragment & Activity STABILI
+    implementation "androidx.fragment:fragment-ktx:1.8.1"
+    implementation 'androidx.activity:activity-ktx:1.9.0'
+
+    // Room STABILE
+    def room_version = "2.6.1"
     implementation "androidx.room:room-runtime:$room_version"
-    ksp("androidx.room:room-compiler:$room_version")
+    ksp "androidx.room:room-compiler:$room_version"
     implementation "androidx.room:room-ktx:$room_version"
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
-    // ViewModel
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.4'
-    // LiveData
-    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.9.4'
-    implementation 'androidx.navigation:navigation-fragment-ktx:2.9.4'
-    implementation 'androidx.navigation:navigation-ui-ktx:2.9.4'
-    implementation 'androidx.fragment:fragment-ktx:1.8.9'
-    implementation 'androidx.core:core-ktx:1.17.0'
-    implementation 'androidx.appcompat:appcompat:1.7.1'
-    implementation 'com.google.android.material:material:1.13.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.3.0'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
+
+    // Lifecycle STABILE
+    def lifecycle_version = "2.8.3"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-livedata-ktx:$lifecycle_version"
+
+    // Coroutines STABILI
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+
+    // osmdroid & mapsforge
     implementation 'org.osmdroid:osmdroid-android:6.1.20'
     implementation 'org.osmdroid:osmdroid-mapsforge:6.1.20'
-    // per Geopackage
     implementation ('org.osmdroid:osmdroid-geopackage:6.1.20'){
         exclude group: 'org.osmdroid.gpkg'
         exclude module: 'ormlite-core'
         exclude group: 'mil.nga', module: 'sqlite-android'
     }
-    implementation 'org.mapsforge:mapsforge-map-android:0.21.0'
-    implementation 'org.mapsforge:mapsforge-map:0.21.0'
-    implementation 'org.mapsforge:mapsforge-themes:0.21.0'
+
+    // MPAndroidChart
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
-    implementation("javax.xml.stream:stax-api:1.0-2")
-    implementation 'com.google.android.gms:play-services-location:21.3.0'
-    implementation 'androidx.activity:activity-ktx:1.11.0'
+
+    // Altre
     implementation 'com.github.bumptech.glide:glide:4.16.0'
-    implementation("androidx.vectordrawable:vectordrawable:1.2.0")
-    implementation("com.github.QuadFlask:colorpicker:0.0.13")
+    implementation 'com.github.QuadFlask:colorpicker:0.0.13'
+
+    // Test
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.3.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
 }
+
 ksp {
     arg("room.generateKotlin", "true")
 }
+    
