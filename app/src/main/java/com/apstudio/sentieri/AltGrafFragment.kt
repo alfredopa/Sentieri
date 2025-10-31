@@ -15,7 +15,9 @@ import com.patrykandpatrick.vico.views.scroll.ChartScrollSpec
 import com.patrykandpatrick.vico.core.axis.formatter.DefaultAxisValueFormatter
 import com.patrykandpatrick.vico.core.axis.formatter.AxisValueFormatter
 import com.patrykandpatrick.vico.core.axis.AxisItemPlacer
-
+import com.patrykandpatrick.vico.core.axis.AxisPosition
+import com.patrykandpatrick.vico.core.axis.horizontal.createHorizontalAxis
+import com.patrykandpatrick.vico.core.axis.vertical.createVerticalAxis
 
 class AltGrafFragment : Fragment() {
     private lateinit var viewModel: SentieriViewModel
@@ -48,40 +50,42 @@ class AltGrafFragment : Fragment() {
             return
         }
         Log.d("GRAF", "Orientamento corretto. Preparazione grafico.")
-
-        // 1. Collega la ChartView al Producer che vive nel ViewModel
-        binding.chartView.entryProducer = viewModel.chartProducer
-
-        // 2. Chiama la funzione di preparazione nel ViewModel.
-        //    La logica interna del ViewModel impedirà esecuzioni multiple.
-        viewModel.preparaDatiGrafico(args.idTrack)
-
-        // 3. (Opzionale ma consigliato) Forza un aggiornamento della vista
-        //    nel caso il Fragment sia stato ricreato dopo una rotazione.
-        viewModel.chartProducer.getModel()?.let { model ->
-            viewModel.chartProducer.setEntries(model.entries.first())
-        }
-
-
         val grafico = binding.chartView
-        with(grafico) {
-            runInitialAnimation = false
-            chartScrollSpec = ChartScrollSpec(isScrollEnabled = false)
-            // entryProducer è già stato impostato sopra
-            (bottomAxis as Axis).guideline = null
-            // 1. Crea un formattatore per l'asse Y che converte i float in interi
-            val yAxisValueFormatter = AxisValueFormatter<AxisPosition.Horizontal.Bottom> { value, _ ->
-                // 'value' è il valore numerico della quota (un Float)
-                // Lo convertiamo in un intero e poi in una stringa.
-                value.toInt().toString()
-            }
-            // Configurazione Asse Verticale (Start Axis) - AGGIUNGI LA FORMATTAZIONE
+        grafico.bottomAxis = createHorizontalAxis()
+        grafico.startAxis = createVerticalAxis()
+        with (grafico) {
             (startAxis as Axis).apply {
                 title = "Altitudine (m)"
+                //valueFormatter = yAxisValueFormatter
+        }
+        // 2. Collega il Producer
+        grafico.entryProducer = viewModel.chartProducer
 
-                // Questo è il comando chiave:
-                // Crea un formattatore che mostra i numeri con 0 cifre decimali.
-               // valueFormatter = DefaultAxisValueFormatter(decimals = 0)
+        // 3. Avvia la preparazione dei dati
+        viewModel.preparaDatiGrafico(args.idTrack)
+
+        // 4. CONFIGURA GLI ASSI IN SICUREZZA DENTRO AL POST
+        //    Ora che gli assi esistono, possiamo configurarli tranquillamente
+        //    dopo che la vista è stata misurata.
+        grafico.post {
+            with(grafico) {
+                runInitialAnimation = false
+                chartScrollSpec = ChartScrollSpec(isScrollEnabled = false)
+
+                // Configurazione asse X
+                (bottomAxis as Axis).apply {
+                    //title = "Distanza (km)"
+                    guideline = null
+                    //valueFormatter = DefaultAxisValueFormatter(decimals = 0)
+                    //itemPlacer = AxisItemPlacer.Horizontal.default(spacing = 1)
+                }
+
+
+                }
+                (startAxis as Axis).apply {
+                    title = "Altitudine (m)"
+                    //valueFormatter = yAxisValueFormatter
+                }
             }
         }
     }
