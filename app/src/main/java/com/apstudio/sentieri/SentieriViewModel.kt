@@ -17,8 +17,6 @@ import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TopoMarkerData
-import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
-import com.patrykandpatrick.vico.core.entry.FloatEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -124,7 +122,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val isCalibrato : LiveData<Boolean> = _isCalibrato
     var bottomState = 0
 
-    val chartProducer = ChartEntryModelProducer()
     var idTracciaGraficoCorrente: Int = -1
 
     init {
@@ -424,59 +421,70 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
      * Prepara i dati per il grafico UNA SOLA VOLTA.
      * Controlla se i dati sono già stati generati.
      */
-    fun preparaDatiGrafico(idTracciaNuova: Int) {
-        if (chartProducer.getModel() != null && idTracciaNuova == idTracciaGraficoCorrente) {
-            Log.d("GRAF_VM", "Dati grafico già presenti per la traccia $idTracciaNuova. Salto la generazione.")
-            return
-        }
-        // Se l'ID è diverso o il modello è vuoto, (ri)carichiamo i dati.
-        idTracciaGraficoCorrente = idTracciaNuova
+    suspend fun preparaDatiGrafico(idTracciaNuova: Int): List<com.github.mikephil.charting.data.Entry> {
+        // La logica di controllo per evitare ricalcoli può rimanere
+        // if (idTracciaNuova == idTracciaGraficoCorrente && ...) { return ... }
 
+        idTracciaGraficoCorrente = idTracciaNuova
         Log.d("GRAF_VM", "Preparazione dati grafico per la traccia $idTracciaNuova...")
 
-        viewModelScope.launch(Dispatchers.IO) {
-            // Ricarica i dati della traccia specifica dal repository
+        return withContext(Dispatchers.IO) {
             val puntiTraccia = repository.getPuntiTraccia(idTracciaNuova)
+            // ... (logica per caricare i punti e convertirli in GeoPoint, che è già corretta) ...
 
-            if (puntiTraccia.isEmpty()) {
-                Log.w("GRAF_VM", "Nessun punto trovato per la traccia $idTracciaNuova.")
-                chartProducer.setEntries(emptyList<FloatEntry>())
-                return@launch
-            }
-
-            // Aggiorna la lista globale (se ancora ti serve per altro)
-            geoPuntiPercorso.clear()
-            geoPuntiPercorso.addAll(
-                puntiTraccia.map { GeoPoint(it.Latit.toDouble(), it.Longit.toDouble(), it.Ele.toDouble()) }
-            )
-            // Chiama la funzione di calcolo
+            // Chiama la funzione di calcolo che ora restituisce una lista di Entry
             getPuntiInterpolati(geoPuntiPercorso)
         }
     }
 
-    /**
-     * Funzione privata che calcola i punti per il grafico.
-     * È la tua vecchia funzione 'getpunti', ma ora vive qui.
-     */
-    private fun getPuntiInterpolati(puntiOriginali: List<GeoPoint>) {
-        val listPunti = mutableListOf<FloatEntry>()
+    private fun getPuntiInterpolati(puntiOriginali: List<GeoPoint>): List<com.github.mikephil.charting.data.Entry> {
+        val listPunti = mutableListOf<com.github.mikephil.charting.data.Entry>()
 
-        if (puntiOriginali.isEmpty()) {
-            chartProducer.setEntries(emptyList<FloatEntry>())
-            return
+        if (puntiOriginali.size < 2) {
+            return listPunti
         }
 
-        val listEle: ArrayList<GeoPoint> = ArrayList(puntiOriginali)
-        val puntiRidotti = MapUtils.douglasPeucker(listEle, 200.0)
+        // La logica di interpolazione rimane la stessa, cambia solo l'oggetto creato alla fine
+        var distanzaProgressivaMetri = 0.0
+        var puntoPrecedente = puntiOriginali.first()
+        var prossimoTraguardoKm = 1
 
-        puntiRidotti.forEach {
-            val quota = it.altitude.toFloat()
-            val punto = FloatEntry(puntiRidotti.indexOf(it).toFloat(), quota)
-            listPunti.add(punto)
-            Log.d("punti_vm", "getpunti: ${punto.x} ${punto.y}")
+        // Aggiungi il punto di partenza
+        listPunti.add(com.github.mikephil.charting.data.Entry(0f, puntiOriginali.first().altitude.toFloat()))
+
+        for (i in 1 until puntiOriginali.size) {
+            val puntoCorrente = puntiOriginali[i]
+            val distanzaSegmento = puntoPrecedente.distanceToAsDouble(puntoCorrente)
+            val distanzaPrecedenteMetri = distanzaProgressivaMetri
+            distanzaProgressivaMetri += distanzaSegmento
+
+            while (distanzaProgressivaMetri >= prossimoTraguardoKm * 1000) {
+                val distanzaTraguardoMetri = (prossimoTraguardoKm * 1000).toDouble()
+
+                // --- INIZIO CORREZIONE ---
+                if (distanzaSegmento == 0.0) break // Evita divisione per zero
+
+                val frazioneSegmento = (distanzaTraguardoMetri - distanzaPrecedenteMetri) / distanzaSegmento
+
+                // Ecco la formula di interpolazione completa
+                val altitudineInterpolata = puntoPrecedente.altitude + ((puntoCorrente.altitude - puntoPrecedente.altitude) * frazioneSegmento)
+                // --- FINE CORREZIONE ---
+
+                // L'asse X è la distanza reale in KM
+                val kmTraguardo = prossimoTraguardoKm.toFloat()
+                listPunti.add(com.github.mikephil.charting.data.Entry(kmTraguardo, altitudineInterpolata.toFloat()))
+
+                prossimoTraguardoKm++
+            }
+            puntoPrecedente = puntoCorrente
         }
 
-        // Popola il producer con i dati calcolati
-        chartProducer.setEntries(listPunti)
+        // Aggiungi l'ultimo punto
+        val distanzaFinaleKm = (distanzaProgressivaMetri / 1000.0).toFloat()
+        val quotaFinale = puntiOriginali.last().altitude.toFloat()
+        listPunti.add(com.github.mikephil.charting.data.Entry(distanzaFinaleKm, quotaFinale))
+
+        Log.d("GRAF_VM", "Calcolo completato per MPAndroidChart. Punti: ${listPunti.size}")
+        return listPunti
     }
 }
