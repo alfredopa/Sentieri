@@ -3,7 +3,6 @@ package com.apstudio.sentieri
 import android.location.Location
 import android.net.Uri
 import android.util.Log
-import androidx.fragment.app.Fragment
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
@@ -11,13 +10,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.liveData
 import androidx.lifecycle.viewModelScope
-import com.apstudio.sentieri.MapUtils.disegnaLine
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.LocationRepository
 import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.Sentieri
-import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TopoMarkerData
 import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
@@ -33,7 +30,6 @@ import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.sql.Timestamp
 import java.util.concurrent.CopyOnWriteArrayList
-import kotlin.concurrent.thread
 
 data class LocationData(val geoPoint: GeoPoint, val bearing: Float)
 
@@ -129,7 +125,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var bottomState = 0
 
     val chartProducer = ChartEntryModelProducer()
-    val altimetriaXAxisLabels = mutableListOf<String>()
+    var idTracciaGraficoCorrente: Int = -1
 
     init {
         // Combina i dati da diverse fonti in un unico LiveData
@@ -424,72 +420,63 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         alertFuoriTraccia = newState // Aggiorna anche la vecchia variabile se serve altrove
     }
 
-
-    fun preparaDatiGrafico() {
-        if (chartProducer.getModel() != null || geoPuntiPercorso.isEmpty()) {
-            Log.d("GRAF_VM", "Dati grafico già presenti o punti assenti. Salto la generazione.")
+    /**
+     * Prepara i dati per il grafico UNA SOLA VOLTA.
+     * Controlla se i dati sono già stati generati.
+     */
+    fun preparaDatiGrafico(idTracciaNuova: Int) {
+        if (chartProducer.getModel() != null && idTracciaNuova == idTracciaGraficoCorrente) {
+            Log.d("GRAF_VM", "Dati grafico già presenti per la traccia $idTracciaNuova. Salto la generazione.")
             return
         }
+        // Se l'ID è diverso o il modello è vuoto, (ri)carichiamo i dati.
+        idTracciaGraficoCorrente = idTracciaNuova
 
-        Log.d("GRAF_VM", "Generazione dati grafico per la prima volta...")
-        // Chiama la nuova funzione che popola sia i punti che le etichette
-        creaPuntiEAssiGrafico(geoPuntiPercorso)
+        Log.d("GRAF_VM", "Preparazione dati grafico per la traccia $idTracciaNuova...")
+
+        viewModelScope.launch(Dispatchers.IO) {
+            // Ricarica i dati della traccia specifica dal repository
+            val puntiTraccia = repository.getPuntiTraccia(idTracciaNuova)
+
+            if (puntiTraccia.isEmpty()) {
+                Log.w("GRAF_VM", "Nessun punto trovato per la traccia $idTracciaNuova.")
+                chartProducer.setEntries(emptyList<FloatEntry>())
+                return@launch
+            }
+
+            // Aggiorna la lista globale (se ancora ti serve per altro)
+            geoPuntiPercorso.clear()
+            geoPuntiPercorso.addAll(
+                puntiTraccia.map { GeoPoint(it.Latit.toDouble(), it.Longit.toDouble(), it.Ele.toDouble()) }
+            )
+            // Chiama la funzione di calcolo
+            getPuntiInterpolati(geoPuntiPercorso)
+        }
     }
 
-    private fun creaPuntiEAssiGrafico(puntiTracciaOriginali: List<GeoPoint>) {
-        val puntiGrafico = mutableListOf<FloatEntry>()
-        altimetriaXAxisLabels.clear() // Pulisci le etichette vecchie
+    /**
+     * Funzione privata che calcola i punti per il grafico.
+     * È la tua vecchia funzione 'getpunti', ma ora vive qui.
+     */
+    private fun getPuntiInterpolati(puntiOriginali: List<GeoPoint>) {
+        val listPunti = mutableListOf<FloatEntry>()
 
-        if (puntiTracciaOriginali.size < 2) {
+        if (puntiOriginali.isEmpty()) {
             chartProducer.setEntries(emptyList<FloatEntry>())
             return
         }
 
-        // Aggiungi sempre il punto di partenza
-        puntiGrafico.add(FloatEntry(0f, puntiTracciaOriginali.first().altitude.toFloat()))
-        altimetriaXAxisLabels.add("0") // Etichetta per il primo punto
+        val listEle: ArrayList<GeoPoint> = ArrayList(puntiOriginali)
+        val puntiRidotti = MapUtils.douglasPeucker(listEle, 200.0)
 
-        var distanzaProgressivaMetri = 0.0
-        var puntoPrecedente = puntiTracciaOriginali.first()
-        var prossimoTraguardoKm = 1
-
-        for (i in 1 until puntiTracciaOriginali.size) {
-            val puntoCorrente = puntiTracciaOriginali[i]
-            val distanzaSegmento = puntoPrecedente.distanceToAsDouble(puntoCorrente)
-            val distanzaPrecedenteMetri = distanzaProgressivaMetri
-            distanzaProgressivaMetri += distanzaSegmento
-
-            while (distanzaProgressivaMetri >= prossimoTraguardoKm * 1000) {
-                val distanzaTraguardoMetri = (prossimoTraguardoKm * 1000).toDouble()
-                if (distanzaSegmento == 0.0) break
-
-                val frazioneSegmento = (distanzaTraguardoMetri - distanzaPrecedenteMetri) / distanzaSegmento
-                val altitudineInterpolata = puntoPrecedente.altitude + ( (puntoCorrente.altitude - puntoPrecedente.altitude) * frazioneSegmento )
-
-                // L'asse X è ora solo un contatore progressivo!
-                puntiGrafico.add(FloatEntry(puntiGrafico.size.toFloat(), altitudineInterpolata.toFloat()))
-                // L'etichetta è il chilometro corrispondente
-                altimetriaXAxisLabels.add(prossimoTraguardoKm.toString())
-
-                prossimoTraguardoKm++
-            }
-            puntoPrecedente = puntoCorrente
+        puntiRidotti.forEach {
+            val quota = it.altitude.toFloat()
+            val punto = FloatEntry(puntiRidotti.indexOf(it).toFloat(), quota)
+            listPunti.add(punto)
+            Log.d("punti_vm", "getpunti: ${punto.x} ${punto.y}")
         }
 
-        // Aggiungi l'ultimo punto esatto del percorso
-        val quotaFinale = puntiTracciaOriginali.last().altitude.toFloat()
-        puntiGrafico.add(FloatEntry(puntiGrafico.size.toFloat(), quotaFinale))
-        val distanzaFinaleKm = (distanzaProgressivaMetri / 1000.0)
-        val distanzaFinaleKmArrotondata = String.format("%.1f", distanzaFinaleKm) // Formatta a 1 decimale
-        altimetriaXAxisLabels.add(distanzaFinaleKmArrotondata)
-
-        Log.d("GRAF_VM", "Calcolo completato. Punti: ${puntiGrafico.size}, Etichette: ${altimetriaXAxisLabels.size}")
-        chartProducer.setEntries(puntiGrafico)
-    }
-
-    fun pulisciDatiGrafico() {
-        chartProducer.setEntries(emptyList<FloatEntry>())
-        altimetriaXAxisLabels.clear() // Pulisci anche le etichette
-        Log.d("GRAF_VM", "Dati del grafico puliti.")
+        // Popola il producer con i dati calcolati
+        chartProducer.setEntries(listPunti)
     }
 }

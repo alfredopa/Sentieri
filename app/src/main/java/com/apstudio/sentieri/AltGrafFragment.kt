@@ -3,6 +3,7 @@ package com.apstudio.sentieri
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -20,17 +21,21 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
-
+import androidx.navigation.fragment.navArgs
 
 class AltGrafFragment : Fragment() {
     private lateinit var viewModel: SentieriViewModel
     private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     private lateinit var binding: FragmentAltGrafBinding
-    //private val chartEntryModelProducer: ChartEntryModelProducer = ChartEntryModelProducer()
+    private val args: AltGrafFragmentArgs by navArgs()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
+        // Salva l'orientamento originale QUI, solo se non è una ricreazione.
+        if (savedInstanceState == null) {
+            originalOrientation = requireActivity().requestedOrientation
+        }
     }
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -40,50 +45,42 @@ class AltGrafFragment : Fragment() {
         return binding.root
     }
 
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        // Forza l'orientamento solo la prima volta
-        if (savedInstanceState == null) {
-            originalOrientation = requireActivity().requestedOrientation
+        if (requireActivity().requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
             requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            // Esci immediatamente. La logica del grafico verrà eseguita dopo la ricreazione.
+            return
         }
-
-        // --- INIZIO DELLA LOGICA CORRETTA ---
+        Log.d("GRAF", "Orientamento corretto. Preparazione grafico.")
 
         // 1. Collega la ChartView al Producer che vive nel ViewModel
         binding.chartView.entryProducer = viewModel.chartProducer
 
         // 2. Chiama la funzione di preparazione nel ViewModel.
         //    La logica interna del ViewModel impedirà esecuzioni multiple.
-        viewModel.preparaDatiGrafico()
+        viewModel.preparaDatiGrafico(args.idTrack)
 
         // 3. (Opzionale ma consigliato) Forza un aggiornamento della vista
-        //    se il modello esiste già (caso post-rotazione)
+        //    nel caso il Fragment sia stato ricreato dopo una rotazione.
         viewModel.chartProducer.getModel()?.let { model ->
             viewModel.chartProducer.setEntries(model.entries.first())
         }
 
-        // --- FINE DELLA LOGICA CORRETTA ---
 
-        // Configurazione degli Assi
-        val bottomAxis = binding.chartView.bottomAxis as Axis
-        bottomAxis.title = "Distanza (km)"
-        bottomAxis.guideline = null
-
-        val startAxis = binding.chartView.startAxis as Axis
-        startAxis.title = "Altitudine (m)"
+        val grafico = binding.chartView
+        with(grafico) {
+            runInitialAnimation = false
+            // entryProducer è già stato impostato sopra
+            (bottomAxis as Axis).guideline = null
+        }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        // Quando la vista viene distrutta, resetta l'orientamento
-        activity?.requestedOrientation = originalOrientation
-
-        // Quando l'utente esce *definitivamente* dal fragment (es. tasto back),
-        // puliamo i dati del grafico nel ViewModel.
         if (isRemoving) {
-            viewModel.pulisciDatiGrafico()
+            activity?.requestedOrientation = originalOrientation
         }
     }
 }
