@@ -90,12 +90,8 @@ dependencies {
     implementation 'org.mapsforge:mapsforge-map-android:0.21.0'
     implementation 'org.mapsforge:mapsforge-map:0.21.0'
     implementation 'org.mapsforge:mapsforge-themes:0.21.0'
-    // Includes the core logic for charts and other elements.
-    implementation('com.patrykandpatrick.vico:core:1.15.0')
-    // For the view system.
-    implementation('com.patrykandpatrick.vico:views:1.15.0')
+    implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
     implementation("javax.xml.stream:stax-api:1.0-2")
-    //implementation 'com.google.android.gms:play-services-maps:18.2.0'
     implementation 'com.google.android.gms:play-services-location:21.3.0'
     implementation 'androidx.activity:activity-ktx:1.11.0'
     implementation 'com.github.bumptech.glide:glide:4.16.0'

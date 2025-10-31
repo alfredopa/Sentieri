@@ -1,38 +1,33 @@
+// File: AltGrafFragment.kt
+
 package com.apstudio.sentieri
 
-import android.content.pm.ActivityInfo
+import android.graphics.Color
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
 import com.apstudio.sentieri.databinding.FragmentAltGrafBinding
-import com.patrykandpatrick.vico.core.axis.Axis
-import com.patrykandpatrick.vico.views.scroll.ChartScrollSpec
-import com.patrykandpatrick.vico.core.axis.formatter.DefaultAxisValueFormatter
-import com.patrykandpatrick.vico.core.axis.formatter.AxisValueFormatter
-import com.patrykandpatrick.vico.core.axis.AxisItemPlacer
-import com.patrykandpatrick.vico.core.axis.AxisPosition
-import com.patrykandpatrick.vico.core.axis.horizontal.createHorizontalAxis
-import com.patrykandpatrick.vico.core.axis.vertical.createVerticalAxis
+import com.github.mikephil.charting.data.Entry
+import com.github.mikephil.charting.data.LineData
+import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.formatter.ValueFormatter
+import kotlinx.coroutines.launch
 
 class AltGrafFragment : Fragment() {
     private lateinit var viewModel: SentieriViewModel
-    private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     private lateinit var binding: FragmentAltGrafBinding
     private val args: AltGrafFragmentArgs by navArgs()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
-        // Salva l'orientamento originale QUI, solo se non è una ricreazione.
-        if (savedInstanceState == null) {
-            originalOrientation = requireActivity().requestedOrientation
-        }
     }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -41,59 +36,59 @@ class AltGrafFragment : Fragment() {
         return binding.root
     }
 
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        if (requireActivity().requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
-            requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            // Esci immediatamente. La logica del grafico verrà eseguita dopo la ricreazione.
-            return
-        }
-        Log.d("GRAF", "Orientamento corretto. Preparazione grafico.")
-        val grafico = binding.chartView
-        grafico.bottomAxis = createHorizontalAxis()
-        grafico.startAxis = createVerticalAxis()
-        with (grafico) {
-            (startAxis as Axis).apply {
-                title = "Altitudine (m)"
-                //valueFormatter = yAxisValueFormatter
-        }
-        // 2. Collega il Producer
-        grafico.entryProducer = viewModel.chartProducer
+        // La gestione della rotazione non è più necessaria qui perché MPAndroidChart è più robusto
 
-        // 3. Avvia la preparazione dei dati
-        viewModel.preparaDatiGrafico(args.idTrack)
+        // Avvia una coroutine per caricare i dati e popolare il grafico
+        viewLifecycleOwner.lifecycleScope.launch {
+            // 1. Carica i dati dal ViewModel
+            val chartEntries = viewModel.preparaDatiGrafico(args.idTrack)
 
-        // 4. CONFIGURA GLI ASSI IN SICUREZZA DENTRO AL POST
-        //    Ora che gli assi esistono, possiamo configurarli tranquillamente
-        //    dopo che la vista è stata misurata.
-        grafico.post {
-            with(grafico) {
-                runInitialAnimation = false
-                chartScrollSpec = ChartScrollSpec(isScrollEnabled = false)
+            // Se non ci sono dati, non fare nulla
+            if (chartEntries.isEmpty()) return@launch
 
-                // Configurazione asse X
-                (bottomAxis as Axis).apply {
-                    //title = "Distanza (km)"
-                    guideline = null
-                    //valueFormatter = DefaultAxisValueFormatter(decimals = 0)
-                    //itemPlacer = AxisItemPlacer.Horizontal.default(spacing = 1)
+            // 2. Crea un "DataSet" con i punti
+            val dataSet = LineDataSet(chartEntries, "Profilo Altimetrico")
+
+            // 3. Personalizza l'aspetto del DataSet (linea, colori, riempimento)
+            dataSet.color = Color.RED
+            dataSet.valueTextColor = Color.BLACK
+            dataSet.setDrawFilled(true) // Abilita il riempimento sotto la linea
+            dataSet.fillColor = Color.CYAN
+            dataSet.mode = LineDataSet.Mode.CUBIC_BEZIER // Linea curva
+            dataSet.setDrawCircles(false) // Non disegnare i punti
+            dataSet.setDrawValues(false) // Non scrivere i valori sopra i punti
+
+            // 4. Crea l'oggetto "LineData" da dare al grafico
+            val lineData = LineData(dataSet)
+
+            // 5. Configura e popola il grafico
+            binding.lineChart.apply {
+                description.isEnabled = false // Rimuove la descrizione in basso a destra
+                legend.isEnabled = false // Rimuove la legenda
+
+                // Asse X (in basso)
+                xAxis.granularity = 1f // Imposta lo step minimo a 1 (1 km)
+                xAxis.position = com.github.mikephil.charting.components.XAxis.XAxisPosition.BOTTOM
+                xAxis.valueFormatter = object : ValueFormatter() {
+                    override fun getFormattedValue(value: Float): String {
+                        return "${value.toInt()} km" // Formatta le etichette come "5 km"
+                    }
                 }
 
+                // Asse Y (sinistro)
+                axisLeft.valueFormatter = object : ValueFormatter() {
+                    override fun getFormattedValue(value: Float): String {
+                        return "${value.toInt()} m" // Formatta le etichette come "200 m"
+                    }
+                }
+                axisRight.isEnabled = false // Disabilita l'asse Y destro
 
-                }
-                (startAxis as Axis).apply {
-                    title = "Altitudine (m)"
-                    //valueFormatter = yAxisValueFormatter
-                }
+                // Popola il grafico con i dati
+                data = lineData
+                invalidate() // Ridisegna il grafico
             }
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        if (isRemoving) {
-            activity?.requestedOrientation = originalOrientation
         }
     }
 }
