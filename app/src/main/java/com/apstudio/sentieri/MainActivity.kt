@@ -9,8 +9,6 @@ import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
-import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.widget.TextView
@@ -24,7 +22,6 @@ import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import androidx.core.net.toUri
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavController
@@ -81,25 +78,26 @@ class MainActivity :
         SimpleFileLogger.log("Mainactivity", "MainActivity onCreate")
         super.onCreate(savedInstanceState)
         val app = applicationContext as AppSentieri
-        viewModel = ViewModelProvider(app, app.sentieriViewModelFactory)
-            .get(SentieriViewModel::class.java)
+        viewModel =
+            ViewModelProvider(app, app.sentieriViewModelFactory)[SentieriViewModel::class.java]
         // inizializza le preferenze
         initPreferenze()
         // verifica se tutti i permessi standard sono stati concessi
         checkAndRequestPermissions()
-
-        if (isBatteryOptimizationEnabled(this)) {
-            // Spiega all'utente perché è necessario e poi richiedi
-            // Esempio con un AlertDialog:
-            AlertDialog.Builder(this)
-                .setTitle("Ottimizzazione Batteria")
-                .setMessage("Per garantire che [La Tua Funzionalità Chiave, es. il tracciamento GPS] funzioni correttamente in background, è consigliabile disabilitare le ottimizzazioni della batteria per questa app. Vuoi andare alle impostazioni?")
-                .setPositiveButton("Vai alle Impostazioni") { _, _ ->
-                    requestIgnoreBatteryOptimizations(this)
-                }
-                .setNegativeButton("Annulla", null)
-                .show()
-        }
+        // Non chiederemo più all'utente di disabilitare le ottimizzazioni.
+        /*
+            if (isBatteryOptimizationEnabled(this)) {
+                // Spiega all'utente perché è necessario e poi richiedi
+                // Esempio con un AlertDialog:
+                AlertDialog.Builder(this)
+                    .setTitle("Ottimizzazione Batteria")
+                    .setMessage("Per garantire che [La Tua Funzionalità Chiave, es. il tracciamento GPS] funzioni correttamente in background, è consigliabile disabilitare le ottimizzazioni della batteria per questa app. Vuoi andare alle impostazioni?")
+                    .setPositiveButton("Vai alle Impostazioni") { _, _ ->
+                        requestIgnoreBatteryOptimizations(this)
+                    }
+                    .setNegativeButton("Annulla", null)
+                    .show()
+            }*/
         // gestione evento indietro
         setupBackPressHandling()
         Log.d("Mappa", "MainActivity onCreate: $intent")
@@ -121,7 +119,7 @@ class MainActivity :
         val headerView: View = navigationView.getHeaderView(0) // Di solito l'header è all'indice 0
         // Trova la TextView nell'header
         // Sostituisci con l'ID corretto della tua TextView in nav_header.xml
-        val textViewInHeader: TextView? = headerView.findViewById<TextView>(R.id.textView1)
+        val textViewInHeader: TextView? = headerView.findViewById(R.id.textView1)
         // Oppure se usi l'ID che ho suggerito:
         // val textViewInHeader: TextView? = headerView.findViewById<TextView>(R.id.textViewNameToUpdate)
         textViewInHeader?.text = BuildConfig.VERSION_NAME
@@ -208,11 +206,10 @@ class MainActivity :
 
     // copia il file nella cartella dati interni data/data/packageName
     private fun copyToInternalStorage(databaseName: String, subDir: String? = null): File {
-        val dataDir : File
+        val dataDir: File
         if (subDir == "databases") {
             dataDir = this.getDatabasePath(databaseName).parentFile!!
-        }
-        else {
+        } else {
             dataDir = this.filesDir
         }
         val dbFile = File(dataDir, databaseName)
@@ -243,12 +240,12 @@ class MainActivity :
         val sensorManager: SensorManager = this.getSystemService(SENSOR_SERVICE) as SensorManager
         if (sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null) {
             haBaro = true
-            preferenze.edit() { putBoolean("haBaro", haBaro) }
-            preferenze.edit() { putBoolean("setBaro", true) }
+            preferenze.edit { putBoolean("haBaro", haBaro) }
+            preferenze.edit { putBoolean("setBaro", true) }
         } else {
             haBaro = false
-            preferenze.edit() { putBoolean("haBaro", haBaro) }
-            preferenze.edit() { putBoolean("setBaro", false) }
+            preferenze.edit { putBoolean("haBaro", haBaro) }
+            preferenze.edit { putBoolean("setBaro", false) }
         }
     }
 
@@ -397,16 +394,16 @@ class MainActivity :
         }
     }
 
-    fun isBatteryOptimizationEnabled(context: Context): Boolean {
+    /*fun isBatteryOptimizationEnabled(context: Context): Boolean {
         val packageName = context.packageName
-        val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val pm = context.getSystemService(POWER_SERVICE) as PowerManager
         return !pm.isIgnoringBatteryOptimizations(packageName)
     }
 
     fun requestIgnoreBatteryOptimizations(activity: AppCompatActivity) {
         val intent = Intent()
         val packageName = activity.packageName
-        val pm = activity.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val pm = activity.getSystemService(POWER_SERVICE) as PowerManager
         if (!pm.isIgnoringBatteryOptimizations(packageName)) {
             intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
             intent.data = "package:$packageName".toUri()
@@ -428,6 +425,6 @@ class MainActivity :
                 }
             }
         }
-    }
+    }*/
 
 }
