@@ -41,7 +41,8 @@
         android:supportsRtl="true"
         android:theme="@style/Base.Theme.MyApplication"
         android:requestLegacyExternalStorage="true"
-        android:largeHeap="true">
+        android:largeHeap="true"
+        tools:targetApi="33">
         <meta-data
             android:name="MAPBOX_MAPID"
             android:value="mapbox.satellite" />

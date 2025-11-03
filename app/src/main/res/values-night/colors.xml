@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ... eventuali altri colori per il tema scuro ... -->
+    <!-- Colore per il testo del grafico nel tema SCURO (chiaro) -->
+    <color name="grafico_text_color">#FFFFFFFF</color> <!-- Bianco -->
+</resources>
