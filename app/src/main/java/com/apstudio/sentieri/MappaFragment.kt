@@ -1045,9 +1045,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val mediaDir = requireContext().externalMediaDirs
             val documentsDir = mediaDir[0]
             var nomeTema = ""
-            val folderTema = File("$documentsDir/Mappe/4UMaps/4UMaps.xml")
+            val folderTema = File("$documentsDir/Mappe/Elevate/Elevate.xml")
             if (folderTema.exists()) {
-                theme = ExternalRenderTheme("$documentsDir/Mappe/4UMaps/4UMaps.xml")
+                theme = ExternalRenderTheme("$documentsDir/Mappe/Elevate/Elevate.xml")
                 nomeTema = "4UMaps"
             } else {
                 theme = InternalRenderTheme.OSMARENDER
