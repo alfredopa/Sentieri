@@ -588,11 +588,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         // Listener per il Floating Action Button
         binding.fabSelectDestination.setOnClickListener {
-            if (!isSelectingDestination) {
-                enterDestinationSelectionMode()
+            if (viewModel.isRecording && viewModel.isFixed) {
+                if (!isSelectingDestination) {
+                    enterDestinationSelectionMode()
+                } else {
+                    exitDestinationSelectionMode()
+                }
             } else {
-                exitDestinationSelectionMode()
+                Toast.makeText(requireContext(), "Calcolo percorso solo con registrazione avviata", Toast.LENGTH_SHORT).show()
             }
+
         }
 
 // Listener per il pulsante di conferma
@@ -768,6 +773,44 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
 
     }
+
+    /*
+    DA AGGIUNGERE PER OBSERVER
+    private fun setupRecordingStateObserver() {
+        viewModel.isRecording.observe(viewLifecycleOwner) { isRecording ->
+            // Questa lambda verrà eseguita OGNI VOLTA che isRecording cambia.
+            // Tutta la logica della UI va qui.
+
+            if (isRecording) {
+                // STATO: REGISTRAZIONE ATTIVA
+                gpsMarker.setVisible(true)
+                accendiSchermo()
+                requireActivity().startService(Intent(context, LocationService::class.java))
+                bottomSheetBehavior.isHideable = false
+                bottomSheetBehavior.peekHeight = 120
+                bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
+                LocationRepository.updateGpsStatus("started")
+                // Aggiorna anche l'icona del menu se necessario
+                menu?.findItem(R.id.action_registra)?.setIcon(R.drawable.ic_stop)
+
+            } else {
+                // STATO: REGISTRAZIONE FERMA
+                requireActivity().stopService(Intent(context, LocationService::class.java))
+                gpsMarker.setVisible(false)
+                requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                LocationRepository.updateGpsStatus("stopped")
+                if (viewModel.haBaro) viewModel.setBaro = true // Ripristina preferenza
+
+                bottomSheetBehavior.isHideable = true
+                bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+
+                // Aggiorna l'icona del menu
+                menu?.findItem(R.id.action_registra)?.setIcon(R.drawable.ic_rec)
+            }
+            mapView.invalidate()
+        }
+    }*/
+
 
     private fun mostraAllarmeFuoriTraccia() {
         val allarme = EditText(requireActivity())
@@ -1530,7 +1573,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 put(MediaStore.MediaColumns.MIME_TYPE, "application/gpx+xml")
                 //put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOCUMENTS)
                 put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                //put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Sentieri")
             }
 
             val uri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)

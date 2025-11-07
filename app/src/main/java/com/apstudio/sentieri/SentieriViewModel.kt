@@ -81,6 +81,9 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     // NUOVO: MediatorLiveData per combinare tutte le fonti di dati
     private val _combinedData = MediatorLiveData<Triple<Location, Double, Float>>()
 
+    // DA AGGIUNGERE PER OBSERVER
+    //private val _isRecording = MutableLiveData<Boolean>(false)
+    //val isRecording: LiveData<Boolean> = _isRecording
     // valori visualizzati nel cruscotto
     private val _distanzaMetri = MutableLiveData(0)
     val distanzaMetri : LiveData<Int> = _distanzaMetri
@@ -149,6 +152,21 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             processNewLocationData(location, mslAltitude, baroPressure)
         }
     }
+
+    // Crea dei metodi per modificare lo stato in modo controllato
+    // DA AGGIUNGERE PER OBSERVER
+    /*fun startRecording() {
+        if (_isRecording.value == true) return // Già in registrazione
+        _isRecording.value = true
+        oraInizio = System.currentTimeMillis()
+        startUpdates() // Le altre logiche che avevi in attivaGps()
+    }
+
+    fun stopRecording() {
+        if (_isRecording.value == false) return // Già fermo
+        _isRecording.value = false
+        stopUpdates() // Le altre logiche che avevi in fermaRecording()
+    }*/
 
     fun processNewLocationData(loc: Location, altitudine: Double, baroPress: Float) {
         viewModelScope.launch(Dispatchers.IO) { // Esegui su un thread in background
