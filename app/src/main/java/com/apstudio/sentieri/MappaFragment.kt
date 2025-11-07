@@ -136,6 +136,7 @@ import org.osmdroid.views.overlay.simplefastpoint.SimpleFastPointOverlayOptions
 import org.osmdroid.views.overlay.simplefastpoint.SimplePointTheme
 import java.io.File
 import java.io.IOException
+import java.io.StringReader
 import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
@@ -513,7 +514,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         coloreTraccia = if (preferenze.contains("colore_traccia")) {
             preferenze.getInt("colore_traccia", coloreDefault)
         } else {
-            coloreDefault
+            coloreTraccia = coloreDefault
         }
 
         val menuHost: MenuHost = requireActivity()
@@ -2510,7 +2511,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         currentAudioFilePath = audioOutputFile?.absolutePath // Salva il percorso
 
         mediaRecorder =
-            MediaRecorder(requireContext())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(requireContext())
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
 
         mediaRecorder?.apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
@@ -2559,7 +2565,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mediaRecorder?.stop()
                 Toast.makeText(
                     requireContext(),
-                    "Registrazione salvata: $audioFileName",
+                    "Registrazione salvata: ${audioFileName}",
                     Toast.LENGTH_LONG
                 ).show()
             } catch (e: RuntimeException) {
