@@ -514,7 +514,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         coloreTraccia = if (preferenze.contains("colore_traccia")) {
             preferenze.getInt("colore_traccia", coloreDefault)
         } else {
-            coloreTraccia = coloreDefault
+            coloreDefault
         }
 
         val menuHost: MenuHost = requireActivity()
