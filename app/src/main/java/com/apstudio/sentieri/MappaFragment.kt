@@ -136,7 +136,6 @@ import org.osmdroid.views.overlay.simplefastpoint.SimpleFastPointOverlayOptions
 import org.osmdroid.views.overlay.simplefastpoint.SimplePointTheme
 import java.io.File
 import java.io.IOException
-import java.io.StringReader
 import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
@@ -2511,12 +2510,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         currentAudioFilePath = audioOutputFile?.absolutePath // Salva il percorso
 
         mediaRecorder =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                MediaRecorder(requireContext())
-            } else {
-                @Suppress("DEPRECATION")
-                MediaRecorder()
-            }
+            MediaRecorder(requireContext())
 
         mediaRecorder?.apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
@@ -2565,7 +2559,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mediaRecorder?.stop()
                 Toast.makeText(
                     requireContext(),
-                    "Registrazione salvata: ${audioFileName}",
+                    "Registrazione salvata: $audioFileName",
                     Toast.LENGTH_LONG
                 ).show()
             } catch (e: RuntimeException) {
@@ -2738,7 +2732,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 brouterService = null
                 isBound = false
                 Log.d(TAG, "Disconnessione da BRouterService.")
-            } catch (e: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 Log.w(TAG, "Servizio già disconnesso.")
             }
         }
