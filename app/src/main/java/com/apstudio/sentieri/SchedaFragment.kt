@@ -1,12 +1,16 @@
 package com.apstudio.sentieri
 
 import android.app.AlertDialog
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.icu.text.DecimalFormat
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.MediaStore
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -63,7 +67,6 @@ import java.util.Date
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 
 // Fragment che visualizza il dettaglio della traccia selezionata dall'elenco delle tracce
 // su una mappa ridotta e principali dati di riepilogo
@@ -139,27 +142,41 @@ class SchedaFragment : Fragment(), MenuProvider {
                     )
                     poiGpx.add(puntoGps)
                 }
-                //Log.d("over", "${mapView!!.overlays[0]} ")
 
-                val downloadFolder =
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                //val file = File(downloadFolder, "Traccia.gpx")
-                val file = File(downloadFolder, binding.txNome.text as String + ".gpx")
-                val fileOutputStream = FileOutputStream(file)
-                scriviGpx.write(gpx, fileOutputStream)
-                fileOutputStream.close()
-                // Invia un broadcast intent per notificare al sistema del nuovo file
-                val mediaScanIntent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
-                mediaScanIntent.data = Uri.fromFile(file)
-                requireContext().sendBroadcast(mediaScanIntent)
-                val toast = Toast.makeText(
-                    requireActivity(),
-                    "Scrittura di ${file.name} eseguita nella cartella Download",
-                    Toast.LENGTH_LONG
-                )
-                toast.view?.setBackgroundColor(getColor(requireActivity(), R.color.purple_500))
+                val fileName = "${binding.txNome.text}.gpx"
+                var success = false
+
+                try {
+                    val resolver = requireContext().contentResolver
+                    val contentValues = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(MediaStore.MediaColumns.MIME_TYPE, "application/gpx+xml")
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                    }
+
+                    val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                    if (uri != null) {
+                        resolver.openOutputStream(uri)?.use { outputStream ->
+                            scriviGpx.write(gpx, outputStream)
+                            success = true
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("SchedaFragment", "Errore durante il salvataggio del file GPX", e)
+                    success = false
+                }
+
+                val message = if (success) {
+                    "Scrittura di $fileName eseguita nella cartella Download"
+                } else {
+                    "Errore durante il salvataggio del file"
+                }
+
+                val toast = Toast.makeText(requireActivity(), message, Toast.LENGTH_LONG)
+                if (success) {
+                    toast.view?.setBackgroundColor(getColor(requireActivity(), R.color.purple_500))
+                }
                 toast.show()
-
             }
             R.id.eliminaSentiero -> {
                 // chiede conferma cancellazione
@@ -189,6 +206,7 @@ class SchedaFragment : Fragment(), MenuProvider {
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
         val idSentiero: Int = args.idSentiero
         val swcSegui: Switch = binding.swtchSegui
+
         viewModel.trovaSentiero(idSentiero).observe(this.viewLifecycleOwner) {
             binding.txNome.text = it.nome
             binding.txDistanza.text = MapUtils.formattastring(it.lunghezza.toInt())
@@ -210,30 +228,26 @@ class SchedaFragment : Fragment(), MenuProvider {
             viewModel.trackAscesa = it.dislivello
             viewModel.trackDiscesa = it.discesa
         }
-        mapView = binding.Mapview
-        mapController = MapController(mapView)
-        mapView.setUseDataConnection(false)
 
-        // DA VERIFICARE cartella Mappa usa quella di default Osmdroid
-        if (viewModel.menuMap ==0 )
-            apreMappa(viewModel.uriMappa)
-        else
-            online(viewModel.menuMap)
-        //MapUtils.setMapOfflineSource(activity, mapView)
-        mapView.setMultiTouchControls(true)
-        mapView.minZoomLevel = 9.0
-        mapView.maxZoomLevel = 19.0
-        mapController!!.setZoom(19.0)
         // carica punti percorso ed eventuali waypoint
         viewLifecycleOwner.lifecycleScope.launch {
             // Chiama la nuova suspend fun. Il codice aspetterà qui finché
             // leggiTrack non avrà finito di caricare TUTTI i punti.
-            percorso = viewModel.leggiTrack( idSentiero, poiDBList)
-
-            // Una volta che leggiTrack ha finito, E SOLO ALLORA,
-            // continua con il resto della configurazione della UI.
-
-
+            val percorsoCaricato = viewModel.leggiTrack(idSentiero, poiDBList)
+            // Usiamo una nuova variabile locale per chiarezza e sicurezza.
+            percorso = percorsoCaricato
+            mapView = binding.Mapview
+            mapController = MapController(mapView)
+            // DA VERIFICARE cartella Mappa usa quella di default Osmdroid
+            if (viewModel.menuMap ==0 )
+                apreMappa(viewModel.uriMappa)
+            else
+                online(viewModel.menuMap)
+            mapView.setMultiTouchControls(true)
+            mapView.minZoomLevel = 9.0
+            mapView.maxZoomLevel = 19.0
+            mapController!!.setZoom(19.0)
+            mapView.overlays.clear()
             if (percorso.actualPoints.isNotEmpty()) {
                 // aggiunge marker inizio e fine percorso
                 val startMarker = Marker(mapView)
@@ -261,9 +275,8 @@ class SchedaFragment : Fragment(), MenuProvider {
                 mapView.overlays.add(percorso)
             }
 
-            // il post serve per la corretta visualizzazione al termine del caricamento
-            mapView.post {
-                mapView.zoomToBoundingBox(percorso.bounds.increaseByScale(1.2f), false)
+            percorso.bounds?.let { bounds ->
+                    mapView.zoomToBoundingBox(bounds.increaseByScale(1.2f), false)
             }
 
             // switch per visualizzazione percorso con frecce direzionali
