@@ -9,12 +9,12 @@ plugins {
 
 android {
     namespace 'com.apstudio.sentieri'
-    compileSdk 34 // Usa la 34 che è l'ultima stabile, la 36 è in preview.
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.apstudio.sentieri"
         minSdk 30
-        targetSdk 34
+        targetSdk 35
         versionCode 26
         versionName '1.9.8'
     }
