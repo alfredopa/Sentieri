@@ -15,8 +15,8 @@ android {
         applicationId "com.apstudio.sentieri"
         minSdk 30
         targetSdk 34
-        versionCode 22
-        versionName '1.9.7'
+        versionCode 26
+        versionName '1.9.8'
     }
 
     buildFeatures {
@@ -32,6 +32,9 @@ android {
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            debuggable false
         }
     }
 
