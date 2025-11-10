@@ -39,6 +39,18 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.text.format
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.TextView
+import android.app.Dialog
+import android.view.Gravity
+import android.view.WindowManager
+import com.apstudio.sentieri.R // Assicurati che l'import a R sia corretto
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 object MapUtils {
 
@@ -528,7 +540,7 @@ object MapUtils {
             // data ora UTC
             var odt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
                 .withZone(ZoneOffset.UTC)
-            val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm",)
+            val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")
             val dateTime = LocalDateTime.parse(dataOra, odt)
             formatter.format(dateTime)
         }
@@ -542,6 +554,46 @@ object MapUtils {
             NumberFormat.getNumberInstance(Locale.getDefault())
             val km = distanza / 1_000.0
             String.format(Locale.getDefault(), "%.1f km", km)
+        }
+    }
+
+    /**
+     * Mostra uno Snackbar personalizzato con icona, testo e bordi arrotondati.
+     *
+     * @param view La view radice su cui ancorare lo Snackbar (es. binding.root).
+     * @param message Il messaggio da visualizzare.
+     * @param duration La durata, es. Snackbar.LENGTH_LONG.
+     */
+    fun showCustomSnackbar(context: Context, message: String, duration: Int) {
+        // 1. "Infla" (crea) il nostro layout personalizzato
+        val customView = LayoutInflater.from(context)
+            .inflate(R.layout.custom_snackbar_layout, null)
+
+        // 2. Trova il TextView e imposta il messaggio
+        val textView = customView.findViewById<TextView>(R.id.snackbar_text)
+        textView.text = message
+
+        // 3. Crea un BottomSheetDialog
+        val bottomSheetDialog = BottomSheetDialog(context)
+
+        // --- FINE DELLA CORREZIONE FINALE ---
+
+        // 4. Imposta la nostra vista personalizzata come contenuto del dialog
+        bottomSheetDialog.setContentView(customView)
+
+        // Rendi lo sfondo del contenitore del dialog trasparente per vedere solo la nostra CardView
+        (customView.parent as? View)?.setBackgroundColor(Color.TRANSPARENT)
+
+        // 5. Mostra il Dialog
+        bottomSheetDialog.show()
+
+        // 6. Simula la durata dello Snackbar per chiudere il Dialog automaticamente
+        val delayMillis = if (duration == Snackbar.LENGTH_LONG) 3500L else 2000L
+        MainScope().launch {
+            delay(delayMillis)
+            if (bottomSheetDialog.isShowing) {
+                bottomSheetDialog.dismiss()
+            }
         }
     }
 
