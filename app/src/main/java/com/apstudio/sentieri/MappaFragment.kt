@@ -47,7 +47,6 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.getColor
 import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.toColorInt
@@ -68,6 +67,7 @@ import com.apstudio.sentieri.MapUtils.dataOraIso8601
 import com.apstudio.sentieri.MapUtils.disegnaLine
 import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.MapUtils.getFileNameFromUri
+import com.apstudio.sentieri.MapUtils.showCustomSnackbar
 import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
@@ -563,7 +563,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.maxZoomLevel = 19.0
         val mapController: IMapController = MapController(mapView)
         mapController.setCenter(viewModel.ultPosizione)
-        mapController.setZoom(viewModel.ultZoom)
+        mapController.setZoom(viewModel.ultZoom.toDouble())
 
         aggiornaUIFabBlocMappa()
 
@@ -945,10 +945,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             bottomSheetBehavior.state = viewModel.bottomState
             // RICHIEDI LA TRACCIA COMPLETA PER RIDISEGNARLA CORRETTAMENTE
             LocationRepository.requestFullTrack()
-            val toast =
-                Toast.makeText(requireActivity(), "Registrazione in corso", Toast.LENGTH_SHORT)
-            toast.view?.setBackgroundColor(getColor(requireActivity(), R.color.purple_500))
-            toast.show()
+            showCustomSnackbar(requireContext(),"Registrazione in corso", Snackbar.LENGTH_SHORT)
+            /*Snackbar.make(binding.root, "Registrazione in corso", Snackbar.LENGTH_SHORT).apply {
+                setBackgroundTint(ContextCompat.getColor(requireContext(), R.color.purple_500))
+                setTextColor(Color.WHITE)
+                show()
+            }*/
         }
 
         // ridisegna eventuali layer aggiunti da GpkgLayer

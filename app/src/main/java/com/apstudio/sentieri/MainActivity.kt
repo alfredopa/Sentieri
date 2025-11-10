@@ -171,7 +171,7 @@ class MainActivity :
         val filesToInitialize = mapOf(
             "Layers.gpkg" to "databases",
             "Toponimi.gpkg" to "databases",
-            "db_schema_config.xml" to null // 'null' indica che copyToInternalStorage userà this.filesDir
+            "db_schema_config.xml" to "files" // 'null' indica che copyToInternalStorage userà this.filesDir
         )
         for ((fileName, subDir) in filesToInitialize) {
             val copiedFile = copyToInternalStorage(fileName, subDir)

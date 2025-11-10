@@ -85,7 +85,7 @@ class DatabaseSchemaConfigurator(
         }
 
         if (schemaData.isEmpty()) {
-            Log.w(TAG, "Nessuna tabella trovata o schema vuoto per il database: $dbName")
+            Log.e(TAG, "Nessuna tabella trovata o schema vuoto per il database: $dbName")
             return false
         }
 

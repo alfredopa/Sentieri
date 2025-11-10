@@ -3,10 +3,9 @@ package com.apstudio.sentieri
 import android.app.AlertDialog
 import android.content.ContentValues
 import android.content.Context
-import android.content.Intent
+import android.graphics.Color
 import android.icu.text.DecimalFormat
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
@@ -21,19 +20,22 @@ import android.widget.Button
 import android.widget.Switch
 import android.widget.Toast
 import androidx.appcompat.content.res.AppCompatResources
-import androidx.core.content.ContextCompat.getColor
+import androidx.core.content.ContextCompat
+import com.google.android.material.snackbar.Snackbar
+import androidx.core.net.toUri
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
+import androidx.appcompat.widget.SwitchCompat
 import com.apstudio.sentieri.MapUtils.alertVerificaSegui
 import com.apstudio.sentieri.databinding.FragmentSchedaBinding
 import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.PoiDB
-import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.prnDiscesa
 import com.apstudio.sentieri.db.prnDislivello
 import kotlinx.coroutines.Dispatchers
@@ -62,11 +64,7 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.io.File
-import java.io.FileOutputStream
 import java.util.Date
-import androidx.core.net.toUri
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
 
 // Fragment che visualizza il dettaglio della traccia selezionata dall'elenco delle tracce
 // su una mappa ridotta e principali dati di riepilogo
@@ -83,7 +81,7 @@ class SchedaFragment : Fragment(), MenuProvider {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
+        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri)[SentieriViewModel::class.java]
         setHasOptionsMenu(true) // Abilita le icone nel menu
     }
 
@@ -134,9 +132,9 @@ class SchedaFragment : Fragment(), MenuProvider {
                 }
                 poiDBList.forEach {
                     puntoGps = WayPoint(
-                        longitude = it.Longit.toDouble(),
-                        latitude = it.Latit.toDouble(),
-                        elevation = it.Ele.toDouble(),
+                        longitude = it.Longit,
+                        latitude = it.Latit,
+                        elevation = it.Ele,
                         name = it.NomePOI,
                         description = it.DescrPOI
                     )
@@ -172,11 +170,13 @@ class SchedaFragment : Fragment(), MenuProvider {
                     "Errore durante il salvataggio del file"
                 }
 
-                val toast = Toast.makeText(requireActivity(), message, Toast.LENGTH_LONG)
+                val snackbar = Snackbar.make(binding.root, message,
+                    Snackbar.LENGTH_LONG)
                 if (success) {
-                    toast.view?.setBackgroundColor(getColor(requireActivity(), R.color.purple_500))
+                    snackbar.setBackgroundTint(ContextCompat.getColor(requireContext(), R.color.purple_500))
+                    snackbar.setTextColor(Color.WHITE)
                 }
-                toast.show()
+                snackbar.show()
             }
             R.id.eliminaSentiero -> {
                 // chiede conferma cancellazione
@@ -298,9 +298,9 @@ class SchedaFragment : Fragment(), MenuProvider {
                 poiDBList.forEach {
                     viewModel.wayPoint.add(
                         WayPoint(
-                            latitude = it.Latit.toDouble(),
-                            longitude = it.Longit.toDouble(),
-                            elevation = it.Ele.toDouble(),
+                            latitude = it.Latit,
+                            longitude = it.Longit,
+                            elevation = it.Ele,
                             name = it.NomePOI,
                             description = it.DescrPOI,
                             src = it.UriPath
@@ -330,11 +330,11 @@ class SchedaFragment : Fragment(), MenuProvider {
                                     LayerItem(
                                         viewModel.line.title,
                                         viewModel.line.isEnabled,
-                                        false,
-                                        true,
-                                        viewModel.trackDistanza,
-                                        viewModel.trackAscesa,
-                                        viewModel.trackDiscesa
+                                        direzione = false,
+                                        segui = true,
+                                        distanza = viewModel.trackDistanza,
+                                        ascesa = viewModel.trackAscesa,
+                                        discesa = viewModel.trackDiscesa
                                     )
                                 )
                                 viewModel.tracciaDaSeguire = viewModel.line.title
@@ -347,11 +347,11 @@ class SchedaFragment : Fragment(), MenuProvider {
                                     LayerItem(
                                         viewModel.line.title,
                                         viewModel.line.isEnabled,
-                                        false,
-                                        false,
-                                        viewModel.trackDistanza,
-                                        viewModel.trackAscesa,
-                                        viewModel.trackDiscesa
+                                        direzione = false,
+                                        segui = false,
+                                        distanza = viewModel.trackDistanza,
+                                        ascesa = viewModel.trackAscesa,
+                                        discesa = viewModel.trackDiscesa
                                     )
                                 )
                                 // L'utente ha premuto "Annulla"
@@ -363,11 +363,11 @@ class SchedaFragment : Fragment(), MenuProvider {
                             LayerItem(
                                 viewModel.line.title,
                                 viewModel.line.isEnabled,
-                                false,
-                                true,
-                                viewModel.trackDistanza,
-                                viewModel.trackAscesa,
-                                viewModel.trackDiscesa
+                                direzione = false,
+                                segui = true,
+                                distanza = viewModel.trackDistanza,
+                                ascesa = viewModel.trackAscesa,
+                                discesa = viewModel.trackDiscesa
                             )
                         )
                         viewModel.tracciaDaSeguire = viewModel.line.title
@@ -376,8 +376,12 @@ class SchedaFragment : Fragment(), MenuProvider {
                 } else
                     viewModel.layerItems.add(
                         LayerItem(
-                            viewModel.line.title, viewModel.line.isEnabled, false, false,
-                            viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa
+                            viewModel.line.title, viewModel.line.isEnabled,
+                            direzione = false,
+                            segui = false,
+                            distanza = viewModel.trackDistanza,
+                            ascesa = viewModel.trackAscesa,
+                            discesa = viewModel.trackDiscesa
                         )
                     )
 
