@@ -16,6 +16,7 @@ import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.launch
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -24,6 +25,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
@@ -32,6 +34,8 @@ import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import androidx.preference.PreferenceManager.getDefaultSharedPreferences
 import com.google.android.material.navigation.NavigationView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.osmdroid.config.Configuration
 import java.io.File
@@ -39,7 +43,10 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
+private const val LAST_VERSION_CODE = "last_version_code"
 
 class MainActivity :
     AppCompatActivity() {
@@ -48,6 +55,8 @@ class MainActivity :
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var appBarConfiguration: AppBarConfiguration // For handling the Up button and drawer
     private lateinit var preferenze: SharedPreferences
+    private var lastVersionCode = -1L // versione memorizzata nel file preferences
+    private var currentVersionCode = -1L // versione corrente dell'app
     private var haBaro = false
     private val PERMISSION_ALL = 123
 
@@ -82,27 +91,40 @@ class MainActivity :
             ViewModelProvider(app, app.sentieriViewModelFactory)[SentieriViewModel::class.java]
         // inizializza le preferenze
         initPreferenze()
-        // verifica se tutti i permessi standard sono stati concessi
-        checkAndRequestPermissions()
-        // Non chiederemo più all'utente di disabilitare le ottimizzazioni.
-        /*
-            if (isBatteryOptimizationEnabled(this)) {
-                // Spiega all'utente perché è necessario e poi richiedi
-                // Esempio con un AlertDialog:
-                AlertDialog.Builder(this)
-                    .setTitle("Ottimizzazione Batteria")
-                    .setMessage("Per garantire che [La Tua Funzionalità Chiave, es. il tracciamento GPS] funzioni correttamente in background, è consigliabile disabilitare le ottimizzazioni della batteria per questa app. Vuoi andare alle impostazioni?")
-                    .setPositiveButton("Vai alle Impostazioni") { _, _ ->
-                        requestIgnoreBatteryOptimizations(this)
-                    }
-                    .setNegativeButton("Annulla", null)
-                    .show()
-            }*/
+        // Controlla se è necessario l'aggiornamento
+        if (currentVersionCode > lastVersionCode) {
+            // Lancia una coroutine per fare il lavoro in background
+            lifecycleScope.launch {
+                // Puoi mostrare un indicatore di caricamento qui
+
+                withContext(Dispatchers.IO) {
+                    // Esegui l'operazione di I/O in background
+                    verificaCartelleDB()
+                }
+
+                // Torna sul thread principale. Nascondi l'indicatore di caricamento
+                // e aggiorna le preferenze
+                preferenze.edit { putLong(LAST_VERSION_CODE, currentVersionCode) }
+
+                // Continua con l'inizializzazione dell'UI che dipende da questi file
+                initAppAndPermissions()
+            }
+        } else {
+            // Nessun aggiornamento necessario, procedi subito
+            verificaCartelleDB() // In questo caso sarà velocissimo perché i file esistono già
+            initAppAndPermissions()
+        }
+
         // gestione evento indietro
         setupBackPressHandling()
         Log.d("Mappa", "MainActivity onCreate: $intent")
         handleIntent(intent) // Gestisci anche l'intent iniziale che ha creato l'Activity
         enableEdgeToEdge()
+    }
+
+    private fun initAppAndPermissions() {
+        initApp()
+        checkAndRequestPermissions()
     }
 
     private fun initApp() {
@@ -143,8 +165,6 @@ class MainActivity :
             val menuItem = navigationView.menu.findItem(R.id.barometro)
             menuItem.isVisible = false
         }
-        // controllo se cartelle mappe e tracce presenti e db layer
-        verificaCartelleDB()
 
     }
 
@@ -213,7 +233,8 @@ class MainActivity :
             dataDir = this.filesDir
         }
         val dbFile = File(dataDir, databaseName)
-        if (!dbFile.exists()) {
+        // il file non esiste oppure ha versone inferiore
+        if (!dbFile.exists() || (currentVersionCode > lastVersionCode)) {
             try {
                 val inputStream: InputStream = assets.open(databaseName)
                 val outputStream: OutputStream = FileOutputStream(dbFile)
@@ -236,16 +257,30 @@ class MainActivity :
         // Gestione delle impostazioni default dopo installazione  crea il
         // file preferences.xml
         preferenze = getDefaultSharedPreferences(this)
+        lastVersionCode = preferenze.getLong(LAST_VERSION_CODE, -1)
+        currentVersionCode = getCurrentVersionCode()
+
         // TEST SENSORE BAROMETRO
         val sensorManager: SensorManager = this.getSystemService(SENSOR_SERVICE) as SensorManager
         if (sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null) {
             haBaro = true
             preferenze.edit { putBoolean("haBaro", haBaro) }
-            preferenze.edit { putBoolean("setBaro", true) }
+            // --- MODIFICA CRUCIALE ---
+            // Imposta "setBaro" a true SOLO se la preferenza non è mai stata impostata prima.
+            // Questo fa esattamente quello che fa Preferenze.kt e risolve il conflitto.
+            if (!preferenze.contains("setBaro")) {
+                preferenze.edit { putBoolean("setBaro", true) }
+            }
         } else {
             haBaro = false
             preferenze.edit { putBoolean("haBaro", haBaro) }
-            preferenze.edit { putBoolean("setBaro", false) }
+            // --- MODIFICA CRUCIALE ---
+            // Se non c'è il barometro, assicurati che l'opzione sia sempre false.
+            // Anche qui, è meglio farlo solo se la preferenza non esiste,
+            // o semplicemente forzarlo, dato che senza sensore non ha senso.
+            if (!preferenze.contains("setBaro")) {
+                preferenze.edit { putBoolean("setBaro", false) }
+            }
         }
     }
 
@@ -345,12 +380,8 @@ class MainActivity :
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSION_ALL) {
-            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                // All permissions granted, proceed
-                initApp()
-            } else {
-                // Permissions denied, handle accordingly (e.g., show a message)
-                Toast.makeText(this, "Permessi non assegnati", Toast.LENGTH_LONG).show()
+            if (grantResults.contains(PackageManager.PERMISSION_DENIED)) {
+                Toast.makeText(this, "Alcune funzionalità potrebbero non essere disponibili senza i permessi richiesti.", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -386,11 +417,21 @@ class MainActivity :
     }
 
     fun checkAndRequestPermissions() {
-        if (!hasPermissions(this, PERMISSIONS)) {
-            ActivityCompat.requestPermissions(this, PERMISSIONS.toTypedArray(), PERMISSION_ALL)
-        } else {
-            // All permissions are already granted, proceed with functionality.
-            initApp()
+        val list = PERMISSIONS.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (list.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, list.toTypedArray(), PERMISSION_ALL)
+        }
+    }
+
+
+    private fun getCurrentVersionCode(): Long {
+        return try {
+            packageManager.getPackageInfo(packageName, 0).longVersionCode
+        } catch (e: Exception) {
+            // In caso di errore, ritorna un valore che non innescherà l'aggiornamento
+            -1L
         }
     }
 
