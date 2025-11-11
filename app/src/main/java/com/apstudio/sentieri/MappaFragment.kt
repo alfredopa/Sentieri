@@ -253,17 +253,18 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         // Inizializza le preferenze e registra il listener
         preferenze = PreferenceManager.getDefaultSharedPreferences(requireContext())
-        preferenze.registerOnSharedPreferenceChangeListener(this)
         // Legge se esiste SENSORE BAROMETRO da Preferences
         //haBaro indica se esiste sensore barometrico fisico
-        if (preferenze.contains("haBaro")) {
+        viewModel.haBaro = preferenze.getBoolean("haBaro", false)
+        viewModel.setBaro = preferenze.getBoolean("setBaro", false)
+        /*if (preferenze.contains("haBaro")) {
             viewModel.haBaro = preferenze.getBoolean("haBaro", false)
             // setBaro indica se si preferisce usare il sensore barometrico fisico oppure no
             // in mancanza del sensore utilizza solo gps per altitudine
             if (preferenze.contains("setBaro")) {
                 viewModel.setBaro = preferenze.getBoolean("setBaro", false)
             }
-        }
+        }*/
         // Get the database instance (using the singleton)
         database = SentieriDB.getInstance(requireContext())
     }
@@ -856,6 +857,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onResume() {
         super.onResume()
         mapView.onResume()
+        viewModel.setBaro = preferenze.getBoolean("setBaro", false)
+        Log.d(TAG, "onResume: Sincronizzato viewModel.setBaro a: ${viewModel.setBaro}")
+
+        // Registra il listener qui
+        preferenze.registerOnSharedPreferenceChangeListener(this)
         //Log.d("Mappa", "MappaFragment onResume ")
         // Controlli per verificare valori da altri fragment da scheda sentieri e visualizzazione waypoint
         // verifica se è valorizzata line, quindi è stato passsata dal pulsante Segui
@@ -945,7 +951,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             bottomSheetBehavior.state = viewModel.bottomState
             // RICHIEDI LA TRACCIA COMPLETA PER RIDISEGNARLA CORRETTAMENTE
             LocationRepository.requestFullTrack()
-            showCustomSnackbar(requireContext(),"Registrazione in corso", Snackbar.LENGTH_SHORT)
+            showCustomSnackbar(binding.root,"Registrazione in corso")
             /*Snackbar.make(binding.root, "Registrazione in corso", Snackbar.LENGTH_SHORT).apply {
                 setBackgroundTint(ContextCompat.getColor(requireContext(), R.color.purple_500))
                 setTextColor(Color.WHITE)
@@ -1035,6 +1041,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onPause() {
         super.onPause()
+        preferenze.unregisterOnSharedPreferenceChangeListener(this)
         // memorizza valori per ripristinare la mappa
         viewModel.ultZoom = mapView.zoomLevel
         viewModel.ultPosizione = mapView.mapCenter as GeoPoint
@@ -1998,15 +2005,19 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    override fun onSharedPreferenceChanged(p0: SharedPreferences?, p1: String?) {
-        when (p1) {
-            "MenuMap" -> {
-                viewModel.menuMap = p0!!.getInt(p1, 1)
-            }
-
+    override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?) {
+        when (key) {
             "setBaro" -> {
-                viewModel.setBaro = p0!!.getBoolean(p1, false)
+                // Aggiorna il ViewModel quando la preferenza 'setBaro' cambia.
+                viewModel.setBaro = sharedPreferences.getBoolean(key, false)
+                Log.d(TAG, "Preferenza 'setBaro' aggiornata a: ${viewModel.setBaro}")
             }
+            "haBaro" -> {
+                // Anche se questo valore non dovrebbe cambiare, è buona norma gestirlo.
+                viewModel.haBaro = sharedPreferences.getBoolean(key, false)
+            }
+            // Aggiungi qui altri 'case' per altre preferenze che vuoi osservare,
+            // come "colore_traccia", ecc.
         }
     }
 

@@ -1,40 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Usiamo un CardView per avere bordi arrotondati e ombra gratis -->
-<androidx.cardview.widget.CardView        xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    app:cardBackgroundColor="@color/purple_500"
+    app:cardBackgroundColor="@android:color/white"
     app:cardCornerRadius="8dp"
     app:cardElevation="4dp"
-    app:contentPadding="8dp">
+    app:contentPadding="4dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-        <!-- L'icona dell'app -->
         <ImageView
             android:id="@+id/snackbar_icon"
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:layout_marginEnd="8dp"
-            android:src="@drawable/quattromori"
-            app:tint="@android:color/white" />
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:src="@drawable/quattromori" />
 
-        <!-- Il testo del messaggio -->
         <TextView
             android:id="@+id/snackbar_text"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:textColor="@android:color/white"
+            android:layout_weight="1"
+            android:textAlignment="center"
+            android:textColor="@android:color/black"
             android:textSize="14sp"
             tools:text="Scrittura del file eseguita con successo!" />
-
     </LinearLayout>
-
 </androidx.cardview.widget.CardView>
+
     

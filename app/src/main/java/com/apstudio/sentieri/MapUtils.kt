@@ -44,7 +44,9 @@ import android.view.View
 import android.widget.TextView
 import android.app.Dialog
 import android.view.Gravity
+import android.view.ViewGroup
 import android.view.WindowManager
+import androidx.core.view.setMargins
 import com.apstudio.sentieri.R // Assicurati che l'import a R sia corretto
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.snackbar.Snackbar
@@ -557,6 +559,57 @@ object MapUtils {
         }
     }
 
+    fun showCustomSnackbar(view: View, message: String) {
+        // 1. Crea lo Snackbar come al solito
+        val snackbar = Snackbar.make(view, "", Snackbar.LENGTH_LONG)
+
+        // 2. Prendi la view generica dello Snackbar. Non fare più il cast a SnackbarLayout.
+        val snackbarView = snackbar.view
+
+        // 3. Rimuovi il padding predefinito per avere controllo totale
+        snackbarView.setPadding(0, 0, 0, 0)
+        // Rendi trasparente lo sfondo predefinito dello Snackbar
+        snackbarView.setBackgroundColor(Color.TRANSPARENT)
+
+        // --- LA PARTE CHIAVE È QUI (MODIFICATA) ---
+        // 4. Prendi i LayoutParams generici (ViewGroup.MarginLayoutParams) e imposta i margini.
+        //    Questo funziona perché la view dello Snackbar si trova sempre dentro un contenitore
+        //    che supporta i margini (solitamente un CoordinatorLayout o FrameLayout).
+        val params = snackbarView.layoutParams as ViewGroup.MarginLayoutParams
+        val marginInDp = 20 // Scegli il margine che preferisci in dp
+        val marginInPx = (marginInDp * view.resources.displayMetrics.density).toInt()
+
+        // Imposta i margini orizzontali e un margine inferiore per staccarlo dal fondo
+        val bottomMarginInDp = 12 // Aggiungi un margine inferiore se vuoi
+        val bottomMarginInPx = (bottomMarginInDp * view.resources.displayMetrics.density).toInt()
+
+        params.setMargins(marginInPx, params.topMargin, marginInPx, bottomMarginInPx)
+        snackbarView.layoutParams = params
+        // ----------------------------------------
+
+        // 5. Infla il tuo layout personalizzato
+        val inflater = LayoutInflater.from(view.context)
+        val customView = inflater.inflate(R.layout.custom_snackbar_layout, null)
+
+        // Imposta il testo del tuo layout
+        val textView = customView.findViewById<TextView>(R.id.snackbar_text)
+        textView.text = message
+
+        // 6. Aggiungi la tua view personalizzata.
+        //    Dato che non possiamo più usare addView su SnackbarLayout, cerchiamo un modo alternativo.
+        //    Il modo più sicuro è rimuovere le view esistenti (il TextView di default)
+        //    e aggiungere la nostra. Ma dato che abbiamo reso lo sfondo trasparente,
+        //    possiamo provare a sovrapporla. Il metodo più semplice è usare addView
+        //    se la snackbarView è un ViewGroup.
+        if (snackbarView is ViewGroup) {
+            snackbarView.addView(customView, 0)
+        }
+
+        // 7. Mostra lo Snackbar
+        snackbar.show()
+    }
+
+
     /**
      * Mostra uno Snackbar personalizzato con icona, testo e bordi arrotondati.
      *
@@ -564,7 +617,7 @@ object MapUtils {
      * @param message Il messaggio da visualizzare.
      * @param duration La durata, es. Snackbar.LENGTH_LONG.
      */
-    fun showCustomSnackbar(context: Context, message: String, duration: Int) {
+    /*fun showCustomSnackbar(context: Context, message: String, duration: Int) {
         // 1. "Infla" (crea) il nostro layout personalizzato
         val customView = LayoutInflater.from(context)
             .inflate(R.layout.custom_snackbar_layout, null)
@@ -595,7 +648,7 @@ object MapUtils {
                 bottomSheetDialog.dismiss()
             }
         }
-    }
+    }*/
 
 }
 
