@@ -8,11 +8,16 @@ import android.icu.text.DecimalFormat
 import android.location.Location
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
 import com.apstudio.sentieri.db.LayerItem
+import com.google.android.material.snackbar.Snackbar
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.FolderOverlay
@@ -26,11 +31,11 @@ import org.osmdroid.views.overlay.milestones.MilestoneManager
 import org.osmdroid.views.overlay.milestones.MilestonePathDisplayer
 import org.osmdroid.views.overlay.milestones.MilestonePixelDistanceLister
 import java.text.NumberFormat
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
-import java.time.Instant
-import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -38,21 +43,6 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
-import kotlin.text.format
-import android.view.LayoutInflater
-import android.view.View
-import android.widget.TextView
-import android.app.Dialog
-import android.view.Gravity
-import android.view.ViewGroup
-import android.view.WindowManager
-import androidx.core.view.setMargins
-import com.apstudio.sentieri.R // Assicurati che l'import a R sia corretto
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.snackbar.Snackbar
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 object MapUtils {
 
@@ -67,8 +57,7 @@ object MapUtils {
         val SAT = 1.0f
         val LUM = 0.5f
         var mMapping: ColorMappingVariationHue? = null
-        val mContainer: ColorMappingForScalarContainer?
-        val paintBorder = Paint()
+            val paintBorder = Paint()
         val paintMapping = Paint()
         // create border paint
         paintBorder.color = Color.BLACK
@@ -104,12 +93,12 @@ object MapUtils {
             )
         }
 
-        mContainer = ColorMappingForScalarContainer(mMapping)
+            val mContainer = ColorMappingForScalarContainer(mMapping)
         line.actualPoints.forEach {
             mContainer.add(it.altitude.toFloat())
         }
 
-        if (line.actualPoints.size != 0) {
+        if (line.actualPoints.isNotEmpty()) {
             line.color = Color.CYAN
             // setup border
             line.outlinePaintLists.add(MonochromaticPaintList(paintBorder))
@@ -364,11 +353,11 @@ object MapUtils {
         return (p / (1 - alt / 44330.0f).toDouble().pow(5.255)).toFloat()
     }
 
-    fun calcolaAltitudine(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
+/*    fun calcolaAltitudine(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
 // metodo con gradiente barometrico
         val gradienteBarometrico = 0.125f
         return (pressioneRiferimento - pressioneAttuale) / gradienteBarometrico
-    }
+    }*/
 
     fun calcolaAltitudineIpso(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
 // metodo con formula ipsometrica
@@ -403,27 +392,6 @@ object MapUtils {
         val localDateTime = LocalDateTime.ofInstant(instant, ZoneId.systemDefault())
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'") // XXX per l'offset del fuso orario
         return localDateTime.format(formatter)
-    }
-
-    fun extractFileName(input: String): String {
-        if (input.isEmpty()) {
-            return "" // Restituisci una stringa vuota se l'input è nullo o vuoto
-        }
-        val startIndex = input.lastIndexOf('/') + 1 // Trova l'ultimo '/'
-        val endIndex = input.lastIndexOf('.')
-
-        return if (startIndex > -1 && endIndex > startIndex) {
-            input.substring(startIndex, endIndex)
-        } else {
-            input.substring(startIndex) // Restituisci l'intera stringa se non viene trovato '.'
-        }
-        /*val startIndex = input.indexOf('/') + 1 // Trova l'indice del carattere '/' e aggiungi 1 per iniziare dopo di esso
-        val endIndex = input.lastIndexOf('.') // Trova l'indice dell'ultimo '.'
-        return if (startIndex in 0..<endIndex) {
-        input.substring(startIndex, endIndex)
-        } else {
-        "" // Restituisci una stringa vuota se non viene trovato '/' o '.'
-        }*/
     }
 
     // restituisce il nome del file dall'URI

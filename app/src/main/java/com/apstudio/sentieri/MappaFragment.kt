@@ -40,6 +40,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -86,7 +87,6 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import mil.nga.geopackage.GeoPackageFactory
 import mil.nga.geopackage.features.user.FeatureCursor
 import mil.nga.geopackage.features.user.FeatureDao
 import mil.nga.geopackage.features.user.FeatureRow
@@ -106,10 +106,6 @@ import org.mapsforge.map.rendertheme.InternalRenderTheme
 import org.mapsforge.map.rendertheme.XmlRenderTheme
 import org.osmdroid.api.IGeoPoint
 import org.osmdroid.api.IMapController
-import org.osmdroid.gpkg.overlay.OsmMapShapeConverter
-import org.osmdroid.gpkg.overlay.features.MarkerOptions
-import org.osmdroid.gpkg.overlay.features.PolygonOptions
-import org.osmdroid.gpkg.overlay.features.PolylineOptions
 import org.osmdroid.mapsforge.MapsForgeTileProvider
 import org.osmdroid.mapsforge.MapsForgeTileSource
 import org.osmdroid.tileprovider.MapTileProviderBasic
@@ -181,11 +177,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private lateinit var database: SentieriDB
     private lateinit var bottomSheetBehavior: BottomSheetBehavior<ConstraintLayout>
 
-    private val SELECT_GPX_FILE = 10
-    private val SELECT_MAP_FILE = 20
     private lateinit var gpsMarker: Marker
     private val displayedTopoMarkers = mutableListOf<Marker>()
-    private var uri: Uri? = null
     private lateinit var currentTrackPolyline: Polyline // La traccia che disegna sulla mappa
     private var alertDialog: AlertDialog? = null
 
@@ -217,6 +210,32 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private var isSelectingDestination = false
     private var startPointForRouting: GeoPoint? = null
     private var endPointForRouting: GeoPoint? = null
+    // 1. Registra il launcher per ricevere il risultato dell'attività
+    private val mapFileSelectorLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                // Logica che prima era in onActivityResult per SELECT_MAP_FILE
+                apreMappa(uri)
+                // Salva la mappa offline scelta nelle preferenze
+                preferenze.edit { putString("URIMappa", uri.toString()) }
+                preferenze.edit { putInt("MenuMap", 0) }
+                viewModel.uriMappa = uri
+            }
+        }
+    }
+    // 2. Launcher per la selezione dei file .gpx
+    private val gpxFileSelectorLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                // Logica che prima era in onActivityResult per SELECT_GPX_FILE
+                caricaGPX(uri)
+            }
+        }
+    }
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             brouterService = IBRouterService.Stub.asInterface(service)
@@ -340,7 +359,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     when (item) {
                         is Polygon -> {
                             // Re-attach listener for Polygons
-                            item.setOnClickListener { polygon, map, eventPos ->
+                            item.setOnClickListener { polygon, _, _ ->
                                 val retrievedLabel = polygon.relatedObject as? String
                                 if (retrievedLabel != null) {
                                     mostraAlertDialogSemplice(retrievedLabel) //, featureInfo.descrTabella)
@@ -416,7 +435,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         parentFragmentManager.setFragmentResultListener(
             LAYER_DIALOG_REQUEST_KEY,
             viewLifecycleOwner
-        ) { requestKey, bundle ->
+        ) { requestKey, _ ->
             // Questo blocco viene eseguito quando GpkgLayer invia un risultato
             // con la LAYER_DIALOG_REQUEST_KEY specificata.
             if (requestKey == LAYER_DIALOG_REQUEST_KEY) {
@@ -612,7 +631,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
             // 2. Salva i punti nelle variabili di istanza
             //    Usa la posizione GPS corrente come partenza, o una fissa se non disponibile
-            startPointForRouting = gpsMarker.position?:currentTrackPolyline.points[0]
+            startPointForRouting = gpsMarker.position ?: currentTrackPolyline.actualPoints.firstOrNull()
             endPointForRouting = destinationPoint
 
             // 3. Avvia il processo di binding. La logica in onServiceConnected farà il resto.
@@ -1043,7 +1062,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         super.onPause()
         preferenze.unregisterOnSharedPreferenceChangeListener(this)
         // memorizza valori per ripristinare la mappa
-        viewModel.ultZoom = mapView.zoomLevel
+        viewModel.ultZoom = mapView.zoomLevelDouble.toInt()
         viewModel.ultPosizione = mapView.mapCenter as GeoPoint
         //memorizza stato del bottomSheet
         if (::bottomSheetBehavior.isInitialized)
@@ -1052,11 +1071,19 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun offline() {
-        val intent = Intent(Intent.ACTION_GET_CONTENT)
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        intent.addCategory(Intent.CATEGORY_OPENABLE)
-        intent.type = "application/octet-stream"
-        startActivityForResult(intent, SELECT_MAP_FILE)
+        // Crea l'intent per selezionare un file generico.
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            // Aggiunge i flag necessari per garantire i permessi di lettura dell'URI restituito.
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            // Specifica che il file deve essere apribile.
+            addCategory(Intent.CATEGORY_OPENABLE)
+            // Imposta il tipo MIME per accettare qualsiasi tipo di file.
+            // Puoi essere più specifico se cerchi solo file .map, ma questo è più generico.
+            type = "application/octet-stream"
+        }
+        // Avvia l'attività di selezione file usando il nuovo launcher.
+        // Il risultato verrà gestito nel callback definito in mapFileSelectorLauncher.
+        mapFileSelectorLauncher.launch(intent)
     }
 
     // apertura mappa offline locale da Uri
@@ -1307,7 +1334,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         //updateGpsIcon("started")
     }
 
-    @Deprecated("Deprecated in Java")
+    /*@Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == SELECT_GPX_FILE && resultCode == AppCompatActivity.RESULT_OK) {
@@ -1327,7 +1354,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 viewModel.uriMappa = uri!!
             }
         }
-    }
+    }*/
 
     private fun caricaGPX(uri: Uri) {
 //val line = Polyline(mapView, false, false)
@@ -1808,12 +1835,27 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
             R.id.gpx -> {
 // apre file manager per scelta gpx
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    // 1. IMPOSTA il tipo MIME principale su generico
+                    // Questo dice all'Intent di usare un selettore di file.
+                    type = "*/*"
+
+                    // 2. FORNISCI l'array di tipi specifici per il filtro.
+                    // Questo sovrascriverà il tipo generico per il filtro visuale.
+                    val mimeTypes = arrayOf(
+                        "application/gpx+xml", // Standard per GPX
+                        "application/xml",     // Fallback generico
+                        "text/xml"             // Altro fallback
+                    )
+                    putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
+
+                    // 3. AGGIUNGI la categoria per file apribili (corretto)
                     addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "application/octet-stream"
-                    //putExtra(EXTRA_MIME_TYPES, arrayOf("application/gpx"))
                 }
-                startActivityForResult(intent, SELECT_GPX_FILE)
+
+                // Avvia il launcher (corretto)
+                gpxFileSelectorLauncher.launch(intent)
+                //true
             }
 
             R.id.Geopackage -> {
@@ -2021,7 +2063,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    private fun addGeopackageTiles() {
+    /*private fun addGeopackageTiles() {
         try {
             val mediaDir = requireContext().externalMediaDirs
             val documentsDir = mediaDir[0]
@@ -2068,7 +2110,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         } catch (ex: Exception) {
             Log.d("packgage", "inside geopackage exception " + ex.message)
         }
-    }
+    }*/
 
     private fun createOsmPolygonFromNgaPolygon(
         ngaPolygon: mil.nga.sf.Polygon,
@@ -2124,7 +2166,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         //Devi associare l' OnClickListener a ogni singola istanza di Polygon che crei.
         // Imposta l'OnClickListener
-        osmdroidPolygon.setOnClickListener { polygon, map, eventPos ->
+        osmdroidPolygon.setOnClickListener { polygon, _, _ ->
             val retrievedLabel = polygon.relatedObject as? String
             if (retrievedLabel != null) {
                 mostraAlertDialogSemplice(
@@ -2152,7 +2194,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val builder = AlertDialog.Builder(requireContext()) // 'this' è il Context dell'Activity
         //builder.setTitle(titolo) // Imposta il titolo
         builder.setMessage(message) // Imposta il messaggio
-        builder.setPositiveButton("Chiudi") { dialog, which ->
+        builder.setPositiveButton("Chiudi") { dialog, _ ->
             dialog.dismiss() // Chiude esplicitamente il dialogo (spesso non necessario per setPositiveButton)
         }
         val alertDialog: AlertDialog = builder.create()
@@ -2876,11 +2918,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         // You might want to clear other caches here based on the level
         // For example, if level is TRIM_MEMORY_RUNNING_CRITICAL or TRIM_MEMORY_COMPLETE
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) {
+        //if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) {
             // Aggressively free up resources
             // layerModel.clearCache() // Example
             // viewModel.clearCache() // Example
-        }
+        //}
     }
 
     override fun onLowMemory() {
