@@ -1,7 +1,6 @@
 package com.apstudio.sentieri
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
@@ -16,7 +15,6 @@ import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.launch
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -35,6 +33,7 @@ import androidx.navigation.ui.setupWithNavController
 import androidx.preference.PreferenceManager.getDefaultSharedPreferences
 import com.google.android.material.navigation.NavigationView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.osmdroid.config.Configuration
@@ -43,8 +42,6 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 private const val LAST_VERSION_CODE = "last_version_code"
 
@@ -345,33 +342,9 @@ class MainActivity :
         if (currentDestId == startDestId) {
             finishAffinity() // Chiudi l'app
         } else {
-            // Questo caso indica che navigateUp() è fallito MA non siamo alla destinazione iniziale.
-            // Potrebbe accadere in scenari di navigazione complessi o se il NavController
-            // non è configurato come previsto per questo flusso "Indietro".
-            // Come fallback, esegui il comportamento di default.
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU && fallbackToSuper != null) {
-                // Su API < 33, esegui la lambda di fallback fornita
-                fallbackToSuper.invoke()
-            } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                // Fallback di sicurezza se la lambda non è stata fornita per API < 33,
-                // anche se con la struttura attuale dovrebbe esserlo.
-                // Questa è la chiamata diretta a super.onBackPressed() originale.
-                // ATTENZIONE: se sei dentro un OnBackPressedCallback, chiamare super.onBackPressed()
-                // direttamente qui potrebbe non essere l'ideale. La gestione tramite
-                // isEnabled = false; dispatcher.onBackPressed() è generalmente più pulita.
-                // Tuttavia, la logica con `fallbackToSuper` è preferibile.
-                super.onBackPressed() // Mantenuto per coerenza con la tua richiesta originale di fallback
-            }
-            // Per API 33+, se si arriva qui, il sistema gestirà la chiusura dell'Activity
-            // se non ci sono altri callback registrati che gestiscono l'evento.
-            // Non c'è un `super.onBackPressed()` diretto da chiamare nel contesto di `onBackInvoked`.
+            fallbackToSuper?.invoke()
         }
     }
-
-    private fun hasPermissions(context: Context, permissions: List<String>): Boolean =
-        permissions.all {
-            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-        }
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -429,7 +402,7 @@ class MainActivity :
     private fun getCurrentVersionCode(): Long {
         return try {
             packageManager.getPackageInfo(packageName, 0).longVersionCode
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // In caso di errore, ritorna un valore che non innescherà l'aggiornamento
             -1L
         }
