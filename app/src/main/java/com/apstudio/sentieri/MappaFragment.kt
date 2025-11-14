@@ -2177,9 +2177,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
         // Apply styling (assuming polygonOptions is accessible)
         if (colore == "RANDOM")
-            osmdroidPolygon.fillColor = layerModel.getRandomIntColor(30)
+            osmdroidPolygon.fillPaint.color = layerModel.getRandomIntColor(30)
         else
-            osmdroidPolygon.fillColor = layerModel.polygonOptions.fillColor
+            osmdroidPolygon.fillPaint.color = layerModel.polygonOptions.fillColor
         osmdroidPolygon.strokeColor = layerModel.polygonOptions.strokeColor
         osmdroidPolygon.strokeWidth = layerModel.polygonOptions.strokeWidth
         osmdroidPolygon.title = layerModel.polygonOptions.title
