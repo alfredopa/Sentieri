@@ -1,15 +1,12 @@
 package com.apstudio.sentieri
 
 import android.Manifest
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.GnssStatus
-import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.location.OnNmeaMessageListener
@@ -20,11 +17,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelStoreOwner
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.NavDeepLinkBuilder
-import com.apstudio.sentieri.MappaFragment.Companion.SEND_LOCATION_ACTION
 import com.apstudio.sentieri.db.LocationRepository
 
 /**
@@ -86,7 +79,6 @@ import com.apstudio.sentieri.db.LocationRepository
 class LocationService : LifecycleService() {
 
     companion object {
-        const val EXTRA_LOCATION_DATA = "com.apstudio.sentieri.service.EXTRA_LOCATION_DATA"
         private const val LOCATION_SERVICE_CHANNEL = 1234 // canale delle notifiche
         private const val LOCATION_UPDATE_INTERVAL_MS = 2000L
         private const val MIN_DISTANCE_CHANGE_METERS = 3f
@@ -99,7 +91,6 @@ class LocationService : LifecycleService() {
     private var nmeaListener: OnNmeaMessageListener? = null
     private lateinit var gnssCallback: GnssStatus.Callback
     private  val baroRepo: BaroRepo by lazy { BaroRepo(this) }
-    private var milliBar = 0.0F
     private var hasMslAltitude = false
     private var speedKnots: Double = 0.0
     private var speedKmh: Int = 0
@@ -107,7 +98,7 @@ class LocationService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         //Log.d(TAG, "Service created")
-        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
         hasMslAltitude = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE // Android 14
 
         initializeGnssCallback()
@@ -219,40 +210,13 @@ class LocationService : LifecycleService() {
         }
     }
 
-    private fun sendBroadcast(newLocation: Location?) {
-        if (newLocation == null) {
-            Log.e(TAG, "LocationService: newLocation è null in sendBroadcast. Non inviando Location.")
-            // Potresti voler inviare un broadcast con altri dati se necessario,
-            // o semplicemente non inviare nulla se la location è cruciale.
-            // Per ora, ritorniamo per evitare di mettere un null nell'intent con la chiave EXTRA_LOCATION_DATA.
-            return
-        }
-
-        Log.d(TAG, "LocationService: Inviando broadcast con Location: $newLocation")
-        val broadcastIntent = Intent().apply {
-            action = SEND_LOCATION_ACTION
-            action = MappaFragment.SEND_LOCATION_ACTION
-            putExtra(EXTRA_LOCATION_DATA, newLocation) // newLocation qui è garantito non essere null
-            putExtra("altitudine", LocationRepository.mslAltitude.value!!)
-            //SimpleFileLogger.log(TAG, "sendBroadcast - Android < 14: Using NMEA for MSL. Current LocationRepository.mslAltitude = ${LocationRepository.mslAltitude.value}, newLocation.altitude (WGS84) = ${newLocation.altitude}")
-
-            if (LocationRepository.usaBaro && baroRepo.baroData.isInitialized) {
-                milliBar = baroRepo.baroData.value ?: 0.0F
-                putExtra("milliBar", milliBar)
-            }
-            setClass(this@LocationService, MainActivity::class.java)
-        }
-        LocalBroadcastManager.getInstance(this).sendBroadcast(broadcastIntent)
-        //Log.d(TAG, "Location broadcast sent: MilliBar = $milliBar, MSL Altitude = ${LocationRepository.mslAltitude}")
-    }
-
     private fun parseNmeaMessage(message: String) {
         //SimpleFileLogger.log(TAG, "NMEA Received: $message") // <-- AGGIUNGI QUESTO LOG
         if (message.length < 6) {
             //SimpleFileLogger.log(TAG, "NMEA message too short: $message")
             return
         }
-        when (message.substring(0, 6)) {
+        when (message.take(6)) {
             "\$GPGGA", "\$GNGGA" -> {
                 parseGPGGA(message)}
             "\$GPRMC" -> {
@@ -330,7 +294,7 @@ class LocationService : LifecycleService() {
         val channelId = "LOCATION_SERVICE_CHANNEL" // Assicurati che sia univoco
         val channel = NotificationChannel(channelId, channelName, importance)
         channel.setSound(null, null) // Considera se vuoi un suono o meno
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
 
         // PendingIntent per navigare a MappaFragment
