@@ -217,10 +217,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             result.data?.data?.let { uri ->
                 // Logica che prima era in onActivityResult per SELECT_MAP_FILE
                 apreMappa(uri)
-                // Salva la mappa offline scelta nelle preferenze
-                preferenze.edit { putString("URIMappa", uri.toString()) }
-                preferenze.edit { putInt("MenuMap", 0) }
-                viewModel.uriMappa = uri
             }
         }
     }
@@ -809,7 +805,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             currentTrackPolyline.addPoint(newPoint)
             mapView.invalidate()
         }
-
+        mapView.invalidate()
     }
 
     /*
@@ -1177,26 +1173,43 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         viewModel.connessione = false
         mapView.setUseDataConnection(false)
+        // 2. Aggiorna lo stato nel ViewModel per riflettere la selezione offline
+        viewModel.menuMap = 0
+        viewModel.uriMappa = uri
+
+        // 3. Salva questo stato nelle preferenze per il prossimo avvio
+        preferenze.edit {
+            putInt("MenuMap", 0)
+            putString("URIMappa", uri.toString())
+        }
+
         mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
         //Log.d("Mappa", "Mappa caricata  ")
         mapView.invalidate()
     }
 
     private fun online(mappa: Int) {
-        var scarica: MapTileProviderBasic? = null
         viewModel.connessione = true
         // salvo indice menu selezionato
-        viewModel.menuMap = mappa
-        mapView.setUseDataConnection(true)
-        when (mappa) {
-            1 -> scarica =
-                MapTileProviderBasic(context, TileSourceFactory.MAPNIK)  // OpenStreetmap
-            2 -> scarica = MapTileProviderBasic(context, TileSourceFactory.OpenTopo) // OpenTopo
-            3 -> scarica = mappaMapBox() // MapBox
+        val tileProvider: MapTileProviderBasic? = when (mappa) {
+            1 -> MapTileProviderBasic(context, TileSourceFactory.MAPNIK)  // OpenStreetMap
+            2 -> MapTileProviderBasic(context, TileSourceFactory.OpenTopo) // OpenTopo
+            3 -> mappaMapBox() // MapBox
+            else -> {
+                // Caso di default: se viene passato un indice non valido (come 0),
+                // imposta comunque una mappa di default (es. OpenStreetMap) e aggiorna l'indice.
+                // Questo gestisce anche la tua condizione iniziale.
+                Log.w(TAG, "Indice mappa non valido ($mappa), impostazione predefinita su OpenStreetMap (1).")
+                MapTileProviderBasic(context, TileSourceFactory.MAPNIK)
+            }
         }
-// salva la mappa scelta nelle preferenze
-        preferenze.edit { putInt("MenuMap", mappa) }
-        mapView.tileProvider = scarica
+        // Determina l'indice finale da salvare. Se era 0, ora sarà 1.
+        val finalMapIndex = if (mappa == 0) 1 else mappa
+        // Salva l'indice corretto nel ViewModel e nelle Preferenze.
+        viewModel.menuMap = finalMapIndex
+        preferenze.edit { putInt("MenuMap", finalMapIndex) }
+        // Applica il tile provider alla mappa.
+        mapView.tileProvider = tileProvider
         mapView.invalidate()
     }
 
@@ -1788,6 +1801,28 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         menuInflater.inflate(R.menu.main_menu, menu)
 // viene richiamata alla creazione del menu, quindi  anche quando si cambia il fragment
         this.menu = menu
+        // 1. Determina quale voce di menu deve essere selezionata in base allo stato del ViewModel
+        val checkedMenuItemId = when {
+            // Se c'è una mappa offline caricata (viewModel.menuMap è 0)
+            viewModel.menuMap == 0 && viewModel.uriMappa != Uri.EMPTY -> R.id.Offline
+
+            // Se è selezionata OpenStreetMap (indice 1)
+            viewModel.menuMap == 1 -> R.id.Online
+
+            // Se è selezionata OpenTopo (indice 2)
+            viewModel.menuMap == 2 -> R.id.Mapquest
+
+            // Se è selezionata la mappa satellitare (indice 3)
+            viewModel.menuMap == 3 -> R.id.MapBox
+
+            // Caso di default: se nessuna delle precedenti, seleziona la mappa offline
+            // per evitare che non ci sia nessuna selezione.
+            else -> R.id.Offline
+        }
+
+        // 2. Trova la voce di menu usando il suo ID e imposta lo stato 'checked'
+        val itemToCheck = menu.findItem(checkedMenuItemId)
+        itemToCheck?.isChecked = true
         // Aggiorna l'icona con lo stato corrente del GPS ViewModel
         // Questo gestisce il caso in cui l'observer iniziale è scattato prima che il menu fosse pronto
         updateGpsIcon(LocationRepository.gpsStatus.value)
