@@ -22,6 +22,11 @@
             app:title="Colore Traccia"
             app:summary="Seleziona il colore per la linea della traccia"
             app:defaultValue="@android:color/holo_red_dark" />
+        <ListPreference
+            app:key="seleziona_tema_mapsforge"
+            app:title="Seleziona Tema Mappa Offline"
+            app:summary="Scegli un tema per le mappe MapsForge"
+            app:defaultValue="OSMARENDER" />
 
     </PreferenceCategory>
 </PreferenceScreen>

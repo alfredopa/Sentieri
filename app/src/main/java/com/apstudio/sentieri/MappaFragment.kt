@@ -301,14 +301,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         //haBaro indica se esiste sensore barometrico fisico
         viewModel.haBaro = preferenze.getBoolean("haBaro", false)
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
-        /*if (preferenze.contains("haBaro")) {
-            viewModel.haBaro = preferenze.getBoolean("haBaro", false)
-            // setBaro indica se si preferisce usare il sensore barometrico fisico oppure no
-            // in mancanza del sensore utilizza solo gps per altitudine
-            if (preferenze.contains("setBaro")) {
-                viewModel.setBaro = preferenze.getBoolean("setBaro", false)
-            }
-        }*/
+
         // Get the database instance (using the singleton)
         database = SentieriDB.getInstance(requireContext())
     }
@@ -1139,22 +1132,32 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             ).show()
             return
         }
-// Mappe MapsForge estensione .map il path del rendertheme è hard coded, da cambiare
         val forgeMappa: MapsForgeTileProvider
         val offlineMappa: OfflineTileProvider
         var theme: XmlRenderTheme?
         if (f.name.contains(".map")) {
-            val mediaDir = requireContext().externalMediaDirs
-            val documentsDir = mediaDir[0]
-            var nomeTema = ""
-            val folderTema = File("$documentsDir/Mappe/4UMaps/4UMaps.xml")
-            if (folderTema.exists()) {
-                theme = ExternalRenderTheme("$documentsDir/Mappe/4UMaps/4UMaps.xml")
-                nomeTema = "4UMaps"
+            val savedThemePath = preferenze.getString("seleziona_tema_mapsforge", "OSMARENDER")
+
+            if (savedThemePath != null && savedThemePath != "OSMARENDER") {
+                val themeFile = File(savedThemePath)
+                if (themeFile.exists()) {
+                    try {
+                        theme = ExternalRenderTheme(themeFile)
+                        //Log.d(TAG, "Tema esterno caricato: ${themeFile.name}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Errore nel caricamento del tema esterno, uso il default", e)
+                        theme = InternalRenderTheme.OSMARENDER
+                    }
+                } else {
+                    // Il file salvato non esiste più, usa il default
+                    theme = InternalRenderTheme.OSMARENDER
+                }
             } else {
+                // Il valore è "OSMARENDER" o nullo, usa il tema di default
                 theme = InternalRenderTheme.OSMARENDER
             }
-            val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, nomeTema)
+
+            val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, "ThemeName") // Il nome qui non è cruciale
             forgeMappa = MapsForgeTileProvider(
                 SimpleRegisterReceiver(activity),
                 fromFiles, null
@@ -1838,8 +1841,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         // FASE 3: Hai TUTTI i permessi. Procedi con la logica normale.
                     } else {
                         // Controlla il barometro e avvia la registrazione effettiva.
-                        if (viewModel.haBaro && viewModel.setBaro && !viewModel.isCalibrato.value!!) {
-                            altDaBaro()
+                        // se è presente barometro ed è settato per essere usato, verifica poi se è gia calibrato non è necessario
+                        if (viewModel.haBaro && viewModel.setBaro) {
+                            if (!viewModel.isCalibrato.value!!)
+                                altDaBaro()
+                            else
+                                attivaGps()
                         } else {
                             attivaGps() // La tua funzione che avvia il servizio
                         }
