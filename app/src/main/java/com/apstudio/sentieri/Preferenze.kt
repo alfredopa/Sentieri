@@ -1,27 +1,15 @@
 package com.apstudio.sentieri
 
-import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.hardware.Sensor
 import android.hardware.SensorManager
-import android.icu.text.CaseMap.Fold
-import android.net.Uri
 import android.os.Bundle
-import android.os.Environment
-import android.provider.Settings
-import android.util.Log
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
+import androidx.core.content.edit
+import androidx.preference.ListPreference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceManager
 import java.io.File
-import androidx.core.content.edit
-import androidx.preference.ListPreference
-import androidx.preference.Preference
-import com.apstudio.sentieri.MapUtils.getFileNameFromUri
 
 class Preferenze : PreferenceFragmentCompat() {
     private lateinit var preferenze: SharedPreferences
@@ -58,16 +46,6 @@ class Preferenze : PreferenceFragmentCompat() {
             // Popola la preferenza con i temi trovati
             populateThemePreference(themePreference)
         }
-        /*findPreference<Preference>("seleziona_tema_mapsforge")?.setOnPreferenceClickListener {
-            // Usa ACTION_OPEN_DOCUMENT_TREE per selezionare una cartella
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                //type = "application/octet-stream"
-                type = "text/xml" // o "application/xml"
-                addCategory(Intent.CATEGORY_OPENABLE)
-            }
-            themeFolderSelectorLauncher.launch(intent)
-            true
-        }*/
     }
 
     private fun populateThemePreference(preference: ListPreference) {
@@ -77,7 +55,7 @@ class Preferenze : PreferenceFragmentCompat() {
         entries.add("Default (OsmaRender)")
         entryValues.add("OSMARENDER")
 
-        val mediaDirs = requireContext().externalMediaDirs
+        val mediaDirs = requireContext().getExternalFilesDirs(null)
         if (mediaDirs.isNotEmpty()) {
             val themeBaseDir = File(mediaDirs[0], "Mappe")
 
@@ -111,24 +89,8 @@ class Preferenze : PreferenceFragmentCompat() {
                 }
             }
         }
-
         preference.entries = entries.toTypedArray()
         preference.entryValues = entryValues.toTypedArray()
     }
-
-
-    // Aggiungi un launcher per il selettore di file
-    /*private val themeFolderSelectorLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.data?.let { themeUri ->
-                val fileTheme = getFileNameFromUri(requireContext(), themeUri)
-                // Salva l'URI del file nelle preferenze
-                preferenze.edit { putString("tema_mapsforge_folder_uri", themeUri.toString()) }
-                Toast.makeText(requireContext(), "Tema selezionato $fileTheme", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }*/
 
 }

@@ -23,4 +23,8 @@
     <string name="barometro">Sensore barometrico</string>
     <string name="kmh">%d km/h</string>
     <string name="finish_recording_before_closing">Termina registrazione prima di chiudere l\'\app</string>
+    <string name="track_details_prompt">
+        Distanza: %1$s\nAscesa: %2$s\nDiscesa: %3$s\n\nSeguire la traccia selezionata?
+    </string>
+
 </resources>

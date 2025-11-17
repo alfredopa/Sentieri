@@ -1192,7 +1192,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             1 -> scarica =
                 MapTileProviderBasic(context, TileSourceFactory.MAPNIK)  // OpenStreetmap
             2 -> scarica = MapTileProviderBasic(context, TileSourceFactory.OpenTopo) // OpenTopo
-            3 -> scarica = MappaMapBox() // MapBox
+            3 -> scarica = mappaMapBox() // MapBox
         }
 // salva la mappa scelta nelle preferenze
         preferenze.edit { putInt("MenuMap", mappa) }
@@ -1200,7 +1200,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.invalidate()
     }
 
-    private fun MappaMapBox(): MapTileProviderBasic {
+    private fun mappaMapBox(): MapTileProviderBasic {
         val MAPBOXSATELLITELABELLED: OnlineTileSourceBase =
             MapBoxTileSource("MapBox", 1, 19, 256, ".png")
         (MAPBOXSATELLITELABELLED as MapBoxTileSource).retrieveAccessToken(requireContext())

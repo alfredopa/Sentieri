@@ -11,7 +11,6 @@ import android.provider.OpenableColumns
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
@@ -49,8 +48,8 @@ object MapUtils {
         fun disegnaLine(line: Polyline): Polyline {
         // min / max values used in the example
         // scalar meaning is "speed" in this example with no unit
-        val MIN_SCALAR = 0
-        val MAX_SCALAR = 50
+        //val MIN_SCALAR = 0
+        //val MAX_SCALAR = 50
         // hue range da rosso  for "alto" a blu per "basso"
         val MIN_HUE = 255 // green
         val MAX_HUE = 0 // red
@@ -99,7 +98,6 @@ object MapUtils {
         }
 
         if (line.actualPoints.isNotEmpty()) {
-            line.color = Color.CYAN
             // setup border
             line.outlinePaintLists.add(MonochromaticPaintList(paintBorder))
             // Colore del percorso con gradiente
@@ -213,23 +211,28 @@ object MapUtils {
     }
 
     fun alertSegui(context: Context, viewModel: SentieriViewModel, line: Polyline) {
-        val allarme = EditText(context)
+        val detailsTextView = TextView(context)
         val builder =
             AlertDialog.Builder(context, R.style.AlertDialogCustom)
-        with(builder)
-        {
+        with(builder) {
             setTitle("Importa traccia")
-            val layout = LinearLayout(context)
-            layout.orientation = LinearLayout.VERTICAL
-            val distanza = String.format("%,d", viewModel.trackDistanza.toInt())
-            val ascesa = String.format("%,d", viewModel.trackAscesa)
-            val discesa = String.format("%,d", viewModel.trackDiscesa)
-            allarme.setText("\nDistanza: $distanza\nAscesa: $ascesa\nDiscesa: $discesa\n\nSeguire la traccia selezionata?")
-            allarme.setPadding(20, 10, 20, 30) // Aggiungi padding per una migliore leggibilità
-            layout.addView(allarme)
-// Set the LinearLayout as the view for the dialog
-            builder.setView(layout)
+            val inflater = LayoutInflater.from(context)
+            val dialogView = inflater.inflate(R.layout.dialog_track_details, null)
+            // 2. Trova i TextView all'interno del layout gonfiato
+            val distanzaTextView = dialogView.findViewById<TextView>(R.id.tv_distanza)
+            val ascesaTextView = dialogView.findViewById<TextView>(R.id.tv_ascesa)
+            val discesaTextView = dialogView.findViewById<TextView>(R.id.tv_discesa)
+            // 3. Formatta i valori numerici (come facevi già)
+            val distanza = String.format(Locale.getDefault(), "%,d m", viewModel.trackDistanza.toInt())
+            val ascesa = String.format(Locale.getDefault(), "%,d m", viewModel.trackAscesa)
+            val discesa = String.format(Locale.getDefault(), "%,d m", viewModel.trackDiscesa)
+            // 4. Imposta i valori nei rispettivi TextView
+            distanzaTextView.text = distanza
+            ascesaTextView.text = ascesa
+            discesaTextView.text = discesa
 
+            // 5. Imposta il layout gonfiato come vista del dialogo
+            setView(dialogView)
             setPositiveButton(
                 "Segui"
             ) { _, _ ->
@@ -245,11 +248,11 @@ object MapUtils {
                                 LayerItem(
                                     line.title,
                                     line.isEnabled,
-                                    false,
-                                    true,
-                                    viewModel.trackDistanza,
-                                    viewModel.trackAscesa,
-                                    viewModel.trackDiscesa
+                                    direzione = false,
+                                    segui = true,
+                                    distanza = viewModel.trackDistanza,
+                                    ascesa = viewModel.trackAscesa,
+                                    discesa = viewModel.trackDiscesa
                                 )
                             )
                             // L'utente ha premuto "Segui"
@@ -260,11 +263,11 @@ object MapUtils {
                                 LayerItem(
                                     line.title,
                                     line.isEnabled,
-                                    false,
-                                    false,
-                                    viewModel.trackDistanza,
-                                    viewModel.trackAscesa,
-                                    viewModel.trackDiscesa
+                                    direzione = false,
+                                    segui = false,
+                                    distanza = viewModel.trackDistanza,
+                                    ascesa = viewModel.trackAscesa,
+                                    discesa = viewModel.trackDiscesa
                                 )
                             )
                             // L'utente ha premuto "Annulla"
@@ -274,8 +277,12 @@ object MapUtils {
                 } else
                     viewModel.layerItems.add(
                         LayerItem(
-                            line.title, line.isEnabled, false, true,
-                            viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa
+                            line.title, line.isEnabled,
+                            direzione = false,
+                            segui = true,
+                            distanza = viewModel.trackDistanza,
+                            ascesa = viewModel.trackAscesa,
+                            discesa = viewModel.trackDiscesa
                         )
                     )
                 viewModel.tracciaDaSeguire = line.title
@@ -285,8 +292,8 @@ object MapUtils {
                 // aggiunge traccia con flag segui false alla lista layerItems
                 viewModel.layerItems.add(
                     LayerItem(
-                        line.title, line.isEnabled, false, false,
-                        viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa
+                        line.title, line.isEnabled, direzione = false, segui = false,
+                        distanza = viewModel.trackDistanza, ascesa = viewModel.trackAscesa, discesa = viewModel.trackDiscesa
                     )
                 )
             }
@@ -379,13 +386,6 @@ object MapUtils {
             .withZone(ZoneOffset.UTC)
         return formatter.format(now)
     }
-
-    /*fun convertMillisToISO8601JavaTime(millis: Long): String {
-        return DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
-            .withZone(ZoneOffset.UTC)
-            .format(Instant.ofEpochMilli(millis))
-        //return DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(millis))
-    }*/
 
     fun convertMillisToISO8601JavaTime(timestampMillis: Long): String {
         val instant = Instant.ofEpochMilli(timestampMillis)
@@ -508,7 +508,7 @@ object MapUtils {
             ""
         else {
             // data ora UTC
-            var odt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
+            val odt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
                 .withZone(ZoneOffset.UTC)
             val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")
             val dateTime = LocalDateTime.parse(dataOra, odt)
@@ -578,9 +578,8 @@ object MapUtils {
     }
 
 
-    /**
+    /*
      * Mostra uno Snackbar personalizzato con icona, testo e bordi arrotondati.
-     *
      * @param view La view radice su cui ancorare lo Snackbar (es. binding.root).
      * @param message Il messaggio da visualizzare.
      * @param duration La durata, es. Snackbar.LENGTH_LONG.
