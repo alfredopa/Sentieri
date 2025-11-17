@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="24dp"
+    android:paddingEnd="24dp"
+    android:paddingTop="20dp"
+    android:paddingBottom="20dp">
+
+    <!-- Tabella per i dettagli della traccia -->
+    <TableLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <!-- Riga per la Distanza -->
+        <TableRow>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Distanza:"
+                android:textStyle="bold"
+                android:paddingEnd="16dp"/>
+            <TextView
+                android:id="@+id/tv_distanza"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:layout_weight="1"/>
+        </TableRow>
+
+        <!-- Riga per l'Ascesa -->
+        <TableRow android:layout_marginTop="8dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ascesa:"
+                android:textStyle="bold"
+                android:paddingEnd="16dp"/>
+            <TextView
+                android:id="@+id/tv_ascesa"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:layout_weight="1"/>
+        </TableRow>
+
+        <!-- Riga per la Discesa -->
+        <TableRow android:layout_marginTop="8dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Discesa:"
+                android:textStyle="bold"
+                android:paddingEnd="16dp"/>
+            <TextView
+                android:id="@+id/tv_discesa"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:layout_weight="1"/>
+        </TableRow>
+
+    </TableLayout>
+
+    <!-- Domanda finale per l'utente -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="\nSeguire la traccia selezionata?"
+        android:layout_marginTop="16dp" />
+
+</LinearLayout>
+    

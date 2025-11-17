@@ -37,7 +37,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         // costanti per calcolo dislivello con GPS con filtro MovingAverage
         private const val ALTITUDE_CHANGE_THRESHOLD_METERS = 1.9 // Differenza minima di altitudine per considerare un cambio di quota
         private const val MOVING_AVERAGE_WINDOW_SIZE = 9 // Numero di valori da tenere in memoria per la media
-        private const val MAX_ALTITUDE_JUMP_METERS_PER_UPDATE = 10.0
     }
 
     val listaTracce = FolderOverlay()
@@ -447,9 +446,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         Log.d("GRAF_VM", "Preparazione dati grafico per la traccia $idTracciaNuova...")
 
         return withContext(Dispatchers.IO) {
-            val puntiTraccia = repository.getPuntiTraccia(idTracciaNuova)
-            // ... (logica per caricare i punti e convertirli in GeoPoint, che è già corretta) ...
-
+            repository.getPuntiTraccia(idTracciaNuova)
             // Chiama la funzione di calcolo che ora restituisce una lista di Entry
             getPuntiInterpolati(geoPuntiPercorso)
         }
@@ -457,11 +454,9 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     private fun getPuntiInterpolati(puntiOriginali: List<GeoPoint>): List<com.github.mikephil.charting.data.Entry> {
         val listPunti = mutableListOf<com.github.mikephil.charting.data.Entry>()
-
         if (puntiOriginali.size < 2) {
             return listPunti
         }
-
         // La logica di interpolazione rimane la stessa, cambia solo l'oggetto creato alla fine
         var distanzaProgressivaMetri = 0.0
         var puntoPrecedente = puntiOriginali.first()
