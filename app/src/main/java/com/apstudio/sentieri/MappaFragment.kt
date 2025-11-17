@@ -143,7 +143,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     View.OnKeyListener, ComponentCallbacks2 {
 
     companion object {
-        const val SEND_LOCATION_ACTION = "com.apstudio.sentieri.posizione"
         private const val TAG_AUDIO = "AudioRecording" // Tag per log audio
         // Il nome del package dell'app BRouter e il nome del servizio (dal manifest di BRouter)
         private const val BROUTER_PACKAGE = "btools.routingapp"
@@ -236,6 +235,32 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
     }
+    // Launcher per i permessi in primo piano (FINE_LOCATION e, se serve, FOREGROUND_SERVICE_LOCATION)
+    private val requestFineLocationLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            // Questo callback viene eseguito DOPO che l'utente ha risposto al dialogo di sistema.
+            // Controlla se tutti i permessi sono stati concessi.
+            if (permissions.all { it.value }) {
+                // Permessi concessi. Mostra un messaggio all'utente per informarlo.
+                Toast.makeText(requireContext(), "Permesso di posizione concesso. Premi di nuovo per avviare la registrazione.", Toast.LENGTH_LONG).show()
+            } else {
+                // Uno o più permessi sono stati negati.
+                Toast.makeText(requireContext(), "Senza il permesso di posizione, la mappa non può mostrare la tua localizzazione.", Toast.LENGTH_LONG).show()
+            }
+        }
+
+    // Launcher per il permesso in background
+    private val requestBackgroundLocationLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
+                // Permesso concesso. Informa l'utente che ora può avviare la registrazione.
+                Toast.makeText(requireContext(), "Permesso per il background concesso. Ora puoi avviare la registrazione.", Toast.LENGTH_LONG).show()
+            } else {
+                // L'utente ha negato.
+                Toast.makeText(requireContext(), "La registrazione funzionerà solo con l'app aperta.", Toast.LENGTH_LONG).show()
+            }
+        }
+
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             brouterService = IBRouterService.Stub.asInterface(service)
@@ -1767,124 +1792,104 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
-// Handle the menu selection
-        when (menuItem.itemId) {
+        // Fai in modo che l'intero blocco 'when' restituisca il valore booleano.
+        // La keyword 'return' ora è all'inizio.
+        return when (menuItem.itemId) {
             R.id.Offline -> {
                 menuItem.isChecked = !menuItem.isChecked
                 offline()
+                true // Ora questo 'true' viene restituito dal 'when'
             }
 
-            R.id.Online -> {
+            R.id.Online, R.id.Mapquest, R.id.MapBox -> {
                 menuItem.isChecked = !menuItem.isChecked
-                online(1)
-            }
-
-            R.id.Mapquest -> {
-                menuItem.isChecked = !menuItem.isChecked
-                online(2)
-            }
-
-            R.id.MapBox -> {
-                menuItem.isChecked = !menuItem.isChecked
-                online(3)
+                when (menuItem.itemId) {
+                    R.id.Online -> online(1)
+                    R.id.Mapquest -> online(2)
+                    R.id.MapBox -> online(3)
+                }
+                true // Restituisce true per tutti e tre i casi
             }
 
             R.id.lista -> {
-                val directions =
-                    MappaFragmentDirections.actionMappaFragmentToSentieriFragment()
+                val directions = MappaFragmentDirections.actionMappaFragmentToSentieriFragment()
                 this@MappaFragment.findNavController().navigate(directions)
+                true
             }
 
             R.id.gps -> {
-// Attiva o disattiva GPS
                 if (viewModel.isRecording) {
-                    stopGPS()
+                    stopGPS() // La logica per fermare la registrazione rimane la stessa
                 } else {
-                    // se è presente barometro ed è settato per essere usato, verifica poi se è gia calibrato non è necessario
-                    if (viewModel.haBaro && viewModel.setBaro) {
-                        if (!viewModel.isCalibrato.value!!)
+                    // FASE 1: Controlla se hai i permessi in PRIMO PIANO.
+                    if (!isFineLocationPermissionGranted()) {
+                        // NON HAI I PERMESSI. Fai solo una cosa: richiedili.
+                        val permissionsToRequest = mutableListOf<String>()
+                        permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            permissionsToRequest.add(Manifest.permission.FOREGROUND_SERVICE_LOCATION)
+                        }
+                        requestFineLocationLauncher.launch(permissionsToRequest.toTypedArray())
+                        // FASE 2: Controlla se hai i permessi in BACKGROUND (solo se necessari).
+                    } else if (!isBackgroundLocationPermissionGranted()) {
+                        // HAI I PERMESSI IN PRIMO PIANO, ma ti mancano quelli in background.
+                        // Fai solo una cosa: mostra la spiegazione e richiedili.
+                        showBackgroundLocationDisclosure()
+                        // FASE 3: Hai TUTTI i permessi. Procedi con la logica normale.
+                    } else {
+                        // Controlla il barometro e avvia la registrazione effettiva.
+                        if (viewModel.haBaro && viewModel.setBaro && !viewModel.isCalibrato.value!!) {
                             altDaBaro()
-                        else
-                            attivaGps()
-                    } else
-                        attivaGps()
+                        } else {
+                            attivaGps() // La tua funzione che avvia il servizio
+                        }
+                    }
                 }
+                true
             }
 
             R.id.poi -> {
-// Crea nuovo waypoint
                 if (viewModel.isRecording) {
-                    if (!viewModel.isFixed)
-                        Toast.makeText(
-                            requireActivity(),
-                            "Fix Gps non ancora disponbile",
-                            Toast.LENGTH_LONG
-                        )
-                            .show()
-                    else
+                    if (!viewModel.isFixed) {
+                        Toast.makeText(requireActivity(), "Fix Gps non ancora disponbile", Toast.LENGTH_LONG).show()
+                    } else {
                         creaWayPoint()
-                } else
-                    Toast.makeText(
-                        requireActivity(),
-                        "Waypoint solo in modalita' registrazione traccia",
-                        Toast.LENGTH_LONG
-                    )
-                        .show()
-
+                    }
+                } else {
+                    Toast.makeText(requireActivity(), "Waypoint solo in modalita' registrazione traccia", Toast.LENGTH_LONG).show()
+                }
+                true
             }
 
             R.id.gpx -> {
-// apre file manager per scelta gpx
                 val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                    // 1. IMPOSTA il tipo MIME principale su generico
-                    // Questo dice all'Intent di usare un selettore di file.
-                    type = "*/*"
-
-                    // 2. FORNISCI l'array di tipi specifici per il filtro.
-                    // Questo sovrascriverà il tipo generico per il filtro visuale.
-                    val mimeTypes = arrayOf(
-                        "application/gpx+xml", // Standard per GPX
-                        "application/xml",     // Fallback generico
-                        "text/xml"             // Altro fallback
-                    )
-                    putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
-
-                    // 3. AGGIUNGI la categoria per file apribili (corretto)
+                    type = "application/octet-stream"
+                    //val mimeTypes = arrayOf("application/gpx+xml", "application/xml", "text/xml")
+                    //putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
                     addCategory(Intent.CATEGORY_OPENABLE)
                 }
-
-                // Avvia il launcher (corretto)
                 gpxFileSelectorLauncher.launch(intent)
-                //true
+                true
             }
 
             R.id.Geopackage -> {
-                // Avvia il processo di binding quando l'activity diventa visibile.
                 val intent = Intent().apply {
-                    component = ComponentName(
-                        BROUTER_PACKAGE,
-                        BROUTER_SERVICE_CLASS
-                    )
+                    component = ComponentName(BROUTER_PACKAGE, BROUTER_SERVICE_CLASS)
                 }
                 try {
                     requireContext().bindService(intent, connection, Context.BIND_AUTO_CREATE)
                     Log.d(TAG, "Tentativo di connessione a BRouterService...")
                 } catch (e: SecurityException) {
-                    Log.e(
-                        TAG,
-                        "Impossibile connettersi al servizio. L'app BRouter è installata? ${e.message}"
-                    )
-                    // Qui potresti mostrare un messaggio all'utente.
+                    Log.e(TAG, "Impossibile connettersi al servizio. L'app BRouter è installata? ${e.message}")
                 }
-                //addGeopackageTiles()
-                //geoPackage()
+                true
             }
-            /*R.id.layerGPkg -> {
-                val directions = MappaFragmentDirections.actionMappaFragmentToGpkgLayer()
-                this@MappaFragment.findNavController().navigate(directions)
-            }*/
+
+            else -> {
+                // Se nessun caso corrisponde, restituisci 'false' per indicare che non hai gestito l'evento.
+                false
+            }
         }
-        return false
     }
 
 
@@ -2180,8 +2185,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             osmdroidPolygon.fillPaint.color = layerModel.getRandomIntColor(30)
         else
             osmdroidPolygon.fillPaint.color = layerModel.polygonOptions.fillColor
-        osmdroidPolygon.strokeColor = layerModel.polygonOptions.strokeColor
-        osmdroidPolygon.strokeWidth = layerModel.polygonOptions.strokeWidth
+        osmdroidPolygon.outlinePaint.color = layerModel.polygonOptions.strokeColor
+        osmdroidPolygon.outlinePaint.strokeWidth = layerModel.polygonOptions.strokeWidth
         osmdroidPolygon.title = layerModel.polygonOptions.title
         return osmdroidPolygon
     }
@@ -2682,7 +2687,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         return try {
             val timeStamp: String =
                 SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            audioFileName = "AUD_${timeStamp}.3gp" // This is the final name
+            // 1. Crea il nome del file e salvalo in una variabile locale non-null.
+            val finalFileName = "AUD_${timeStamp}.3gp"
+            // 2. Assegna il nome del file alla variabile di classe per usi futuri.
+            this.audioFileName = finalFileName
             val storageDir: File? = requireContext().getExternalFilesDir("VoiceNotesWaypoints")
             if (storageDir != null && !storageDir.exists()) {
                 if (!storageDir.mkdirs()) {
@@ -2690,13 +2698,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     return null
                 }
             }
-            // Create the file directly with its final name. No temp file, no renaming.
-            File(storageDir, audioFileName)
+            // 3. Usa la variabile locale 'finalFileName', che è garantita non-null.
+            File(storageDir, finalFileName)
         } catch (ex: IOException) {
             Log.e(TAG_AUDIO, "Errore nella creazione del file audio: ${ex.message}")
             null
         }
     }
+
 
     private fun releaseMediaRecorderInternal(deleteFileOnError: Boolean) {
         if (deleteFileOnError) {
@@ -2888,18 +2897,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             mapView.overlays.add(destinationMarker)
         }
-
         // Posiziona il marker al centro della vista corrente e rendilo visibile
         destinationMarker?.position = mapView.mapCenter as GeoPoint
         destinationMarker?.isEnabled = true
         mapView.invalidate() // Ridisegna la mappa per mostrare il marker
-
         Toast.makeText(requireContext(), "Trascina il marker e conferma la destinazione", Toast.LENGTH_LONG).show()
     }
 
     private fun exitDestinationSelectionMode() {
         isSelectingDestination = false
-
         // Nascondi il pulsante di conferma e ripristina l'icona del FAB
         binding.buttonConfirmDestination.visibility = View.GONE
         binding.fabSelectDestination.setImageResource(R.drawable.ic_distance) // Icona originale
@@ -2911,34 +2917,80 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     // --- ComponentCallbacks2 Implementation ---
     override fun onTrimMemory(level: Int) {
-        //super.onTrimMemory(level) // È buona norma chiamare super
         Log.i(TAG, "onTrimMemory called with level: $level")
-        if (_binding != null) { // Check if mapView is initialized
-            onTrimMemory(level) // Chiama onTrimMemory sull'istanza di mapView
+        // Pulisci la cache della mappa se la pressione sulla memoria è moderata o superiore.
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+            _binding?.let {
+                Log.d(TAG, "Clearing map tile cache due to memory pressure (level: $level)")
+                it.Mapview.tileProvider.clearTileCache() // Accedi tramite 'it' per sicurezza
+            }
         }
-        // You might want to clear other caches here based on the level
-        // For example, if level is TRIM_MEMORY_RUNNING_CRITICAL or TRIM_MEMORY_COMPLETE
-        //if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) {
-            // Aggressively free up resources
-            // layerModel.clearCache() // Example
-            // viewModel.clearCache() // Example
-        //}
+        // Se la situazione è critica (livello RUNNING_CRITICAL o superiore), libera anche altre risorse.
+        // TRIM_MEMORY_RUNNING_CRITICAL è il sostituto moderno di TRIM_MEMORY_COMPLETE.
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) {
+            Log.w(TAG, "Critical memory pressure (level: $level). Closing GeoPackage.")
+            layerModel.closeGeoPackage()
+        }
     }
 
+
     override fun onLowMemory() {
-        super.onLowMemory() // It's good practice to call super
+        super.onLowMemory()
         Log.w(TAG, "onLowMemory called. System is critically low on memory.")
-        if (_binding != null) { // Check if mapView is initialized
-            onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_COMPLETE)
+        // Invece di chiamare onTrimMemory, esegui direttamente le azioni più drastiche
+        // perché onLowMemory() è il segnale più severo.
+        if (_binding != null) {
+            // Pulisci la cache delle mattonelle della mappa.
+            mapView.tileProvider.clearTileCache()
         }
-        // This is a more severe signal. You should release any resources that are not
-        // absolutely essential for the current user experience.
-        // layerModel.evictAll() // Example: Clear all caches in LayerViewModel
-        // viewModel.evictAll()  // Example: Clear all caches in SentieriViewModel
-        // Consider releasing other resources like GeoPackage instances if they can be reopened later.
-        layerModel.closeGeoPackage() // Example
+        // Chiudi risorse pesanti come il GeoPackage.
+        layerModel.closeGeoPackage()
     }
-    // --- End ComponentCallbacks2 Implementation ---
+
+    /** Controlla se i permessi per la posizione in primo piano sono stati concessi. */
+    private fun isFineLocationPermissionGranted(): Boolean {
+        val fineLocationGranted = ContextCompat.checkSelfPermission(
+            requireContext(), Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        // Per Android 14+ (API 34+), controlla anche il permesso per il servizio in foreground
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val foregroundServiceLocationGranted = ContextCompat.checkSelfPermission(
+                requireContext(), Manifest.permission.FOREGROUND_SERVICE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            fineLocationGranted && foregroundServiceLocationGranted // Devono essere concessi entrambi
+        } else {
+            fineLocationGranted // Per le versioni precedenti, basta il permesso standard
+        }
+    }
+
+    /** Controlla se il permesso per la posizione in background è stato concesso. */
+    private fun isBackgroundLocationPermissionGranted(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            requireContext(), Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /** Mostra un dialogo che spiega perché l'app necessita della posizione in background. */
+    private fun showBackgroundLocationDisclosure() {
+        AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+            .setTitle("Accesso alla Posizione in Background")
+            .setMessage(
+                "\"Sentieri\" ha bisogno di accedere alla tua posizione in background per garantire il corretto funzionamento della registrazione delle tracce.\n\n" +
+                        "consenti sempre all'app di registrare il tuo percorso anche quando lo schermo è spento o stai usando un'altra applicazione."
+            )
+            .setPositiveButton("Capito, continua") { _, _ ->
+                // L'utente ha capito. Ora richiedi il permesso di sistema usando il launcher.
+                requestBackgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+            .setNegativeButton("Annulla") { dialog, _ ->
+                dialog.dismiss()
+                Toast.makeText(requireContext(), "La registrazione in background non sarà disponibile.", Toast.LENGTH_LONG).show()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
 
     inner class RemovableMarker(mapView: MapView) : Marker(mapView) {
         var onMarkerLongClick: ((RemovableMarker) -> Boolean)? = null
@@ -2961,5 +3013,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             return hit
         }
     }
+
 
 }
