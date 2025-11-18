@@ -806,45 +806,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             mapView.invalidate()
         }
         mapView.invalidate()
+        ripristinaStatoMappa()
     }
-
-    /*
-    DA AGGIUNGERE PER OBSERVER
-    private fun setupRecordingStateObserver() {
-        viewModel.isRecording.observe(viewLifecycleOwner) { isRecording ->
-            // Questa lambda verrà eseguita OGNI VOLTA che isRecording cambia.
-            // Tutta la logica della UI va qui.
-
-            if (isRecording) {
-                // STATO: REGISTRAZIONE ATTIVA
-                gpsMarker.setVisible(true)
-                accendiSchermo()
-                requireActivity().startService(Intent(context, LocationService::class.java))
-                bottomSheetBehavior.isHideable = false
-                bottomSheetBehavior.peekHeight = 120
-                bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
-                LocationRepository.updateGpsStatus("started")
-                // Aggiorna anche l'icona del menu se necessario
-                menu?.findItem(R.id.action_registra)?.setIcon(R.drawable.ic_stop)
-
-            } else {
-                // STATO: REGISTRAZIONE FERMA
-                requireActivity().stopService(Intent(context, LocationService::class.java))
-                gpsMarker.setVisible(false)
-                requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                LocationRepository.updateGpsStatus("stopped")
-                if (viewModel.haBaro) viewModel.setBaro = true // Ripristina preferenza
-
-                bottomSheetBehavior.isHideable = true
-                bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
-
-                // Aggiorna l'icona del menu
-                menu?.findItem(R.id.action_registra)?.setIcon(R.drawable.ic_rec)
-            }
-            mapView.invalidate()
-        }
-    }*/
-
 
     private fun mostraAllarmeFuoriTraccia() {
         val allarme = EditText(requireActivity())
@@ -891,7 +854,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         super.onResume()
         mapView.onResume()
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
-        Log.d(TAG, "onResume: Sincronizzato viewModel.setBaro a: ${viewModel.setBaro}")
+        //Log.d(TAG, "onResume: Sincronizzato viewModel.setBaro a: ${viewModel.setBaro}")
 
         // Registra il listener qui
         preferenze.registerOnSharedPreferenceChangeListener(this)
@@ -973,25 +936,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             viewModel.poi = GeoPoint(0.0, 0.0, 0.0)
         }
 
-        if (viewModel.isRecording) {
-            // in registrazione ripristina marker gps,bottomsheet allo stato precedente
-            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
-            accendiSchermo()
-            viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
-            gpsMarker.setVisible(true)
-            bottomSheetBehavior.isHideable = false
-            bottomSheetBehavior.peekHeight = 120
-            bottomSheetBehavior.state = viewModel.bottomState
-            // RICHIEDI LA TRACCIA COMPLETA PER RIDISEGNARLA CORRETTAMENTE
-            LocationRepository.requestFullTrack()
-            showCustomSnackbar(binding.root,"Registrazione in corso")
-            /*Snackbar.make(binding.root, "Registrazione in corso", Snackbar.LENGTH_SHORT).apply {
-                setBackgroundTint(ContextCompat.getColor(requireContext(), R.color.purple_500))
-                setTextColor(Color.WHITE)
-                show()
-            }*/
-        }
-
         // ridisegna eventuali layer aggiunti da GpkgLayer
         layerModel.featureList.forEach { featureInfo ->
             //if (featureInfo.isVisible)
@@ -1003,7 +947,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
 
         // toponimi
-        // Clear existing toponym markers
         displayedTopoMarkers.forEach { mapView.overlays.remove(it) }
         displayedTopoMarkers.clear()
         // Process selected toponyms from ViewModel
@@ -1185,7 +1128,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
         //Log.d("Mappa", "Mappa caricata  ")
-        mapView.invalidate()
+        //mapView.invalidate()
     }
 
     private fun online(mappa: Int) {
@@ -1212,6 +1155,51 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.tileProvider = tileProvider
         mapView.invalidate()
     }
+
+    private fun ripristinaStatoMappa() {
+        // Legge l'ultima mappa usata dalle preferenze
+        val menuMap = preferenze.getInt("MenuMap", 1)
+        val uriString = preferenze.getString("URIMappa", null)
+
+        // Aggiunge un listener che attende il primo layout completo della mappa
+        mapView.addOnFirstLayoutListener(object : MapView.OnFirstLayoutListener {
+            override fun onFirstLayout(v: View?, left: Int, top: Int, right: Int, bottom: Int) {
+                Log.d(TAG, "OnFirstLayoutListener eseguito. La mappa è pronta.")
+
+                // 1. Ripristina posizione e zoom (ora che la mappa è pronta a riceverli)
+                mapView.controller.setZoom(viewModel.ultZoom.toDouble())
+                mapView.controller.setCenter(viewModel.ultPosizione)
+
+                // 2. Carica la mappa corretta (online o offline)
+                if (menuMap == 0 && uriString != null) {
+                    // Caso: era stata usata una mappa offline
+                    Log.d(TAG, "Ripristino mappa offline dall'URI: $uriString")
+                    apreMappa(uriString.toUri())
+                } else {
+                    // Caso: era stata usata una mappa online
+                    Log.d(TAG, "Ripristino mappa online, indice: $menuMap")
+                    online(menuMap)
+                }
+
+                // 3. Ripristina lo stato della registrazione (il codice che hai cancellato da onResume)
+                if (viewModel.isRecording) {
+                    Log.d(TAG, "Ripristino dello stato di registrazione.")
+                    // in registrazione ripristina marker gps,bottomsheet allo stato precedente
+                    LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
+                    accendiSchermo()
+                    viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
+                    gpsMarker.setVisible(true)
+                    bottomSheetBehavior.isHideable = false
+                    bottomSheetBehavior.peekHeight = 120
+                    bottomSheetBehavior.state = viewModel.bottomState
+                    // RICHIEDI LA TRACCIA COMPLETA PER RIDISEGNARLA CORRETTAMENTE
+                    LocationRepository.requestFullTrack()
+                    showCustomSnackbar(binding.root,"Registrazione in corso")
+                }
+            }
+        })
+    }
+
 
     private fun mappaMapBox(): MapTileProviderBasic {
         val MAPBOXSATELLITELABELLED: OnlineTileSourceBase =
