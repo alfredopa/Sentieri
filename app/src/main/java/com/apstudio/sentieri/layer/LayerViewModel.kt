@@ -192,7 +192,7 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     // 3. Accoda il nome del campo e il suo valore.
-                    labelBuilder.append(fieldName)
+                    labelBuilder.append(description)
                         .append(": ")
                         .append(fieldValue)
                 }

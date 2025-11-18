@@ -938,7 +938,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         // ridisegna eventuali layer aggiunti da GpkgLayer
         layerModel.featureList.forEach { featureInfo ->
-            //if (featureInfo.isVisible)
             Log.d(
                 TAG,
                 "onResume processing layer: " + featureInfo.name + ", isVisible: " + featureInfo.isVisible

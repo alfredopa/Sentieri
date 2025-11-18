@@ -4,103 +4,103 @@
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
 		<field name="OBJECTID" description="objectid" visible="false"/>
-		<field name="TOPONIMO" description="toponimo" visible="true"/>
-		<field name="AREA_HA" description="area_ha" visible="true"/>
-		<field name="PROVVEDIME" description="provvedime" visible="true"/>
+		<field name="TOPONIMO" description="Toponimo" visible="true"/>
+		<field name="AREA_HA" description="Area ha" visible="true"/>
+		<field name="PROVVEDIME" description="Provvedimento" visible="true"/>
 	</table>
 	<table name="areetutelate__aree_di_rilevante_interesse_naturalistico">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
 		<field name="OBJECTID" description="objectid" visible="false"/>
-		<field name="TOPONIMO" description="toponimo" visible="true"/>
-		<field name="AREA_MQ" description="area_mq" visible="true"/>
-		<field name="PERIM_M" description="perim_m" visible="true"/>
-		<field name="PROVVED" description="provved" visible="true"/>
+		<field name="TOPONIMO" description="Toponimo" visible="true"/>
+		<field name="AREA_MQ" description="Area mq" visible="true"/>
+		<field name="PERIM_M" description="Perim m" visible="true"/>
+		<field name="PROVVED" description="Provvedimento" visible="true"/>
 	</table>
 	<table name="areetutelate__iba">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
 		<field name="OBJECTID" description="objectid" visible="false"/>
-		<field name="codice_iba" description="codice_iba" visible="false"/>
-		<field name="nome_iba" description="nome_iba" visible="true"/>
-		<field name="regioni" description="regioni" visible="true"/>
-		<field name="areamq" description="areamq" visible="true"/>
-		<field name="areaha" description="areaha" visible="true"/>
-		<field name="Shape_Leng" description="shape_leng" visible="true"/>
-		<field name="Shape_Area" description="shape_area" visible="true"/>
+		<field name="codice_iba" description="Codice iba" visible="false"/>
+		<field name="nome_iba" description="Nome" visible="true"/>
+		<field name="regioni" description="Regioni" visible="true"/>
+		<field name="areamq" description="Area mq" visible="true"/>
+		<field name="areaha" description="Area ha" visible="true"/>
+		<field name="Shape_Leng" description="shape_leng" visible="false"/>
+		<field name="Shape_Area" description="shape_area" visible="false"/>
 	</table>
 	<table name="areetutelate__monumenti_naturali_istituiti">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
 		<field name="OBJECTID" description="objectid" visible="false"/>
-		<field name="CODICE" description="codice" visible="true"/>
-		<field name="ZONA" description="zona" visible="true"/>
-		<field name="TOPONIMO" description="toponimo" visible="true"/>
+		<field name="CODICE" description="Codice" visible="true"/>
+		<field name="ZONA" description="Zona" visible="true"/>
+		<field name="TOPONIMO" description="Toponimo" visible="true"/>
 	</table>
 	<table name="alberi_monumentali">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
 		<field name="ID" description="id" visible="false"/>
-		<field name="N_SCHEDA" description="n_scheda" visible="true"/>
-		<field name="PROVINCIA" description="provincia" visible="true"/>
-		<field name="COMUNE" description="comune" visible="true"/>
-		<field name="LOCALITA" description="localita" visible="true"/>
+		<field name="N_SCHEDA" description="Num" visible="true"/>
+		<field name="PROVINCIA" description="Provincia" visible="true"/>
+		<field name="COMUNE" description="Comune" visible="true"/>
+		<field name="LOCALITA" description="Localita" visible="true"/>
 		<field name="X" description="x" visible="true"/>
 		<field name="Y" description="y" visible="true"/>
-		<field name="ALTITUDINE" description="altitudine" visible="true"/>
-		<field name="CONT_URBA" description="cont_urba" visible="true"/>
-		<field name="NOME_SCIEN" description="nome_scien" visible="true"/>
-		<field name="NOME_VOLG" description="nome_volg" visible="true"/>
-		<field name="CIRC_CM" description="circ_cm" visible="true"/>
-		<field name="ALTEZZA_M" description="altezza_m" visible="true"/>
-		<field name="TUTELA" description="tutela" visible="true"/>
+		<field name="ALTITUDINE" description="Altitudine" visible="true"/>
+		<field name="CONT_URBA" description="cont_urba" visible="false"/>
+		<field name="NOME_SCIEN" description="Nome" visible="true"/>
+		<field name="NOME_VOLG" description="Nome volg." visible="true"/>
+		<field name="CIRC_CM" description="Circonf.cm" visible="true"/>
+		<field name="ALTEZZA_M" description="Altezza m" visible="true"/>
+		<field name="TUTELA" description="Tutela" visible="true"/>
 	</table>
 	<table name="grotte">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
 		<field name="STRINGA" description="stringa" visible="false"/>
-		<field name="TEXT_ANGLE" description="text_angle" visible="true"/>
-		<field name="TEXT_SIZE" description="text_size" visible="true"/>
-		<field name="TEXTSTRING" description="textstring" visible="true"/>
+		<field name="TEXT_ANGLE" description="text_angle" visible="false"/>
+		<field name="TEXT_SIZE" description="text_size" visible="false"/>
+		<field name="TEXTSTRING" description="Nome" visible="true"/>
 	</table>
 	<table name="beni_paesaggistici_2014">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
 		<field name="PROGRESSIV" description="progressiv" visible="false"/>
 		<field name="CODICE_bur" description="codice_bur" visible="false"/>
-		<field name="COMUNE" description="comune" visible="true"/>
-		<field name="DENOMINAZI" description="denominazi" visible="true"/>
-		<field name="FONTE" description="fonte" visible="true"/>
-		<field name="TIPOLOGIA" description="tipologia" visible="true"/>
+		<field name="COMUNE" description="Comune" visible="true"/>
+		<field name="DENOMINAZI" description="Denominaz." visible="true"/>
+		<field name="FONTE" description="Fonte" visible="true"/>
+		<field name="TIPOLOGIA" description="Tipologia" visible="true"/>
 		<field name="X" description="x" visible="true"/>
 		<field name="Y" description="y" visible="true"/>
-		<field name="SIMBOLI" description="simboli" visible="true"/>
-		<field name="TIPO_BENE" description="tipo_bene" visible="true"/>
-		<field name="NOTE" description="note" visible="true"/>
+		<field name="SIMBOLI" description="simboli" visible="false"/>
+		<field name="TIPO_BENE" description="Classif." visible="true"/>
+		<field name="NOTE" description="Note" visible="true"/>
 	</table>
 	<table name="nur_data">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
 		<field name="contentid" description="contentid" visible="false"/>
-		<field name="category" description="category" visible="true"/>
-		<field name="nome" description="nome" visible="true"/>
-		<field name="regione" description="regione" visible="true"/>
-		<field name="comune" description="comune" visible="true"/>
-		<field name="localita" description="localita" visible="true"/>
-		<field name="location" description="location" visible="true"/>
-		<field name="descr_it" description="descr_it" visible="true"/>
-		<field name="fonte" description="fonte" visible="true"/>
+		<field name="category" description="category" visible="false"/>
+		<field name="nome" description="Nome" visible="true"/>
+		<field name="regione" description="Regione" visible="true"/>
+		<field name="comune" description="Comune" visible="true"/>
+		<field name="localita" description="Localita" visible="true"/>
+		<field name="location" description="Coordinate" visible="true"/>
+		<field name="descr_it" description="Descrizione" visible="true"/>
+		<field name="fonte" description="Fonte" visible="true"/>
 		<field name="youtube" description="youtube" visible="true"/>
 	</table>
 	<table name="Comuni">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
 		<field name="ogc_fid" description="ogc_fid" visible="false"/>
-		<field name="aa01_cod_com_istat" description="aa01_cod_com_istat" visible="true"/>
-		<field name="aa01_nome" description="aa01_nome" visible="true"/>
-		<field name="aa01_cod_prov_istat" description="aa01_cod_prov_istat" visible="true"/>
-		<field name="aa01_cod_reg_istat" description="aa01_cod_reg_istat" visible="true"/>
-		<field name="aa01_area" description="aa01_area" visible="true"/>
+		<field name="aa01_cod_com_istat" description="Cod Istat" visible="true"/>
+		<field name="aa01_nome" description="" visible="true"/>
+		<field name="aa01_cod_prov_istat" description="Prov Istat" visible="true"/>
+		<field name="aa01_cod_reg_istat" description="aa01_cod_reg_istat" visible="false"/>
+		<field name="aa01_area" description="Area" visible="true"/>
 		<field name="aa01_perimetro" description="aa01_perimetro" visible="false"/>
 		<field name="aa01_id_comune" description="aa01_id_comune" visible="false"/>
 		<field name="aa01_geometria" description="aa01_geometria" visible="false"/>
@@ -141,15 +141,15 @@
 		<field name="operator" description="operator" visible="false"/>
 		<field name="osmc:symbol" description="osmc:symbol" visible="false"/>
 		<field name="ref" description="Rif." visible="true"/>
-		<field name="ref:REI" description="ref:rei" visible="true"/>
-		<field name="ref_reg" description="ref_reg" visible="true"/>
-		<field name="reg_ref" description="reg_ref" visible="true"/>
+		<field name="ref:REI" description="Rif. rei" visible="true"/>
+		<field name="ref_reg" description="Rif.reg." visible="true"/>
+		<field name="reg_ref" description="Rif reg." visible="true"/>
 		<field name="roundtrip" description="roundtrip" visible="true"/>
 		<field name="route" description="route" visible="false"/>
-		<field name="rwn:name" description="rwn:name" visible="true"/>
+		<field name="rwn:name" description="Nome" visible="true"/>
 		<field name="source" description="source" visible="false"/>
-		<field name="source:date" description="source:date" visible="true"/>
-		<field name="source:ref" description="source:ref" visible="true"/>
+		<field name="source:date" description="source:date" visible="false"/>
+		<field name="source:ref" description="source:ref" visible="false"/>
 		<field name="state" description="state" visible="false"/>
 		<field name="survey:date" description="survey:date" visible="false"/>
 		<field name="symbol" description="symbol" visible="false"/>
