@@ -1844,34 +1844,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
             R.id.gps -> {
                 if (viewModel.isRecording) {
-                    stopGPS() // La logica per fermare la registrazione rimane la stessa
+                    stopGPS()
                 } else {
-                    // FASE 1: Controlla se hai i permessi in PRIMO PIANO.
-                    if (!isFineLocationPermissionGranted()) {
-                        // NON HAI I PERMESSI. Fai solo una cosa: richiedili.
-                        val permissionsToRequest = mutableListOf<String>()
-                        permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                            permissionsToRequest.add(Manifest.permission.FOREGROUND_SERVICE_LOCATION)
-                        }
-                        requestFineLocationLauncher.launch(permissionsToRequest.toTypedArray())
-                        // FASE 2: Controlla se hai i permessi in BACKGROUND (solo se necessari).
-                    } else if (!isBackgroundLocationPermissionGranted()) {
-                        // HAI I PERMESSI IN PRIMO PIANO, ma ti mancano quelli in background.
-                        // Fai solo una cosa: mostra la spiegazione e richiedili.
-                        showBackgroundLocationDisclosure()
-                        // FASE 3: Hai TUTTI i permessi. Procedi con la logica normale.
+                    // Controlla se il GPS è attivo prima di procedere con i permessi
+                    val locationManager = requireContext().getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                    if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                        Toast.makeText(requireContext(), "Attiva il GPS per la registrazione.", Toast.LENGTH_SHORT).show()
                     } else {
-                        // Controlla il barometro e avvia la registrazione effettiva.
-                        // se è presente barometro ed è settato per essere usato, verifica poi se è gia calibrato non è necessario
-                        if (viewModel.haBaro && viewModel.setBaro) {
-                            if (!viewModel.isCalibrato.value!!)
-                                altDaBaro()
-                            else
-                                attivaGps()
-                        } else {
-                            attivaGps() // La tua funzione che avvia il servizio
-                        }
+                        // Il GPS è attivo, procedi con la logica di avvio
+                        avviaLogicaRegistrazione()
                     }
                 }
                 true
@@ -1921,6 +1902,44 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun avviaLogicaRegistrazione() {
+        // FASE 1: Controlla se hai i permessi in PRIMO PIANO.
+        if (!isFineLocationPermissionGranted()) {
+            // NON HAI I PERMESSI DI BASE.
+            // Richiedili. Il flusso si ferma qui. L'utente dovrà premere di nuovo dopo averli concessi.
+            val permissionsToRequest = mutableListOf<String>()
+            permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                permissionsToRequest.add(Manifest.permission.FOREGROUND_SERVICE_LOCATION)
+            }
+            requestFineLocationLauncher.launch(permissionsToRequest.toTypedArray())
+            Toast.makeText(requireContext(), "È richiesto il permesso per la posizione.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // FASE 2: Controlla se hai i permessi in BACKGROUND (se necessari).
+        if (!isBackgroundLocationPermissionGranted()) {
+            // HAI I PERMESSI DI BASE, ma ti manca quello in background.
+            // Mostra la tua spiegazione. Il flusso si ferma qui. La richiesta di sistema verrà
+            // attivata dal pulsante "Continua" del tuo dialogo.
+            showBackgroundLocationDisclosure()
+            return
+        }
+
+        // FASE 3: HAI TUTTI I PERMESSI NECESSARI.
+        // Procedi con la logica di avvio della registrazione.
+        Log.d(TAG, "Tutti i permessi sono stati concessi. Avvio registrazione.")
+        if (viewModel.haBaro && viewModel.setBaro) {
+            if (!viewModel.isCalibrato.value!!) {
+                altDaBaro()
+            } else {
+                attivaGps()
+            }
+        } else {
+            attivaGps()
+        }
+    }
 
     @RequiresApi(Build.VERSION_CODES.S)
     private fun creaWayPoint() {
