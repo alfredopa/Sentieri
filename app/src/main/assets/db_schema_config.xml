@@ -161,4 +161,27 @@
 		<field name="via" description="via" visible="false"/>
 		<field name="website" description="website" visible="false"/>
 	</table>
+		<table name="No caccia oasi protezione istituite">
+		<field name="fid" description="fid" visible="false"/>
+		<field name="geom" description="geom" visible="false"/>
+		<field name="OBJECTID" description="objectid" visible="false"/>
+		<field name="NOME" description="Nome" visible="true"/>
+		<field name="PROVINCIA" description="provincia" visible="true"/>
+		<field name="COD_ISTITU" description="cod_istitu" visible="false"/>
+		<field name="PROVV_IST" description="Provvedimento" visible="true"/>
+	</table>
+	<table name="No caccia zona ripopolamento temporanea">
+		<field name="fid" description="fid" visible="false"/>
+		<field name="geom" description="geom" visible="false"/>
+		<field name="NOME" description="Nome" visible="false"/>
+		<field name="ID" description="id" visible="false"/>
+		<field name="ISTITUTO" description="istituto" visible="false"/>
+		<field name="PROVINCIA" description="Prov." visible="true"/>
+		<field name="COMUNE" description="Comune" visible="true"/>
+		<field name="DET_AA_NUM" description="Num determina" visible="true"/>
+		<field name="DET_AA_DAT" description="Anno Determina" visible="true"/>
+		<field name="BURAS_NUM" description="buras_num" visible="false"/>
+		<field name="BURAS_DATA" description="buras_data" visible="false"/>
+		<field name="SUP_AREA" description="Sup. area" visible="true"/>
+	</table>
 </databaseSchema>
