@@ -3024,7 +3024,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
             .setTitle("Accesso alla Posizione in Background")
             .setMessage(
-                "\"Sentieri\" ha bisogno di accedere alla tua posizione in background per garantire il corretto funzionamento della registrazione delle tracce.\n\n" +
+                "\"Sentieri\" raccoglie dati sulla posizione, per cui ha bisogno di accedere alla tua posizione in background per garantire il corretto funzionamento della registrazione delle tracce. I dati vengono usati solo da questa applicazione\n\n" +
                         "consenti sempre all'app di registrare il tuo percorso anche quando lo schermo è spento o stai usando un'altra applicazione."
             )
             .setPositiveButton("Capito, continua") { _, _ ->
