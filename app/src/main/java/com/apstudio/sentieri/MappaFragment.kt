@@ -2598,6 +2598,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                                 points
                             )
 
+                            GeometryType.MULTIPOINT -> processPointGeometry(
+                                featureRow,
+                                tableName,
+                                points
+                            )
+
                             GeometryType.MULTIPOLYGON -> processMultiPolygonGeometry(
                                 featureRow,
                                 tableName,
