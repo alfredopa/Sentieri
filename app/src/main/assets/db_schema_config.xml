@@ -55,6 +55,14 @@
 		<field name="ALTEZZA_M" description="Altezza m" visible="true"/>
 		<field name="TUTELA" description="Tutela" visible="true"/>
 	</table>
+	<table name="grotte">
+		<field name="fid" description="fid" visible="false"/>
+		<field name="geom" description="geom" visible="false"/>
+		<field name="STRINGA" description="stringa" visible="false"/>
+		<field name="TEXT_ANGLE" description="text_angle" visible="false"/>
+		<field name="TEXT_SIZE" description="text_size" visible="false"/>
+		<field name="TEXTSTRING" description="Nome" visible="true"/>
+	</table>
 	<table name="beni_paesaggistici_2014">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
@@ -153,7 +161,7 @@
 		<field name="via" description="via" visible="false"/>
 		<field name="website" description="website" visible="false"/>
 	</table>
-		<table name="No caccia oasi protezione istituite">
+		<table name="Oasi istituite">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
 		<field name="OBJECTID" description="objectid" visible="false"/>
@@ -162,7 +170,7 @@
 		<field name="COD_ISTITU" description="cod_istitu" visible="false"/>
 		<field name="PROVV_IST" description="Provvedimento" visible="true"/>
 	</table>
-	<table name="No caccia zona ripopolamento temporanea">
+	<table name="Zona ripopolamento temporanea">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
 		<field name="NOME" description="Nome" visible="false"/>
@@ -175,33 +183,5 @@
 		<field name="BURAS_NUM" description="buras_num" visible="false"/>
 		<field name="BURAS_DATA" description="buras_data" visible="false"/>
 		<field name="SUP_AREA" description="Sup. area" visible="true"/>
-	</table>
-		<table name="Grotte">
-		<field name="fid" description="fid" visible="false"/>
-		<field name="geom" description="geom" visible="false"/>
-		<field name="ID" description="id" visible="false"/>
-		<field name="TIPOLOGIA" description="Tipologia" visible="true"/>
-		<field name="PROVINCIA" description="Provincia" visible="true"/>
-		<field name="COMUNE" description="Comune" visible="true"/>
-		<field name="LOCALITA" description="Localita" visible="true"/>
-		<field name="DATA_INIZI" description="data_inizi" visible="false"/>
-		<field name="GESTORE" description="gestore" visible="true"/>
-		<field name="DENOMINAZI" description="Nome" visible="true"/>
-		<field name="DETTAGLIO" description="Web" visible="true"/>
-		<field name="AMBITOTERR" description="Ambito terr." visible="true"/>
-		<field name="CODICE_GRO" description="Codice grotta" visible="true"/>
-		<field name="COORDX" description="coord x" visible="true"/>
-		<field name="COORDY" description="coord y" visible="true"/>
-		<field name="STATO_OPER" description="Stato" visible="true"/>
-	</table>
-	<table name="Atlante toponomastico Comuni">
-		<field name="fid" description="fid" visible="false"/>
-		<field name="geom" description="geom" visible="false"/>
-		<field name="nome_itali" description="Nome itali" visible="true"/>
-		<field name="nome_sardo" description="Nome sardo" visible="true"/>
-		<field name="nome_etnic" description="Nome etnia" visible="true"/>
-		<field name="subregione" description="subregione" visible="true"/>
-		<field name="etimologia" description="etimologia" visible="true"/>
-		<field name="prime_atte" description="Origine" visible="true"/>
 	</table>
 </databaseSchema>
