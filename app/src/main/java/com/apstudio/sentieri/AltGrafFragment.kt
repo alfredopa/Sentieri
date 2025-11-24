@@ -28,7 +28,7 @@ class AltGrafFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
+        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri)[SentieriViewModel::class.java]
 
         // Salva l'orientamento originale solo alla prima creazione del fragment
         if (savedInstanceState == null) {

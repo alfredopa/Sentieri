@@ -14,17 +14,14 @@ import android.location.LocationManager
 import android.location.OnNmeaMessageListener
 import android.os.Bundle
 import android.provider.Settings
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.ViewModelProvider
 import com.apstudio.sentieri.databinding.FragmentBarometroBinding
-import com.apstudio.sentieri.db.SentieriRepo
 import kotlin.math.pow
 
 // TODO: Rename parameter arguments, choose names that match
@@ -58,7 +55,7 @@ class Barometro : Fragment() , SensorEventListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
+        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri)[SentieriViewModel::class.java]
         arguments?.let {
             param1 = it.getString(ARG_PARAM1)
             param2 = it.getString(ARG_PARAM2)
@@ -191,7 +188,7 @@ class Barometro : Fragment() , SensorEventListener {
     }
 
     fun datiGPS(p0: Location) {
-        val altiGPS : String = "GPS " + MapUtils.formatDecimal(p0.altitude.toFloat())
+        "GPS " + MapUtils.formatDecimal(p0.altitude.toFloat())
         //binding.tvGPS.text = altiGPS
     }
 
