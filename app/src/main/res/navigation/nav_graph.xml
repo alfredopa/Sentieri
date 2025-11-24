@@ -158,4 +158,9 @@
             android:id="@+id/action_toponimiFragment_to_mappaFragment"
             app:destination="@id/mappaFragment" />
     </fragment>
+    <fragment
+        android:id="@+id/aboutFragment"
+        android:name="com.apstudio.sentieri.AboutFragment"
+        android:label="Informazioni app"
+        tools:layout="@layout/fragment_about" />
 </navigation>
