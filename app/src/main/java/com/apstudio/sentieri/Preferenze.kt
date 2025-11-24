@@ -54,8 +54,8 @@ class Preferenze : PreferenceFragmentCompat() {
 
         entries.add("Default (OsmaRender)")
         entryValues.add("OSMARENDER")
-
-        val mediaDirs = requireContext().getExternalFilesDirs(null)
+        @Suppress("DEPRECATION")
+        val mediaDirs = requireContext().externalMediaDirs
         if (mediaDirs.isNotEmpty()) {
             val themeBaseDir = File(mediaDirs[0], "Mappe")
 

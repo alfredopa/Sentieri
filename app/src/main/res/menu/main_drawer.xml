@@ -2,43 +2,49 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     tools:showIn="navigation_view">
-
-        <item
-            android:id="@+id/mappaFragment"
-            android:icon="@drawable/quattromori_background"
-            android:title="Vista Mappa" />
-        <item
-            android:id="@+id/sentieriFragment"
-            android:icon="@android:drawable/ic_dialog_map"
-            android:title="Elenco percorsi" />
-        <item
-            android:id="@id/poiFragment"
-            android:icon="@drawable/ic_start"
-            android:title="Visualizza Waypoints" />
-        <item
-            android:id="@+id/layerDialog"
-            android:icon="@android:drawable/ic_dialog_dialer"
-            android:title="Elenco percorsi caricati" />
-        <item
-            android:id="@+id/gpkgLayer"
-            android:icon="@drawable/ic_baseline_photo_24"
-            android:title="Elenco Layers" />
-        <item
-            android:id="@+id/toponimiFragment"
-            android:icon="@drawable/ic_search"
-            android:title="Ricerca toponimi" />
-        <item
-            android:id="@id/barometro"
-            android:icon="@android:drawable/ic_menu_manage"
-            android:title="Calibrazione barometro" />
-        <item
-            android:id="@+id/preferenze"
-            android:icon="@android:drawable/ic_menu_manage"
-            android:title="Impostazioni" />
-        <item android:title="" />
-        <item
-            android:id="@+id/action_exit"
-            android:icon="@android:drawable/ic_menu_close_clear_cancel"
-            android:visible="false"
-            android:title="uscita" />
+    <group android:checkableBehavior="single">
+    <item
+        android:id="@+id/mappaFragment"
+        android:icon="@drawable/quattromori_background"
+        android:title="Vista Mappa" />
+    <item
+        android:id="@+id/sentieriFragment"
+        android:icon="@android:drawable/ic_dialog_map"
+        android:title="Elenco percorsi" />
+    <item
+        android:id="@id/poiFragment"
+        android:icon="@drawable/ic_start"
+        android:title="Visualizza Waypoints" />
+    <item
+        android:id="@+id/layerDialog"
+        android:icon="@android:drawable/ic_dialog_dialer"
+        android:title="Elenco percorsi caricati" />
+    <item
+        android:id="@+id/gpkgLayer"
+        android:icon="@drawable/ic_baseline_photo_24"
+        android:title="Elenco Layers" />
+    <item
+        android:id="@+id/toponimiFragment"
+        android:icon="@drawable/ic_search"
+        android:title="Ricerca toponimi" />
+    </group>
+    <group android:id="@+id/group_settings">
+    <item
+        android:id="@id/barometro"
+        android:icon="@android:drawable/ic_menu_manage"
+        android:title="Calibrazione barometro" />
+    <item
+        android:id="@+id/preferenze"
+        android:icon="@android:drawable/ic_menu_manage"
+        android:title="Impostazioni" />
+    <item
+        android:id="@+id/aboutFragment"
+        android:icon="@android:drawable/ic_dialog_info"
+        android:title="Informazioni" />
+    <item
+        android:id="@+id/action_exit"
+        android:icon="@android:drawable/ic_menu_close_clear_cancel"
+        android:title="uscita"
+        android:visible="false" />
+    </group>
 </menu>

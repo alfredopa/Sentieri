@@ -31,7 +31,8 @@
         <item android:id="@+id/Mapquest"
             android:title="Mappa OpenTopo" />
         <item android:id="@+id/MapBox"
-            android:title="Mappa satellitare" />
+            android:title="Mappa satellitare"
+            android:visible="false"/>
         <item
             android:id="@+id/Geopackage"
             android:title="Apre Geopackage"
