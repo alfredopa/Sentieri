@@ -1161,42 +1161,40 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val uriString = preferenze.getString("URIMappa", null)
 
         // Aggiunge un listener che attende il primo layout completo della mappa
-        mapView.addOnFirstLayoutListener(object : MapView.OnFirstLayoutListener {
-            override fun onFirstLayout(v: View?, left: Int, top: Int, right: Int, bottom: Int) {
-                Log.d(TAG, "OnFirstLayoutListener eseguito. La mappa è pronta.")
+        mapView.addOnFirstLayoutListener { _, _, _, _, _ ->
+            Log.d(TAG, "OnFirstLayoutListener eseguito. La mappa è pronta.")
 
-                // 1. Ripristina posizione e zoom (ora che la mappa è pronta a riceverli)
-                mapView.controller.setZoom(viewModel.ultZoom.toDouble())
-                mapView.controller.setCenter(viewModel.ultPosizione)
+            // 1. Ripristina posizione e zoom (ora che la mappa è pronta a riceverli)
+            mapView.controller.setZoom(viewModel.ultZoom.toDouble())
+            mapView.controller.setCenter(viewModel.ultPosizione)
 
-                // 2. Carica la mappa corretta (online o offline)
-                if (menuMap == 0 && uriString != null) {
-                    // Caso: era stata usata una mappa offline
-                    Log.d(TAG, "Ripristino mappa offline dall'URI: $uriString")
-                    apreMappa(uriString.toUri())
-                } else {
-                    // Caso: era stata usata una mappa online
-                    Log.d(TAG, "Ripristino mappa online, indice: $menuMap")
-                    online(menuMap)
-                }
-
-                // 3. Ripristina lo stato della registrazione (il codice che hai cancellato da onResume)
-                if (viewModel.isRecording) {
-                    Log.d(TAG, "Ripristino dello stato di registrazione.")
-                    // in registrazione ripristina marker gps,bottomsheet allo stato precedente
-                    LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
-                    accendiSchermo()
-                    viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
-                    gpsMarker.setVisible(true)
-                    bottomSheetBehavior.isHideable = false
-                    bottomSheetBehavior.peekHeight = 120
-                    bottomSheetBehavior.state = viewModel.bottomState
-                    // RICHIEDI LA TRACCIA COMPLETA PER RIDISEGNARLA CORRETTAMENTE
-                    LocationRepository.requestFullTrack()
-                    showCustomSnackbar(binding.root,"Registrazione in corso")
-                }
+            // 2. Carica la mappa corretta (online o offline)
+            if (menuMap == 0 && uriString != null) {
+                // Caso: era stata usata una mappa offline
+                Log.d(TAG, "Ripristino mappa offline dall'URI: $uriString")
+                apreMappa(uriString.toUri())
+            } else {
+                // Caso: era stata usata una mappa online
+                Log.d(TAG, "Ripristino mappa online, indice: $menuMap")
+                online(menuMap)
             }
-        })
+
+            // 3. Ripristina lo stato della registrazione (il codice che hai cancellato da onResume)
+            if (viewModel.isRecording) {
+                Log.d(TAG, "Ripristino dello stato di registrazione.")
+                // in registrazione ripristina marker gps,bottomsheet allo stato precedente
+                LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
+                accendiSchermo()
+                viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
+                gpsMarker.setVisible(true)
+                bottomSheetBehavior.isHideable = false
+                bottomSheetBehavior.peekHeight = 120
+                bottomSheetBehavior.state = viewModel.bottomState
+                // RICHIEDI LA TRACCIA COMPLETA PER RIDISEGNARLA CORRETTAMENTE
+                LocationRepository.requestFullTrack()
+                showCustomSnackbar(binding.root, "Registrazione in corso")
+            }
+        }
     }
 
 
