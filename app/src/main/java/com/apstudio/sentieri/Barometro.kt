@@ -97,7 +97,7 @@ class Barometro : Fragment() , SensorEventListener {
         locationListener = LocationListener { p0 -> datiGPS(p0) }
 
         // Crea e registra NMEA listener
-        nmeaListener = OnNmeaMessageListener { message, timestamp ->
+        nmeaListener = OnNmeaMessageListener { message, _ ->
             // Do something with NMEA message $GPGGA
             loggaNMEA(message)
         }
@@ -176,6 +176,7 @@ class Barometro : Fragment() , SensorEventListener {
             MIN_DIST.toFloat(),
             locationListener
         )
+        @Suppress("DEPRECATION")
         locationManager!!.addNmeaListener(nmeaListener)
     }
 
