@@ -1179,7 +1179,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 online(menuMap)
             }
 
-            // 3. Ripristina lo stato della registrazione (il codice che hai cancellato da onResume)
+            // 3. Ripristina lo stato della registrazione
             if (viewModel.isRecording) {
                 Log.d(TAG, "Ripristino dello stato di registrazione.")
                 // in registrazione ripristina marker gps,bottomsheet allo stato precedente
@@ -1190,13 +1190,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 bottomSheetBehavior.isHideable = false
                 bottomSheetBehavior.peekHeight = 120
                 bottomSheetBehavior.state = viewModel.bottomState
-                // RICHIEDI LA TRACCIA COMPLETA PER RIDISEGNARLA CORRETTAMENTE
                 LocationRepository.requestFullTrack()
                 showCustomSnackbar(binding.root, "Registrazione in corso")
             }
         }
     }
-
 
     private fun mappaMapBox(): MapTileProviderBasic {
         val MAPBOXSATELLITELABELLED: OnlineTileSourceBase =
