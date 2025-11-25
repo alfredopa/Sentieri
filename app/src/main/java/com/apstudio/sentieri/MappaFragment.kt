@@ -2224,11 +2224,32 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             true // Indica che l'evento è stato gestito
         }
-        // Apply styling (assuming polygonOptions is accessible)
-        if (colore == "RANDOM")
-            osmdroidPolygon.fillPaint.color = layerModel.getRandomIntColor(30)
-        else
-            osmdroidPolygon.fillPaint.color = layerModel.polygonOptions.fillColor
+        // Controlla se la stringa del colore non è vuota o "RANDOM"
+        if (colore.isNotBlank() && colore != "RANDOM") {
+            try {
+                // 1. Converte la stringa del colore (es. "#1b7d07") in un intero
+                val parsedColor = colore.toColorInt()
+
+                // 2. Applica il colore corretto, ma con una trasparenza per non coprire la mappa
+                val semiTransparentColor = Color.argb(
+                    80, // Alpha: da 0 (trasparente) a 255 (opaco). 80 è un buon valore.
+                    Color.red(parsedColor),
+                    Color.green(parsedColor),
+                    Color.blue(parsedColor)
+                )
+                osmdroidPolygon.fillPaint.color = semiTransparentColor
+
+            } catch (e: IllegalArgumentException) {
+                // Se la stringa del colore nel DB non è valida (es. un errore di battitura),
+                // usa un colore di fallback per evitare crash.
+                Log.w(TAG, "Colore non valido nel database: '$colore'. Uso un colore casuale.")
+                osmdroidPolygon.fillPaint.color = layerModel.getRandomIntColor(80)
+            }
+        } else {
+            // Se il colore è "RANDOM" o vuoto, usa la logica del colore casuale
+            osmdroidPolygon.fillPaint.color = layerModel.getRandomIntColor(80)
+        }
+
         osmdroidPolygon.outlinePaint.color = layerModel.polygonOptions.strokeColor
         osmdroidPolygon.outlinePaint.strokeWidth = layerModel.polygonOptions.strokeWidth
         osmdroidPolygon.title = layerModel.polygonOptions.title
@@ -2250,78 +2271,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         alertDialog.show()
     }
 
-    /*private fun puntiSuMappa(tableName: String, featureInfo: FeatureTableInfo) {
-        // Assicurati che usi il GeoPackage dal ViewModel
-        val currentGeoPackage = layerModel.geoPackageInstance
-        if (currentGeoPackage == null) {
-            Log.e(TAG, "GeoPackage is null in puntiSuMappa for table $tableName")
-            return
-        }
-        val colore = featureInfo.colore
-        val points = mutableListOf<IGeoPoint>()
-        val osmdroidPolygonsToAdd = mutableListOf<Polygon>()
-        val lineStringToAdd = mutableListOf<LineStringFeature>()
-        // Utilizza tableName passato come argomento
-        val featureDao: FeatureDao = currentGeoPackage.getFeatureDao(tableName)
-        val featureCursor: FeatureCursor = featureDao.queryForAll()
-        try {
-            while (featureCursor.moveToNext()) {
-                val featureRow: FeatureRow = featureCursor.row
-                val geometryData: GeoPackageGeometryData? =
-                    featureRow.geometry // Può essere null
-
-                if (geometryData?.geometry == null || geometryData.isEmpty) {
-                    Log.w(TAG, "Skipping feature row with null or empty geometry.")
-                    continue
-                }
-
-                val geometry = geometryData.geometry
-
-                when (geometry.geometryType) {
-                    GeometryType.POINT -> processPointGeometry(featureRow, tableName, points)
-                    GeometryType.MULTIPOLYGON -> processMultiPolygonGeometry(
-                        featureRow,
-                        tableName,
-                        osmdroidPolygonsToAdd,
-                        colore
-                    )
-
-                    GeometryType.POLYGON -> processPolygonGeometry(
-                        featureRow,
-                        tableName,
-                        osmdroidPolygonsToAdd,
-                        colore
-                    )
-
-                    GeometryType.LINESTRING -> processLineStringGeometry(
-                        featureRow,
-                        tableName,
-                        lineStringToAdd
-                    )
-
-                    else -> Log.w(
-                        TAG,
-                        "Geometry type ${geometry.geometryType.name} not yet handled for display."
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error processing feature cursor for table $tableName", e)
-        } finally {
-            featureCursor.close()
-        }
-        // crea e carica i layer se ci sono dati, punti oppure poligoni
-        if (points.isNotEmpty()) {
-            creaOverlayPunti(points, featureInfo)
-        }
-        if (lineStringToAdd.isNotEmpty()) {
-            creaOverlayLinee(lineStringToAdd, featureInfo)
-        }
-        if (osmdroidPolygonsToAdd.isNotEmpty()) {
-            creaOverlayPoligoni(osmdroidPolygonsToAdd, featureInfo)
-        }
-        mapView.invalidate()
-    }*/
     private fun puntiSuMappa(tableName: String, featureInfo: FeatureTableInfo) {
         // 1. Mostra l'indicatore di caricamento
         _binding?.let {
@@ -3040,7 +2989,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             .setCancelable(false)
             .show()
     }
-
 
     inner class RemovableMarker(mapView: MapView) : Marker(mapView) {
         var onMarkerLongClick: ((RemovableMarker) -> Boolean)? = null
