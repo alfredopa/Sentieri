@@ -805,8 +805,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             currentTrackPolyline.addPoint(newPoint)
             mapView.invalidate()
         }
-        mapView.invalidate()
         ripristinaStatoMappa()
+        mapView.invalidate()
     }
 
     private fun mostraAllarmeFuoriTraccia() {
@@ -853,11 +853,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onResume() {
         super.onResume()
         mapView.onResume()
+        preferenze.registerOnSharedPreferenceChangeListener(this)
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
         //Log.d(TAG, "onResume: Sincronizzato viewModel.setBaro a: ${viewModel.setBaro}")
-
-        // Registra il listener qui
-        preferenze.registerOnSharedPreferenceChangeListener(this)
+        if (viewModel.isRecording) {
+            Log.d(TAG, "onResume: La registrazione è attiva. Ripristino lo stato della traccia.")
+            // 1. Richiedi l'intera lista di punti dal repository.
+            // Questo farà scattare l'observer di 'trackPoints'.
+            LocationRepository.requestFullTrack()
+            // 2. Ripristina lo stato visivo della UI di registrazione
+            // (questo codice è corretto e va mantenuto).
+            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
+            accendiSchermo()
+            viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
+            gpsMarker.setVisible(true)
+            bottomSheetBehavior.isHideable = false
+            bottomSheetBehavior.peekHeight = 120
+            bottomSheetBehavior.state = viewModel.bottomState
+            showCustomSnackbar(binding.root, "Registrazione in corso")
+        }
         //Log.d("Mappa", "MappaFragment onResume ")
         // Controlli per verificare valori da altri fragment da scheda sentieri e visualizzazione waypoint
         // verifica se è valorizzata line, quindi è stato passsata dal pulsante Segui
@@ -1177,21 +1191,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 // Caso: era stata usata una mappa online
                 Log.d(TAG, "Ripristino mappa online, indice: $menuMap")
                 online(menuMap)
-            }
-
-            // 3. Ripristina lo stato della registrazione
-            if (viewModel.isRecording) {
-                Log.d(TAG, "Ripristino dello stato di registrazione.")
-                // in registrazione ripristina marker gps,bottomsheet allo stato precedente
-                LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
-                accendiSchermo()
-                viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
-                gpsMarker.setVisible(true)
-                bottomSheetBehavior.isHideable = false
-                bottomSheetBehavior.peekHeight = 120
-                bottomSheetBehavior.state = viewModel.bottomState
-                LocationRepository.requestFullTrack()
-                showCustomSnackbar(binding.root, "Registrazione in corso")
             }
         }
     }
