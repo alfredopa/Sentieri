@@ -184,4 +184,27 @@
 		<field name="BURAS_DATA" description="buras_data" visible="false"/>
 		<field name="SUP_AREA" description="Sup. area" visible="true"/>
 	</table>
+		<table name="Regioni storiche">
+		<field name="fid" description="fid" visible="false"/>
+		<field name="geom" description="geom" visible="false"/>
+		<field name="NUMREG" description="numreg" visible="false"/>
+		<field name="REGSTOR" description="Regione" visible="true"/>
+		<field name="NUMCOMUNI" description="N. comuni" visible="true"/>
+	</table>
+	<table name="Vette punti quotati">
+		<field name="fid" description="fid" visible="false"/>
+		<field name="geom" description="geom" visible="false"/>
+		<field name="idFeature" description="idfeature" visible="false"/>
+		<field name="toponimo" description="Toponimo" visible="true"/>
+		<field name="quota" description="Quota" visible="true"/>
+		<field name="tipoPunto" description="Tipo" visible="true"/>
+		<field name="sedePunto" description="Sede" visible="true"/>
+	</table>
+	<table name="Chiese campestri">
+		<field name="fid" description="fid" visible="false"/>
+		<field name="geom" description="geom" visible="false"/>
+		<field name="comune" description="Comune" visible="true"/>
+		<field name="name" description="Name" visible="true"/>
+		<field name="image" description="Link" visible="false"/>
+	</table>
 </databaseSchema>
