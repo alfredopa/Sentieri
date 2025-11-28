@@ -471,26 +471,46 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             "feature_click_request",
             this
         ) { requestKey, bundle ->
+            // Questo codice viene eseguito quando FeatureList invia un risultato
+            // con la chiave "feature_click_request"
             if (requestKey == "feature_click_request") {
                 val latitude = bundle.getDouble("clicked_latitude")
                 val longitude = bundle.getDouble("clicked_longitude")
-                // Elevation è opzionale
-                val elevation =
-                    if (bundle.containsKey("clicked_elevation")) bundle.getDouble("clicked_elevation") else null
-                // Ora hai le coordinate, usale come preferisci
-                // Esempio: centra la mappa su questo punto
-                val clickedPoint = GeoPoint(latitude, longitude)
-                elevation?.let { clickedPoint.altitude = it }
-                mapView.controller.animateTo(clickedPoint) // o setCenter
-                Toast.makeText(
-                    requireContext(),
-                    "Punto cliccato: Lat $latitude, Lon $longitude",
-                    Toast.LENGTH_LONG
-                ).show()
-                // Potresti anche voler aggiornare viewModel.poi se necessario
-                viewModel.poi = clickedPoint // Assumendo che viewModel.poi sia un GeoPoint
+
+                // Controlla se le coordinate sono valide (non 0.0, che è il default se non trovate)
+                if (latitude != 0.0 && longitude != 0.0) {
+                    val clickedPoint = GeoPoint(latitude, longitude)
+
+                    // Anima lo spostamento della mappa verso il punto
+                    mapView.controller.animateTo(
+                        clickedPoint,
+                        14.5,
+                        1000L
+                    ) // Zoom a livello 18.5 in 1 secondo
+
+                    // Evidenzia il punto (opzionale ma molto utile)
+                    // Puoi creare un marker temporaneo che scompare dopo pochi secondi
+                    val highlightMarker = Marker(mapView).apply {
+                        position = clickedPoint
+                        // Usa un'icona distintiva per l'highlight
+                        icon = ContextCompat.getDrawable(
+                            requireContext(),
+                            R.drawable.gps_on
+                        ) // Crea questa icona
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    }
+                    mapView.overlays.add(highlightMarker)
+                    //mapView.invalidate()
+
+                    // Rimuovi il marker di highlight dopo un breve ritardo
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        mapView.overlays.remove(highlightMarker)
+                        mapView.invalidate()
+                    }, 6000) // Rimuovi dopo 4 secondi
+                }
             }
         }
+
         // aggiunge il bottomsheet ed il menu
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
         // Set the initial state to hidden AFTER the layout is complete
