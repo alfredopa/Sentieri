@@ -106,7 +106,6 @@ import org.mapsforge.map.rendertheme.InternalRenderTheme
 import org.mapsforge.map.rendertheme.XmlRenderTheme
 import org.osmdroid.api.IGeoPoint
 import org.osmdroid.api.IMapController
-import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.mapsforge.MapsForgeTileProvider
 import org.osmdroid.mapsforge.MapsForgeTileSource
 import org.osmdroid.tileprovider.MapTileProviderBasic
@@ -121,7 +120,6 @@ import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.FolderOverlay
-import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
@@ -304,67 +302,74 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         database = SentieriDB.getInstance(requireContext())
     }
 
-    private fun onReturnFromLayerDialog(featureInfo: FeatureTableInfo) {    if (_binding == null) {
-        Log.w(TAG, "onReturnFromLayerDialog called when _binding is null. Aborting.")
-        return
-    }
-
-        // 1. Pulisci: Rimuovi sempre gli overlay esistenti per questo layer dalla mappa.
-        // Questo chiama il loro metodo onDetach() che, per i poligoni, imposta il listener a null.
-        featureInfo.listOverlay?.forEach {
-            mapView.overlayManager.remove(it)
+    private fun onReturnFromLayerDialog() {
+        if (_binding == null) {
+            Log.w(TAG, "onReturnFromLayerDialog chiamato ma la vista è nulla. Interruzione.")
+            return
         }
+        Log.d(TAG, "Eseguo onReturnFromLayerDialog: Sincronizzazione stato overlay...")
 
-        // 2. Se il layer deve essere visibile, lo ricreiamo o lo aggiungiamo di nuovo.
-        if (featureInfo.isVisible) {
-            if (featureInfo.listOverlay.isNullOrEmpty()) {
-                // Gli overlay non sono mai stati caricati, quindi li creiamo da zero.
-                puntiSuMappa(featureInfo.name, featureInfo)
-            } else {
-                // Gli overlay esistono già in memoria, quindi li aggiungiamo di nuovo alla mappa.
-                featureInfo.listOverlay!!.forEach { overlay ->
-                    overlay.isEnabled = true // Assicuriamoci che sia abilitato
-                    mapView.overlayManager.add(overlay)
-                    // Ri-attacchiamo i listener per sicurezza, dato che onDetach() potrebbe averli rimossi.
-                    reattachListenersToOverlay(overlay)
+        // Itera su tutti i layer e sincronizza il loro stato con la mappa attuale.
+        layerModel.featureList.forEach { featureInfo ->
+            // Rimuovi sempre i vecchi overlay dalla mappa, se esistono, per evitare duplicati.
+            featureInfo.listOverlay?.let { existingOverlays ->
+                if (existingOverlays.isNotEmpty()) {mapView.overlays.removeAll(existingOverlays.toSet())
                 }
-                mapView.invalidate()
             }
-        } else {
-            // 3. Se non deve essere visibile, abbiamo già rimosso gli overlay. Finito.
-            mapView.invalidate() // Aggiorna la mappa per mostrare la rimozione.
+
+            if (featureInfo.isVisible) {
+                // Se il layer deve essere visibile...
+                if (featureInfo.listOverlay.isNullOrEmpty()) {
+                    // ...e non abbiamo gli overlay in memoria, caricali da capo.
+                    Log.d(TAG, "Il layer ${featureInfo.name} è visibile e non caricato. Avvio caricamento.")
+                    puntiSuMappa(featureInfo.name, featureInfo)
+                } else {
+                    // ...e abbiamo già gli overlay in memoria, semplicemente ri-aggiungili alla NUOVA mapView.
+                    Log.d(TAG, "Il layer ${featureInfo.name} è già caricato. Ri-aggiungo ${featureInfo.listOverlay!!.size} overlay alla mappa.")
+                    mapView.overlays.addAll(featureInfo.listOverlay!!)
+                }
+            } else {
+                // Se il layer non deve essere visibile, assicurati che la sua lista di overlay sia vuota.
+                featureInfo.listOverlay?.clear()
+            }
         }
+
+        mapView.invalidate() // Forza un singolo ridisegno alla fine di tutte le operazioni.
     }
 
+
+
+
+    // Helper function to re-attach listeners
     private fun reattachListenersToOverlay(
         overlay: org.osmdroid.views.overlay.Overlay
     ) {
-        if (!isAdded || context == null) {
+        if (!isAdded || context == null) { // Ensure fragment is attached and has context
             Log.w(TAG, "reattachListenersToOverlay: Fragment not attached or context is null.")
             return
         }
 
         when (overlay) {
             is SimpleFastPointOverlay -> {
+                // Re-attach listener for SimpleFastPointOverlay (created by creaOverlayPunti)
                 overlay.setOnClickListener { points, pointClicked ->
                     (points[pointClicked] as? LabelledGeoPoint)?.label?.let { label ->
-                        mostraAlertDialogSemplice(label)
+                        mostraAlertDialogSemplice(label) //, featureInfo.descrTabella)
                     }
                 }
             }
+
             is FolderOverlay -> {
+                // Re-attach listeners for items within a FolderOverlay
                 overlay.items.forEach { item ->
                     when (item) {
                         is Polygon -> {
-                            // --- INIZIO MODIFICA ---
-                            // Imposta il listener corretto anche qui
-                            item.setOnClickListener { polygon, _, _ ->
-                                showPolygonInfoFromDatabase(polygon)
-                                true
-                            }
-                            // --- FINE MODIFICA ---
+                            //Log.d(TAG, "Polygon trovato in reattachListeners. Il listener originale viene preservato.")
                         }
+
                         is Polyline -> {
+                            // Re-attach listener for Polylines
+                            // Crucially, re-initialize InfoWindow with the current mapView instance
                             item.infoWindow = BasicInfoWindow(
                                 R.layout.bonuspack_bubble,
                                 mapView
@@ -379,9 +384,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     }
                 }
             }
+            // Add other overlay types here if necessary
         }
     }
-
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -393,132 +398,99 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        // 1. IMPOSTAZIONE DEL GESTORE DI EVENTI GLOBALE SULLA MAPPA
-        val eventsReceiver = object : MapEventsReceiver {
-            override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
-                var tappedPolygon: Polygon? = null
-                var smallestArea = -1.0
-
-                // Itera su tutti i layer visibili e i loro poligoni
-                layerModel.featureList.forEach { featureInfo ->
-                    if (featureInfo.isVisible) {
-                        featureInfo.listOverlay?.forEach { overlay ->
-                            if (overlay is FolderOverlay) {
-                                overlay.items.forEach { item ->
-                                    // --- CHIAMATA ALLA NUOVA FUNZIONE HELPER ---
-                                    if (item is Polygon && item.isEnabled && isPointInPolygon(p, item.points)) {
-                                        val area = item.bounds.latitudeSpan * item.bounds.longitudeSpan
-                                        if (tappedPolygon == null || area < smallestArea) {
-                                            tappedPolygon = item
-                                            smallestArea = area
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Se abbiamo trovato un poligono, mostriamo le sue info dal DB
-                tappedPolygon?.let {
-                    Log.d("POLYGON_DEBUG", "CLICK: Map tap detected. Smallest polygon ID='${it.id}'. Calling DB query.")
-                    showPolygonInfoFromDatabase(it)
-                    return true // Evento gestito e consumato
-                }
-
-                return false // Nessun poligono trovato, lascia che l'evento prosegua
-            }
-
-            override fun longPressHelper(p: GeoPoint): Boolean = false
-        }
-
-        // Aggiungi il nuovo gestore di eventi in prima posizione (indice 0) per
-        // intercettare il click prima di ogni altro overlay.
-        val mapEventsOverlay = MapEventsOverlay(eventsReceiver)
-        mapView.overlays.removeIf { it is MapEventsOverlay } // Rimuovi vecchi listener per sicurezza
-        mapView.overlays.add(0, mapEventsOverlay)
-
-
-        // 2. IMPOSTAZIONE DEL FRAGMENT
+        // Dì al sistema che questa View può ricevere il focus.
         view.isFocusableInTouchMode = true
+        // Richiedi esplicitamente il focus per questa View.
         view.requestFocus()
+        // Imposta il listener per gli eventi della tastiera su questa View.
         view.setOnKeyListener(this)
-
-        // 3. GESTIONE ARGOMENTI (da GPX, Toponimi, etc.)
+        // verifica se sono passati argomenti
+        // argomenti da gpx
         arguments?.getString("gpx_file_uri")?.let { uriString ->
-            caricaGPX(uriString.toUri())
+            val gpxUri = uriString.toUri()
+            caricaGPX(gpxUri)
             arguments?.remove("gpx_file_uri")
         }
 
+        // punto passato da ricerca Toponimi
         arguments?.let { bundle ->
-            val latitude = bundle.getDouble("latitude", Double.NaN)
+            val latitude = bundle.getDouble(
+                "latitude",
+                Double.NaN
+            ) // Usa un valore di default o controlla se esiste la chiave
             val longitude = bundle.getDouble("longitude", Double.NaN)
+
             if (!latitude.isNaN() && !longitude.isNaN()) {
                 val targetPoint = GeoPoint(latitude, longitude)
                 mapView.controller.setCenter(targetPoint)
                 mapView.controller.setZoom(15.0)
+                Log.d(TAG, "MapView onviewcreated: $targetPoint")
                 mapView.controller.animateTo(targetPoint)
             }
             arguments?.clear()
         }
 
-
-        // 4. IMPOSTAZIONE DEI LISTENER PER I RISULTATI DAI FRAGMENT FIGLI
+        // Imposta il listener per il risultato da GpkgLayer
         parentFragmentManager.setFragmentResultListener(
             LAYER_DIALOG_REQUEST_KEY,
             viewLifecycleOwner
-        ) { _, _ ->
-            layerModel.featureList.forEach { featureInfo ->
-                Log.d(TAG, "FragmentResultListener processing layer: ${featureInfo.name}, isVisible: ${featureInfo.isVisible}")
-                onReturnFromLayerDialog(featureInfo)
+        ) { requestKey, _ ->
+            if (requestKey == LAYER_DIALOG_REQUEST_KEY) {
+                // Chiama la funzione UNA SOLA VOLTA. La funzione stessa conterrà il loop.
+                onReturnFromLayerDialog()
             }
-            mapView.invalidate()
         }
 
+        // Ascolta i risultati da FeatureList
         parentFragmentManager.setFragmentResultListener(
             "feature_click_request",
             this
-        ) { _, bundle ->
-            val latitude = bundle.getDouble("clicked_latitude")
-            val longitude = bundle.getDouble("clicked_longitude")
-            val featureId = bundle.getString("clicked_feature_id")
+        ) { requestKey, bundle ->
+            if (requestKey == "feature_click_request") {
+                val latitude = bundle.getDouble("clicked_latitude")
+                val longitude = bundle.getDouble("clicked_longitude")
 
-            if (latitude != 0.0 && longitude != 0.0 && featureId != null) {
-                val clickedPoint = GeoPoint(latitude, longitude)
-                mapView.controller.animateTo(clickedPoint, 16.5, 1000L)
+                // Controlla se le coordinate sono valide (non 0.0, che è il default se non trovate)
+                if (latitude != 0.0 && longitude != 0.0) {
+                    val clickedPoint = GeoPoint(latitude, longitude)
 
-                var foundOverlay: Polygon? = null
-                layerModel.featureList.forEach { featureInfo ->
-                    if (featureInfo.isVisible) {
-                        featureInfo.listOverlay?.forEach { overlay ->
-                            if (overlay is FolderOverlay) {
-                                val targetPolygon = overlay.items.find { item ->
-                                    item is Polygon && item.id == featureId
-                                } as? Polygon
+                    // Logica per evidenziare e zoomare
+                    Log.d(TAG, "Ricevuto click su feature alle coordinate: $clickedPoint")
+                    Toast.makeText(
+                        requireContext(),
+                        "Spostamento sulla feature selezionata...",
+                        Toast.LENGTH_SHORT
+                    ).show()
 
-                                if (targetPolygon != null) {
-                                    foundOverlay = targetPolygon
-                                    return@forEach
-                                }
-                            }
-                        }
+                    // Anima lo spostamento della mappa verso il punto
+                    mapView.controller.animateTo(
+                        clickedPoint,
+                        12.5,
+                        1000L
+                    ) // Zoom a livello 18.5 in 1 secondo
+
+                    // Evidenzia il punto (opzionale ma molto utile)
+                    // Puoi creare un marker temporaneo che scompare dopo pochi secondi
+                    val highlightMarker = Marker(mapView).apply {
+                        position = clickedPoint
+                        // Usa un'icona distintiva per l'highlight
+                        icon = ContextCompat.getDrawable(
+                            requireContext(),
+                            R.drawable.gps_on
+                        ) // Crea questa icona
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                     }
-                    if (foundOverlay != null) return@forEach
-                }
+                    mapView.overlays.add(highlightMarker)
+                    mapView.invalidate()
 
-                if (foundOverlay != null) {
-                    showPolygonInfoFromDatabase(foundOverlay!!)
-                } else {
-                    bundle.getString("clicked_label")?.let { label ->
-                        mostraAlertDialogSemplice(label)
-                    }
+                    // Rimuovi il marker di highlight dopo un breve ritardo
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        mapView.overlays.remove(highlightMarker)
+                        mapView.invalidate()
+                    }, 6000) // Rimuovi dopo 6 secondi
                 }
             }
         }
-
-        // (Il resto del tuo codice in onViewCreated continua qui...)
-        // bottomSheetBehavior, setup mappa, etc...
         // aggiunge il bottomsheet ed il menu
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
         // Set the initial state to hidden AFTER the layout is complete
@@ -836,6 +808,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         ripristinaStatoMappa()
         mapView.invalidate()
     }
+
     private fun mostraAllarmeFuoriTraccia() {
         val allarme = EditText(requireActivity())
         val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
@@ -875,41 +848,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             mapView.controller.animateTo(marker.position)
             true // Ritorna true per indicare che l'evento è stato gestito
         }
-    }
-
-    /**
-     * Controlla se un punto geografico si trova all'interno di un poligono usando l'algoritmo ray-casting.
-     * Questa versione è stata corretta per usare la formula matematica giusta.
-     * @param p Il GeoPoint da controllare.
-     * @param polygonPoints I vertici del poligono.
-     * @return true se il punto è all'interno, false altrimenti.
-     */
-    private fun isPointInPolygon(p: GeoPoint, polygonPoints: List<GeoPoint>): Boolean {
-        if (polygonPoints.isEmpty()) {
-            return false
-        }
-        var isInside = false
-        var i = 0
-        var j = polygonPoints.size - 1
-        while (i < polygonPoints.size) {
-            val pi = polygonPoints[i]
-            val pj = polygonPoints[j]
-
-            val yi = pi.latitude
-            val yj = pj.latitude
-            val xi = pi.longitude
-            val xj = pj.longitude
-
-            // La formula corretta per l'algoritmo ray-casting
-            val intersect = ((yi > p.latitude) != (yj > p.latitude)) &&
-                    (p.longitude < (xj - xi) * (p.latitude - yi) / (yj - yi) + xi)
-
-            if (intersect) {
-                isInside = !isInside
-            }
-            j = i++
-        }
-        return isInside
     }
 
     override fun onResume() {
@@ -1013,13 +951,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
 
         // ridisegna eventuali layer aggiunti da GpkgLayer
-        layerModel.featureList.forEach { featureInfo ->
-            Log.d(
-                TAG,
-                "onResume processing layer: " + featureInfo.name + ", isVisible: " + featureInfo.isVisible
-            )
-            onReturnFromLayerDialog(featureInfo)
-        }
+        onReturnFromLayerDialog()
 
         // toponimi
         displayedTopoMarkers.forEach { mapView.overlays.remove(it) }
@@ -1100,6 +1032,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (::bottomSheetBehavior.isInitialized)
             viewModel.bottomState = bottomSheetBehavior.state
         mapView.onPause() //needed for compass, my location overlays, v6.0.0 and up
+        layerModel.loadingStatus.clear()
+        Log.d(TAG, "onPause: Stato di caricamento dei layer resettato.")
     }
 
     private fun offline() {
@@ -2226,63 +2160,123 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         ngaPolygon: mil.nga.sf.Polygon,
         tableName: String,
         featureRow: FeatureRow,
-        colore: String,
-        subPolygonIndex: Int = 0
+        colore: String
     ): Polygon {
-        val osmdroidPolygon = Polygon(mapView)
-        osmdroidPolygon.id = "${tableName}_${featureRow.id}_$subPolygonIndex"
-
-        // --- INIZIO MODIFICA ---
-        // Imposta il listener corretto che chiama la funzione per mostrare le info
-        osmdroidPolygon.setOnClickListener { polygon, _, _ ->
-            showPolygonInfoFromDatabase(polygon)
-            true // Indica che l'evento è stato gestito
-        }
-        // --- FINE MODIFICA ---
-
-        // Il resto della funzione rimane invariato...
+        val osmdroidPolygon = Polygon(mapView) // Assuming 'map' is accessible
         val exteriorRingPoints = mutableListOf<GeoPoint>()
-        ngaPolygon.rings?.firstOrNull()?.points?.forEach { ngaPoint ->
-            ngaPoint?.let { exteriorRingPoints.add(GeoPoint(it.y, it.x)) }
+
+        val firstRing = ngaPolygon.rings?.firstOrNull() // Controlla se rings è null
+        if (firstRing != null && firstRing.points != null) { // Controlla se points è null
+            firstRing.points.forEach { ngaPoint ->
+                if (ngaPoint != null) { // Controlla se il singolo punto è null
+                    exteriorRingPoints.add(GeoPoint(ngaPoint.y, ngaPoint.x))
+                } else {
+                    Log.w(TAG, "Null point found in exterior ring of polygon.")
+                }
+            }
+        } else {
+            Log.w(TAG, "Exterior ring or its points are null for a polygon.")
         }
         osmdroidPolygon.points = exteriorRingPoints
+
 
         if (ngaPolygon.rings != null && ngaPolygon.rings.size > 1) {
             val holes = mutableListOf<List<GeoPoint>>()
             ngaPolygon.rings.drop(1).forEach { interiorNgaRing ->
-                val holePath = mutableListOf<GeoPoint>()
-                interiorNgaRing?.points?.forEach { ngaPoint ->
-                    ngaPoint?.let { holePath.add(GeoPoint(it.y, it.x)) }
-                }
-                if (holePath.isNotEmpty()) {
-                    holes.add(holePath)
+                if (interiorNgaRing != null && interiorNgaRing.points != null) { // Controlli aggiunti
+                    val holePath = mutableListOf<GeoPoint>()
+                    interiorNgaRing.points.forEach { ngaPoint ->
+                        if (ngaPoint != null) { // Controllo aggiunto
+                            holePath.add(GeoPoint(ngaPoint.y, ngaPoint.x))
+                        } else {
+                            Log.w(TAG, "Null point found in an interior ring (hole) of polygon.")
+                        }
+                    }
+                    if (holePath.isNotEmpty()) { // Aggiungi solo se il percorso del buco ha punti
+                        holes.add(holePath)
+                    }
+                } else {
+                    Log.w(TAG, "An interior ring (hole) or its points are null for a polygon.")
                 }
             }
             if (holes.isNotEmpty()) {
                 osmdroidPolygon.holes = holes
             }
         }
+// --- LOGICA CHIAVE PER LA SINCRONIZZAZIONE ---
+// 1. Memorizza l'ID univoco della feature, non l'etichetta pre-calcolata.
+        val featureId = featureRow.id
+        osmdroidPolygon.relatedObject = featureId // Memorizza il Long dell'ID
 
-        osmdroidPolygon.relatedObject = layerModel.creaLabel(featureRow, tableName)
+// 2. Imposta l'UNICO listener che questo poligono avrà mai.
+// --- NUOVO LISTENER CON DEBUG AVANZATO ---
+        osmdroidPolygon.setOnClickListener { polygon, mapView, eventPosition ->
+            // 1. Recupera l'ID del poligono che ha ricevuto il click.
+            val retrievedId = polygon.relatedObject as? Long
 
+            // 2. Prepara le informazioni per il log.
+            val clickCoords = "Click a [Lat:%.5f, Lon:%.5f]".format(eventPosition.latitude, eventPosition.longitude)
+            val polygonHash = "Hash:%s".format(System.identityHashCode(polygon))
+            val polygonId = "ID:%s".format(retrievedId ?: "null")
+            // Calcola il centro del poligono per confronto
+            val polygonCenter = "Centro Poligono:[Lat:%.5f, Lon:%.5f]".format(polygon.bounds.centerLatitude, polygon.bounds.centerLongitude)
+
+            // 3. Stampa il log completo.
+            Log.d("PolygonClickDebug", "$clickCoords | INTERCETTATO DA: $polygonId, $polygonHash | $polygonCenter")
+
+            // 4. Esegui la logica per mostrare l'AlertDialog come prima.
+            if (retrievedId != null) {
+                val geoPackage = layerModel.geoPackageInstance
+                if (geoPackage != null) {
+                    try {
+                        val featureDao = geoPackage.getFeatureDao(tableName)
+                        val clickedFeatureRow = featureDao.queryForIdRow(retrievedId)
+                        if (clickedFeatureRow != null) {
+                            val correctLabel = layerModel.creaLabel(clickedFeatureRow, tableName)
+                            mostraAlertDialogSemplice(correctLabel)
+                        } else {
+                            Log.w(TAG, "Nessuna feature trovata con ID: $retrievedId nel layer: $tableName")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Errore durante l'accesso al GeoPackage nel listener.", e)
+                    }
+                }
+            }
+            true // Indica che l'evento è stato gestito
+        }
+
+
+        // Controlla se la stringa del colore non è vuota o "RANDOM"
         if (colore.isNotBlank() && colore != "RANDOM") {
             try {
+                // 1. Converte la stringa del colore (es. "#1b7d07") in un intero
                 val parsedColor = colore.toColorInt()
-                val semiTransparentColor = Color.argb(80, Color.red(parsedColor), Color.green(parsedColor), Color.blue(parsedColor))
+
+                // 2. Applica il colore corretto, ma con una trasparenza per non coprire la mappa
+                val semiTransparentColor = Color.argb(
+                    80, // Alpha: da 0 (trasparente) a 255 (opaco). 80 è un buon valore.
+                    Color.red(parsedColor),
+                    Color.green(parsedColor),
+                    Color.blue(parsedColor)
+                )
                 osmdroidPolygon.fillPaint.color = semiTransparentColor
+
             } catch (e: IllegalArgumentException) {
+                // Se la stringa del colore nel DB non è valida (es. un errore di battitura),
+                // usa un colore di fallback per evitare crash.
+                Log.w(TAG, "Colore non valido nel database: '$colore'. Uso un colore casuale.")
                 osmdroidPolygon.fillPaint.color = layerModel.getRandomIntColor(80)
             }
         } else {
+            // Se il colore è "RANDOM" o vuoto, usa la logica del colore casuale
             osmdroidPolygon.fillPaint.color = layerModel.getRandomIntColor(80)
         }
+
         osmdroidPolygon.outlinePaint.color = layerModel.polygonOptions.strokeColor
         osmdroidPolygon.outlinePaint.strokeWidth = layerModel.polygonOptions.strokeWidth
         osmdroidPolygon.title = layerModel.polygonOptions.title
-
         return osmdroidPolygon
     }
-
 
     private fun mostraAlertDialogSemplice(message: String) {
         if (!isAdded || context == null) {
@@ -2299,70 +2293,87 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         alertDialog.show()
     }
 
+    // Attorno alla riga 2297
     private fun puntiSuMappa(tableName: String, featureInfo: FeatureTableInfo) {
-        // 1. Mostra l'indicatore di caricamento
-        _binding?.let {
-            it.loadingProgressBar.visibility = View.VISIBLE
+        if (featureInfo.listOverlay != null && featureInfo.listOverlay!!.isNotEmpty()) {
+            Log.d(TAG, "Pulizia di ${featureInfo.listOverlay!!.size} overlay esistenti per il layer: $tableName")
+            // 2. Rimuovi tutti gli overlay precedentemente associati a questo layer dalla mappa.
+            mapView.overlays.removeAll(featureInfo.listOverlay!!.toSet()) // .toSet() è più sicuro
+            // 3. Svuota la lista di overlay salvata nel modello dati.
+            featureInfo.listOverlay!!.clear()
+        }
+        // 4. Forza un ridisegno per assicurarsi che la mappa sia pulita.
+        mapView.invalidate()
+
+        // Controllo di blocco anti-concorrenza
+        if (layerModel.loadingStatus[tableName] == true) {
+            Log.w(TAG, "Caricamento per il layer $tableName già in corso. Chiamata ignorata.")
+            return
         }
 
-        lifecycleScope.launch {
-            val processedData = loadAndProcessFeaturesInBackground(tableName, featureInfo)
+        // Controllo di sicurezza per la vista all'inizio
+        if (_binding == null) {
+            Log.w(TAG, "puntiSuMappa chiamato ma la vista è nulla. Interruzione.")
+            return
+        }
 
-            // Torna al thread principale per aggiornare la UI
-            withContext(Dispatchers.Main) {
-                // 2. Nascondi l'indicatore di caricamento
-                _binding?.let {
-                    it.loadingProgressBar.visibility = View.GONE
-                }
+        layerModel.loadingStatus[tableName] = true
+        binding.loadingProgressBar.visibility = View.VISIBLE
 
-                // Crea e carica i layer se ci sono dati
-                processedData.points?.let {
-                    if (it.isNotEmpty()) {
-                        creaOverlayPunti(it, featureInfo)
-                    }
-                }
-                processedData.lineStrings?.let {
-                    if (it.isNotEmpty()) {
-                        creaOverlayLinee(it, featureInfo)
-                    }
-                }
-                processedData.polygons?.let {
-                    if (it.isNotEmpty()) {
-                        creaOverlayPoligoni(it, featureInfo)
-                    }
-                }
-                if (_binding != null) { // Controlla se mapView è inizializzata e binding non è nullo
-                    mapView.invalidate()
-                }
+        // Usa viewLifecycleOwner.lifecycleScope per legare la coroutine alla VISTA
+        viewLifecycleOwner.lifecycleScope.launch {
+            Log.d(TAG, "Avvio coroutine per layer: $tableName")
+
+            val processedData = withContext(Dispatchers.IO) {
+                loadAndProcessFeaturesInBackground(tableName, featureInfo)
             }
+
+            // --- CONTROLLO DI SICUREZZA POST-COROUTINE ---
+            // Ricontrolla se la vista è ancora valida PRIMA di toccare la UI
+            if (_binding == null) {
+                Log.w(TAG, "Vista distrutta dopo caricamento per $tableName. Annullamento.")
+                layerModel.loadingStatus[tableName] = false // Rilascia il blocco
+                return@launch
+            }
+            // ---------------------------------------------
+
+            binding.loadingProgressBar.visibility = View.GONE
+
+            val createdOverlays = mutableListOf<org.osmdroid.views.overlay.Overlay>()
+            processedData.points?.let { createdOverlays.addAll(creaOverlayPunti(it, featureInfo)) }
+            processedData.polygons?.let { createdOverlays.addAll(creaOverlayPoligoni(it, featureInfo)) }
+            processedData.lineStrings?.let { createdOverlays.addAll(creaOverlayLinee(it, featureInfo)) }
+
+            // Salva e aggiungi i nuovi overlay
+            featureInfo.listOverlay = createdOverlays
+            mapView.overlays.addAll(createdOverlays)
+            mapView.invalidate()
+            Log.d(TAG, "Aggiunti ${createdOverlays.size} nuovi overlay per $tableName")
+
+            // Rilascia il blocco alla fine
+            layerModel.loadingStatus[tableName] = false
         }
     }
+
 
     private fun creaOverlayPoligoni(
-        osmdroidPolygonsToAdd: MutableList<Polygon>,
-        featureInfo: FeatureTableInfo
-    ) {
+        osmdroidPolygonsToAdd: MutableList<Polygon>,featureInfo: FeatureTableInfo
+    ): List<org.osmdroid.views.overlay.Overlay> { // <-- MODIFICA CHIAVE
         val polyOverlay = FolderOverlay()
-
-        // Ordina i poligoni per area del bounding box, in ordine decrescente.
-        // I poligoni con area minore verranno aggiunti per ultimi alla lista,
-        // quindi verranno disegnati sopra e riceveranno per primi l'evento di click.
-        osmdroidPolygonsToAdd.sortByDescending { it.bounds.latitudeSpan * it.bounds.longitudeSpan }
+        polyOverlay.name = featureInfo.name // Aggiungi il nome per coerenza
 
         osmdroidPolygonsToAdd.forEach {
-            polyOverlay.add(it) // 'it' è il nuovo poligono con il nuovo listener
+            polyOverlay.add(it)
         }
-        if (featureInfo.listOverlay == null) {
-            featureInfo.listOverlay = mutableListOf()
-        }
-        featureInfo.listOverlay?.add(polyOverlay) // Aggiungi il nuovo FolderOverlay alla lista
-        mapView.overlayManager.add(polyOverlay) // Aggiungi il nuovo FolderOverlay alla mappa
+
+        return listOf(polyOverlay) // Restituisci il FolderOverlay creato
     }
+
 
     private fun creaOverlayPunti(
         points: MutableList<IGeoPoint>,
         featureInfo: FeatureTableInfo
-    ) {
+    ): List<org.osmdroid.views.overlay.Overlay> { // <-- MODIFICA CHIAVE
         val theme = SimplePointTheme(points, false)
         // create label style
         val textStyle = Paint().apply {
@@ -2374,16 +2385,20 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // create point style
         val PointStyle = Paint().apply {
             style = Paint.Style.FILL
-            //color = "#114190".toColorInt()
-            color = featureInfo.colore.toColorInt()
             textAlign = Paint.Align.CENTER
             textSize = 24f
+            try {
+                color = featureInfo.colore.toColorInt()
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "Colore non valido per il layer di punti '${featureInfo.name}'. Uso il colore di default.")
+                color = Color.BLUE // Imposta un colore di fallback
+            }
         }
         // set some visual options for the overlay
         // we use here MAXIMUM_OPTIMIZATION algorithm, which works well with >100k points
         val opt = SimpleFastPointOverlayOptions.getDefaultStyle()
-            //.setAlgorithm(SimpleFastPointOverlayOptions.RenderingAlgorithm.MAXIMUM_OPTIMIZATION)
-            .setAlgorithm(SimpleFastPointOverlayOptions.RenderingAlgorithm.NO_OPTIMIZATION)
+            .setAlgorithm(SimpleFastPointOverlayOptions.RenderingAlgorithm.MAXIMUM_OPTIMIZATION)
+            //.setAlgorithm(SimpleFastPointOverlayOptions.RenderingAlgorithm.NO_OPTIMIZATION)
             .setRadius(7F)
             .setSymbol(SimpleFastPointOverlayOptions.Shape.CIRCLE)
             .setIsClickable(true)
@@ -2392,30 +2407,29 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             .setTextStyle(textStyle)
         val sfpo = SimpleFastPointOverlay(theme, opt)
         // 2. Inizializza listOverlay se è null
-        if (featureInfo.listOverlay == null) {
-            featureInfo.listOverlay = mutableListOf()
-        }
+        //if (featureInfo.listOverlay == null) {
+        //    featureInfo.listOverlay = mutableListOf()
+        //}
         // add overlay
         featureInfo.listOverlay?.add(sfpo)
         sfpo.setOnClickListener { points, point ->
             points[point].toString()
             (points[point] as LabelledGeoPoint).label?.let {
-                mostraAlertDialogSemplice(
-                    it
-                )
+                mostraAlertDialogSemplice(it)
             }
         }
-        if (!mapView.overlays.contains(sfpo)) {
+        /*if (!mapView.overlays.contains(sfpo)) {
             mapView.overlays.add(sfpo)
-        }
+        }*/
+        return listOf(sfpo)
     }
 
     private fun creaOverlayLinee(
-        lineStringToAdd: MutableList<LineStringFeature>, // Questa è una lista di mil.nga.sf.LineString
+        lineStringToAdd: MutableList<LineStringFeature>,
         featureInfo: FeatureTableInfo
-    ) {
-        val lineOverlayFolder =
-            FolderOverlay() // Questo è l'overlay che deve essere in featureInfo.listOverlay
+    ): List<org.osmdroid.views.overlay.Overlay> { // <-- MODIFICA CHIAVE
+        val lineOverlayFolder = FolderOverlay()
+        lineOverlayFolder.name = featureInfo.name //
 
         lineStringToAdd.forEachIndexed { index, lineFeature ->
             // 1. Crea un Polyline di osmdroid dalla LineString NGA
@@ -2462,6 +2476,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (!mapView.overlays.contains(lineOverlayFolder)) {
             mapView.overlays.add(lineOverlayFolder)
         }
+        return listOf(lineOverlayFolder) // Restituisci il FolderOverlay creato
     }
 
     private fun processPointGeometry(
@@ -2494,8 +2509,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 ngaPolygon,
                 tableName,
                 featureRow,
-                colore,
-                0 // Indice 0 per poligoni singoli
+                colore
             )
         )
     }
@@ -2509,19 +2523,18 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val geometryData = featureRow.geometry
         val geometry = geometryData.geometry
         val ngaMultiPolygon = geometry as MultiPolygon
-        // Aggiungi un indice per creare ID univoci per ogni poligono nel MultiPolygon
-        ngaMultiPolygon.polygons.forEachIndexed { index, ngaPolygon ->
+        ngaMultiPolygon.polygons.forEach { ngaPolygon ->
             osmdroidPolygonsToAdd.add(
                 createOsmPolygonFromNgaPolygon(
                     ngaPolygon,
                     tableName,
                     featureRow,
-                    colore,
-                    index // Passa l'indice per garantire un ID univoco
+                    colore
                 )
             )
         }
     }
+
     private fun processLineStringGeometry(
         featureRow: FeatureRow,
         tableName: String,
@@ -2626,57 +2639,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    private fun showPolygonInfoFromDatabase(polygon: Polygon) {
-        val polygonId = polygon.id
-        Log.d("POLYGON_DEBUG", "QUERY: Function received ID='${polygonId}' for DB lookup.")
-
-        if (polygonId.isNullOrBlank()) {
-            (polygon.relatedObject as? String)?.let { mostraAlertDialogSemplice(it) }
-            return
-        }
-
-        val parts = polygonId.split('_')
-        if (parts.size < 3) { // Formato ID deve essere almeno NOME_ID_INDICE
-            Log.e("POLYGON_DEBUG", "ID format invalid, cannot parse: '$polygonId'")
-            return
-        }
-
-        // L'ID della riga è sempre il penultimo elemento
-        val rowId = parts[parts.size - 2].toLongOrNull()
-        // Tutto il resto prima del rowId e dell'indice è il nome della tabella
-        val tableName = parts.dropLast(2).joinToString("_")
-
-        if (rowId != null && tableName.isNotEmpty()) {
-            lifecycleScope.launch {
-                val label = withContext(Dispatchers.IO) {
-                    try {
-                        val geoPackage = layerModel.geoPackageInstance
-                        val featureDao = geoPackage?.getFeatureDao(tableName)
-
-                        // --- ERRORE CORRETTO: Usa queryForIdRow invece di queryForRowId ---
-                        val featureRow = featureDao?.queryForIdRow(rowId)
-
-                        if (featureRow != null) {
-                            layerModel.creaLabel(featureRow, tableName)
-                        } else {
-                            Log.w("POLYGON_DEBUG", "QUERY_FAIL: Feature with ID '$rowId' not found in table '$tableName'.")
-                            null
-                        }
-                    } catch (e: Exception) {
-                        Log.e("POLYGON_DEBUG", "QUERY_ERROR: DB error for ID '$polygonId'.", e)
-                        null
-                    }
-                }
-                if (label != null) {
-                    mostraAlertDialogSemplice(label)
-                } else {
-                    Toast.makeText(requireContext(), "Dettagli non trovati per l'ID: $polygonId", Toast.LENGTH_SHORT).show()
-                }
-            }
-        } else {
-            Log.e("POLYGON_DEBUG", "Could not parse tableName or rowId from polygon ID: '$polygonId'")
-        }
-    }
 
     // --- Inizio Funzioni di Registrazione Audio ---
     @RequiresApi(Build.VERSION_CODES.S)
