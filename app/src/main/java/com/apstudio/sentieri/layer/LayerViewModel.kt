@@ -23,7 +23,7 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
 
     var geoPackageInstance: GeoPackage? = null
         private set // Rendi il setter privato se l'apertura è gestita internamente
-
+    val loadingStatus = mutableMapOf<String, Boolean>()
     // Assumendo che featureList e labelConfig siano ancora qui
     val featureList: MutableList<FeatureTableInfo> = mutableListOf() // Inizializza come necessario
     var labelConfig: MutableMap<String, List<FieldSchemaInfo>> = mutableMapOf()

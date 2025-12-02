@@ -104,12 +104,9 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
-        Log.d(TAG, "GpkgLayer onDismiss called.")
+        Log.d(TAG, "GpkgLayer onDismiss called. Invio risultato UNA SOLA VOLTA.")
+        // Invia il risultato al MappaFragment, che ora sa di dover rinfrescare lo stato.
         parentFragmentManager.setFragmentResult(LAYER_DIALOG_REQUEST_KEY, Bundle.EMPTY)
-        // Non è più necessario chiamare closeGeoPackage() qui,
-        // il ViewModel lo gestirà in onCleared() se ha scope Application.
-        // Se lo scope del ViewModel è legato al Fragment, onCleared verrà chiamato
-        // quando il Fragment viene distrutto.
     }
 
     override fun onDestroy() {
@@ -127,18 +124,13 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
             return
         }
         val featureInfo = layerModel.featureList[position]
-        featureInfo.isVisible = isChecked
-        Log.d(
-            "SwitchDebug",
-            "Model isVisible for ${featureInfo.name} UPDATED TO: ${featureInfo.isVisible}"
-        )
-        // Qui dovresti anche gestire la logica per mostrare/nascondere gli overlay sulla mappa.
-        // Ad esempio, chiamando un metodo in MappaFragment o tramite un LiveData condiviso.
-        // Se MappaFragment osserva featureList, potrebbe reagire a questo cambiamento.
-        layerModel.currentActiveTableName = featureInfo.name
-        // Notifica l'adapter che l'item è cambiato per ridisegnarlo (se necessario)
-        adapter.notifyItemChanged(position)
+        // Aggiorna solo lo stato del modello.
+        if (featureInfo.isVisible != isChecked) {
+            featureInfo.isVisible = isChecked
+            Log.d("SwitchDebug", "Stato 'isVisible' per ${featureInfo.name} aggiornato a: $isChecked nel modello.")
+        }
     }
+
 
     override fun onItemClick(position: Int) {
         if (position < 0 || position >= layerModel.featureList.size) {
