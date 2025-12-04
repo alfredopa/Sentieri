@@ -39,7 +39,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         private const val MOVING_AVERAGE_WINDOW_SIZE = 9 // Numero di valori da tenere in memoria per la media
     }
 
-    val listaTracce = FolderOverlay()
+    var listaTracce : FolderOverlay = FolderOverlay()
     val recTraccia = FolderOverlay()
     val topoLayer = FolderOverlay()
     var line : Polyline = Polyline()

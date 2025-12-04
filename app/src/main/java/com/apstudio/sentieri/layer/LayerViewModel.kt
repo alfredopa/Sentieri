@@ -21,6 +21,7 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
         private const val CONFIG_FILE_NAME = "db_schema_config.xml"
     }
 
+    var isReturningFromFeatureClick: Boolean = false
     var geoPackageInstance: GeoPackage? = null
         private set // Rendi il setter privato se l'apertura è gestita internamente
     val loadingStatus = mutableMapOf<String, Boolean>()
