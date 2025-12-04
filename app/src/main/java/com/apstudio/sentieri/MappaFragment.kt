@@ -144,6 +144,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     companion object {
         private const val TAG_AUDIO = "AudioRecording" // Tag per log audio
+
         // Il nome del package dell'app BRouter e il nome del servizio (dal manifest di BRouter)
         private const val BROUTER_PACKAGE = "btools.routingapp"
         private const val BROUTER_SERVICE_CLASS = "btools.routingapp.BRouterService"
@@ -193,6 +194,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private val PIN_RED = R.drawable.pin_rosso
     private val PIN_BLACK = R.drawable.pin_nero
     private var coloreTraccia: Int = 0
+
     // Variabili per la registrazione audio
     private var audioFileName: String? = null
     private var mediaRecorder: MediaRecorder? = null
@@ -202,6 +204,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private var isAudioRecording = false
     private val recordingDurationMs: Long = 5000 // 5 secondi
     private val audioHandler = Handler(Looper.getMainLooper())
+
     // BRouter
     private var brouterService: IBRouterService? = null
     private var isBound = false
@@ -209,6 +212,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private var isSelectingDestination = false
     private var startPointForRouting: GeoPoint? = null
     private var endPointForRouting: GeoPoint? = null
+
     // 1. Registra il launcher per ricevere il risultato dell'attività
     private val mapFileSelectorLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -220,6 +224,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
     }
+
     // 2. Launcher per la selezione dei file .gpx
     private val gpxFileSelectorLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -231,6 +236,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
     }
+
     // Launcher per i permessi in primo piano (FINE_LOCATION e, se serve, FOREGROUND_SERVICE_LOCATION)
     private val requestFineLocationLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
@@ -238,10 +244,18 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // Controlla se tutti i permessi sono stati concessi.
             if (permissions.all { it.value }) {
                 // Permessi concessi. Mostra un messaggio all'utente per informarlo.
-                Toast.makeText(requireContext(), "Permesso di posizione concesso. Premi di nuovo per avviare la registrazione.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    requireContext(),
+                    "Permesso di posizione concesso. Premi di nuovo per avviare la registrazione.",
+                    Toast.LENGTH_LONG
+                ).show()
             } else {
                 // Uno o più permessi sono stati negati.
-                Toast.makeText(requireContext(), "Senza il permesso di posizione, la mappa non può mostrare la tua localizzazione.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    requireContext(),
+                    "Senza il permesso di posizione, la mappa non può mostrare la tua localizzazione.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
 
@@ -250,10 +264,18 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted) {
                 // Permesso concesso. Informa l'utente che ora può avviare la registrazione.
-                Toast.makeText(requireContext(), "Permesso per il background concesso. Ora puoi avviare la registrazione.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    requireContext(),
+                    "Permesso per il background concesso. Ora puoi avviare la registrazione.",
+                    Toast.LENGTH_LONG
+                ).show()
             } else {
                 // L'utente ha negato.
-                Toast.makeText(requireContext(), "La registrazione funzionerà solo con l'app aperta.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    requireContext(),
+                    "La registrazione funzionerà solo con l'app aperta.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
 
@@ -313,7 +335,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         layerModel.featureList.forEach { featureInfo ->
             // Rimuovi sempre i vecchi overlay dalla mappa, se esistono, per evitare duplicati.
             featureInfo.listOverlay?.let { existingOverlays ->
-                if (existingOverlays.isNotEmpty()) {mapView.overlays.removeAll(existingOverlays.toSet())
+                if (existingOverlays.isNotEmpty()) {
+                    mapView.overlays.removeAll(existingOverlays.toSet())
                 }
             }
 
@@ -321,11 +344,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 // Se il layer deve essere visibile...
                 if (featureInfo.listOverlay.isNullOrEmpty()) {
                     // ...e non abbiamo gli overlay in memoria, caricali da capo.
-                    Log.d(TAG, "Il layer ${featureInfo.name} è visibile e non caricato. Avvio caricamento.")
+                    Log.d(
+                        TAG,
+                        "Il layer ${featureInfo.name} è visibile e non caricato. Avvio caricamento."
+                    )
                     puntiSuMappa(featureInfo.name, featureInfo)
                 } else {
                     // ...e abbiamo già gli overlay in memoria, semplicemente ri-aggiungili alla NUOVA mapView.
-                    Log.d(TAG, "Il layer ${featureInfo.name} è già caricato. Ri-aggiungo ${featureInfo.listOverlay!!.size} overlay alla mappa.")
+                    Log.d(
+                        TAG,
+                        "Il layer ${featureInfo.name} è già caricato. Ri-aggiungo ${featureInfo.listOverlay!!.size} overlay alla mappa."
+                    )
                     mapView.overlays.addAll(featureInfo.listOverlay!!)
                 }
             } else {
@@ -337,56 +366,37 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.invalidate() // Forza un singolo ridisegno alla fine di tutte le operazioni.
     }
 
-
-
-
     // Helper function to re-attach listeners
-    private fun reattachListenersToOverlay(
-        overlay: org.osmdroid.views.overlay.Overlay
-    ) {
-        if (!isAdded || context == null) { // Ensure fragment is attached and has context
-            Log.w(TAG, "reattachListenersToOverlay: Fragment not attached or context is null.")
-            return
-        }
+    private fun reattachListenersToOverlay(overlay: org.osmdroid.views.overlay.Overlay) {
+        if (!isAdded) return // Controllo di sicurezza
 
         when (overlay) {
-            is SimpleFastPointOverlay -> {
-                // Re-attach listener for SimpleFastPointOverlay (created by creaOverlayPunti)
-                overlay.setOnClickListener { points, pointClicked ->
-                    (points[pointClicked] as? LabelledGeoPoint)?.label?.let { label ->
-                        mostraAlertDialogSemplice(label) //, featureInfo.descrTabella)
-                    }
-                }
-            }
-
             is FolderOverlay -> {
-                // Re-attach listeners for items within a FolderOverlay
-                overlay.items.forEach { item ->
-                    when (item) {
-                        is Polygon -> {
-                            //Log.d(TAG, "Polygon trovato in reattachListeners. Il listener originale viene preservato.")
-                        }
-
-                        is Polyline -> {
-                            // Re-attach listener for Polylines
-                            // Crucially, re-initialize InfoWindow with the current mapView instance
-                            item.infoWindow = BasicInfoWindow(
-                                R.layout.bonuspack_bubble,
-                                mapView
-                            )
-                            item.setOnClickListener { clickedPolyline, map, eventPosition ->
-                                clickedPolyline.infoWindowLocation = eventPosition
-                                clickedPolyline.showInfoWindow()
-                                map.controller.animateTo(eventPosition)
-                                true
-                            }
-                        }
-                    }
+                // Applica ricorsivamente ai figli
+                overlay.items.forEach { reattachListenersToOverlay(it) }
+            }
+            is SimpleFastPointOverlay, is Polygon -> {
+                // --- MODIFICA FONDAMENTALE ---
+                // NON FACCIAMO NULLA PER PUNTI E POLIGONI.
+                // Il loro listener "intelligente" basato su ID è stato impostato
+                // alla creazione e non deve essere toccato.
+                Log.d("ListenerDebug", "Preservo listener originale per ${overlay.javaClass.simpleName}")
+            }
+            is Polyline -> {
+                // La logica per le Polyline è CORRETTA e deve rimanere,
+                // perché l'InfoWindow dipende dall'istanza attuale della mapView.
+                Log.d("ListenerDebug", "Ri-attacco InfoWindow per Polyline")
+                overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
+                overlay.setOnClickListener { clickedPolyline, map, eventPosition ->
+                    clickedPolyline.infoWindowLocation = eventPosition
+                    clickedPolyline.showInfoWindow()
+                    map.controller.animateTo(eventPosition)
+                    true
                 }
             }
-            // Add other overlay types here if necessary
         }
     }
+
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -430,67 +440,79 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             arguments?.clear()
         }
 
-        // Imposta il listener per il risultato da GpkgLayer
+        // Imposta il listener per il risultato da GpkgLayer.
+        // La logica di aggiornamento (onReturnFromLayerDialog) è stata centralizzata// in onResume() per evitare chiamate duplicate e garantire che la UI si
+        // aggiorni in modo affidabile ogni volta che il fragment diventa visibile.
         parentFragmentManager.setFragmentResultListener(
             LAYER_DIALOG_REQUEST_KEY,
             viewLifecycleOwner
         ) { requestKey, _ ->
             if (requestKey == LAYER_DIALOG_REQUEST_KEY) {
-                // Chiama la funzione UNA SOLA VOLTA. La funzione stessa conterrà il loop.
-                onReturnFromLayerDialog()
+                // Esegui questo solo se NON stiamo tornando da un click su una feature.
+                // Usiamo una variabile nel ViewModel per tracciare questa azione.
+                if (!layerModel.isReturningFromFeatureClick) {
+                    Log.d(TAG, "Risultato da GpkgLayer ricevuto. Eseguo sincronizzazione.")
+                    applicaModificheLayer()
+                } else {
+                    // Resetta il flag per la prossima volta
+                    Log.d(TAG, "Ignoro il risultato di GpkgLayer perché sto tornando da un click su feature.")
+                    layerModel.isReturningFromFeatureClick = false
+                }
             }
         }
 
         // Ascolta i risultati da FeatureList
         parentFragmentManager.setFragmentResultListener(
             "feature_click_request",
-            this
+            viewLifecycleOwner // Usa viewLifecycleOwner, più sicuro
         ) { requestKey, bundle ->
             if (requestKey == "feature_click_request") {
+                layerModel.isReturningFromFeatureClick = true
                 val latitude = bundle.getDouble("clicked_latitude")
                 val longitude = bundle.getDouble("clicked_longitude")
 
-                // Controlla se le coordinate sono valide (non 0.0, che è il default se non trovate)
                 if (latitude != 0.0 && longitude != 0.0) {
                     val clickedPoint = GeoPoint(latitude, longitude)
+                    val animationDuration = 1200L // Durata dell'animazione in ms
 
-                    // Logica per evidenziare e zoomare
-                    Log.d(TAG, "Ricevuto click su feature alle coordinate: $clickedPoint")
-                    Toast.makeText(
-                        requireContext(),
-                        "Spostamento sulla feature selezionata...",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Log.d(TAG, "Ricevuto click su feature alle coordinate: $clickedPoint imposto il flag isReturningFromFeatureClick")
 
-                    // Anima lo spostamento della mappa verso il punto
+                    // 1. Avvia l'animazione della mappa usando una firma del metodo valida.
                     mapView.controller.animateTo(
                         clickedPoint,
-                        12.5,
-                        1000L
-                    ) // Zoom a livello 18.5 in 1 secondo
+                        12.5, // Zoom a un livello appropriato
+                        animationDuration
+                    )
 
-                    // Evidenzia il punto (opzionale ma molto utile)
-                    // Puoi creare un marker temporaneo che scompare dopo pochi secondi
+                    // 2. Posticipa l'invalidazione della mappa per risolvere la race condition.
+                    //    Usa un ritardo leggermente superiore a quello dell'animazione.
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        // Controlla se la vista è ancora valida prima di invalidare
+                        if (_binding != null) {
+                            mapView.invalidate()
+                            Log.d(TAG, "Mappa invalidata dopo l'animazione.")
+                        }
+                    }, animationDuration + 200) // Aggiungi un piccolo buffer di 200ms
+
+                    // --- Logica per l'highlight marker (invariata) ---
                     val highlightMarker = Marker(mapView).apply {
                         position = clickedPoint
-                        // Usa un'icona distintiva per l'highlight
-                        icon = ContextCompat.getDrawable(
-                            requireContext(),
-                            R.drawable.gps_on
-                        ) // Crea questa icona
+                        icon = ContextCompat.getDrawable(requireContext(), R.drawable.gps_on)
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                     }
                     mapView.overlays.add(highlightMarker)
-                    mapView.invalidate()
+                    mapView.invalidate() // Invalida subito per mostrare il marker
 
-                    // Rimuovi il marker di highlight dopo un breve ritardo
                     Handler(Looper.getMainLooper()).postDelayed({
-                        mapView.overlays.remove(highlightMarker)
-                        mapView.invalidate()
-                    }, 6000) // Rimuovi dopo 6 secondi
+                        if (_binding != null) {
+                            mapView.overlays.remove(highlightMarker)
+                            mapView.invalidate()
+                        }
+                    }, 6000)
                 }
             }
         }
+
         // aggiunge il bottomsheet ed il menu
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
         // Set the initial state to hidden AFTER the layout is complete
@@ -629,7 +651,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     exitDestinationSelectionMode()
                 }
             } else {
-                Toast.makeText(requireContext(), "Calcolo percorso solo con registrazione avviata", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    requireContext(),
+                    "Calcolo percorso solo con registrazione avviata",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
 
         }
@@ -639,13 +665,18 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // 1. Prendi il punto di destinazione dal marker
             val destinationPoint = destinationMarker?.position
             if (destinationPoint == null) {
-                Toast.makeText(requireContext(), "Posizione di destinazione non valida.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    requireContext(),
+                    "Posizione di destinazione non valida.",
+                    Toast.LENGTH_SHORT
+                ).show()
                 return@setOnClickListener
             }
 
             // 2. Salva i punti nelle variabili di istanza
             //    Usa la posizione GPS corrente come partenza, o una fissa se non disponibile
-            startPointForRouting = gpsMarker.position ?: currentTrackPolyline.actualPoints.firstOrNull()
+            startPointForRouting =
+                gpsMarker.position ?: currentTrackPolyline.actualPoints.firstOrNull()
             endPointForRouting = destinationPoint
 
             // 3. Avvia il processo di binding. La logica in onServiceConnected farà il resto.
@@ -658,11 +689,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
                 try {
                     requireContext().bindService(intent, connection, Context.BIND_AUTO_CREATE)
-                    Log.d(TAG, "Tentativo di connessione a BRouterService per il calcolo del percorso...")
-                    Toast.makeText(requireContext(), "Calcolo percorso in corso...", Toast.LENGTH_SHORT).show()
+                    Log.d(
+                        TAG,
+                        "Tentativo di connessione a BRouterService per il calcolo del percorso..."
+                    )
+                    Toast.makeText(
+                        requireContext(),
+                        "Calcolo percorso in corso...",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 } catch (e: SecurityException) {
-                    Log.e(TAG, "Impossibile connettersi: BRouter non è installato o mancano i permessi. ${e.message}")
-                    Toast.makeText(requireContext(), "Impossibile avviare BRouter.", Toast.LENGTH_LONG).show()
+                    Log.e(
+                        TAG,
+                        "Impossibile connettersi: BRouter non è installato o mancano i permessi. ${e.message}"
+                    )
+                    Toast.makeText(
+                        requireContext(),
+                        "Impossibile avviare BRouter.",
+                        Toast.LENGTH_LONG
+                    ).show()
                     // Pulisci i punti in caso di errore
                     startPointForRouting = null
                     endPointForRouting = null
@@ -826,6 +871,73 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
+    private fun showPolygonInfoFromDatabase(polygon: Polygon) {
+        val polygonId = polygon.id
+        Log.d("POLYGON_DEBUG", "QUERY: Function received ID='${polygonId}' for DB lookup.")
+
+        if (polygonId.isNullOrBlank()) {
+            (polygon.relatedObject as? String)?.let { mostraAlertDialogSemplice(it) }
+            return
+        }
+
+        val parts = polygonId.split('_')
+        if (parts.size < 3) { // Formato ID deve essere almeno NOME_ID_INDICE
+            Log.e("POLYGON_DEBUG", "ID format invalid, cannot parse: '$polygonId'")
+            return
+        }
+
+        // L'ID della riga è sempre il penultimo elemento
+        val rowId = parts[parts.size - 2].toLongOrNull()
+        // Tutto il resto prima del rowId e dell'indice è il nome della tabella
+        val tableName = parts.dropLast(2).joinToString("_")
+
+        if (rowId != null && tableName.isNotEmpty()) {
+            lifecycleScope.launch {
+                val label = withContext(Dispatchers.IO) {
+                    try {
+                        val geoPackage = layerModel.geoPackageInstance
+                        val featureDao = geoPackage?.getFeatureDao(tableName)
+
+                        // --- ERRORE CORRETTO: Usa queryForIdRow invece di queryForRowId ---
+                        val featureRow = featureDao?.queryForIdRow(rowId)
+
+                        if (featureRow != null) {
+                            Log.d(
+                                "POLYGON_DEBUG",
+                                "QUERY_SUCCESS: Feature with ID '$rowId' found in table '$tableName'."
+                            )
+                            layerModel.creaLabel(featureRow, tableName)
+                        } else {
+                            Log.w(
+                                "POLYGON_DEBUG",
+                                "QUERY_FAIL: Feature with ID '$rowId' not found in table '$tableName'."
+                            )
+                            null
+                        }
+                    } catch (e: Exception) {
+                        Log.e("POLYGON_DEBUG", "QUERY_ERROR: DB error for ID '$polygonId'.", e)
+                        null
+                    }
+                }
+                if (label != null) {
+                    mostraAlertDialogSemplice(label)
+                } else {
+                    Toast.makeText(
+                        requireContext(),
+                        "Dettagli non trovati per l'ID: $polygonId",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        } else {
+            Log.e(
+                "POLYGON_DEBUG",
+                "Could not parse tableName or rowId from polygon ID: '$polygonId'"
+            )
+        }
+    }
+
+
     // aggiunge il click listener alla polyline per aprire l'info window
     private fun setPolylineClickListener(polyline: Polyline) {
         polyline.setOnClickListener { mpolyline, mapView, eventPos ->
@@ -855,7 +967,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.onResume()
         preferenze.registerOnSharedPreferenceChangeListener(this)
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
-        //Log.d(TAG, "onResume: Sincronizzato viewModel.setBaro a: ${viewModel.setBaro}")
+        Log.d(TAG, "onResume ESEGUITO. Avvio sincronizzazione UI...")
+        // CHIAMATA 1: Gestisce il ritorno da altri fragment e il ripristino generale dello stato.
+        applicaModificheLayer()
+
         if (viewModel.isRecording) {
             Log.d(TAG, "onResume: La registrazione è attiva. Ripristino lo stato della traccia.")
             // 1. Richiedi l'intera lista di punti dal repository.
@@ -872,6 +987,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             bottomSheetBehavior.state = viewModel.bottomState
             showCustomSnackbar(binding.root, "Registrazione in corso")
         }
+
         //Log.d("Mappa", "MappaFragment onResume ")
         // Controlli per verificare valori da altri fragment da scheda sentieri e visualizzazione waypoint
         // verifica se è valorizzata line, quindi è stato passsata dal pulsante Segui
@@ -950,8 +1066,47 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             viewModel.poi = GeoPoint(0.0, 0.0, 0.0)
         }
 
-        // ridisegna eventuali layer aggiunti da GpkgLayer
-        onReturnFromLayerDialog()
+        mapView.invalidate()
+
+    }
+
+    private fun applicaModificheLayer() {
+        if (_binding == null) {
+            Log.w(TAG, "sincronizzaUIConStato chiamato ma la vista è nulla. Interruzione.")
+            return
+        }
+        Log.d(TAG, "Eseguo sincronizzazione completa della UI con lo stato del ViewModel.")
+
+        // 1. Logica dei Layer (da onReturnFromLayerDialog)
+        // Itera su tutti i layer e aggiorna la loro visibilità sulla mappa.
+        layerModel.featureList.forEach { featureInfo ->
+            // Rimuovi sempre i vecchi overlay per evitare duplicati
+            featureInfo.listOverlay?.let { existingOverlays ->
+                if (existingOverlays.isNotEmpty()) {
+                    mapView.overlays.removeAll(existingOverlays.toSet())
+                }
+            }
+            // Se il layer deve essere visibile, caricalo o ri-aggiungilo
+            if (featureInfo.isVisible) {
+                if (featureInfo.listOverlay.isNullOrEmpty()) {
+                    Log.d(
+                        TAG,
+                        "SINC: Il layer ${featureInfo.name} è visibile e non caricato. Avvio caricamento."
+                    )
+                    puntiSuMappa(featureInfo.name, featureInfo)
+                } else {
+                    Log.d(
+                        TAG,
+                        "SINC: Il layer ${featureInfo.name} è già caricato. Ri-aggiungo ${featureInfo.listOverlay!!.size} overlay alla mappa."
+                    )
+                    mapView.overlays.addAll(featureInfo.listOverlay!!)
+                    featureInfo.listOverlay!!.forEach { reattachListenersToOverlay(it) }
+                }
+            } else {
+                // Se il layer NON deve essere visibile, svuotiamo la sua lista in memoria.
+                featureInfo.listOverlay?.clear()
+            }
+        }
 
         // toponimi
         displayedTopoMarkers.forEach { mapView.overlays.remove(it) }
@@ -1010,8 +1165,19 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.overlays.add(newMarker)
             }
         }
-        mapView.invalidate()
 
+        // 2. Logica della Traccia in Registrazione (da onResume)
+        if (viewModel.isRecording) {
+            Log.d(TAG, "SINC: La registrazione è attiva. Ripristino lo stato della traccia.")
+            LocationRepository.requestFullTrack() // Forza il ridisegno della traccia
+            // Ripristina lo stato visivo della UI di registrazione
+            accendiSchermo()
+            bottomSheetBehavior.isHideable = false
+            bottomSheetBehavior.peekHeight = 120
+            bottomSheetBehavior.state = viewModel.bottomState
+            showCustomSnackbar(binding.root, "Registrazione in corso")
+        }
+        mapView.invalidate()
     }
 
     override fun onPrepareMenu(menu: Menu) {
@@ -1105,7 +1271,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 theme = InternalRenderTheme.OSMARENDER
             }
 
-            val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, "ThemeName") // Il nome qui non è cruciale
+            val fromFiles = MapsForgeTileSource.createFromFiles(
+                maps,
+                theme,
+                "ThemeName"
+            ) // Il nome qui non è cruciale
             forgeMappa = MapsForgeTileProvider(
                 SimpleRegisterReceiver(activity),
                 fromFiles, null
@@ -1151,7 +1321,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 // Caso di default: se viene passato un indice non valido (come 0),
                 // imposta comunque una mappa di default (es. OpenStreetMap) e aggiorna l'indice.
                 // Questo gestisce anche la tua condizione iniziale.
-                Log.w(TAG, "Indice mappa non valido ($mappa), impostazione predefinita su OpenStreetMap (1).")
+                Log.w(
+                    TAG,
+                    "Indice mappa non valido ($mappa), impostazione predefinita su OpenStreetMap (1)."
+                )
                 MapTileProviderBasic(context, TileSourceFactory.MAPNIK)
             }
         }
@@ -1838,9 +2011,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     stopGPS()
                 } else {
                     // Controlla se il GPS è attivo prima di procedere con i permessi
-                    val locationManager = requireContext().getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                    val locationManager =
+                        requireContext().getSystemService(Context.LOCATION_SERVICE) as LocationManager
                     if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                        Toast.makeText(requireContext(), "Attiva il GPS per la registrazione.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            requireContext(),
+                            "Attiva il GPS per la registrazione.",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     } else {
                         // Il GPS è attivo, procedi con la logica di avvio
                         avviaLogicaRegistrazione()
@@ -1852,12 +2030,20 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             R.id.poi -> {
                 if (viewModel.isRecording) {
                     if (!viewModel.isFixed) {
-                        Toast.makeText(requireActivity(), "Fix Gps non ancora disponbile", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            requireActivity(),
+                            "Fix Gps non ancora disponbile",
+                            Toast.LENGTH_LONG
+                        ).show()
                     } else {
                         creaWayPoint()
                     }
                 } else {
-                    Toast.makeText(requireActivity(), "Waypoint solo in modalita' registrazione traccia", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        requireActivity(),
+                        "Waypoint solo in modalita' registrazione traccia",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
                 true
             }
@@ -1881,7 +2067,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     requireContext().bindService(intent, connection, Context.BIND_AUTO_CREATE)
                     Log.d(TAG, "Tentativo di connessione a BRouterService...")
                 } catch (e: SecurityException) {
-                    Log.e(TAG, "Impossibile connettersi al servizio. L'app BRouter è installata? ${e.message}")
+                    Log.e(
+                        TAG,
+                        "Impossibile connettersi al servizio. L'app BRouter è installata? ${e.message}"
+                    )
                 }
                 true
             }
@@ -1905,7 +2094,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 permissionsToRequest.add(Manifest.permission.FOREGROUND_SERVICE_LOCATION)
             }
             requestFineLocationLauncher.launch(permissionsToRequest.toTypedArray())
-            Toast.makeText(requireContext(), "È richiesto il permesso per la posizione.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                requireContext(),
+                "È richiesto il permesso per la posizione.",
+                Toast.LENGTH_SHORT
+            ).show()
             return
         }
 
@@ -2061,6 +2254,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     mapView.controller.zoomIn()
                     return true // Evento gestito
                 }
+
                 KEYCODE_VOLUME_DOWN -> {
                     mapView.controller.zoomOut()
                     return true // Evento gestito
@@ -2098,6 +2292,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 viewModel.setBaro = sharedPreferences.getBoolean(key, false)
                 Log.d(TAG, "Preferenza 'setBaro' aggiornata a: ${viewModel.setBaro}")
             }
+
             "haBaro" -> {
                 // Anche se questo valore non dovrebbe cambiare, è buona norma gestirlo.
                 viewModel.haBaro = sharedPreferences.getBoolean(key, false)
@@ -2203,30 +2398,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 osmdroidPolygon.holes = holes
             }
         }
-// --- LOGICA CHIAVE PER LA SINCRONIZZAZIONE ---
-// 1. Memorizza l'ID univoco della feature, non l'etichetta pre-calcolata.
+        // --- LOGICA CHIAVE PER LA SINCRONIZZAZIONE ---
+        // 1. Memorizza l'ID univoco della feature, non l'etichetta pre-calcolata.
         val featureId = featureRow.id
         osmdroidPolygon.relatedObject = featureId // Memorizza il Long dell'ID
 
-// 2. Imposta l'UNICO listener che questo poligono avrà mai.
-// --- NUOVO LISTENER CON DEBUG AVANZATO ---
+        // 2. Imposta l'UNICO listener che questo poligono avrà mai.
         osmdroidPolygon.setOnClickListener { polygon, mapView, eventPosition ->
-            // 1. Recupera l'ID del poligono che ha ricevuto il click.
             val retrievedId = polygon.relatedObject as? Long
-
-            // 2. Prepara le informazioni per il log.
-            val clickCoords = "Click a [Lat:%.5f, Lon:%.5f]".format(eventPosition.latitude, eventPosition.longitude)
-            val polygonHash = "Hash:%s".format(System.identityHashCode(polygon))
-            val polygonId = "ID:%s".format(retrievedId ?: "null")
-            // Calcola il centro del poligono per confronto
-            val polygonCenter = "Centro Poligono:[Lat:%.5f, Lon:%.5f]".format(polygon.bounds.centerLatitude, polygon.bounds.centerLongitude)
-
-            // 3. Stampa il log completo.
-            Log.d("PolygonClickDebug", "$clickCoords | INTERCETTATO DA: $polygonId, $polygonHash | $polygonCenter")
-
-            // 4. Esegui la logica per mostrare l'AlertDialog come prima.
             if (retrievedId != null) {
                 val geoPackage = layerModel.geoPackageInstance
+
                 if (geoPackage != null) {
                     try {
                         val featureDao = geoPackage.getFeatureDao(tableName)
@@ -2235,14 +2417,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                             val correctLabel = layerModel.creaLabel(clickedFeatureRow, tableName)
                             mostraAlertDialogSemplice(correctLabel)
                         } else {
-                            Log.w(TAG, "Nessuna feature trovata con ID: $retrievedId nel layer: $tableName")
+                            Log.w(TAG,"Nessuna feature trovata con ID: $retrievedId nel layer: $tableName"
+                            )
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Errore durante l'accesso al GeoPackage nel listener.", e)
                     }
                 }
             }
-            true // Indica che l'evento è stato gestito
+            true // Evento gestito
         }
 
 
@@ -2296,14 +2479,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     // Attorno alla riga 2297
     private fun puntiSuMappa(tableName: String, featureInfo: FeatureTableInfo) {
         if (featureInfo.listOverlay != null && featureInfo.listOverlay!!.isNotEmpty()) {
-            Log.d(TAG, "Pulizia di ${featureInfo.listOverlay!!.size} overlay esistenti per il layer: $tableName")
+            Log.d(
+                TAG,
+                "Pulizia di ${featureInfo.listOverlay!!.size} overlay esistenti per il layer: $tableName"
+            )
             // 2. Rimuovi tutti gli overlay precedentemente associati a questo layer dalla mappa.
             mapView.overlays.removeAll(featureInfo.listOverlay!!.toSet()) // .toSet() è più sicuro
             // 3. Svuota la lista di overlay salvata nel modello dati.
             featureInfo.listOverlay!!.clear()
         }
         // 4. Forza un ridisegno per assicurarsi che la mappa sia pulita.
-        mapView.invalidate()
+        //mapView.invalidate()
 
         // Controllo di blocco anti-concorrenza
         if (layerModel.loadingStatus[tableName] == true) {
@@ -2341,8 +2527,22 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
             val createdOverlays = mutableListOf<org.osmdroid.views.overlay.Overlay>()
             processedData.points?.let { createdOverlays.addAll(creaOverlayPunti(it, featureInfo)) }
-            processedData.polygons?.let { createdOverlays.addAll(creaOverlayPoligoni(it, featureInfo)) }
-            processedData.lineStrings?.let { createdOverlays.addAll(creaOverlayLinee(it, featureInfo)) }
+            processedData.polygons?.let {
+                createdOverlays.addAll(
+                    creaOverlayPoligoni(
+                        it,
+                        featureInfo
+                    )
+                )
+            }
+            processedData.lineStrings?.let {
+                createdOverlays.addAll(
+                    creaOverlayLinee(
+                        it,
+                        featureInfo
+                    )
+                )
+            }
 
             // Salva e aggiungi i nuovi overlay
             featureInfo.listOverlay = createdOverlays
@@ -2357,7 +2557,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
 
     private fun creaOverlayPoligoni(
-        osmdroidPolygonsToAdd: MutableList<Polygon>,featureInfo: FeatureTableInfo
+        osmdroidPolygonsToAdd: MutableList<Polygon>, featureInfo: FeatureTableInfo
     ): List<org.osmdroid.views.overlay.Overlay> { // <-- MODIFICA CHIAVE
         val polyOverlay = FolderOverlay()
         polyOverlay.name = featureInfo.name // Aggiungi il nome per coerenza
@@ -2390,7 +2590,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             try {
                 color = featureInfo.colore.toColorInt()
             } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Colore non valido per il layer di punti '${featureInfo.name}'. Uso il colore di default.")
+                Log.w(
+                    TAG,
+                    "Colore non valido per il layer di punti '${featureInfo.name}'. Uso il colore di default."
+                )
                 color = Color.BLUE // Imposta un colore di fallback
             }
         }
@@ -2851,7 +3054,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         } else {
                             // 4. Conversione dei punti (altra operazione pesante)
                             val geoPoints = trackPoints.map { wayPoint ->
-                                GeoPoint(wayPoint.latitude, wayPoint.longitude, wayPoint.elevation ?: 0.0)
+                                GeoPoint(
+                                    wayPoint.latitude,
+                                    wayPoint.longitude,
+                                    wayPoint.elevation ?: 0.0
+                                )
                             }
                             // Restituisci i dati pronti per la UI
                             Result.success(geoPoints)
@@ -2935,12 +3142,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
                 // Listener per quando il trascinamento finisce
                 setOnMarkerDragListener(object : Marker.OnMarkerDragListener {
-                    override fun onMarkerDrag(marker: Marker) { /* Non serve fare nulla qui */ }
+                    override fun onMarkerDrag(marker: Marker) { /* Non serve fare nulla qui */
+                    }
+
                     override fun onMarkerDragEnd(marker: Marker) {
                         // Puoi aggiornare un'infowindow o fare altro qui se vuoi
                         Log.d("MappaFragment", "Destinazione impostata a: ${marker.position}")
                     }
-                    override fun onMarkerDragStart(marker: Marker) { /* Non serve fare nulla qui */ }
+
+                    override fun onMarkerDragStart(marker: Marker) { /* Non serve fare nulla qui */
+                    }
                 })
             }
             mapView.overlays.add(destinationMarker)
@@ -2949,7 +3160,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         destinationMarker?.position = mapView.mapCenter as GeoPoint
         destinationMarker?.isEnabled = true
         mapView.invalidate() // Ridisegna la mappa per mostrare il marker
-        Toast.makeText(requireContext(), "Trascina il marker e conferma la destinazione", Toast.LENGTH_LONG).show()
+        Toast.makeText(
+            requireContext(),
+            "Trascina il marker e conferma la destinazione",
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     private fun exitDestinationSelectionMode() {
@@ -3033,7 +3248,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             .setNegativeButton("Annulla") { dialog, _ ->
                 dialog.dismiss()
-                Toast.makeText(requireContext(), "La registrazione in background non sarà disponibile.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    requireContext(),
+                    "La registrazione in background non sarà disponibile.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
             .setCancelable(false)
             .show()
