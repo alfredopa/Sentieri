@@ -104,9 +104,8 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
-        Log.d(TAG, "GpkgLayer onDismiss called. Invio risultato UNA SOLA VOLTA.")
-        // Invia il risultato al MappaFragment, che ora sa di dover rinfrescare lo stato.
-        parentFragmentManager.setFragmentResult(LAYER_DIALOG_REQUEST_KEY, Bundle.EMPTY)
+        layerModel.requestLayerUpdate()
+        Log.d("GpkgLayer", "Dialogo chiuso. Inviata richiesta di aggiornamento tramite ViewModel.")
     }
 
     override fun onDestroy() {

@@ -12,6 +12,25 @@ import mil.nga.geopackage.features.user.FeatureRow
 import org.osmdroid.gpkg.overlay.features.PolygonOptions
 import java.io.File
 import kotlin.random.Random
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import org.osmdroid.util.GeoPoint
+
+
+// Evento per l'aggiornamento dei layer (usato al posto del primo FragmentResultListener)
+// L'oggetto Event serve per consumare l'evento una sola volta.
+class Event<out T>(private val content: T) {
+    private var hasBeenHandled = false
+
+    fun getContentIfNotHandled(): T? {
+        return if (hasBeenHandled) {
+            null
+        } else {
+            hasBeenHandled = true
+            content
+        }
+    }
+}
 
 class LayerViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -21,19 +40,93 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
         private const val CONFIG_FILE_NAME = "db_schema_config.xml"
     }
 
-    var isReturningFromFeatureClick: Boolean = false
     var geoPackageInstance: GeoPackage? = null
         private set // Rendi il setter privato se l'apertura è gestita internamente
     val loadingStatus = mutableMapOf<String, Boolean>()
     // Assumendo che featureList e labelConfig siano ancora qui
     val featureList: MutableList<FeatureTableInfo> = mutableListOf() // Inizializza come necessario
-    var labelConfig: MutableMap<String, List<FieldSchemaInfo>> = mutableMapOf()
+    //var labelConfig: MutableMap<String, List<FieldSchemaInfo>> = mutableMapOf()
+    lateinit var labelConfig: Map<String, List<FieldSchemaInfo>>
     var currentActiveTableName: String? = null
+    private var lastKnownVisibilityState: Map<String, Boolean>? = null
     val polygonOptions = PolygonOptions().apply {
         strokeWidth = 2f
         fillColor = Color.argb(50, 255, 0, 255)
         strokeColor = Color.argb(100, 0, 0, 0)
     }
+    // 1. LiveData per notificare a MappaFragment di applicare le modifiche ai layer.
+    //    Viene "triggerato" quando il dialogo GpkgLayer viene chiuso.
+    private val _layerUpdateRequest = MutableLiveData<Event<Unit>>()
+    val layerUpdateRequest: LiveData<Event<Unit>> = _layerUpdateRequest
+
+    // 2. LiveData per notificare a MappaFragment di centrare la mappa su una coordinata.
+    //    Viene "triggerato" dal click su un item in FeatureList.
+    private val _navigateToPointRequest = MutableLiveData<Event<GeoPoint>>()
+    val navigateToPointRequest: LiveData<Event<GeoPoint>> = _navigateToPointRequest
+
+    /**
+     * Chiamato dal dialogo GpkgLayer quando viene chiuso.
+     * Notifica a MappaFragment di aggiornare gli overlay.
+     */
+    fun requestLayerUpdate() {
+        _layerUpdateRequest.value = Event(Unit)
+    }
+
+    /**
+     * Chiamato dal dialogo FeatureList quando un utente clicca su una feature.
+     * Notifica a MappaFragment di animare la mappa verso il punto cliccato.
+     */
+    fun requestNavigationToPoint(latitude: Double, longitude: Double) {
+        if (latitude != 0.0 && longitude != 0.0) {
+            _navigateToPointRequest.value = Event(GeoPoint(latitude, longitude))
+        }
+    }
+
+    /**
+     * Salva una "fotografia" dello stato di visibilità corrente dei layer.
+     *
+     * QUANDO USARLO:
+     * Chiama questo metodo dal metodo `onPause()` di `MappaFragment`.
+     */
+    fun recordCurrentLayerVisibility() {
+        // Crea una mappa associando il nome di ogni layer (it.name) al suo stato di visibilità (it.isVisible).
+        lastKnownVisibilityState = featureList.associate { it.name to it.isVisible }
+        Log.d("LayerViewModel", "Stato di visibilità dei layer salvato.")
+    }
+
+    /**
+     * Controlla se lo stato di visibilità attuale è diverso dall'ultima "fotografia" salvata.
+     *
+     * QUANDO USARLO:
+     * Chiama questo metodo dal metodo `onResume()` di `MappaFragment` per decidere
+     * se è necessario eseguire il costoso aggiornamento degli overlay.
+     *
+     * @return `true` se la visibilità è cambiata (o se è la prima volta che viene controllata),
+     *         `false` se nulla è cambiato.
+     */
+    fun haveLayerVisibilitiesChanged(): Boolean {
+        // Caso 1: Se non abbiamo mai salvato uno stato (es. al primo avvio),
+        // dobbiamo considerare che ci sia una modifica per forzare il disegno iniziale.
+        if (lastKnownVisibilityState == null) {
+            Log.d("LayerViewModel", "Nessuno stato precedente salvato. Si assume una modifica.")
+            return true
+        }
+
+        // Caso 2: Confronta lo stato attuale con quello salvato.
+        val currentState = featureList.associate { it.name to it.isVisible }
+
+        // Il confronto tra due mappe in Kotlin è molto efficiente e controlla
+        // che entrambe le mappe abbiano le stesse chiavi con gli stessi valori.
+        val hasChanged = currentState != lastKnownVisibilityState
+
+        if (hasChanged) {
+            Log.d("LayerViewModel", "Rilevato cambiamento nella visibilità dei layer.")
+        }
+
+        return hasChanged
+    }
+
+
     /**
      * Apre il GeoPackage se non è già aperto e carica la configurazione.
      * Se usi ViewModel semplice, aggiungi: context: Context come parametro.
