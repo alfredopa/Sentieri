@@ -152,17 +152,8 @@ class FeatureList : Fragment(), MenuProvider {
         val adapter = DynamicFeatureAdapter(featuresDataForAdapter, fieldConfig!!)
         adapter.setOnItemClickListener(object : DynamicFeatureAdapter.OnItemClickListener {
             override fun onItemClicked(latitude: Double, longitude: Double, elevation: Double?) {
-                val key = "$latitude:$longitude"
-                val extras = extrasMap[key]
-                val bundle = Bundle().apply {
-                    putDouble("clicked_latitude", latitude)
-                    putDouble("clicked_longitude", longitude)
-                    extras?.let {
-                        putString("clicked_feature_id", it.first)
-                        putString("clicked_label", it.second)
-                    }
-                }
-                parentFragmentManager.setFragmentResult("feature_click_request", bundle)
+                // Comunica le coordinate al ViewModel condiviso
+                layerModel.requestNavigationToPoint(latitude, longitude)
                 findNavController().popBackStack()
             }
         })
