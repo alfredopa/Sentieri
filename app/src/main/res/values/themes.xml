@@ -15,10 +15,31 @@
         <item name="windowNoTitle">true</item> -->
         <!-- Customize your theme here. -->
     </style>
-    <style name="AlertDialogCustom" parent="@android:style/Theme.Material.Dialog">
-        <item name="android:textColor">@android:color/white</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:headerDividersEnabled">true</item>
-        <item name="android:background">@android:color/holo_blue_dark</item>
+
+    <!-- AlertDialog personalizzato per temi Chiaro e Scuro -->
+    <style name="AlertDialogCustom" parent="Theme.Material3.DayNight.Dialog.Alert">
+        <!-- Colore del testo del titolo -->
+        <item name="android:windowTitleStyle">@style/AlertDialogTitleStyle</item>
+        <!-- Colore del testo del messaggio -->
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
+        <!-- Colore di sfondo del dialogo -->
+        <item name="android:background">?attr/colorSurface</item>
+
+        <!-- Stile per i pulsanti -->
+        <item name="buttonBarPositiveButtonStyle">@style/AlertDialogButtonStyle</item>
+        <item name="buttonBarNegativeButtonStyle">@style/AlertDialogButtonStyle</item>
+        <item name="buttonBarNeutralButtonStyle">@style/AlertDialogButtonStyle</item>
     </style>
+
+    <!-- Stile per i pulsanti del dialogo -->
+    <style name="AlertDialogButtonStyle" parent="Widget.Material3.Button.TextButton.Dialog">
+        <!-- Usa il colore primario del tema, che si adatta a chiaro/scuro -->
+        <item name="android:textColor">?attr/colorPrimary</item>
+    </style>
+
+    <!-- Stile per il titolo del dialogo (opzionale, per coerenza) -->
+    <style name="AlertDialogTitleStyle" parent="@android:style/TextAppearance.Holo.DialogWindowTitle">
+        <item name="android:textColor">?attr/colorPrimary</item>
+    </style>
+
 </resources>
