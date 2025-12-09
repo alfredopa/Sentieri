@@ -55,14 +55,6 @@
 		<field name="ALTEZZA_M" description="Altezza m" visible="true"/>
 		<field name="TUTELA" description="Tutela" visible="true"/>
 	</table>
-	<table name="grotte">
-		<field name="fid" description="fid" visible="false"/>
-		<field name="geom" description="geom" visible="false"/>
-		<field name="STRINGA" description="stringa" visible="false"/>
-		<field name="TEXT_ANGLE" description="text_angle" visible="false"/>
-		<field name="TEXT_SIZE" description="text_size" visible="false"/>
-		<field name="TEXTSTRING" description="Nome" visible="true"/>
-	</table>
 	<table name="beni_paesaggistici_2014">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
@@ -206,5 +198,33 @@
 		<field name="comune" description="Comune" visible="true"/>
 		<field name="name" description="Name" visible="true"/>
 		<field name="image" description="Link" visible="false"/>
+	</table>
+		<table name="Grotte">
+		<field name="fid" description="fid" visible="false"/>
+		<field name="geom" description="geom" visible="false"/>
+		<field name="ID" description="id" visible="false"/>
+		<field name="TIPOLOGIA" description="tipologia" visible="false"/>
+		<field name="PROVINCIA" description="Provincia" visible="true"/>
+		<field name="COMUNE" description="Comune" visible="true"/>
+		<field name="LOCALITA" description="Localita" visible="true"/>
+		<field name="DATA_INIZI" description="data_inizi" visible="false"/>
+		<field name="GESTORE" description="gestore" visible="false"/>
+		<field name="DENOMINAZI" description="Nome" visible="true"/>
+		<field name="DETTAGLIO" description="dettaglio" visible="false"/>
+		<field name="AMBITOTERR" description="Ambito" visible="true"/>
+		<field name="CODICE_GRO" description="Codice" visible="true"/>
+		<field name="COORDX" description="Coord. X" visible="true"/>
+		<field name="COORDY" description="Coord. Y" visible="true"/>
+		<field name="STATO_OPER" description="stato_oper" visible="false"/>
+	</table>
+	<table name="Atlante toponomastico Comuni">
+		<field name="fid" description="fid" visible="false"/>
+		<field name="geom" description="geom" visible="false"/>
+		<field name="nome_itali" description="Nome" visible="true"/>
+		<field name="nome_sardo" description="Sardo" visible="true"/>
+		<field name="nome_etnic" description="Etnia" visible="true"/>
+		<field name="subregione" description="Subregione" visible="true"/>
+		<field name="etimologia" description="Etimologia" visible="true"/>
+		<field name="prime_atte" description="Origine" visible="true"/>
 	</table>
 </databaseSchema>
