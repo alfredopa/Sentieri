@@ -39,6 +39,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
@@ -126,6 +127,7 @@ import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.compass.CompassOverlay
 import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider
 import org.osmdroid.views.overlay.infowindow.BasicInfoWindow
+import org.osmdroid.views.overlay.infowindow.InfoWindow
 import org.osmdroid.views.overlay.simplefastpoint.LabelledGeoPoint
 import org.osmdroid.views.overlay.simplefastpoint.SimpleFastPointOverlay
 import org.osmdroid.views.overlay.simplefastpoint.SimpleFastPointOverlayOptions
@@ -689,6 +691,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
             }
 
+            // MODIFICA PRINCIPALE: Gestione della rotazione e del centraggio
             if (viewModel.bloccaMappa) {
                 val gpsbearing = locationData.bearing
                 var t: Float = 360 - gpsbearing
@@ -697,7 +700,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 t = (t.toInt() / 5 * 5).toFloat()
 
                 mapView.mapOrientation = t
-                mapView.controller?.animateTo(newGeoPoint)
+                // --- CORREZIONE: Usa setCenter per un'esperienza fluida senza cambiare zoom ---
+                mapView.controller?.setCenter(newGeoPoint)
             }
 
             if (viewModel.alertFuoriTraccia && viewModel.tracciaDaSeguire.isNotEmpty()) {
@@ -2344,7 +2348,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             Log.w(TAG, "Fragment non attaccato o contesto nullo, impossibile mostrare AlertDialog.")
             return // Esci dalla funzione per evitare il crash
         }
-        val builder = AlertDialog.Builder(requireContext()) // 'this' è il Context dell'Activity
+        val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
         //builder.setTitle(titolo) // Imposta il titolo
         builder.setMessage(message) // Imposta il messaggio
         builder.setPositiveButton("Chiudi") { dialog, _ ->
@@ -2437,7 +2441,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private fun creaOverlayPoligoni(
         osmdroidPolygonsToAdd: MutableList<Polygon>, featureInfo: FeatureTableInfo
     ): List<org.osmdroid.views.overlay.Overlay> {
-        // ==> INIZIO MODIFICA <==
         // Creiamo un singolo FolderOverlay per contenere tutti i poligoni.
         val folder = FolderOverlay()
         // Assegnare un nome è utile per il debug.
@@ -2449,7 +2452,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // Restituiamo una lista che contiene SOLO il FolderOverlay.
         // L'aggiornamento della mappa diventerà un'operazione atomica (aggiungi/rimuovi un solo oggetto).
         return listOf(folder)
-        // ==> FINE MODIFICA <==
     }
 
     private fun creaOverlayPunti(
@@ -2479,11 +2481,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 color = Color.BLUE // Imposta un colore di fallback
             }
         }
-        // set some visual options for the overlay
-        // we use here MAXIMUM_OPTIMIZATION algorithm, which works well with >100k points
+
+        // usa  NO_OPTIMIZATION algorithm, per ridisegno ruotando mappa
         val opt = SimpleFastPointOverlayOptions.getDefaultStyle()
-            .setAlgorithm(SimpleFastPointOverlayOptions.RenderingAlgorithm.MAXIMUM_OPTIMIZATION)
-            //.setAlgorithm(SimpleFastPointOverlayOptions.RenderingAlgorithm.NO_OPTIMIZATION)
+            .setAlgorithm(SimpleFastPointOverlayOptions.RenderingAlgorithm.NO_OPTIMIZATION)
             .setRadius(7F)
             .setSymbol(SimpleFastPointOverlayOptions.Shape.CIRCLE)
             .setIsClickable(true)
@@ -2492,16 +2493,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             .setTextStyle(textStyle)
         val sfpo = SimpleFastPointOverlay(theme, opt)
 
-        // ==> RIMUOVI QUESTA RIGA <==
-        // featureInfo.listOverlay?.add(sfpo)
-
         sfpo.setOnClickListener { points, point ->
             (points[point] as? LabelledGeoPoint)?.label?.let {
                 mostraAlertDialogSemplice(it)
             }
         }
-
-        return listOf(sfpo) // Questa riga è corretta
+        return listOf(sfpo)
     }
 
     private fun creaOverlayLinee(
@@ -2531,11 +2528,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // --- Gestione InfoWindow ---
             osmdroidPolyline.id = "line_${featureInfo.name}_$index" // ID univoco
             osmdroidPolyline.title = ngaLineString.title // Titolo per l'InfoWindow
-            osmdroidPolyline.snippet = ngaLineString.description // Snippet/sottotitolo
-            osmdroidPolyline.infoWindow = BasicInfoWindow(
-                R.layout.bonuspack_bubble, // Layout di default
-                mapView
-            )
+            //osmdroidPolyline.snippet = ngaLineString.description // Snippet/sottotitolo
+
+            if (featureInfo.name == "Sentieri CAI") {
+                osmdroidPolyline.infoWindow = WebsiteInfoWindow(lineFeature, mapView)
+            } else {
+                // Per tutti gli altri layer, usa la InfoWindow di base
+                osmdroidPolyline.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
+                osmdroidPolyline.snippet = lineFeature.description
+            }
             osmdroidPolyline.setOnClickListener { clickedPolyline, map, eventPosition ->
                 //Log.d(TAG, "Polyline da GeoPackage cliccata: ${clickedPolyline.title}")
                 clickedPolyline.infoWindowLocation =
@@ -2607,17 +2608,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun processLineStringGeometry(
-        featureRow: FeatureRow,
-        tableName: String,
+        featureRow: FeatureRow,tableName: String,
         lineStringToAdd: MutableList<LineStringFeature>
     ) {
-        // Gestisci la linea stringa qui
         val geometryData = featureRow.geometry
         val geometry = geometryData.geometry
         if (geometry is LineString) {
             val label = layerModel.creaLabel(featureRow, tableName)
-            val description = "layer:$tableName"
-            lineStringToAdd.add(LineStringFeature(geometry, label, description))
+            //val description = "layer:$tableName"
+            val description = ""
+
+            // Estrae l'URL dal campo 'website', se esiste
+            val websiteColumnIndex = featureRow.getColumnIndex("website")
+            val website = if (websiteColumnIndex != -1) {
+                featureRow.getValue(websiteColumnIndex) as? String
+            } else {
+                null
+            }
+
+            lineStringToAdd.add(LineStringFeature(geometry, label, description, website))
         }
     }
 
@@ -3148,5 +3157,55 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
+    inner class WebsiteInfoWindow(
+        private val lineFeature: LineStringFeature,
+        mapView: MapView
+    ) : InfoWindow(R.layout.custom_info_window, mapView) {
 
+        override fun onOpen(item: Any?) {
+            // Chiude altre finestre eventualmente aperte
+            closeAllInfoWindowsOn(mMapView)
+
+            val titleView: TextView = mView.findViewById(R.id.bubble_title)
+            val descriptionView: TextView = mView.findViewById(R.id.bubble_description)
+            val websiteButton: Button = mView.findViewById(R.id.bubble_website_button)
+
+            // Popola i dati
+            titleView.text = lineFeature.title
+            descriptionView.text = lineFeature.description
+
+            // Imposta la visibilità e il listener per il pulsante del sito web
+            if (!lineFeature.website.isNullOrBlank()) {
+                websiteButton.visibility = View.VISIBLE
+                websiteButton.setOnClickListener {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(lineFeature.website))
+                        // Usa il contesto del fragment per avviare l'activity
+                        context?.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Impossibile aprire il link", Toast.LENGTH_SHORT)
+                            .show()
+                        Log.e(TAG, "Errore nell'aprire il link dall'InfoWindow", e)
+                    }
+                }
+            } else {
+                websiteButton.visibility = View.GONE
+            }
+
+            // --- CORREZIONE: Aggiungi il listener per chiudere la finestra ---
+            // Imposta un OnClickListener sulla vista principale dell'infowindow
+            // per chiuderla quando viene toccata.
+            mView.setOnClickListener {
+                close() // Chiude questa InfoWindow
+            }
+            // --- FINE CORREZIONE ---
+        }
+
+        override fun onClose() {
+            // Rimuovi i listener per prevenire memory leak, se necessario.
+            // In questo caso, non è strettamente richiesto perché i listener
+            // vengono ricreati ogni volta che la finestra si apre.
+            mView.setOnClickListener(null)
+        }
+    }
 }

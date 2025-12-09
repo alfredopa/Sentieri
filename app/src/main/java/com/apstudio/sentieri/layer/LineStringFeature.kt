@@ -1,7 +1,10 @@
 package com.apstudio.sentieri.layer
 
+import mil.nga.sf.LineString
+
 data class LineStringFeature(
-    val lineString: mil.nga.sf.LineString,
+    val lineString: LineString,
     val title: String,
-    val description: String // O qualsiasi altra info ti serva
+    val description: String,
+    val website: String? // Campo aggiunto per l'URL del sito web
 )

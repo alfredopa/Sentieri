@@ -89,7 +89,7 @@
 		<field name="geom" description="geom" visible="false"/>
 		<field name="ogc_fid" description="ogc_fid" visible="false"/>
 		<field name="aa01_cod_com_istat" description="Cod Istat" visible="true"/>
-		<field name="aa01_nome" description="" visible="true"/>
+		<field name="aa01_nome" description="Comune" visible="true"/>
 		<field name="aa01_cod_prov_istat" description="Prov Istat" visible="true"/>
 		<field name="aa01_cod_reg_istat" description="aa01_cod_reg_istat" visible="false"/>
 		<field name="aa01_area" description="Area" visible="true"/>

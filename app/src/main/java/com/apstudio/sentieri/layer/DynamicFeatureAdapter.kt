@@ -4,6 +4,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
@@ -21,13 +22,14 @@ import com.apstudio.sentieri.db.FieldSchemaInfo
  */
 class DynamicFeatureAdapter(
     private val features: List<Map<String, Any?>>,
-    private val fieldConfiguration: List<FieldSchemaInfo>
-    // Non sono più necessari i nomi dei campi delle coordinate qui se FeatureList li pre-processa
+    private val fieldConfiguration: List<FieldSchemaInfo>,
+    private val showDetailsButton: Boolean
 ) : RecyclerView.Adapter<DynamicFeatureAdapter.FeatureViewHolder>() {
 
     // 1. Interfaccia per il Click Listener
     interface OnItemClickListener {
         fun onItemClicked(latitude: Double, longitude: Double, elevation: Double?)
+        fun onDetailsButtonClicked(itemData: Map<String, Any?>)
     }
 
     // 2. Campo per il listener
@@ -47,6 +49,12 @@ class DynamicFeatureAdapter(
     override fun onBindViewHolder(holder: FeatureViewHolder, position: Int) {
         val currentFeature = features[position]
         holder.bind(currentFeature, fieldConfiguration)
+        // AGGIUNGI questa logica per la visibilità del bottone
+        if (showDetailsButton) {
+            holder.detailsButton.visibility = View.VISIBLE
+        } else {
+            holder.detailsButton.visibility = View.GONE
+        }
     }
 
     override fun getItemCount(): Int = features.size
@@ -54,7 +62,7 @@ class DynamicFeatureAdapter(
     // 3. Rendi FeatureViewHolder una inner class per accedere a 'features' e 'itemClickListener'
     inner class FeatureViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val fieldsContainer: LinearLayout = itemView.findViewById(R.id.feature_fields_container)
-
+        val detailsButton: Button = itemView.findViewById(R.id.details_button)
         init {
             itemView.setOnClickListener {
                 val position = adapterPosition
@@ -72,6 +80,13 @@ class DynamicFeatureAdapter(
                         Log.e("DynamicFeatureAdapter", "Coordinate interne non trovate o non valide nella mappa della feature.")
                         // Potresti voler notificare l'utente o gestire l'errore diversamente
                     }
+                }
+            }
+            // AGGIUNGI il listener per il click sul bottone
+            detailsButton.setOnClickListener {
+                val position = adapterPosition
+                if (position != RecyclerView.NO_POSITION) {
+                    itemClickListener?.onDetailsButtonClicked(features[position])
                 }
             }
         }

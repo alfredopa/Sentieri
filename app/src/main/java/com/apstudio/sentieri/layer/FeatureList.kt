@@ -1,5 +1,7 @@
 package com.apstudio.sentieri.layer
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -28,7 +30,6 @@ import mil.nga.geopackage.features.user.FeatureCursor
 import mil.nga.geopackage.features.user.FeatureDao
 import mil.nga.sf.Point
 
-// MODIFICATO: Aggiunta implementazione per MenuProvider
 class FeatureList : Fragment(), MenuProvider {
     private val layerModel: LayerViewModel by lazy {
         ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[LayerViewModel::class.java]
@@ -36,7 +37,6 @@ class FeatureList : Fragment(), MenuProvider {
     private lateinit var recyclerView: RecyclerView
     private var featureCursor: FeatureCursor? = null
 
-    // Memorizza i dati necessari per la ricerca e il caricamento
     private var currentLayerName: String? = null
     private var featureDao: FeatureDao? = null
     private var fieldConfig: List<FieldSchemaInfo>? = null
@@ -53,14 +53,12 @@ class FeatureList : Fragment(), MenuProvider {
         recyclerView = view.findViewById(R.id.list)
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
 
-        // NUOVO: Aggiunge il provider del menu alla Action Bar
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
 
         setup()
     }
 
-    // NUOVA FUNZIONE: Imposta le variabili iniziali e carica i dati
     private fun setup() {
         currentLayerName = layerModel.currentActiveTableName
         if (currentLayerName == null) {
@@ -86,11 +84,9 @@ class FeatureList : Fragment(), MenuProvider {
             return
         }
 
-        // Carica i dati iniziali (senza filtro)
         loadFeatures()
     }
 
-    // NUOVA FUNZIONE (refactoring): Carica le feature con filtri opzionali
     private fun loadFeatures(whereClause: String? = null, selectionArgs: Array<String>? = null) {
         if (featureDao == null || fieldConfig == null) {
             Log.e("FeatureList", "DAO o Config non inizializzati, impossibile caricare i dati.")
@@ -99,40 +95,26 @@ class FeatureList : Fragment(), MenuProvider {
         }
 
         val featuresDataForAdapter = mutableListOf<Map<String, Any?>>()
-        val extrasMap = mutableMapOf<String, Pair<String, String>>()
 
         try {
-            // Esegue la query (filtrata o completa)
             featureCursor = featureDao!!.query(whereClause, selectionArgs, null, null, null)
-
             featureCursor?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    do {
-                        val row = cursor.row
-                        val currentFeatureMap = mutableMapOf<String, Any?>()
-                        row.columnNames.forEachIndexed { index, name ->
-                            currentFeatureMap[name] = row.values[index]
-                        }
-                        featuresDataForAdapter.add(currentFeatureMap)
+                while (cursor.moveToNext()) {
+                    val row = cursor.row
+                    val currentFeatureMap = mutableMapOf<String, Any?>()
+                    row.columnNames.forEachIndexed { index, name ->
+                        currentFeatureMap[name] = row.values[index]
+                    }
 
-                        // Estrai dati per la mappa ausiliaria (per il click)
-                        val geometry = row.geometry?.geometry
-                        if (geometry != null) {
-                            val centroid = geometry.centroid
-                            if (centroid is Point) {
-                                val lat = centroid.y
-                                val lon = centroid.x
-                                val key = "$lat:$lon"
-                                val uniqueId = "${currentLayerName}_${row.id}"
-                                val label = layerModel.creaLabel(row, currentLayerName!!)
-                                extrasMap[key] = Pair(uniqueId, label)
-
-                                // Popola anche i campi richiesti dall'adapter per la gestione del click
-                                currentFeatureMap[DynamicFeatureAdapter.KEY_INTERNAL_LATITUDE] = lat
-                                currentFeatureMap[DynamicFeatureAdapter.KEY_INTERNAL_LONGITUDE] = lon
-                            }
+                    val geometry = row.geometry?.geometry
+                    if (geometry != null) {
+                        val centroid = geometry.centroid
+                        if (centroid is Point) {
+                            currentFeatureMap[DynamicFeatureAdapter.KEY_INTERNAL_LATITUDE] = centroid.y
+                            currentFeatureMap[DynamicFeatureAdapter.KEY_INTERNAL_LONGITUDE] = centroid.x
                         }
-                    } while (cursor.moveToNext())
+                    }
+                    featuresDataForAdapter.add(currentFeatureMap)
                 }
             }
         } catch (e: Exception) {
@@ -148,19 +130,39 @@ class FeatureList : Fragment(), MenuProvider {
             Toast.makeText(requireContext(), "Nessun dato trovato.", Toast.LENGTH_SHORT).show()
         }
 
-        // Configura l'adapter con i dati (filtrati o completi)
-        val adapter = DynamicFeatureAdapter(featuresDataForAdapter, fieldConfig!!)
+        val showDetailsButton = currentLayerName == "Sentieri CAI"
+
+        val adapter = DynamicFeatureAdapter(featuresDataForAdapter, fieldConfig!!, showDetailsButton)
         adapter.setOnItemClickListener(object : DynamicFeatureAdapter.OnItemClickListener {
             override fun onItemClicked(latitude: Double, longitude: Double, elevation: Double?) {
-                // Comunica le coordinate al ViewModel condiviso
                 layerModel.requestNavigationToPoint(latitude, longitude)
                 findNavController().popBackStack()
+            }
+
+            override fun onDetailsButtonClicked(itemData: Map<String, Any?>) {
+                // 1. Estrai l'URL dal campo 'website'.
+                val url = itemData["website"] as? String
+
+                // 2. Controlla se l'URL è valido e non vuoto.
+                if (!url.isNullOrBlank()) {
+                    try {
+                        // 3. Crea un Intent per aprire l'URL nel browser.
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        // Gestisci il caso in cui l'URL non sia valido o non ci sia un browser.
+                        Toast.makeText(requireContext(), "Impossibile aprire il link: $url", Toast.LENGTH_LONG).show()
+                        Log.e("FeatureList", "Errore nell'aprire l'URL: $url", e)
+                    }
+                } else {
+                    // Se il campo 'website' è vuoto o mancante.
+                    Toast.makeText(requireContext(), "Nessun sito web disponibile per questo elemento.", Toast.LENGTH_SHORT).show()
+                }
             }
         })
         recyclerView.adapter = adapter
     }
 
-    // NUOVA FUNZIONE: Mostra il dialogo di ricerca dinamico
     private fun showSearchDialog() {
         if (fieldConfig == null) {
             Toast.makeText(requireContext(), "Configurazione non disponibile per la ricerca.", Toast.LENGTH_SHORT).show()
@@ -180,13 +182,13 @@ class FeatureList : Fragment(), MenuProvider {
 
         fieldsToSearch.forEach { field ->
             val editText = EditText(requireContext()).apply {
-                hint = field.description // Usa la descrizione come hint (più leggibile)
+                hint = field.description
             }
             layout.addView(editText)
             editTextMap[field.name] = editText
         }
 
-        AlertDialog.Builder(requireContext())
+        AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
             .setTitle("Filtra Dati")
             .setView(dialogView)
             .setPositiveButton("Cerca") { _, _ ->
@@ -196,7 +198,6 @@ class FeatureList : Fragment(), MenuProvider {
                 editTextMap.forEach { (fieldName, editText) ->
                     val searchText = editText.text.toString().trim()
                     if (searchText.isNotEmpty()) {
-                        // Usa LIKE per ricerche parziali e previene SQL Injection
                         whereClauseParts.add("$fieldName LIKE ?")
                         selectionArgs.add("%$searchText%")
                     }
@@ -211,13 +212,11 @@ class FeatureList : Fragment(), MenuProvider {
             }
             .setNegativeButton("Annulla", null)
             .setNeutralButton("Reset") { _, _ ->
-                // Ricarica tutti i dati senza filtri
                 loadFeatures()
             }
             .show()
     }
 
-    // --- Implementazione MenuProvider ---
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
         menuInflater.inflate(R.menu.feature_list_menu, menu)
     }
@@ -231,8 +230,6 @@ class FeatureList : Fragment(), MenuProvider {
             else -> false
         }
     }
-    // --- Fine Implementazione ---
-
 
     override fun onDestroyView() {
         super.onDestroyView()
