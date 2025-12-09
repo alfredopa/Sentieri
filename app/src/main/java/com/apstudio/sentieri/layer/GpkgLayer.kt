@@ -7,7 +7,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.Toast
 import androidx.fragment.app.DialogFragment
+import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.navigation.fragment.findNavController
@@ -61,40 +63,42 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
         return inflater.inflate(R.layout.dlg_gpkg_layer, container, false)
     }
 
+    // In GpkgLayer.kt
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        recyclerView = view.findViewById(R.id.my_recycler_view)
-        val layoutManager = GridLayoutManager(requireContext(), 1)
-        recyclerView.layoutManager = layoutManager
+        recyclerView = view.findViewById(R.id.my_recycler_view)    // Potresti aggiungere un ProgressBar al layout dlg_gpkg_layer.xml per un feedback migliore
+        // val progressBar = view.findViewById<ProgressBar>(R.id.loading_spinner)
+        // progressBar.visibility = View.VISIBLE
 
-        // L'adapter ora prende la lista direttamente dal ViewModel
-        // La lista nel ViewModel è la "source of truth"
-        // Assicurati che FeatureAdapter sia in grado di gestire una lista vuota inizialmente
-        // e si aggiorni quando layerModel.featureList cambia (es. usando LiveData/StateFlow e osservandolo)
-        adapter = FeatureAdapter(layerModel.featureList, this)
-        recyclerView.adapter = adapter
+        recyclerView.layoutManager = GridLayoutManager(requireContext(), 1)
+        recyclerView.adapter = FeatureAdapter(mutableListOf<FeatureTableInfo>(), this) // Inizia con un adapter vuoto
 
-        // Esempio se featureList fosse un LiveData nel ViewModel:
-        // layerModel.featuresLiveData.observe(viewLifecycleOwner) { features ->
-        //     adapter.updateData(features) // Dovresti creare un metodo nell'adapter per aggiornare i dati
-        // }
+        // Osserva lo stato di preparazione del ViewModel
+        layerModel.isReady.observe(viewLifecycleOwner, Observer { isReady ->
+            if (isReady) {
+                // I dati sono pronti, popola l'adapter
+                Log.d(TAG, "ViewModel è pronto. Aggiorno la lista nell'adapter.")
+                // progressBar.visibility = View.GONE
+                adapter = FeatureAdapter(layerModel.featureList, this)
+                recyclerView.adapter = adapter
+            } else {
+                // Gestisci il caso in cui il caricamento fallisce
+                // progressBar.visibility = View.GONE
+                if (isAdded) { // Controlla se il fragment è ancora attivo
+                    Toast.makeText(context, "Errore nel caricamento dei layer.", Toast.LENGTH_LONG)
+                        .show()
+                }
+            }
+        })
+
+        // Chiama il caricamento (ora asincrono) se non è già stato fatto
+        layerModel.openGeoPackageAndLoadConfig()
 
         val btnOk: Button = view.findViewById(R.id.btnOk)
         btnOk.setOnClickListener {
             dismiss()
         }
-
-        // Se featureList non è LiveData, potresti dover notificare l'adapter dopo che onCreate
-        // ha chiamato openGeoPackageAndLoadConfig e la lista è stata popolata.
-        // Questo è un punto delicato se il popolamento è asincrono.
-        // Per ora, assumiamo che al momento della creazione dell'adapter, featureList
-        // sia già popolata o che l'adapter gestisca una lista vuota e si aggiorni.
-        // Se non è così, potresti aver bisogno di aggiornare l'adapter dopo che i dati sono pronti.
-        if (layerModel.featureList.isNotEmpty() && adapter.itemCount == 0) {
-            adapter.notifyDataSetChanged() // o un modo più specifico per aggiornare
-        }
     }
-
     // ... (onStart, onItemClick, onSwitchCheckedChanged rimangono simili,
     //      ma operano sulla featureList del layerModel) ...
 
@@ -102,10 +106,12 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
     // La funzione loadConfigIfNeeded non è più necessaria qui, è gestita dal ViewModel
 
 
+    // Nel file GpkgLayer.kt
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
+        // Notifica al ViewModel che il dialogo è stato chiuso.
         layerModel.requestLayerUpdate()
-        Log.d("GpkgLayer", "Dialogo chiuso. Inviata richiesta di aggiornamento tramite ViewModel.")
+        Log.d("GpkgLayer", "Dialogo chiuso. Inviata richiesta via ViewModel.")
     }
 
     override fun onDestroy() {

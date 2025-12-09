@@ -4,28 +4,29 @@ import android.app.Application
 import android.graphics.Color
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
 import com.apstudio.sentieri.db.FieldSchemaInfo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import mil.nga.geopackage.GeoPackage
 import mil.nga.geopackage.GeoPackageFactory
 import mil.nga.geopackage.GeoPackageManager
 import mil.nga.geopackage.features.user.FeatureRow
 import org.osmdroid.gpkg.overlay.features.PolygonOptions
+import org.osmdroid.util.GeoPoint
 import java.io.File
 import kotlin.random.Random
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import org.osmdroid.util.GeoPoint
 
 
 // Evento per l'aggiornamento dei layer (usato al posto del primo FragmentResultListener)
 // L'oggetto Event serve per consumare l'evento una sola volta.
 class Event<out T>(private val content: T) {
     private var hasBeenHandled = false
-
     fun getContentIfNotHandled(): T? {
-        return if (hasBeenHandled) {
-            null
-        } else {
+        return if (hasBeenHandled) null else {
             hasBeenHandled = true
             content
         }
@@ -39,6 +40,8 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
         private const val DATABASE_NAME = "Layers.gpkg"
         private const val CONFIG_FILE_NAME = "db_schema_config.xml"
     }
+    private val _isReady = MutableLiveData<Boolean>()
+    val isReady: LiveData<Boolean> = _isReady
 
     var geoPackageInstance: GeoPackage? = null
         private set // Rendi il setter privato se l'apertura è gestita internamente
@@ -81,7 +84,6 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
             _navigateToPointRequest.value = Event(GeoPoint(latitude, longitude))
         }
     }
-
     /**
      * Salva una "fotografia" dello stato di visibilità corrente dei layer.
      *
@@ -126,62 +128,69 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
         return hasChanged
     }
 
-
     /**
-     * Apre il GeoPackage se non è già aperto e carica la configurazione.
-     * Se usi ViewModel semplice, aggiungi: context: Context come parametro.
+     * Avvia l'apertura asincrona del GeoPackage e il caricamento della configurazione.
+     * Non blocca più il thread chiamante.
      */
-    fun openGeoPackageAndLoadConfig() { // Rinominato per chiarezza
-        getApplication<Application>() // Per AndroidViewModel
-
-        if (geoPackageInstance != null) {
-            // Potrebbe essere già aperto, ma verifichiamo se la configurazione necessita di essere ricaricata
-            // o se l'istanza è valida. Se fosse chiusa, le operazioni fallirebbero.
-            Log.d(TAG, "GeoPackage instance exists. Verifying and loading config if needed.")
-            try {
-                // Una semplice operazione per vedere se è vivo, es. ottenere il path.
-                // Se chiuso, questo potrebbe lanciare un'eccezione.
-                geoPackageInstance?.path
-                loadConfigIfNeeded( geoPackageInstance!!) // Passa l'istanza esistente
-            } catch (e: Exception) {
-                Log.e(TAG, "Error using existing GeoPackage instance. It might be closed. Re-opening.", e)
-                actuallyOpenAndConfigGeoPackage()
-            }
+    fun openGeoPackageAndLoadConfig() {
+        // Se è già stato caricato con successo, non fare nulla.
+        if (isReady.value == true) {
+            Log.d(TAG, "ViewModel e GeoPackage sono già pronti.")
             return
         }
-        actuallyOpenAndConfigGeoPackage()
-    }
-
-    private fun actuallyOpenAndConfigGeoPackage() {
-        val context = getApplication<Application>()
-        val dataDir = context.getDatabasePath(DATABASE_NAME).parentFile
-        val geoPackageFile = File(dataDir, DATABASE_NAME)
-        if (!geoPackageFile.exists()) {
-            Log.e(TAG, "GeoPackage file does not exist at: ${geoPackageFile.absolutePath}")
-            // Qui potresti voler aggiornare uno StateFlow/LiveData per notificare l'UI
+        // Se è già in corso, non avviarlo di nuovo.
+        if (loadingStatus["_global_"] == true) {
+            Log.d(TAG, "Caricamento del GeoPackage già in corso.")
             return
         }
-        val geoPackageManager: GeoPackageManager = GeoPackageFactory.getManager(context)
-        try {
-            Log.d(TAG, "Attempting to open GeoPackage: ${geoPackageFile.name}")
-            val openedGeoPackage = geoPackageManager.openExternal(geoPackageFile)
-            if (openedGeoPackage == null) {
-                Log.e(TAG, "Error opening GeoPackage: ${geoPackageFile.name}")
-                // Aggiorna StateFlow/LiveData
-                return
-            }
-            geoPackageInstance = openedGeoPackage
-            Log.i(TAG, "GeoPackage '${openedGeoPackage.name}' opened successfully by ViewModel.")
 
-            // Carica la configurazione e popola featureList dopo l'apertura
-            loadConfigAndPopulateFeatures(openedGeoPackage)
+        Log.d(TAG, "Avvio caricamento asincrono del GeoPackage...")
+        loadingStatus["_global_"] = true // Imposta un flag di caricamento globale
 
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception while opening GeoPackage: ${geoPackageFile.name}", e)
-            geoPackageInstance = null // Assicura che sia null in caso di fallimento
-            // Aggiorna StateFlow/LiveData
+        // Lancia l'operazione pesante in background
+        viewModelScope.launch {
+            // La chiamata a una funzione 'suspend' è corretta qui dentro
+            val success = actuallyOpenAndConfigGeoPackage()
+
+            // Aggiorna il LiveData sul thread principale al termine
+            _isReady.postValue(success) // Usa postValue per sicurezza da coroutine
+            loadingStatus["_global_"] = false // Rimuovi il flag
         }
     }
+
+
+/**
+ * Funzione sospesa che esegue l'apertura del file I/O su un thread in background.
+ * @return True se ha successo, altrimenti False.
+ */
+private suspend fun actuallyOpenAndConfigGeoPackage(): Boolean = withContext(Dispatchers.IO) {
+    val context = getApplication<Application>()
+    val dataDir = context.getDatabasePath(DATABASE_NAME).parentFile
+    val geoPackageFile = File(dataDir, DATABASE_NAME)
+    if (!geoPackageFile.exists()) {
+        Log.e(TAG, "File GeoPackage non esiste: ${geoPackageFile.absolutePath}")
+        return@withContext false
+    }
+    val geoPackageManager: GeoPackageManager = GeoPackageFactory.getManager(context)
+    try {
+        val openedGeoPackage = geoPackageManager.openExternal(geoPackageFile)
+        if (openedGeoPackage == null) {
+            Log.e(TAG, "Errore durante l'apertura del GeoPackage: ${geoPackageFile.name}")
+            return@withContext false
+        }
+        geoPackageInstance = openedGeoPackage
+        Log.i(TAG, "GeoPackage '${openedGeoPackage.name}' aperto con successo.")
+
+        // Carica la configurazione e popola la lista delle feature
+        loadConfigAndPopulateFeatures(openedGeoPackage)
+        return@withContext true // Successo
+
+    } catch (e: Exception) {
+        Log.e(TAG, "Eccezione durante l'apertura del GeoPackage: ${geoPackageFile.name}", e)
+        geoPackageInstance = null
+        return@withContext false // Fallimento
+    }
+}
 
     /**
      * Metodo interno che carica la configurazione dell'etichetta E popola la featureList.
