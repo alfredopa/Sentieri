@@ -17,16 +17,8 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.R
 
-const val LAYER_DIALOG_REQUEST_KEY = "layerDialogRequest"
-
 class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
     private val layerModel: LayerViewModel by lazy {
-        // Se LayerViewModel è un AndroidViewModel, il provider è leggermente diverso
-        // o se hai un factory personalizzato.
-        // Assumendo che il provider di default per AndroidViewModel funzioni:
-        //ViewModelProvider(this)[LayerViewModel::class.java]
-        // Se prima usavi `requireActivity().application as ViewModelStoreOwner`
-        // e vuoi che il ViewModel sia a livello di Application, mantieni quel provider:
          ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[LayerViewModel::class.java]
     }
 

@@ -222,24 +222,27 @@ private suspend fun actuallyOpenAndConfigGeoPackage(): Boolean = withContext(Dis
                 featureDao.count() // Conteggio degli elementi
                 val contentsDao = geoPackageInstance?.contentsDao
                 val contents = contentsDao?.queryForId(tableName)
-                // Logica per determinare isVisible (es. da preferenze, o default)
-                val isVisibleInitially = false // O leggi da una configurazione persistente
-                // Descrizione - potresti volerla rendere più dinamica o configurabile
-                val description = contents?.identifier ?: "Nessuna descrizione"
-                // Colore - default o da configurazione
-                val color = contents?.description ?: "#0000FF"
+                // se il campo description è vuoto, non aggiungi la tabella alla lista dei layer
+                if (contents?.description != "") {
+                    // Logica per determinare isVisible (es. da preferenze, o default)
+                    val isVisibleInitially = false // O leggi da una configurazione persistente
+                    // Descrizione - potresti volerla rendere più dinamica o configurabile
+                    val description = contents?.identifier ?: "Nessuna descrizione"
+                    // Colore - default o da configurazione
+                    val color = contents?.description ?: "#0000FF"
 
-                featureList.add(
-                    FeatureTableInfo(
-                        name = tableName,
-                        isVisible = isVisibleInitially,
-                        descrTabella = description,
-                        //numRecord = count.toInt(),
-                        colore = color,
-                        readData = false, // Inizia come non letta
-                        listOverlay = null // Inizia senza overlay
+                    featureList.add(
+                        FeatureTableInfo(
+                            name = tableName,
+                            isVisible = isVisibleInitially,
+                            descrTabella = description,
+                            //numRecord = count.toInt(),
+                            colore = color,
+                            readData = false, // Inizia come non letta
+                            listOverlay = null // Inizia senza overlay
+                        )
                     )
-                )
+                }
             }
             Log.i(TAG, "FeatureList populated with ${featureList.size} tables.")
             // Qui potresti voler notificare l'UI che featureList è pronta, es. tramite LiveData/StateFlow
