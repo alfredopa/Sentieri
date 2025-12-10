@@ -279,9 +279,13 @@ private suspend fun actuallyOpenAndConfigGeoPackage(): Boolean = withContext(Dis
         val campiLabel = labelConfig[tableName]
         val labelBuilder = StringBuilder()
 
-        // 1. Aggiungi il tableName come valore iniziale, se non è vuoto.
-        if (tableName.isNotEmpty()) {
-            labelBuilder.append(tableName)
+        // Cerca le informazioni sulla tabella per ottenere la descrizione (identifier).
+        val featureInfo = featureList.find { it.name == tableName }
+        val tableDescription = featureInfo?.descrTabella ?: tableName // Usa tableName se non trovi la descrizione.
+
+        // 1. Aggiungi la descrizione della tabella come valore iniziale.
+        if (tableDescription.isNotEmpty()) {
+            labelBuilder.append(tableDescription)
         }
 
         campiLabel?.forEachIndexed { index, (fieldName, description,  isVisible) ->
@@ -291,13 +295,13 @@ private suspend fun actuallyOpenAndConfigGeoPackage(): Boolean = withContext(Dis
 
                 // Controlla che fieldValue non sia null e non sia la stringa "null"
                 if (fieldValue != null && fieldValue != "null") {
-                    // 2. Se labelBuilder ha già del contenuto (tableName o un campo precedente),
+                    // 2. Se labelBuilder ha già del contenuto (descrizione o un campo precedente),
                     //    aggiungi un carattere di nuova riga per separare.
                     if (labelBuilder.isNotEmpty()) {
                         labelBuilder.append("\n")
                     }
 
-                    // 3. Accoda il nome del campo e il suo valore.
+                    // 3. Accoda il nome del campo (dalla config) e il suo valore.
                     labelBuilder.append(description)
                         .append(": ")
                         .append(fieldValue)
