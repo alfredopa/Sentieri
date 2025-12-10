@@ -196,7 +196,7 @@
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
 		<field name="comune" description="Comune" visible="true"/>
-		<field name="name" description="Name" visible="true"/>
+		<field name="name" description="Nome" visible="true"/>
 		<field name="image" description="Link" visible="false"/>
 	</table>
 		<table name="Grotte">
@@ -216,6 +216,12 @@
 		<field name="COORDX" description="Coord. X" visible="true"/>
 		<field name="COORDY" description="Coord. Y" visible="true"/>
 		<field name="STATO_OPER" description="stato_oper" visible="false"/>
+	</table>
+		<table name="sorgenti">
+		<field name="fid" description="fid" visible="false"/>
+		<field name="geom" description="geom" visible="false"/>
+		<field name="id" description="Id" visible="false"/>
+		<field name="name" description="Nome" visible="true"/>
 	</table>
 	<table name="Atlante toponomastico Comuni">
 		<field name="fid" description="fid" visible="false"/>

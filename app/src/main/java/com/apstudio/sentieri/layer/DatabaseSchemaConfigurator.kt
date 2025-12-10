@@ -52,7 +52,7 @@ class DatabaseSchemaConfigurator(
 
         try {
             val tableCursor = db.rawQuery(
-                "SELECT table_name FROM gpkg_contents WHERE data_type='features'",
+                "SELECT table_name FROM gpkg_contents WHERE data_type='features' AND description <> ''",
                 null
             )
             tableCursor.use { tc ->
