@@ -42,7 +42,8 @@ class AppSentieri : Application(), ViewModelStoreOwner {
     }
     override fun onCreate() {
         super.onCreate()
-        SimpleFileLogger.initialize(this)
-        SimpleFileLogger.log("Sentieri", "App avviata, log manuale.")
+        // Log su file disabilitato
+        //SimpleFileLogger.initialize(this)
+        //SimpleFileLogger.log("Sentieri", "App avviata, log manuale.")
     }
 }

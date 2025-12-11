@@ -81,7 +81,7 @@ class MainActivity :
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        SimpleFileLogger.log("Mainactivity", "MainActivity onCreate")
+        //SimpleFileLogger.log("Mainactivity", "MainActivity onCreate")
         super.onCreate(savedInstanceState)
         val app = applicationContext as AppSentieri
         viewModel =

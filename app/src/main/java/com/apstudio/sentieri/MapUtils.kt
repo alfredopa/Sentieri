@@ -11,7 +11,6 @@ import android.provider.OpenableColumns
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
@@ -27,6 +26,7 @@ import org.osmdroid.views.overlay.advancedpolyline.ColorMappingVariationHue
 import org.osmdroid.views.overlay.advancedpolyline.MonochromaticPaintList
 import org.osmdroid.views.overlay.advancedpolyline.PolychromaticPaintList
 import org.osmdroid.views.overlay.milestones.MilestoneManager
+import org.osmdroid.views.overlay.milestones.MilestoneMeterDistanceLister
 import org.osmdroid.views.overlay.milestones.MilestonePathDisplayer
 import org.osmdroid.views.overlay.milestones.MilestonePixelDistanceLister
 import java.text.NumberFormat
@@ -577,46 +577,187 @@ object MapUtils {
         snackbar.show()
     }
 
-
-    /*
-     * Mostra uno Snackbar personalizzato con icona, testo e bordi arrotondati.
-     * @param view La view radice su cui ancorare lo Snackbar (es. binding.root).
-     * @param message Il messaggio da visualizzare.
-     * @param duration La durata, es. Snackbar.LENGTH_LONG.
+    /**
+     * Configura una Polyline per visualizzare un gradiente di colore basato sull'altitudine.
+     * Questa sarà la linea di sfondo (Livello 1).
+     * VERSIONE CORRETTA che popola il ColorMappingForScalarContainer.
      */
-    /*fun showCustomSnackbar(context: Context, message: String, duration: Int) {
-        // 1. "Infla" (crea) il nostro layout personalizzato
-        val customView = LayoutInflater.from(context)
-            .inflate(R.layout.custom_snackbar_layout, null)
+    fun disegnaLineaSfondo(line: Polyline, pendenze: MutableList<Float>) {
+        // Range di colori: da Verde (basso) a Rosso (alto)
+        val MIN_HUE = 120f // Verde
+        val MAX_HUE = 0f   // Rosso
+        val SAT = 1.0f
+        val LUM = 0.5f
 
-        // 2. Trova il TextView e imposta il messaggio
-        val textView = customView.findViewById<TextView>(R.id.snackbar_text)
-        textView.text = message
+        val borderPaint = Paint().apply {
+            color = Color.BLACK
+            strokeWidth = 14f
+            style = Paint.Style.STROKE
+            isAntiAlias = true
+            strokeJoin = Paint.Join.ROUND
+        }
 
-        // 3. Crea un BottomSheetDialog
-        val bottomSheetDialog = BottomSheetDialog(context)
+        // Configura il Paint per il gradiente
+        val paintMapping = Paint().apply {
+            strokeWidth = 12f // Spessore generoso per essere visibile sotto
+            style = Paint.Style.FILL
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+            isAntiAlias = true
+        }
 
-        // --- FINE DELLA CORREZIONE FINALE ---
 
-        // 4. Imposta la nostra vista personalizzata come contenuto del dialog
-        bottomSheetDialog.setContentView(customView)
+        // Trova pendenza min/max
+        val minVal = pendenze.min()
+        val maxVal = pendenze.max()
+        if (maxVal > minVal) {
+            // 1. Definisci come mappare i valori (pendenza) ai colori (hue)
+            val colorMapping = ColorMappingVariationHue(
+                minVal.toFloat(), maxVal.toFloat(), MIN_HUE, MAX_HUE, SAT, LUM
+            )
 
-        // Rendi lo sfondo del contenitore del dialog trasparente per vedere solo la nostra CardView
-        (customView.parent as? View)?.setBackgroundColor(Color.TRANSPARENT)
+            //    Crea il contenitore e POPOLALO con i valori di pendenza di ogni punto.
+            val colorContainer = ColorMappingForScalarContainer(colorMapping)
+            pendenze.forEach {
+                // Aggiungi la pendenza di ogni punto al contenitore.
+                // Se un punto non ha altitudine, usa 0.0 o un valore di fallback.
+                colorContainer.add(it)
+            }
 
-        // 5. Mostra il Dialog
-        bottomSheetDialog.show()
+            // ALTRO METODO CON ALTITUDINE
+            // Trova altitudine min/max
+            /*val minVal = line.actualPoints.minOfOrNull { it.altitude } ?: 0.0
+            val maxVal = line.actualPoints.maxOfOrNull { it.altitude } ?: 0.0
 
-        // 6. Simula la durata dello Snackbar per chiudere il Dialog automaticamente
-        val delayMillis = if (duration == Snackbar.LENGTH_LONG) 3500L else 2000L
-        MainScope().launch {
-            delay(delayMillis)
-            if (bottomSheetDialog.isShowing) {
-                bottomSheetDialog.dismiss()
+            if (maxVal > minVal) {
+                // 1. Definisci come mappare i valori (altitudine) ai colori (hue)
+                val colorMapping = ColorMappingVariationHue(
+                    minVal.toFloat(), maxVal.toFloat(), MIN_HUE, MAX_HUE, SAT, LUM
+                )
+
+                // 2. *** PASSAGGIO FONDAMENTALE MANCANTE ***
+                //    Crea il contenitore e POPOLALO con i valori di altitudine di ogni punto.
+                val colorContainer = ColorMappingForScalarContainer(colorMapping)
+                line.actualPoints.forEach {
+                    // Aggiungi l'altitudine di ogni punto al contenitore.
+                    // Se un punto non ha altitudine, usa 0.0 o un valore di fallback.
+                    colorContainer.add(it.altitude.toFloat())
+                }*/
+
+            // 3. Applica la lista di paint policromatici alla polyline.
+            //    Questa lista userà il colorMapping che ora sa a quale punto associare ogni colore
+            //    grazie al colorContainer popolato.
+            line.outlinePaintLists.add(MonochromaticPaintList(borderPaint))
+            line.outlinePaintLists.add(PolychromaticPaintList(paintMapping, colorMapping, true))
+
+
+        } else {
+            // Fallback a colore singolo se non c'è dislivello
+            paintMapping.color = Color.CYAN
+            line.outlinePaintLists.add(MonochromaticPaintList(paintMapping))
+        }
+    }
+
+    /**
+     * Configura una Polyline per visualizzare il primo piano: bordo, linea interna e frecce.
+     * Questa sarà la linea sopra lo sfondo (Livello 2).
+     * SPECIFICO PER OSMDROID 6.1.x
+     */
+    fun disegnaLineaPrimopiano(line: Polyline) {
+        // Rendi la linea base trasparente, perché disegneremo tutto con outlinePaintLists e milestone
+        line.paint.color = Color.TRANSPARENT
+
+        // 1. Bordo nero per contrasto
+        /*val borderPaint = Paint().apply {
+            color = Color.BLACK
+            strokeWidth = 15f
+            style = Paint.Style.STROKE
+            isAntiAlias = true
+            strokeJoin = Paint.Join.ROUND
+        }
+        line.outlinePaintLists.add(MonochromaticPaintList(borderPaint))
+
+        // 2. Linea interna bianca
+        val innerPaint = Paint().apply {
+            color = Color.TRANSPARENT
+            strokeWidth = 9f
+            style = Paint.Style.STROKE
+            isAntiAlias = true
+            strokeJoin = Paint.Join.ROUND
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+        }
+        line.outlinePaintLists.add(MonochromaticPaintList(innerPaint))*/
+
+        // 3. Frecce direzionali
+        val arrowPaint = Paint().apply {
+            color = Color.BLACK
+            style = Paint.Style.FILL_AND_STROKE // Riempi le frecce per visibilità
+            isAntiAlias = true
+        }
+        val arrowPath = Path().apply {
+            moveTo(10f, 0f)
+            lineTo(-10f, -8f)
+            lineTo(-10f, 8f)
+            close()
+        }
+        val arrowManager = MilestoneManager(
+            MilestonePixelDistanceLister(100.0, 100.0), // Aumenta distanza per non affollare
+            MilestonePathDisplayer(0.0, true, arrowPath, arrowPaint)
+        )
+
+        // Applica le frecce.
+        // **ATTENZIONE**: In osmdroid 6.1.x, i milestone vengono disegnati SOPRA le outlinePaintLists
+        // della STESSA polyline, quindi questo approccio funzionerà.
+        line.setMilestoneManagers(mutableListOf(arrowManager))
+    }
+
+// In MapUtils.kt
+
+    /**
+     * Calcola una lista di pendenze SMUSSATE (smoothed) per ogni punto di una Polyline,
+     * usando una media mobile per ottenere valori più stabili e rappresentativi.
+     *
+     * @param line La Polyline contenente i GeoPoint con altitudine.
+     * @param finestra La dimensione della finestra di punti da considerare (metà prima, metà dopo).
+     *                 Un valore tipico è tra 10 e 20. Più è alto, più il risultato è "liscio".
+     * @return Una MutableList<Float> con la pendenza smussata per ogni punto.
+     */
+    fun calcolaPendenzeSmussate(line: Polyline, finestra: Int = 10): MutableList<Float> {
+        val punti = line.actualPoints
+        if (punti.size < 2) return mutableListOf()
+
+        val pendenzeNette = mutableListOf<Float>()
+        // Calcola prima le pendenze nette punto-punto
+        pendenzeNette.add(0f)
+        for (i in 1 until punti.size) {
+            val p1 = punti[i - 1]
+            val p2 = punti[i]
+            val distanza = p1.distanceToAsDouble(p2)
+            val dislivello = p2.altitude - p1.altitude
+            pendenzeNette.add(if (distanza > 0) (dislivello / distanza * 100).toFloat() else 0f)
+        }
+
+        // Ora calcola la media mobile (smoothing) sulle pendenze nette
+        val pendenzeSmussate = mutableListOf<Float>()
+        val mezzaFinestra = finestra / 2
+
+        for (i in pendenzeNette.indices) {
+            // Definisci i limiti della finestra di media, senza uscire dagli array bounds
+            val start = maxOf(0, i - mezzaFinestra)
+            val end = minOf(pendenzeNette.size - 1, i + mezzaFinestra)
+
+            // Estrai la sotto-lista di pendenze da mediare
+            val sottoLista = pendenzeNette.subList(start, end + 1)
+
+            // Calcola la media e aggiungila al risultato finale
+            if (sottoLista.isNotEmpty()) {
+                pendenzeSmussate.add(sottoLista.average().toFloat())
+            } else {
+                pendenzeSmussate.add(0f)
             }
         }
-    }*/
+        return pendenzeSmussate
+    }
+
 
 }
-
-

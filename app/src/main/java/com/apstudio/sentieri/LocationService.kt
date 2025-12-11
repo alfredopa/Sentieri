@@ -234,7 +234,7 @@ class LocationService : LifecycleService() {
             //SimpleFileLogger.log(TAG, "parseNmeaMessage - GGA Fix Quality: $fixQuality, MSL from NMEA string: ${nmeaParts[9]}, Parsed: $mslFromNmea")
             if (fixQuality != "0" && mslFromNmea != null) { // O controlla anche altri codici di fix validi
                 LocationRepository.updateMslAltitude(mslFromNmea)
-                SimpleFileLogger.log(TAG, "parseNmeaMessage - Updated LocationRepository.mslAltitude from NMEA: ${LocationRepository.mslAltitude.value}")
+                //SimpleFileLogger.log(TAG, "parseNmeaMessage - Updated LocationRepository.mslAltitude from NMEA: ${LocationRepository.mslAltitude.value}")
             }
         }
     }
