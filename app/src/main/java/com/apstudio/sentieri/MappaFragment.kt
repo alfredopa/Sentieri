@@ -124,6 +124,7 @@ import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
+import org.osmdroid.views.overlay.ScaleBarOverlay
 import org.osmdroid.views.overlay.compass.CompassOverlay
 import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider
 import org.osmdroid.views.overlay.infowindow.BasicInfoWindow
@@ -151,8 +152,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         private const val BROUTER_PACKAGE = "btools.routingapp"
         private const val BROUTER_SERVICE_CLASS = "btools.routingapp.BRouterService"
     }
+
     // Flag per tracciare se la vista è stata appena ricreata (onViewCreated).
     private var isViewRecreated = false
+
     // Struttura dati per contenere i risultati dell'elaborazione in background
     private data class ProcessedFeatureData(
         val points: MutableList<IGeoPoint>?,
@@ -372,17 +375,20 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     // Helper function to re-attach listeners
-    private fun reattachListenersToOverlay(overlay: org.osmdroid.views.overlay.Overlay) {if (!isAdded) return // Controllo di sicurezza
+    private fun reattachListenersToOverlay(overlay: org.osmdroid.views.overlay.Overlay) {
+        if (!isAdded) return // Controllo di sicurezza
         when (overlay) {
             is FolderOverlay -> {
                 // Applica ricorsivamente ai figli
                 overlay.items.forEach { reattachListenersToOverlay(it) }
             }
+
             is SimpleFastPointOverlay -> {
                 // Per i punti veloci, il listener originale è sufficiente e non dipende
                 // da elementi esterni, quindi non facciamo nulla.
                 Log.d("ListenerDebug", "Preservo listener originale per SimpleFastPointOverlay")
             }
+
             is Polygon -> {
                 // ==> INIZIO MODIFICA <==
                 Log.d("ListenerDebug", "Ri-attacco Listener SEMPLICE per Poligono")
@@ -396,6 +402,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
                 // ==> FINE MODIFICA <==
             }
+
             is Polyline -> {
                 // La logica per le Polyline è CORRETTA e deve rimanere,
                 // perché l'InfoWindow dipende dall'istanza attuale della mapView.
@@ -438,7 +445,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             event.getContentIfNotHandled()?.let { clickedPoint ->
                 Log.d(TAG, "Ricevuta richiesta di navigazione a: $clickedPoint")
                 val animationDuration = 1000L
-                Toast.makeText(requireContext(), "Spostamento in corso...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Spostamento in corso...", Toast.LENGTH_SHORT)
+                    .show()
 
                 mapView.controller.animateTo(clickedPoint, 12.5, animationDuration)
 
@@ -559,6 +567,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             compassOverlay.enableCompass()
             compassOverlay.setCompassCenter(36f, 36f)
             mapView.overlayManager.add(compassOverlay)
+
+            // Allinea la barra in basso al centro dello schermo.
+            val scaleBarOverlay = ScaleBarOverlay(mapView)
+            scaleBarOverlay.setAlignBottom(true)
+            //scaleBarOverlay.setCentred(true)
+            // Aggiungi la barra della scala alla lista degli overlay della mappa.
+            mapView.overlays.add(scaleBarOverlay)
         }
 
         mapView.zoomController?.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
@@ -594,18 +609,27 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     exitDestinationSelectionMode()
                 }
             } else {
-                Toast.makeText(requireContext(), "Calcolo percorso solo con registrazione avviata", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    requireContext(),
+                    "Calcolo percorso solo con registrazione avviata",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
 
         binding.buttonConfirmDestination.setOnClickListener {
             val destinationPoint = destinationMarker?.position
             if (destinationPoint == null) {
-                Toast.makeText(requireContext(), "Posizione di destinazione non valida.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    requireContext(),
+                    "Posizione di destinazione non valida.",
+                    Toast.LENGTH_SHORT
+                ).show()
                 return@setOnClickListener
             }
 
-            startPointForRouting = gpsMarker.position ?: currentTrackPolyline.actualPoints.firstOrNull()
+            startPointForRouting =
+                gpsMarker.position ?: currentTrackPolyline.actualPoints.firstOrNull()
             endPointForRouting = destinationPoint
 
             if (!isBound) {
@@ -617,9 +641,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
                 try {
                     requireContext().bindService(intent, connection, Context.BIND_AUTO_CREATE)
-                    Toast.makeText(requireContext(), "Calcolo percorso in corso...", Toast.LENGTH_SHORT).show()
-                } catch (e: SecurityException) {
-                    Toast.makeText(requireContext(), "Impossibile avviare BRouter.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        requireContext(),
+                        "Calcolo percorso in corso...",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } catch (_: SecurityException) {
+                    Toast.makeText(
+                        requireContext(),
+                        "Impossibile avviare BRouter.",
+                        Toast.LENGTH_LONG
+                    ).show()
                     startPointForRouting = null
                     endPointForRouting = null
                 }
@@ -798,10 +830,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val stateToRestore = viewModel.bottomState
             if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
                 stateToRestore == BottomSheetBehavior.STATE_EXPANDED ||
-                stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED) {
+                stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED
+            ) {
                 bottomSheetBehavior.state = stateToRestore
             } else {
-                Log.w(TAG, "Stato BottomSheet non valido ($stateToRestore). Imposto collassato di default.")
+                Log.w(
+                    TAG,
+                    "Stato BottomSheet non valido ($stateToRestore). Imposto collassato di default."
+                )
                 bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
             }
             // --- FINE BLOCCO DI SICUREZZA ---
@@ -947,7 +983,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             // Se il layer deve essere visibile, caricalo o ri-aggiungilo
             if (featureInfo.isVisible) {
-                Log.d(TAG, "SINC: Il layer ${featureInfo.name} è visibile. Avvio ricaricamento completo.")
+                Log.d(
+                    TAG,
+                    "SINC: Il layer ${featureInfo.name} è visibile. Avvio ricaricamento completo."
+                )
                 puntiSuMappa(featureInfo.name, featureInfo)
             } else {
                 // Se il layer NON deve essere visibile, svuotiamo la sua lista in memoria.
@@ -1047,7 +1086,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // 2. Osservatore per la navigazione a un punto
         layerModel.navigateToPointRequest.observe(viewLifecycleOwner, Observer { event ->
             event.getContentIfNotHandled()?.let { clickedPoint ->
-                Log.d(TAG, "Ricevuta richiesta di navigazione. Imposto punto di centraggio: $clickedPoint")
+                Log.d(
+                    TAG,
+                    "Ricevuta richiesta di navigazione. Imposto punto di centraggio: $clickedPoint"
+                )
                 // 1. Imposta il punto che verrà usato per centrare la mappa quando sarà pronta.
                 initialCenterPoint = clickedPoint
                 // 2. Mostra subito l'highlight.
@@ -1249,7 +1291,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 Log.d(TAG, "Centro mappa sulla nuova destinazione: $initialCenterPoint")
                 mapView.controller.setZoom(14.0)
                 mapView.controller.setCenter(initialCenterPoint)
-                initialCenterPoint = null // Consuma la richiesta per evitare che venga riutilizzata.
+                initialCenterPoint =
+                    null // Consuma la richiesta per evitare che venga riutilizzata.
             } else {
                 // Altrimenti, ripristina la posizione e lo zoom precedenti.
                 Log.d(TAG, "Nessuna nuova destinazione. Ripristino stato precedente.")
@@ -1455,8 +1498,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }*/
 
     private fun caricaGPX(uri: Uri) {
-        val line = Polyline(mapView)
-        var punto: GeoPoint
+        val trackPointsOriginali: MutableList<GeoPoint> = mutableListOf()
         var oldPunto: GeoPoint? = null
         val stream = requireActivity().contentResolver.openInputStream(uri)
         val parser = GpxParser()
@@ -1476,84 +1518,87 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.trackDistanza = 0f
         viewModel.trackAscesa = 0
         viewModel.trackDiscesa = 0
-// nome file (da Maputils)
-        line.title = getFileNameFromUri(requireContext(), uri)
+
 
 // carica i punti della traccia se esistono- da verificare con gpx multisegmento
-// usa altinulla per contare gli elementi con altitudine 0
-        if (!gpx.tracks.isEmpty()) {
-            gpx.tracks[0].trackPoints.forEach {
-//Log.d("Punto","${it.latitude}${it.longitude}")
-// verifica esistenza valore altitudine
-                if (it.elevation != null) {
-                    punto = GeoPoint(it.latitude, it.longitude, it.elevation)
-// confronta con la precedente altitudine non nulla e verifica se aumenta ascesa oppure discesa
-                    if (oldPunto?.altitude != null) {
-                        if (it.elevation > oldPunto.altitude) {
-                            viewModel.trackAscesa += (it.elevation.toInt() - oldPunto.altitude.toInt())
-                        } else {
-                            viewModel.trackDiscesa += (it.elevation.toInt() - oldPunto.altitude.toInt())
-                        }
-                    }
+        // 2. POPOLAMENTO DELLA LISTA: Leggi i punti e aggiungili alla nostra lista.
+        gpx.tracks.first().trackPoints.forEach { trackPoint ->
+            val punto =
+                GeoPoint(trackPoint.latitude, trackPoint.longitude, trackPoint.elevation ?: 0.0)
+            trackPointsOriginali.add(punto)
+
+            // Calcola statistiche (distanza, ascesa, discesa)
+            if (trackPoint.elevation == null) altiNulla += 1
+
+            if (oldPunto != null) {
+                viewModel.trackDistanza += MapUtils.getDistanceInMeters(oldPunto, punto)
+                val dislivello = (punto.altitude) - (oldPunto.altitude)
+                if (dislivello > 0) {
+                    viewModel.trackAscesa += dislivello.toInt()
                 } else {
-                    punto = GeoPoint(it.latitude, it.longitude)
-                    altiNulla += 1
+                    viewModel.trackDiscesa += dislivello.toInt()
                 }
-// calcola distanza della traccia, da utilizzare se viene seguita per calcolare distanza rimanente
-                if (oldPunto != null) {
-                    val distToPunto = MapUtils.getDistanceInMeters(oldPunto, punto)
-                    viewModel.trackDistanza += distToPunto
-                }
-
-                oldPunto = GeoPoint(it.latitude, it.longitude, it.elevation ?: 0.0)
-                line.addPoint(punto)
             }
-            // *** CALCOLO PENDENZE OTTIMIZZATO (chiamata singola) ***
-            val pendenze = MapUtils.calcolaPendenzeSmussate(line)
-
-            // 1. Crea la Polyline per lo SFONDO (gradiente di colore)
-            val polylineColore = Polyline(mapView).apply {
-                title = "TracciaColore"
-                setPoints(line.actualPoints)
-                isVisible = true
-            }
-
-            val polylineFrecce = Polyline(mapView).apply {
-                title = "TracciaFrecce"
-                setPoints(line.actualPoints)
-                isVisible = true
-            }
-
-            // 3. Applica gli stili specifici, PASSANDO la lista delle pendenze
-            MapUtils.disegnaLineaSfondo(polylineColore, pendenze)
-            // Le altre due funzioni non sono state modificate nella risposta precedente, ma le includo per completezza
-            // disegnaBordoTraccia(polylineBordo)
-            // disegnaSoloFrecce(polylineFrecce)
-            // --- ATTENZIONE: USA LE VERSIONI CORRETTE CHE HAI GIÀ ---
-            // Nelle risposte precedenti abbiamo definito disegnaBordoTraccia e disegnaSoloFrecce.
-            // Le seguenti sono solo un placeholder.
-            // Assicurati che il tuo MapUtils contenga le definizioni corrette.
-            MapUtils.disegnaLineaSfondo(polylineColore, pendenze)
-            MapUtils.disegnaLineaPrimopiano(polylineFrecce)
-
-
-
-            // 4. Aggiungi le  Polyline all'overlay della mappa NELL'ORDINE CORRETTO
-            mapView.overlays.add(polylineColore)   // Livello 1: Gradiente (sotto)
-            mapView.overlays.add(polylineFrecce)   // Livello 3: Frecce (sopra)
-
-            // 5. Aggiungi le tracce alla lista nel ViewModel per la gestione dei layer
-            viewModel.listaTracce.add(polylineColore)
-            viewModel.listaTracce.add(polylineFrecce)
-
-            // 6. Aggiungi i marker di inizio/fine (associandoli alla polilinea di sfondo)
-            addMarker(polylineColore)
-
-            // questo usato per disegno traccia con altitudine
-            //disegnaLine(line)
-            //viewModel.listaTracce.add(line)
-            //addMarker(line)
+            oldPunto = punto
         }
+
+        // nome file (da Maputils)
+        val nome = getFileNameFromUri(requireContext(), uri)
+        // 1. Crea la Polyline per lo SFONDO (gradiente di colore)
+        val polylineColore = Polyline(mapView).apply {
+            title = nome
+            setPoints(trackPointsOriginali)
+            isVisible = true
+        }
+
+        val polylineFrecce = Polyline(mapView).apply {
+            title = nome
+            setPoints(trackPointsOriginali)
+            isVisible = true
+        }
+        // *** CALCOLO PENDENZE OTTIMIZZATO (chiamata singola) ***
+        val pendenze = MapUtils.calcolaPendenzeSmussate(polylineColore, 8)
+
+        // 4. Crea una NUOVA lista di punti con la pendenza "iniettata" nel campo altitudine.
+        val puntiConPendenza = trackPointsOriginali.mapIndexed { index, geoPoint ->
+            val pendenza = if (index < pendenze.size) pendenze[index].toDouble() else 0.0
+            GeoPoint(geoPoint.latitude, geoPoint.longitude, pendenza)
+        }
+
+        // 5. AGGIORNA i punti della polyline di sfondo per usare quelli con la pendenza.
+        //    Questo è il passaggio chiave per "ingannare" il sistema di colorazione.
+        polylineColore.setPoints(puntiConPendenza)
+
+        // 3. Applica gli stili specifici, PASSANDO la lista delle pendenze
+        MapUtils.disegnaLineaSfondo(polylineColore, pendenze)
+        // Le altre due funzioni non sono state modificate nella risposta precedente, ma le includo per completezza
+        // disegnaBordoTraccia(polylineBordo)
+        // disegnaSoloFrecce(polylineFrecce)
+        // --- ATTENZIONE: USA LE VERSIONI CORRETTE CHE HAI GIÀ ---
+        // Nelle risposte precedenti abbiamo definito disegnaBordoTraccia e disegnaSoloFrecce.
+        // Le seguenti sono solo un placeholder.
+        // Assicurati che il tuo MapUtils contenga le definizioni corrette.
+        MapUtils.disegnaLineaSfondo(polylineColore, pendenze)
+        MapUtils.disegnaLineaPrimopiano(polylineFrecce)
+
+
+        // 4. Aggiungi le  Polyline all'overlay della mappa NELL'ORDINE CORRETTO
+        mapView.overlays.add(polylineColore)   // Livello 1: Gradiente (sotto)
+        mapView.overlays.add(polylineFrecce)   // Livello 3: Frecce (sopra)
+
+        // 5. Aggiungi le tracce alla lista nel ViewModel per la gestione dei layer
+        viewModel.listaTracce.add(polylineColore)
+        viewModel.listaTracce.add(polylineFrecce)
+
+        // 6. Aggiungi i marker di inizio/fine (associandoli alla polilinea di sfondo)
+        MapUtils.markInizioFine(requireContext(), trackPointsOriginali.first(), mapView, viewModel.recTraccia, 0)
+        MapUtils.markInizioFine(requireContext(), trackPointsOriginali.last(), mapView, viewModel.recTraccia, 1)
+        //addMarker(polylineColore)
+
+        // questo usato per disegno traccia con altitudine
+        //disegnaLine(line)
+        //viewModel.listaTracce.add(line)
+        //addMarker(line)
 
 // carica i waypoints nella lista wayPoints da non salvare con traccia
         gpx.wayPoints?.forEach {
@@ -1593,9 +1638,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // esegue la visualizzazione dopo aver aggiornato lo zoom della mappa
         if (!gpx.tracks.isEmpty()) {
             mapView.post {
-                mapView.zoomToBoundingBox(line.bounds.increaseByScale(1.2f), false)
+                mapView.zoomToBoundingBox(polylineColore.bounds.increaseByScale(1.2f), false)
             }
-            MapUtils.alertSegui(requireContext(), viewModel, line)
+            MapUtils.alertSegui(requireContext(), viewModel, polylineColore)
         }
     }
 
@@ -2649,7 +2694,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun processLineStringGeometry(
-        featureRow: FeatureRow,tableName: String,
+        featureRow: FeatureRow, tableName: String,
         lineStringToAdd: MutableList<LineStringFeature>
     ) {
         val geometryData = featureRow.geometry

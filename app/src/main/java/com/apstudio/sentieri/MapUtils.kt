@@ -584,7 +584,7 @@ object MapUtils {
      */
     fun disegnaLineaSfondo(line: Polyline, pendenze: MutableList<Float>) {
         // Range di colori: da Verde (basso) a Rosso (alto)
-        val MIN_HUE = 120f // Verde
+        val MIN_HUE = 240f // cyan
         val MAX_HUE = 0f   // Rosso
         val SAT = 1.0f
         val LUM = 0.5f
@@ -710,8 +710,6 @@ object MapUtils {
         // della STESSA polyline, quindi questo approccio funzionerà.
         line.setMilestoneManagers(mutableListOf(arrowManager))
     }
-
-// In MapUtils.kt
 
     /**
      * Calcola una lista di pendenze SMUSSATE (smoothed) per ogni punto di una Polyline,
