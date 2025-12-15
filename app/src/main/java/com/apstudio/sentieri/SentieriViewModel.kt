@@ -119,7 +119,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     // 0 massimo smooth 1 minore smooth
     // con 0.1 da valori troppo bassi (-200 dislivello)
     private val alfa: Double = 0.21
-    private val alfaGPS: Double = 0.21  //0.23 prec
+    private val alfaGPS: Double = 0.225  //0.21 prec
     var NORMAL_PRESSURE = 1013.25F
     private val _isCalibrato = MutableLiveData(false)
     val isCalibrato : LiveData<Boolean> = _isCalibrato

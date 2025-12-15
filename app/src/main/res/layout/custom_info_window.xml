@@ -40,7 +40,7 @@
             android:layout_gravity="end"
             android:layout_marginTop="8dp"
             android:text="Sito Web"
-            android:textColor="?attr/colorPrimary"
+            android:textColor="?attr/colorAccent"
             android:visibility="gone"
             tools:visibility="visible" />
 
