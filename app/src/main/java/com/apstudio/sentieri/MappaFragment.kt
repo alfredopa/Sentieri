@@ -72,6 +72,8 @@ import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.MapUtils.getFileNameFromUri
 import com.apstudio.sentieri.MapUtils.showCustomSnackbar
 import com.apstudio.sentieri.databinding.FragmentMappaBinding
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
 import com.apstudio.sentieri.db.LocationRepository
@@ -561,13 +563,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 requireContext().theme
             )
             mapView.overlayManager.add(gpsMarker)
-
-            val compassOverlay =
-                CompassOverlay(context, InternalCompassOrientationProvider(context), mapView)
-            compassOverlay.enableCompass()
-            compassOverlay.setCompassCenter(36f, 36f)
-            mapView.overlayManager.add(compassOverlay)
-
+            // Aggiungi l'overlay della bussola solo se il dispositivo ha i sensori necessari.
+            if (hasCompass()) {
+                val compassOverlay =
+                    CompassOverlay(context, InternalCompassOrientationProvider(context), mapView)
+                compassOverlay.enableCompass()
+                compassOverlay.setCompassCenter(36f, 36f)
+                mapView.overlayManager.add(compassOverlay)
+            }
             // Allinea la barra in basso al centro dello schermo.
             val scaleBarOverlay = ScaleBarOverlay(mapView)
             scaleBarOverlay.setAlignBottom(true)
@@ -818,7 +821,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         if (viewModel.isRecording) {
             Log.d(TAG, "onResume: La registrazione è attiva. Ripristino lo stato della traccia.")
-            LocationRepository.requestFullTrack()
+            val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
+            // 3. Imposta i punti direttamente sulla Polyline.
+            //    (Assicurati che currentTrackPolyline sia già inizializzata)
+            currentTrackPolyline.setPoints(fullTrackSnapshot)
+            // 4. Forza un ridisegno della mappa ORA che i dati sono corretti.
+            mapView.invalidate()
+
             LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
             accendiSchermo()
             viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
@@ -1275,6 +1284,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // Applica il tile provider alla mappa.
         mapView.tileProvider = tileProvider
         mapView.invalidate()
+    }
+
+    /**
+     * Controlla se il dispositivo è dotato dei sensori necessari per la bussola.
+     * @return True se sono presenti sia l'accelerometro che il magnetometro, altrimenti False.
+     */
+    private fun hasCompass(): Boolean {
+        val sensorManager = requireContext().getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        val magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        return accelerometer != null && magnetometer != null
     }
 
     private fun ripristinaStatoMappa() {
@@ -2612,24 +2632,28 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             osmdroidPolyline.outlinePaint.color = layerModel.getRandomIntColor()
             osmdroidPolyline.outlinePaint.strokeWidth = 8f
             // --- Gestione InfoWindow ---
-            osmdroidPolyline.id = "line_${featureInfo.name}_$index" // ID univoco
-            osmdroidPolyline.title = ngaLineString.title // Titolo per l'InfoWindow
-            //osmdroidPolyline.snippet = ngaLineString.description // Snippet/sottotitolo
+            osmdroidPolyline.id = "line_${featureInfo.name}_$index"
+            osmdroidPolyline.title = ngaLineString.title
+            // Imposta lo snippet, servirà alla BasicInfoWindow
+            osmdroidPolyline.snippet = lineFeature.description
 
-            if (featureInfo.name == "Sentieri CAI") {
-                osmdroidPolyline.infoWindow = WebsiteInfoWindow(lineFeature, mapView)
-            } else {
-                // Per tutti gli altri layer, usa la InfoWindow di base
-                osmdroidPolyline.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
-                osmdroidPolyline.snippet = lineFeature.description
-            }
+            // IMPOSTA UN LISTENER "INTELLIGENTE" CHE CREA LA FINESTRA AL MOMENTO DEL CLICK
             osmdroidPolyline.setOnClickListener { clickedPolyline, map, eventPosition ->
-                //Log.d(TAG, "Polyline da GeoPackage cliccata: ${clickedPolyline.title}")
-                clickedPolyline.infoWindowLocation =
-                    eventPosition // Usa il punto del click per posizionare l'InfoWindow
-                clickedPolyline.showInfoWindow() // Mostra l'InfoWindow
+                // 1. Crea la InfoWindow "just-in-time" usando la 'map' VALIDA fornita dal listener
+                val iw = if (featureInfo.name == "Sentieri CAI") {
+                    WebsiteInfoWindow(lineFeature, map)
+                } else {
+                    BasicInfoWindow(R.layout.bonuspack_bubble, map)
+                }
+
+                // 2. Assegna e mostra la InfoWindow appena creata
+                clickedPolyline.infoWindow = iw
+                clickedPolyline.infoWindowLocation = eventPosition
+                clickedPolyline.showInfoWindow()
+
+                // 3. Centra la mappa sul punto
                 map.controller.animateTo(eventPosition)
-                true // Indica che l'evento è stato gestito
+                true // Evento gestito
             }
             // 2. Aggiungi la Polyline di osmdroid al FolderOverlay
             lineOverlayFolder.add(osmdroidPolyline)
@@ -3250,7 +3274,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         override fun onOpen(item: Any?) {
             // Chiude altre finestre eventualmente aperte
-            closeAllInfoWindowsOn(mMapView)
+            closeAllInfoWindowsOn(mapView)
 
             val titleView: TextView = mView.findViewById(R.id.bubble_title)
             val descriptionView: TextView = mView.findViewById(R.id.bubble_description)

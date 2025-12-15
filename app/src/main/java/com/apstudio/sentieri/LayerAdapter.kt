@@ -1,12 +1,7 @@
 package com.apstudio.sentieri
 
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.databinding.ItemLayerBinding
 import com.apstudio.sentieri.db.LayerItem
@@ -54,7 +49,7 @@ class LayerAdapter(private val layerItems: MutableList<LayerItem>) :
                 true
             }
             // Imposta il listener di click sullo switch
-            binding.swcVisibile.setOnCheckedChangeListener { _, isChecked ->
+            binding.swcVisibile.setOnCheckedChangeListener { _, _ ->
                 val position = adapterPosition
                 if (position != RecyclerView.NO_POSITION) {
                     onItemClickListener?.onswcVisibileClick(position)
@@ -67,7 +62,7 @@ class LayerAdapter(private val layerItems: MutableList<LayerItem>) :
                 }
             }
 
-            binding.swcDirezione.setOnCheckedChangeListener { _, isChecked ->
+            binding.swcDirezione.setOnCheckedChangeListener { _, _ ->
                 val position = adapterPosition
                 if (position != RecyclerView.NO_POSITION) {
                     onItemClickListener?.onswcDirezioneClick(position) // Nuovo listener

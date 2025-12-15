@@ -82,6 +82,9 @@ class LocationService : LifecycleService() {
         private const val LOCATION_SERVICE_CHANNEL = 1234 // canale delle notifiche
         private const val LOCATION_UPDATE_INTERVAL_MS = 2000L
         private const val MIN_DISTANCE_CHANGE_METERS = 3f
+        // per utilizzo trekking
+        //private const val LOCATION_UPDATE_INTERVAL_MS = 4000L
+        //private const val MIN_DISTANCE_CHANGE_METERS = 1f
         private const val MIN_ACCURACY_METERS = 40f
         private const val TAG = "LocationService"
     }

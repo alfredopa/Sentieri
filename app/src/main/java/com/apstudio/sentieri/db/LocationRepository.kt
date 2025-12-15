@@ -51,6 +51,12 @@ object LocationRepository {
         _trackPoints.postValue(trackPointsList.toList())
     }
 
+    fun getFullTrackSnapshot(): List<GeoPoint> {
+        // Usiamo 'toList()' per creare una copia immutabile, garantendo
+        // che non ci siano problemi di modifica concorrente.
+        return trackPointsList.toList()
+    }
+
     fun updateGpsStatus(newStatus: String) {
         if (_gpsStatus.value != newStatus) {
             _gpsStatus.postValue(newStatus)
