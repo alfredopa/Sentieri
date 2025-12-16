@@ -10,6 +10,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -169,52 +170,65 @@ class FeatureList : Fragment(), MenuProvider {
             return
         }
 
-        val dialogView = ScrollView(requireContext())
-        val layout = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.VERTICAL
-            val padding = (16 * resources.displayMetrics.density).toInt()
-            setPadding(padding, padding, padding, padding)
-        }
-        dialogView.addView(layout)
+        // 1. Infla il nuovo layout personalizzato
+        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_search_layout, null)
+        val fieldsContainer = dialogView.findViewById<LinearLayout>(R.id.dialog_fields_container)
 
-        val fieldsToSearch = fieldConfig!!.filter { it.isVisible }
+        // 2. Trova i pulsanti nel layout
+        val resetButton: Button = dialogView.findViewById(R.id.button_reset)
+        val cancelButton: Button = dialogView.findViewById(R.id.button_annulla)
+        val searchButton: Button = dialogView.findViewById(R.id.button_cerca)
+
+        // Popola gli EditText come prima
         val editTextMap = mutableMapOf<String, EditText>()
-
-        fieldsToSearch.forEach { field ->
+        fieldConfig!!.filter { it.isVisible }.forEach { field ->
             val editText = EditText(requireContext()).apply {
                 hint = field.description
             }
-            layout.addView(editText)
+            fieldsContainer.addView(editText)
             editTextMap[field.name] = editText
         }
 
-        AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
-            .setTitle("Filtra Dati")
+        // 3. Costruisci il dialogo SENZA i pulsanti di default
+        val dialog = AlertDialog.Builder(requireContext())
             .setView(dialogView)
-            .setPositiveButton("Cerca") { _, _ ->
-                val whereClauseParts = mutableListOf<String>()
-                val selectionArgs = mutableListOf<String>()
+            .create()
 
-                editTextMap.forEach { (fieldName, editText) ->
-                    val searchText = editText.text.toString().trim()
-                    if (searchText.isNotEmpty()) {
-                        whereClauseParts.add("$fieldName LIKE ?")
-                        selectionArgs.add("%$searchText%")
-                    }
-                }
+        // Rendi trasparente lo sfondo della finestra per mostrare la CardView
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
 
-                if (whereClauseParts.isNotEmpty()) {
-                    val finalWhereClause = whereClauseParts.joinToString(" AND ")
-                    loadFeatures(finalWhereClause, selectionArgs.toTypedArray())
-                } else {
-                    Toast.makeText(requireContext(), "Nessun criterio inserito.", Toast.LENGTH_SHORT).show()
+        // 4. Imposta i listener per i pulsanti personalizzati
+        searchButton.setOnClickListener {
+            val whereClauseParts = mutableListOf<String>()
+            val selectionArgs = mutableListOf<String>()
+            editTextMap.forEach { (fieldName, editText) ->
+                val searchText = editText.text.toString().trim()
+                if (searchText.isNotEmpty()) {
+                    whereClauseParts.add("$fieldName LIKE ?")
+                    selectionArgs.add("%$searchText%")
                 }
             }
-            .setNegativeButton("Annulla", null)
-            .setNeutralButton("Reset") { _, _ ->
-                loadFeatures()
+
+            if (whereClauseParts.isNotEmpty()) {
+                val finalWhereClause = whereClauseParts.joinToString(" AND ")
+                loadFeatures(finalWhereClause, selectionArgs.toTypedArray())
+            } else {
+                Toast.makeText(requireContext(), "Nessun criterio inserito.", Toast.LENGTH_SHORT).show()
             }
-            .show()
+
+            dialog.dismiss() // Chiudi il dialogo
+        }
+
+        cancelButton.setOnClickListener {
+            dialog.dismiss() // Chiudi semplicemente il dialogo
+        }
+
+        resetButton.setOnClickListener {
+            loadFeatures() // Resetta i filtri e ricarica tutto
+            dialog.dismiss() // Chiudi il dialogo
+        }
+
+        dialog.show()
     }
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
