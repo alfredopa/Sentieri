@@ -2449,19 +2449,27 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         return osmdroidPolygon
     }
 
-    private fun mostraAlertDialogSemplice(message: String) {
-        if (!isAdded || context == null) {
-            Log.w(TAG, "Fragment non attaccato o contesto nullo, impossibile mostrare AlertDialog.")
-            return // Esci dalla funzione per evitare il crash
+    private fun mostraAlertDialogSemplice(messaggio: String) {
+        if (!isAdded) return //
+        // 1. Infla il nuovo layout personalizzato
+        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_details_layout, null)
+        // 2. Trova le View all'interno del nostro layout
+        val messageTextView: TextView = dialogView.findViewById(R.id.dialog_message_text)
+        val closeButton: Button = dialogView.findViewById(R.id.dialog_close_button)
+        // 3. Imposta il testo del messaggio
+        messageTextView.text = messaggio
+        // 4. Costruisci il dialogo SENZA i pulsanti di default
+        val dialog = AlertDialog.Builder(requireContext())
+            .setView(dialogView)
+            .create()
+        // 5. Rendi trasparente lo sfondo della finestra del dialogo
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        // 6. Imposta il listener per il nostro pulsante personalizzato
+        closeButton.setOnClickListener {
+            dialog.dismiss()
         }
-        val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
-        //builder.setTitle(titolo) // Imposta il titolo
-        builder.setMessage(message) // Imposta il messaggio
-        builder.setPositiveButton("Chiudi") { dialog, _ ->
-            dialog.dismiss() // Chiude esplicitamente il dialogo (spesso non necessario per setPositiveButton)
-        }
-        val alertDialog: AlertDialog = builder.create()
-        alertDialog.show()
+        // Mostra il dialogo
+        dialog.show()
     }
 
     // Attorno alla riga 2297
