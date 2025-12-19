@@ -1,12 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Reply Preference -->
-    <string-array name="reply_entries">
-        <item>Reply</item>
-        <item>Reply to all</item>
+    <!-- Array per le etichette del tipo di attività -->
+    <string-array name="activity_type_entries">
+        <item>Mountain Bike</item>
+        <item>Trekking</item>
     </string-array>
 
-    <string-array name="reply_values">
-        <item>reply</item>
-        <item>reply_all</item>
+    <!-- Array per i valori da salvare per il tipo di attività -->
+    <string-array name="activity_type_values">
+        <item>mtb</item>
+        <item>trekking</item>
     </string-array>
 </resources>

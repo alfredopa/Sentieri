@@ -80,8 +80,8 @@ class LocationService : LifecycleService() {
 
     companion object {
         private const val LOCATION_SERVICE_CHANNEL = 1234 // canale delle notifiche
-        private const val LOCATION_UPDATE_INTERVAL_MS = 2000L
-        private const val MIN_DISTANCE_CHANGE_METERS = 3f
+        private var LOCATION_UPDATE_INTERVAL_MS = 2000L
+        private var MIN_DISTANCE_CHANGE_METERS = 3f
         // per utilizzo trekking
         //private const val LOCATION_UPDATE_INTERVAL_MS = 4000L
         //private const val MIN_DISTANCE_CHANGE_METERS = 1f
@@ -145,6 +145,32 @@ class LocationService : LifecycleService() {
                 super.onStopped()
             }
         }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+        val activityType =
+            intent?.getStringExtra("ACTIVITY_TYPE") ?: "trekking" // Usa trekking se null
+        //Log.d(TAG, "Servizio avviato con tipo attività: $activityType")
+
+        when (activityType) {
+            "mountain_bike" -> {
+                LOCATION_UPDATE_INTERVAL_MS = 3000L // 4 secondi
+                MIN_DISTANCE_CHANGE_METERS = 6f// 6 metri
+            }
+
+            "trekking" -> {
+                LOCATION_UPDATE_INTERVAL_MS = 2000L // 2 secondi
+                MIN_DISTANCE_CHANGE_METERS = 3f       //3 metri
+            }
+            // Puoi aggiungere altri casi qui, es. "corsa"
+            else -> {
+                // Default di sicurezza
+                LOCATION_UPDATE_INTERVAL_MS = 3000L
+                MIN_DISTANCE_CHANGE_METERS = 6f
+            }
+        }
+        return START_STICKY
     }
 
     private fun initializeLocationListener() {

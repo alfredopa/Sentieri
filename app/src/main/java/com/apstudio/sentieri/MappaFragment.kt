@@ -688,6 +688,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.secondiMovimento.observe(viewLifecycleOwner) { secondiMovimento ->
             binding.cruscotto.tvTempoMov.text = formatSeconds(secondiMovimento)
         }
+        viewModel.pendenza.observe(viewLifecycleOwner) { pendenza ->
+            // Aggiorna il TextView con il valore della pendenza, aggiungendo il simbolo %
+            binding.cruscotto.tvPendenza.text = "$pendenza %"
+        }
         viewModel.isAllarmeAttivo.observe(viewLifecycleOwner) { isAttivo ->
             updateBtnAllarmeUI(isAttivo)
         }
@@ -1484,9 +1488,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // inizio registrazione posizione
         viewModel.isRecording = true
         viewModel.oraInizio = System.currentTimeMillis()
+        // legge preferenze per il tipo di attività
+        val activityType = preferenze.getString("activity_type_preference", "Mountain Bike")
         viewModel.startUpdates()
-// avvia il servizio per tracciare locazione in background
-        requireActivity().startService(Intent(context, LocationService::class.java))
+        // avvia il servizio per tracciare locazione in background
+        //requireActivity().startService(Intent(context, LocationService::class.java))
+        val serviceIntent = Intent(requireContext(), LocationService::class.java)
+        // 3. Aggiungi il tipo di attività come "extra" all'Intent.
+        serviceIntent.putExtra("ACTIVITY_TYPE", activityType)
+        // 4. Avvia il servizio usando l'Intent modificato.
+        ContextCompat.startForegroundService(requireContext(), serviceIntent)
         bottomSheetBehavior.isHideable = false
         bottomSheetBehavior.peekHeight = 120
         bottomSheetBehavior.halfExpandedRatio = 0.5f
@@ -1494,28 +1505,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         LocationRepository.updateGpsStatus("started")
         //updateGpsIcon("started")
     }
-
-    /*@Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == SELECT_GPX_FILE && resultCode == AppCompatActivity.RESULT_OK) {
-            if (data != null) {
-                uri = data.data
-                caricaGPX(uri!!)
-                //uri?.run { caricaGPX(uri!!) }
-            }
-        }
-        if (requestCode == SELECT_MAP_FILE && resultCode == AppCompatActivity.RESULT_OK) {
-            if (data != null) {
-                uri = data.data
-                apreMappa(uri!!)
-// salva la mappa offline scelta nelle preferenze
-                preferenze.edit { putString("URIMappa", uri.toString()) }
-                preferenze.edit { putInt("MenuMap", 0) }
-                viewModel.uriMappa = uri!!
-            }
-        }
-    }*/
 
     private fun caricaGPX(uri: Uri) {
         val trackPointsOriginali: MutableList<GeoPoint> = mutableListOf()
