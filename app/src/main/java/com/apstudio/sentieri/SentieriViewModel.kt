@@ -102,6 +102,12 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     val secondiMovimento: LiveData<Long> = _secondiMovimento
     private val _isAllarmeAttivo = MutableLiveData(true)
     val isAllarmeAttivo: LiveData<Boolean> = _isAllarmeAttivo
+    // Variabili per il calcolo della pendenza
+    private val _pendenza = MutableLiveData<Int>(0)
+    val pendenza: LiveData<Int> = _pendenza
+    private var referencePointForSlope: GeoPoint? = null
+    private val SLOPE_CALCULATION_DISTANCE_THRESHOLD = 10.0
+
 
     private val gpsAltitudeHistory: ArrayDeque<Double> = ArrayDeque(MOVING_AVERAGE_WINDOW_SIZE)
     private var previousFilteredAltitude: Double? = null
@@ -216,10 +222,38 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             _quota.postValue(altitudineCalcolata.toInt()) // altitudineCalcolata qui è già la processGpsAltitude
         }
 
-        // Aggiorna distanza
+        // Aggiorna distanza e pendenza
         if (oldPunto.latitude != 0.0 && oldPunto.longitude != 0.0) {
-            val nuovaDistanza = (distanzaMetri.value ?: 0) + MapUtils.getDistanceInMeters(oldPunto, currentNewPunto)
-            _distanzaMetri.postValue(nuovaDistanza)
+            // Calcola e aggiorna la distanza totale percorsa
+            val distanzaSegmento = MapUtils.getDistanceInMeters(oldPunto, currentNewPunto)
+            val nuovaDistanzaTotale = (distanzaMetri.value ?: 0) + distanzaSegmento
+            _distanzaMetri.postValue(nuovaDistanzaTotale)
+            // Log.d("SentieriViewModel", "Distanza totale: $nuovaDistanzaTotale")
+            // 1. Se il punto di riferimento per la pendenza non è ancora stato impostato,
+            //    impostalo al punto corrente e fermati qui per questa esecuzione.
+            if (referencePointForSlope == null) {
+                referencePointForSlope = currentNewPunto
+            } else {
+                // 2. Se il punto di riferimento esiste, calcola la pendenza
+                referencePointForSlope?.let { refPoint ->
+                    val distanceFromRef = refPoint.distanceToAsDouble(currentNewPunto)
+
+                    // 3. Calcola la pendenza solo se è stata percorsa una distanza minima significativa
+                    if (distanceFromRef >= SLOPE_CALCULATION_DISTANCE_THRESHOLD) {
+                        val dislivello = currentNewPunto.altitude - refPoint.altitude
+
+                        // Evita divisione per zero se la distanza è nulla
+                        if (distanceFromRef > 0) {
+                            val pendenzaPercentuale = (dislivello / distanceFromRef) * 100
+                            _pendenza.postValue(pendenzaPercentuale.toInt())
+                            Log.d("SentieriViewModel", "Pendenza calcolata: $pendenzaPercentuale %")
+                        }
+
+                        // 4. Aggiorna il punto di riferimento per il calcolo successivo
+                        referencePointForSlope = currentNewPunto
+                    }
+                }
+            }
         }
 
         // Salva punto GPS (nella lista in memoria)
