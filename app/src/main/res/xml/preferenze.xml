@@ -20,7 +20,7 @@
         <ListPreference
             app:key="activity_type"
             app:title="Tipo di Attività"
-            app:summary="Scegli il tipo di attività predefinita"
+            app:summary="%s"
             app:entries="@array/activity_type_entries"
             app:entryValues="@array/activity_type_values"
             app:defaultValue="Mountain Bike" />
