@@ -80,11 +80,9 @@ class LocationService : LifecycleService() {
 
     companion object {
         private const val LOCATION_SERVICE_CHANNEL = 1234 // canale delle notifiche
-        private var LOCATION_UPDATE_INTERVAL_MS = 2000L
-        private var MIN_DISTANCE_CHANGE_METERS = 3f
-        // per utilizzo trekking
-        //private const val LOCATION_UPDATE_INTERVAL_MS = 4000L
-        //private const val MIN_DISTANCE_CHANGE_METERS = 1f
+        private var LOCATION_UPDATE_INTERVAL_MS = 3000L
+        private var MIN_DISTANCE_CHANGE_METERS = 6f
+
         private const val MIN_ACCURACY_METERS = 40f
         private const val TAG = "LocationService"
     }
@@ -150,7 +148,7 @@ class LocationService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         val activityType =
-            intent?.getStringExtra("ACTIVITY_TYPE") ?: "trekking" // Usa trekking se null
+            intent?.getStringExtra("ACTIVITY_TYPE") ?: "mountain_bike" // Usa mountain_bike se null
         //Log.d(TAG, "Servizio avviato con tipo attività: $activityType")
 
         when (activityType) {
