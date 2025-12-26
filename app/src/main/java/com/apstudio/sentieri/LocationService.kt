@@ -178,19 +178,21 @@ class LocationService : LifecycleService() {
                 Log.w(TAG, "LocationService: Accuratezza troppo bassa: ${newLocation.accuracy}. Location ignorata.")
                 return@LocationListener
             }
-            // UNICA FONTE DI AGGIORNAMENTO PER IL REPOSITORY
-            // Aggiorna la traccia
-            LocationRepository.addTrackPoint(newLocation)
-            // Aggiorna lo stato (necessario per ripristinare l'icona se il fragment viene ricreato)
-            LocationRepository.updateGpsStatus("fixed")
+            // 1. Aggiorna lo stato del GPS (solo se non è già 'fixed')
+            if (LocationRepository.gpsStatus.value != "fixed") {
+                LocationRepository.updateGpsStatus("fixed")
+            }
             // Aggiorna la velocità come fallback, anche se NMEA è preferito
             val speedKmh = (newLocation.speed * 3.6).toInt()
             LocationRepository.updateVelocita(speedKmh)
             // AGGIORNA LA PRESSIONE SE DISPONIBILE
-            if (LocationRepository.usaBaro && baroRepo.baroData.isInitialized) {
-                val milliBar = baroRepo.baroData.value ?: 0.0F
-                LocationRepository.updateBaroPressure(milliBar)
+            if (LocationRepository.usaBaro) {
+                baroRepo.getLatestPressure()?.let { currentPressure ->
+                    LocationRepository.updateBaroPressure(currentPressure)
+                }
             }
+            // Aggiorna la traccia
+            LocationRepository.addTrackPoint(newLocation)
         }
     }
 
