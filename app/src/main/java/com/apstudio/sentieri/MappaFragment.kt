@@ -1479,6 +1479,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
         // pulizia eventuali registrazione precedente
+        viewModel.resetCruscotto()
         LocationRepository.clearTrack()
         viewModel.isFixed = false
 // Cambia stato GPS ON

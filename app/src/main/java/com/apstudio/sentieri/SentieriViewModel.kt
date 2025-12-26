@@ -32,6 +32,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 data class LocationData(val geoPoint: GeoPoint, val bearing: Float)
 
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
+    private val updateLock = Any() // <-- AGGIUNGI QUESTA RIGA
 
     companion object {
         // costanti per calcolo dislivello con GPS con filtro MovingAverage
@@ -106,11 +107,13 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private val _pendenza = MutableLiveData<Int>(0)
     val pendenza: LiveData<Int> = _pendenza
     private var referencePointForSlope: GeoPoint? = null
-    private val SLOPE_CALCULATION_DISTANCE_THRESHOLD = 10.0
+    private val SLOPE_CALCULATION_DISTANCE_THRESHOLD = 100.0
 
 
     private val gpsAltitudeHistory: ArrayDeque<Double> = ArrayDeque(MOVING_AVERAGE_WINDOW_SIZE)
     private var previousFilteredAltitude: Double? = null
+    private var previousPointForGpsSlope: GeoPoint? = null
+
     // valori di riferimento della traccia da seguire
     var trackDistanza = 0f
     var trackAscesa = 0
@@ -120,6 +123,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var haBaro = false
     var setBaro = false
     private var oldQuota: Int? = 0
+    private var previousPointForBaroSlope: GeoPoint? = null
 
     // coefficiente per filtro passa basso quota barometro da 0 ad 1
     // 0 massimo smooth 1 minore smooth
@@ -134,30 +138,32 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var idTracciaGraficoCorrente: Int = -1
 
     init {
-        // Combina i dati da diverse fonti in un unico LiveData
+        // L'UNICO trigger per l'aggiornamento dei dati ora è una nuova posizione.
         _combinedData.addSource(locationFromRepo) { location ->
+            // Quando arriva una nuova location, recuperiamo gli ultimi valori disponibili
+            // dagli altri LiveData. Il LocationService garantisce che siano ragionevolmente aggiornati.
             val msl = mslAltitudeFromRepo.value ?: location.altitude
-            val baro = baroPressureFromRepo.value ?: 0.0f
+            val baro = baroPressureFromRepo.value ?: 0.0f // Se è 0.0, lo gestiremo
+
             _combinedData.value = Triple(location, msl, baro)
         }
-        _combinedData.addSource(mslAltitudeFromRepo) { msl ->
-            locationFromRepo.value?.let { location ->
-                val baro = baroPressureFromRepo.value ?: 0.0f
-                _combinedData.value = Triple(location, msl, baro)
-            }
-        }
-        _combinedData.addSource(baroPressureFromRepo) { baro ->
-            locationFromRepo.value?.let { location ->
-                val msl = mslAltitudeFromRepo.value ?: location.altitude
-                _combinedData.value = Triple(location, msl, baro)
-            }
-        }
-
         // Osserva i dati combinati e avvia l'elaborazione
         _combinedData.observeForever { (location, mslAltitude, baroPressure) ->
+            // Calcola lo stato del barometro QUI, usando le variabili di istanza del ViewModel
+            val usaBaro = haBaro && setBaro && (isCalibrato.value == true)
+
+            // Aggiungiamo un controllo di sicurezza per la pressione a 0.0
+            if (usaBaro && baroPressure == 0.0f) {
+                // Se stiamo usando il barometro ma la pressione è 0,
+                // significa che stiamo ricevendo un dato "sporco" iniziale. Lo ignoriamo.
+                Log.w("ViewModelData", "Ignoro aggiornamento con pressione barometrica a 0.0")
+                return@observeForever
+            }
+            // Se il controllo passa, procedi con l'elaborazione dei dati
             processNewLocationData(location, mslAltitude, baroPressure)
         }
     }
+
 
     // Crea dei metodi per modificare lo stato in modo controllato
     // DA AGGIUNGERE PER OBSERVER
@@ -180,144 +186,144 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
     }
 
+// In SentieriViewModel.kt
+
     private fun _performDataUpdate(loc: Location?, altitudineOriginale: Double, baroPress: Float) {
         if (loc == null) {
-            return
-        }
-        // Calcola altitudine effettiva (GPS o Baro)
-        var altitudineCalcolata = altitudineOriginale
-        var usaAltitudineBaro = false
-        if (haBaro && setBaro && isCalibrato.value == true) {
-            val altBaro = MapUtils.calcolaAltitudineIpso(baroPress, NORMAL_PRESSURE).toDouble()
-            altitudineCalcolata = altBaro
-            usaAltitudineBaro = true
-        } else {
-            val quotaGpsProcessata = processGpsAltitude(altitudineOriginale) // Presuppone che sia una funzione non bloccante e veloce
-            if (quotaGpsProcessata != null) {
-                altitudineCalcolata = quotaGpsProcessata
-            }
-        }
+            return    }
 
+        // 1. Determina l'altitudine da usare
+        val usaAltitudineBaro = haBaro && setBaro && isCalibrato.value == true
+        val altitudineCalcolata = if (usaAltitudineBaro) {
+            MapUtils.calcolaAltitudineIpso(baroPress, NORMAL_PRESSURE).toDouble()
+        } else {
+            altitudineOriginale
+        }
+        Log.d("SentieriViewModel", "Altitudine calcolata con barometro: $baroPress")
         val currentNewPunto = GeoPoint(loc.latitude, loc.longitude, altitudineCalcolata)
-        _locationData.postValue(LocationData(currentNewPunto, loc.bearing))
-        Log.d("SentieriViewModel", "processNewLocationData currentNewPunto: $currentNewPunto") // Log più specifico
-        // Logica del primo fix
-        if (!isFixed) {
+
+        // 2. Logica di inizializzazione e calcolo sequenziale
+        // Se oldPunto non è stato ancora impostato (latitudine a 0.0), questo è il PRIMO punto in assoluto.
+        if (oldPunto.latitude == 0.0) {
+            // Inizializza tutto e esci. Non fare NESSUN calcolo.
+            _locationData.postValue(LocationData(currentNewPunto, loc.bearing))
             oldPunto = currentNewPunto
             isFixed = true
-            // Log.d("SentieriViewModel", "Primo fix GPS. OldPunto: $oldPunto")
+
+            referencePointForSlope = currentNewPunto
+
+            if (usaAltitudineBaro) {
+                oldQuota = altitudineCalcolata.toInt()
+            } else {
+                gpsAltitudeHistory.clear()
+                gpsAltitudeHistory.addLast(altitudineCalcolata)
+                previousFilteredAltitude = altitudineCalcolata
+            }
             return
         }
 
-        // Aggiorna velocità (usa postValue per LiveData da background thread)
-        _velocita.postValue((loc.speed * 3.6).toInt())
+        // --- DA QUI IN POI, abbiamo la garanzia di avere un 'oldPunto' valido e precedente ---
 
-        // Aggiorna quota
+        _locationData.postValue(LocationData(currentNewPunto, loc.bearing))
+        _velocita.postValue((loc.speed * 3.6).toInt())
+        _quota.postValue(altitudineCalcolata.toInt())
+
+        // 3. Calcolo DISTANZA
+        val distanzaSegmento = MapUtils.getDistanceInMeters(oldPunto, currentNewPunto)
+        val nuovaDistanzaTotale = (distanzaMetri.value ?: 0) + distanzaSegmento
+        _distanzaMetri.postValue(nuovaDistanzaTotale)
+
+        // 4. Calcolo DISLIVELLO
         if (usaAltitudineBaro) {
-            // dislivelloBaro aggiorna _dislivPiu e _dislivMeno internamente,
-            // assicurati che usino postValue() se sono LiveData
-            dislivelloBaro(altitudineCalcolata.toInt()) // Assumi che dislivelloBaro aggiorni i LiveData con postValue
-            _quota.postValue(altitudineCalcolata.toInt())
+            // Passa l'altitudine corrente. La funzione userà 'oldQuota' memorizzato.
+            dislivelloBaro(altitudineCalcolata.toInt())
         } else {
-            _quota.postValue(altitudineCalcolata.toInt()) // altitudineCalcolata qui è già la processGpsAltitude
+            processGpsAltitude(altitudineOriginale, currentNewPunto)
         }
 
-        // Aggiorna distanza e pendenza
-        if (oldPunto.latitude != 0.0 && oldPunto.longitude != 0.0) {
-            // Calcola e aggiorna la distanza totale percorsa
-            val distanzaSegmento = MapUtils.getDistanceInMeters(oldPunto, currentNewPunto)
-            val nuovaDistanzaTotale = (distanzaMetri.value ?: 0) + distanzaSegmento
-            _distanzaMetri.postValue(nuovaDistanzaTotale)
-            // Log.d("SentieriViewModel", "Distanza totale: $nuovaDistanzaTotale")
-            // 1. Se il punto di riferimento per la pendenza non è ancora stato impostato,
-            //    impostalo al punto corrente e fermati qui per questa esecuzione.
-            if (referencePointForSlope == null) {
-                referencePointForSlope = currentNewPunto
-            } else {
-                // 2. Se il punto di riferimento esiste, calcola la pendenza
-                referencePointForSlope?.let { refPoint ->
-                    val distanceFromRef = refPoint.distanceToAsDouble(currentNewPunto)
-
-                    // 3. Calcola la pendenza solo se è stata percorsa una distanza minima significativa
-                    if (distanceFromRef >= SLOPE_CALCULATION_DISTANCE_THRESHOLD) {
-                        val dislivello = currentNewPunto.altitude - refPoint.altitude
-
-                        // Evita divisione per zero se la distanza è nulla
-                        if (distanceFromRef > 0) {
-                            val pendenzaPercentuale = (dislivello / distanceFromRef) * 100
-                            _pendenza.postValue(pendenzaPercentuale.toInt())
-                            Log.d("SentieriViewModel", "Pendenza calcolata: $pendenzaPercentuale %")
-                        }
-
-                        // 4. Aggiorna il punto di riferimento per il calcolo successivo
-                        referencePointForSlope = currentNewPunto
-                    }
+        // 5. Calcolo PENDENZA
+        referencePointForSlope?.let { refPoint ->
+            val distanceFromRef = refPoint.distanceToAsDouble(currentNewPunto)
+            if (distanceFromRef >= SLOPE_CALCULATION_DISTANCE_THRESHOLD) {
+                val dislivelloPendenza = currentNewPunto.altitude - refPoint.altitude
+                if (distanceFromRef > 0) {
+                    val pendenzaPercentuale = (dislivelloPendenza / distanceFromRef) * 100
+                    _pendenza.postValue(pendenzaPercentuale.toInt())
                 }
+                referencePointForSlope = currentNewPunto
             }
         }
 
-        // Salva punto GPS (nella lista in memoria)
-        salvaPuntoGPS(currentNewPunto) // Assicurati che questa lista sia thread-safe se accessibile da altrove
+        // 6. Aggiorna lo stato per il prossimo ciclo
+        salvaPuntoGPS(currentNewPunto)
         oldPunto = currentNewPunto
     }
 
     private fun dislivelloBaro(altitudineBaro: Int) {
-        if (oldQuota == 0) {
-            oldQuota = altitudineBaro
-            return
+        // Sicurezza: se per qualche motivo oldQuota è ancora 0, non fare nulla.
+        if (oldQuota == 0) return
+
+        // Applica il filtro e calcola il dislivello rispetto al valore PRECEDENTE
+        val quotaFiltrata = ((alfa * altitudineBaro) + ((1 - alfa) * oldQuota!!)).toInt()
+        val dislivello = quotaFiltrata - oldQuota!!
+
+        if (dislivello > 0) {
+            _dislivPiu.postValue((_dislivPiu.value ?: 0.0) + dislivello)
+        } else if (dislivello < 0) {
+            _dislivMeno.postValue((_dislivMeno.value ?: 0.0) - dislivello)
         }
-        // Filtro passa basso
-        val quotaFiltrata  = ((alfa * altitudineBaro) + ((1 - alfa) * oldQuota!!)).toInt()
-        // Calcola il dislivello positivo formula IPSOMETRICA
-        if (quotaFiltrata > oldQuota!!) {
-            val diffPiu = quotaFiltrata - oldQuota!!
-            _dislivPiu.postValue((_dislivPiu.value?: 0.0) + diffPiu)
-        } else {
-            val diffMeno = oldQuota!! - quotaFiltrata
-            _dislivMeno.postValue((_dislivMeno.value?: 0.0) + diffMeno)
-        }
-        // Aggiorna la quota precedente
+
+        Log.d("DislivelloBaro", "QuotaFiltrata: $quotaFiltrata, OldQuota: $oldQuota, Dislivello: $dislivello")
+
+        // Aggiorna oldQuota per il PROSSIMO calcolo
         oldQuota = quotaFiltrata
     }
 
-    fun processGpsAltitude(gpsAltitude: Double): Double? {
-        // CALCOLO DISLIVELLO CON QUOTA DA GPS
-        if (previousFilteredAltitude == null) {
-            previousFilteredAltitude = gpsAltitude
-        }
-        // attende il numero di altitudeHistory punti prima di stimare altitudine
-        if (gpsAltitudeHistory.size < MOVING_AVERAGE_WINDOW_SIZE -1) {
-            gpsAltitudeHistory.add(gpsAltitude)
-            return null
-        } else {
-            // Add the current altitude before calculating the average
-            val filteredAltitude  = (alfaGPS * gpsAltitude + ((1 - alfaGPS) * previousFilteredAltitude!!))
-            updateAltitudeChanges(filteredAltitude)
-            return filteredAltitude
-        }
-    }
 
-    private fun updateAltitudeChanges(currentFilteredAltitude: Double) {
-        if (previousFilteredAltitude == null) {
-            previousFilteredAltitude = currentFilteredAltitude
+    fun processGpsAltitude(gpsAltitude: Double, currentPoint: GeoPoint) {
+        // La media mobile richiede di riempire prima la "finestra" di dati.
+        if (gpsAltitudeHistory.size < MOVING_AVERAGE_WINDOW_SIZE) {
+            gpsAltitudeHistory.addLast(gpsAltitude)
+            previousFilteredAltitude = gpsAltitudeHistory.average() // Calcola una media iniziale
+            previousPointForGpsSlope = currentPoint // Inizializza il punto
             return
         }
+
+        // Rimuovi il valore più vecchio e aggiungi il nuovo
+        gpsAltitudeHistory.removeFirst()
+        gpsAltitudeHistory.addLast(gpsAltitude)
+
+        val currentFilteredAltitude = gpsAltitudeHistory.average()
+
+        if (previousFilteredAltitude != null) {
+            updateAltitudeChanges(currentFilteredAltitude, currentPoint)
+        }
+
+        previousFilteredAltitude = currentFilteredAltitude
+    }
+
+
+    // Aggiungi 'currentPoint' come parametro
+    private fun updateAltitudeChanges(currentFilteredAltitude: Double, currentPoint: GeoPoint) {
+        if (previousFilteredAltitude == null) {
+            previousFilteredAltitude = currentFilteredAltitude
+            previousPointForGpsSlope = currentPoint // Inizializza
+            return
+        }
+
         previousFilteredAltitude?.let { prevAlt ->
             val altitudeDifference = currentFilteredAltitude - prevAlt
-            if (altitudeDifference > ALTITUDE_CHANGE_THRESHOLD_METERS) {
-                // Assuming _positiveAltitudeChange is LiveData/StateFlow initialized to 0.0
-                _dislivPiu.postValue((_dislivPiu.value ?: 0.0) + altitudeDifference) 
-                previousFilteredAltitude = currentFilteredAltitude
-            } else if (altitudeDifference < -ALTITUDE_CHANGE_THRESHOLD_METERS) { // Consider a threshold for descent too
-                // Accumulate absolute descent if the change is significantly negative
-                _dislivMeno.postValue((_dislivMeno.value ?: 0.0) + altitudeDifference) 
-                previousFilteredAltitude = currentFilteredAltitude
+            if (altitudeDifference > 0) {
+                _dislivPiu.postValue((_dislivPiu.value ?: 0.0) + altitudeDifference)
+            } else if (altitudeDifference < 0) {
+                _dislivMeno.postValue((_dislivMeno.value ?: 0.0) - altitudeDifference) // -altitudeDifference per renderlo positivo
             }
         }
         //SimpleFileLogger.log("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
-        //Log.d("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
+        Log.d("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
     }
 
+    // Assicurati che resetCruscotto sia completo
     fun resetCruscotto() {
         _quota.value = 0
         _dislivPiu.value = 0.0
@@ -327,13 +333,23 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         _tempoTrascorso.value = ""
         _secondiMovimento.value = 0
         alertFuoriTraccia = false
-        previousFilteredAltitude = null // Resetta anche lo stato del filtro GPS
-        oldQuota = 0 // Resetta lo stato del filtro barometrico
-        gpsAltitudeHistory.clear()
-        _locationData.value = LocationData(GeoPoint(0.0,0.0,0.0), 0f) // Resetta la posizione corrente
-        oldPunto = GeoPoint(0.0,0.0,0.0)
+
+        // --- AZZERAMENTO DELLO STATO CRITICO ---
         isFixed = false
+        oldPunto = GeoPoint(0.0, 0.0, 0.0)
+        oldQuota = 0
+        previousFilteredAltitude = null
+        referencePointForSlope = null
+        gpsAltitudeHistory.clear()
+        // -----------------------------------------
+
+        _locationData.value = LocationData(GeoPoint(0.0, 0.0, 0.0), 0f)
+        Log.d("ViewModelLifecycle", "resetCruscotto ESEGUITO. isFixed=${isFixed}, oldQuota=${oldQuota}")
     }
+
+    // ... il resto del ViewModel, incluse le funzioni _performDataUpdate e dislivelloBaro
+    // che abbiamo corretto in precedenza, rimane invariato.
+
 
     fun baroCalibrato(barometro: Boolean) {
         _isCalibrato.value = barometro
