@@ -823,41 +823,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         preferenze.registerOnSharedPreferenceChangeListener(this)
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
 
-        if (viewModel.isRecording) {
-            Log.d(TAG, "onResume: La registrazione è attiva. Ripristino lo stato della traccia.")
-            val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
-            // 3. Imposta i punti direttamente sulla Polyline.
-            //    (Assicurati che currentTrackPolyline sia già inizializzata)
-            currentTrackPolyline.setPoints(fullTrackSnapshot)
-            // 4. Forza un ridisegno della mappa ORA che i dati sono corretti.
-            mapView.invalidate()
-
-            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
-            accendiSchermo()
-            viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
-            gpsMarker.setVisible(true)
-            bottomSheetBehavior.isHideable = false
-            bottomSheetBehavior.peekHeight = 120
-
-            // --- INIZIO BLOCCO DI SICUREZZA PER IL CRASH ---
-            val stateToRestore = viewModel.bottomState
-            if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
-                stateToRestore == BottomSheetBehavior.STATE_EXPANDED ||
-                stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED
-            ) {
-                bottomSheetBehavior.state = stateToRestore
-            } else {
-                Log.w(
-                    TAG,
-                    "Stato BottomSheet non valido ($stateToRestore). Imposto collassato di default."
-                )
-                bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
-            }
-            // --- FINE BLOCCO DI SICUREZZA ---
-
-            showCustomSnackbar(binding.root, "Registrazione in corso")
-        }
-
         if (viewModel.line.actualPoints.isNotEmpty()) {
             if (viewModel.line.title.isNotEmpty()) {
                 (activity as AppCompatActivity).supportActionBar?.title = viewModel.line.title
@@ -975,6 +940,45 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.overlays.add(newMarker)
             }
         }
+
+        // per ultimo ripristino traccia registrazione per averla in primo piano
+        if (viewModel.isRecording) {
+            Log.d(TAG, "onResume: La registrazione è attiva. Ripristino lo stato della traccia.")
+            val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
+            // 3. Imposta i punti direttamente sulla Polyline.
+            //    (Assicurati che currentTrackPolyline sia già inizializzata)
+            currentTrackPolyline.outlinePaint.color = coloreTraccia
+            currentTrackPolyline.outlinePaint.strokeWidth = 10f
+            currentTrackPolyline.setPoints(fullTrackSnapshot)
+            // 4. Forza un ridisegno della mappa ORA che i dati sono corretti.
+            mapView.invalidate()
+
+            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
+            accendiSchermo()
+            viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
+            gpsMarker.setVisible(true)
+            bottomSheetBehavior.isHideable = false
+            bottomSheetBehavior.peekHeight = 120
+
+            // --- INIZIO BLOCCO DI SICUREZZA PER IL CRASH ---
+            val stateToRestore = viewModel.bottomState
+            if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
+                stateToRestore == BottomSheetBehavior.STATE_EXPANDED ||
+                stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED
+            ) {
+                bottomSheetBehavior.state = stateToRestore
+            } else {
+                Log.w(
+                    TAG,
+                    "Stato BottomSheet non valido ($stateToRestore). Imposto collassato di default."
+                )
+                bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+            }
+            // --- FINE BLOCCO DI SICUREZZA ---
+
+            showCustomSnackbar(binding.root, "Registrazione in corso")
+        }
+
         mapView.invalidate()
     }
 
@@ -1490,7 +1494,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.isRecording = true
         viewModel.oraInizio = System.currentTimeMillis()
         // legge preferenze per il tipo di attività
-        val activityType = preferenze.getString("activity_type_preference", "Mountain Bike")
+        val activityType = preferenze.getString("activity_type", "mtb")
         viewModel.startUpdates()
         // avvia il servizio per tracciare locazione in background
         //requireActivity().startService(Intent(context, LocationService::class.java))
@@ -1499,6 +1503,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         serviceIntent.putExtra("ACTIVITY_TYPE", activityType)
         // 4. Avvia il servizio usando l'Intent modificato.
         ContextCompat.startForegroundService(requireContext(), serviceIntent)
+        // predispone cruscotto
+        // 3. IMPOSTA LA VISIBILITÀ DELLA PENDENZA IN BASE AL TIPO DI ATTIVITÀ
+        if (activityType != "mtb") {
+            // Se l'attività NON è "Mountain Bike", nascondi gli elementi della pendenza
+            binding.cruscotto.iconPendenza.visibility = View.GONE
+            binding.cruscotto.tvPendenza.visibility = View.GONE
+        } else {
+            // Altrimenti, assicurati che siano visibili
+            binding.cruscotto.iconPendenza.visibility = View.VISIBLE
+            binding.cruscotto.tvPendenza.visibility = View.VISIBLE
+        }
         bottomSheetBehavior.isHideable = false
         bottomSheetBehavior.peekHeight = 120
         bottomSheetBehavior.halfExpandedRatio = 0.5f
