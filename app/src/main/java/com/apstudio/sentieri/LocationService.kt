@@ -148,11 +148,11 @@ class LocationService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         val activityType =
-            intent?.getStringExtra("ACTIVITY_TYPE") ?: "mountain_bike" // Usa mountain_bike se null
+            intent?.getStringExtra("ACTIVITY_TYPE") ?: "mtb" // Usa mountain_bike se null
         //Log.d(TAG, "Servizio avviato con tipo attività: $activityType")
 
         when (activityType) {
-            "mountain_bike" -> {
+            "mtb" -> {
                 LOCATION_UPDATE_INTERVAL_MS = 3000L // 4 secondi
                 MIN_DISTANCE_CHANGE_METERS = 6f// 6 metri
             }

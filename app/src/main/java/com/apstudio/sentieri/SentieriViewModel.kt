@@ -107,8 +107,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private val _pendenza = MutableLiveData<Int>(0)
     val pendenza: LiveData<Int> = _pendenza
     private var referencePointForSlope: GeoPoint? = null
-    private val SLOPE_CALCULATION_DISTANCE_THRESHOLD = 100.0
-
+    private val SLOPE_CALCULATION_DISTANCE_THRESHOLD = 35.0
 
     private val gpsAltitudeHistory: ArrayDeque<Double> = ArrayDeque(MOVING_AVERAGE_WINDOW_SIZE)
     private var previousFilteredAltitude: Double? = null
@@ -330,6 +329,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         _dislivMeno.value = 0.0
         _velocita.value = 0
         _distanzaMetri.value = 0
+        _pendenza.value = 0
         _tempoTrascorso.value = ""
         _secondiMovimento.value = 0
         alertFuoriTraccia = false
@@ -344,7 +344,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         // -----------------------------------------
 
         _locationData.value = LocationData(GeoPoint(0.0, 0.0, 0.0), 0f)
-        Log.d("ViewModelLifecycle", "resetCruscotto ESEGUITO. isFixed=${isFixed}, oldQuota=${oldQuota}")
+        //Log.d("ViewModelLifecycle", "resetCruscotto ESEGUITO. isFixed=${isFixed}, oldQuota=${oldQuota}")
     }
 
     // ... il resto del ViewModel, incluse le funzioni _performDataUpdate e dislivelloBaro
