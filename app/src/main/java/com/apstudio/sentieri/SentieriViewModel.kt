@@ -32,11 +32,10 @@ import java.util.concurrent.CopyOnWriteArrayList
 data class LocationData(val geoPoint: GeoPoint, val bearing: Float)
 
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
-    private val updateLock = Any() // <-- AGGIUNGI QUESTA RIGA
 
     companion object {
         // costanti per calcolo dislivello con GPS con filtro MovingAverage
-        private const val ALTITUDE_CHANGE_THRESHOLD_METERS = 1.9 // Differenza minima di altitudine per considerare un cambio di quota
+        //private const val ALTITUDE_CHANGE_THRESHOLD_METERS = 1.9 // Differenza minima di altitudine per considerare un cambio di quota
         private const val MOVING_AVERAGE_WINDOW_SIZE = 9 // Numero di valori da tenere in memoria per la media
     }
 
@@ -104,7 +103,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private val _isAllarmeAttivo = MutableLiveData(true)
     val isAllarmeAttivo: LiveData<Boolean> = _isAllarmeAttivo
     // Variabili per il calcolo della pendenza
-    private val _pendenza = MutableLiveData<Int>(0)
+    private val _pendenza = MutableLiveData(0)
     val pendenza: LiveData<Int> = _pendenza
     private var referencePointForSlope: GeoPoint? = null
     private val SLOPE_CALCULATION_DISTANCE_THRESHOLD = 35.0
@@ -122,13 +121,13 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var haBaro = false
     var setBaro = false
     private var oldQuota: Int? = 0
-    private var previousPointForBaroSlope: GeoPoint? = null
+    //private var previousPointForBaroSlope: GeoPoint? = null
 
     // coefficiente per filtro passa basso quota barometro da 0 ad 1
     // 0 massimo smooth 1 minore smooth
     // con 0.1 da valori troppo bassi (-200 dislivello)
     private val alfa: Double = 0.21
-    private val alfaGPS: Double = 0.225  //0.21 prec
+    //private val alfaGPS: Double = 0.225  //0.21 prec
     var NORMAL_PRESSURE = 1013.25F
     private val _isCalibrato = MutableLiveData(false)
     val isCalibrato : LiveData<Boolean> = _isCalibrato
@@ -271,9 +270,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         } else if (dislivello < 0) {
             _dislivMeno.postValue((_dislivMeno.value ?: 0.0) - dislivello)
         }
-
-        Log.d("DislivelloBaro", "QuotaFiltrata: $quotaFiltrata, OldQuota: $oldQuota, Dislivello: $dislivello")
-
+        //Log.d("DislivelloBaro", "QuotaFiltrata: $quotaFiltrata, OldQuota: $oldQuota, Dislivello: $dislivello")
         // Aggiorna oldQuota per il PROSSIMO calcolo
         oldQuota = quotaFiltrata
     }
@@ -301,8 +298,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         previousFilteredAltitude = currentFilteredAltitude
     }
 
-
-    // Aggiungi 'currentPoint' come parametro
     private fun updateAltitudeChanges(currentFilteredAltitude: Double, currentPoint: GeoPoint) {
         if (previousFilteredAltitude == null) {
             previousFilteredAltitude = currentFilteredAltitude
@@ -319,7 +314,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             }
         }
         //SimpleFileLogger.log("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
-        Log.d("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
+        //Log.d("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
     }
 
     // Assicurati che resetCruscotto sia completo
@@ -347,10 +342,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         //Log.d("ViewModelLifecycle", "resetCruscotto ESEGUITO. isFixed=${isFixed}, oldQuota=${oldQuota}")
     }
 
-    // ... il resto del ViewModel, incluse le funzioni _performDataUpdate e dislivelloBaro
-    // che abbiamo corretto in precedenza, rimane invariato.
-
-
     fun baroCalibrato(barometro: Boolean) {
         _isCalibrato.value = barometro
     }
@@ -367,7 +358,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     }
 
     // legge i punti della traccia dal DB Track
-
     suspend fun leggiTrack(id: Int, poiList: MutableList<PoiDB>): Polyline {
         return withContext(Dispatchers.IO) {
             val percorso = Polyline()
@@ -524,20 +514,13 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
             while (distanzaProgressivaMetri >= prossimoTraguardoKm * 1000) {
                 val distanzaTraguardoMetri = (prossimoTraguardoKm * 1000).toDouble()
-
-                // --- INIZIO CORREZIONE ---
                 if (distanzaSegmento == 0.0) break // Evita divisione per zero
-
                 val frazioneSegmento = (distanzaTraguardoMetri - distanzaPrecedenteMetri) / distanzaSegmento
-
                 // Ecco la formula di interpolazione completa
                 val altitudineInterpolata = puntoPrecedente.altitude + ((puntoCorrente.altitude - puntoPrecedente.altitude) * frazioneSegmento)
-                // --- FINE CORREZIONE ---
-
                 // L'asse X è la distanza reale in KM
                 val kmTraguardo = prossimoTraguardoKm.toFloat()
                 listPunti.add(com.github.mikephil.charting.data.Entry(kmTraguardo, altitudineInterpolata.toFloat()))
-
                 prossimoTraguardoKm++
             }
             puntoPrecedente = puntoCorrente
@@ -547,8 +530,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         val distanzaFinaleKm = (distanzaProgressivaMetri / 1000.0).toFloat()
         val quotaFinale = puntiOriginali.last().altitude.toFloat()
         listPunti.add(com.github.mikephil.charting.data.Entry(distanzaFinaleKm, quotaFinale))
-
-        Log.d("GRAF_VM", "Calcolo completato per MPAndroidChart. Punti: ${listPunti.size}")
+        //Log.d("GRAF_VM", "Calcolo completato per MPAndroidChart. Punti: ${listPunti.size}")
         return listPunti
     }
 }

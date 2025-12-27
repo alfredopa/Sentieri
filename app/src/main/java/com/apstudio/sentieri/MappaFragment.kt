@@ -982,159 +982,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.invalidate()
     }
 
-    private fun applicaModificheLayer() {
-        if (_binding == null) {
-            Log.w(TAG, "sincronizzaUIConStato chiamato ma la vista è nulla. Interruzione.")
-            return
-        }
-        Log.d(TAG, "Eseguo sincronizzazione completa della UI con lo stato del ViewModel.")
-
-        // 1. Logica dei Layer (da onReturnFromLayerDialog)
-        // Itera su tutti i layer e aggiorna la loro visibilità sulla mappa.
-        layerModel.featureList.forEach { featureInfo ->
-            // Rimuovi sempre i vecchi overlay per evitare duplicati
-            featureInfo.listOverlay?.let { existingOverlays ->
-                if (existingOverlays.isNotEmpty()) {
-                    mapView.overlays.removeAll(existingOverlays.toSet())
-                }
-            }
-            // Se il layer deve essere visibile, caricalo o ri-aggiungilo
-            if (featureInfo.isVisible) {
-                Log.d(
-                    TAG,
-                    "SINC: Il layer ${featureInfo.name} è visibile. Avvio ricaricamento completo."
-                )
-                puntiSuMappa(featureInfo.name, featureInfo)
-            } else {
-                // Se il layer NON deve essere visibile, svuotiamo la sua lista in memoria.
-                featureInfo.listOverlay?.clear()
-            }
-        }
-
-        // toponimi
-        displayedTopoMarkers.forEach { mapView.overlays.remove(it) }
-        displayedTopoMarkers.clear()
-        // Process selected toponyms from ViewModel
-        if (viewModel.toponimiSelezionati.isNotEmpty()) {
-            viewModel.toponimiSelezionati.forEach { topoData -> // topoData.id ora esiste
-                val newMarker = RemovableMarker(mapView)
-                newMarker.id = topoData.id // Imposta l'ID univoco sul marker!
-                newMarker.position = GeoPoint(topoData.latitude, topoData.longitude)
-                newMarker.title = topoData.name
-                newMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                //Log.d("MappaFragment_Debug", "Creating marker: ID='${newMarker.id}', Title='${newMarker.title}'")
-
-                newMarker.icon = ResourcesCompat.getDrawable(
-                    requireContext().resources,
-                    R.drawable.pin_rosso, requireContext().theme
-                )
-
-                newMarker.setOnMarkerClickListener { marker, mv ->
-                    // ... (codice invariato per il click normale) ...
-                    if (marker.isInfoWindowShown) {
-                        marker.closeInfoWindow()
-                    } else {
-                        if (marker.infoWindow == null) {
-                            marker.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mv)
-                        }
-                        marker.showInfoWindow()
-                        mv.controller.animateTo(marker.position)
-                    }
-                    true
-                }
-
-                newMarker.onMarkerLongClick =
-                    { markerInstance -> // markerInstance è il RemovableMarker
-                        val toponimoDataToRemove = viewModel.toponimiSelezionati.find {
-                            it.id == markerInstance.id // Cerca per ID univoco
-                        }
-
-                        if (toponimoDataToRemove != null) {
-                            viewModel.toponimiSelezionati.remove(toponimoDataToRemove)
-                            mapView.overlays.remove(markerInstance)
-                            displayedTopoMarkers.remove(markerInstance)
-                            mapView.invalidate()
-                            Toast.makeText(
-                                requireContext(),
-                                "Rimosso ${markerInstance.title}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        } else {
-                            //Log.w("MappaFragment_Debug", "TopoData not found for removal. Marker ID='${markerInstance.id}', Title='${markerInstance.title}'")
-                        }
-                        true // Event consumed
-                    }
-                displayedTopoMarkers.add(newMarker)
-                mapView.overlays.add(newMarker)
-            }
-        }
-
-        // 2. Logica della Traccia in Registrazione (da onResume)
-        if (viewModel.isRecording) {
-            Log.d(TAG, "SINC: La registrazione è attiva. Ripristino lo stato della traccia.")
-            LocationRepository.requestFullTrack() // Forza il ridisegno della traccia
-            // Ripristina lo stato visivo della UI di registrazione
-            accendiSchermo()
-            bottomSheetBehavior.isHideable = false
-            bottomSheetBehavior.peekHeight = 120
-            bottomSheetBehavior.state = viewModel.bottomState
-            showCustomSnackbar(binding.root, "Registrazione in corso")
-        }
-        mapView.invalidate()
-    }
-
-    /**
-     * Imposta gli osservatori per i LiveData del ViewModel condiviso.
-     * Questo sostituisce i FragmentResultListener.
-     */
-    private fun setupViewModelObservers() {
-        // 1. Osservatore per l'aggiornamento dei layer
-        layerModel.layerUpdateRequest.observe(viewLifecycleOwner, Observer { event ->
-            event.getContentIfNotHandled()?.let {
-                Log.d(
-                    TAG,
-                    "Ricevuta richiesta di aggiornamento layer dal ViewModel. Avvio sincronizzazione."
-                )
-                // Chiama la funzione che prima era nel listener
-                applicaModificheLayer()
-            }
-        })
-
-        // 2. Osservatore per la navigazione a un punto
-        layerModel.navigateToPointRequest.observe(viewLifecycleOwner, Observer { event ->
-            event.getContentIfNotHandled()?.let { clickedPoint ->
-                Log.d(
-                    TAG,
-                    "Ricevuta richiesta di navigazione. Imposto punto di centraggio: $clickedPoint"
-                )
-                // 1. Imposta il punto che verrà usato per centrare la mappa quando sarà pronta.
-                initialCenterPoint = clickedPoint
-                // 2. Mostra subito l'highlight.
-                highlightPoint(clickedPoint)
-            }
-        })
-    }
-
-    /**
-     * Mostra solo un marker di highlight temporaneo su un punto, senza muovere la mappa.
-     */
-    private fun highlightPoint(point: GeoPoint) {
-        val highlightMarker = Marker(mapView).apply {
-            position = point
-            icon = ContextCompat.getDrawable(requireContext(), R.drawable.gps_on)
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-        }
-        mapView.overlays.add(highlightMarker)
-        mapView.postInvalidate()
-
-        Handler(Looper.getMainLooper()).postDelayed({
-            if (_binding != null) {
-                mapView.overlays.remove(highlightMarker)
-                mapView.postInvalidate()
-            }
-        }, 6000)
-    }
-
     override fun onPrepareMenu(menu: Menu) {
         super.onPrepareMenu(menu)
         // soluzione per aggiornare icona gps dopo cambio fragment in quanto observer non aggiorna
@@ -2440,7 +2287,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     Color.blue(parsedColor)
                 )
                 osmdroidPolygon.fillPaint.color = semiTransparentColor
-            } catch (e: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 Log.w(TAG, "Colore non valido nel database: '$colore'. Uso un colore casuale.")
                 osmdroidPolygon.fillPaint.color = layerModel.getRandomIntColor(80)
             }
@@ -2592,7 +2439,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             textSize = 24f
             try {
                 color = featureInfo.colore.toColorInt()
-            } catch (e: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 Log.w(
                     TAG,
                     "Colore non valido per il layer di punti '${featureInfo.name}'. Uso il colore di default."
@@ -3302,7 +3149,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 websiteButton.visibility = View.VISIBLE
                 websiteButton.setOnClickListener {
                     try {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(lineFeature.website))
+                        val intent = Intent(Intent.ACTION_VIEW, lineFeature.website.toUri())
                         // Usa il contesto del fragment per avviare l'activity
                         context?.startActivity(intent)
                     } catch (e: Exception) {
