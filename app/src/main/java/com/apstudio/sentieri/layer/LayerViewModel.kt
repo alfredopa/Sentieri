@@ -93,7 +93,7 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
     fun recordCurrentLayerVisibility() {
         // Crea una mappa associando il nome di ogni layer (it.name) al suo stato di visibilità (it.isVisible).
         lastKnownVisibilityState = featureList.associate { it.name to it.isVisible }
-        Log.d("LayerViewModel", "Stato di visibilità dei layer salvato.")
+        //Log.d("LayerViewModel", "Stato di visibilità dei layer salvato.")
     }
 
     /**
@@ -110,7 +110,7 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
         // Caso 1: Se non abbiamo mai salvato uno stato (es. al primo avvio),
         // dobbiamo considerare che ci sia una modifica per forzare il disegno iniziale.
         if (lastKnownVisibilityState == null) {
-            Log.d("LayerViewModel", "Nessuno stato precedente salvato. Si assume una modifica.")
+            //Log.d("LayerViewModel", "Nessuno stato precedente salvato. Si assume una modifica.")
             return true
         }
 
@@ -122,7 +122,7 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
         val hasChanged = currentState != lastKnownVisibilityState
 
         if (hasChanged) {
-            Log.d("LayerViewModel", "Rilevato cambiamento nella visibilità dei layer.")
+            //Log.d("LayerViewModel", "Rilevato cambiamento nella visibilità dei layer.")
         }
 
         return hasChanged
@@ -271,7 +271,7 @@ private suspend fun actuallyOpenAndConfigGeoPackage(): Boolean = withContext(Dis
         }
         (configurator.loadConfigFromFile() as? MutableMap<String, List<FieldSchemaInfo>>)?.also {
             labelConfig = it
-            Log.d(TAG, "LabelConfig (re)loaded successfully.")
+            //Log.d(TAG, "LabelConfig (re)loaded successfully.")
         } ?: Log.e(TAG, "Failed to (re)load or cast labelConfig.")
     }
 
@@ -333,6 +333,6 @@ private suspend fun actuallyOpenAndConfigGeoPackage(): Boolean = withContext(Dis
     override fun onCleared() {
         super.onCleared()
         closeGeoPackage()
-        Log.d(TAG, "LayerViewModel cleared.")
+        //Log.d(TAG, "LayerViewModel cleared.")
     }
 }

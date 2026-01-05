@@ -34,13 +34,12 @@ data class LocationData(val geoPoint: GeoPoint, val bearing: Float)
 class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
 
     companion object {
-        // costanti per calcolo dislivello con GPS con filtro MovingAverage
-        //private const val ALTITUDE_CHANGE_THRESHOLD_METERS = 1.9 // Differenza minima di altitudine per considerare un cambio di quota
-        private const val MOVING_AVERAGE_WINDOW_SIZE = 9 // Numero di valori da tenere in memoria per la media
+        private const val MOVING_AVERAGE_WINDOW_SIZE = 11 // Numero di valori da tenere in memoria per la media
+        private const val GPS_ALTITUDE_SPIKE_THRESHOLD = 8.0// Soglia massima di variazione di altitudine in metri tra due letture
     }
 
-    var listaTracce : FolderOverlay = FolderOverlay()
-    val recTraccia = FolderOverlay()
+    var listaTracce : FolderOverlay = FolderOverlay() // overlay per aggiungere le tracce da gpx e db
+    val recTraccia = FolderOverlay() // overlay per traccia in registrazione e marker inizio e fine
     val topoLayer = FolderOverlay()
     var line : Polyline = Polyline()
     // liste di punti gps e waypoint
@@ -106,7 +105,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private val _pendenza = MutableLiveData(0)
     val pendenza: LiveData<Int> = _pendenza
     private var referencePointForSlope: GeoPoint? = null
-    private val SLOPE_CALCULATION_DISTANCE_THRESHOLD = 35.0
+    private val SLOPE_CALCULATION_DISTANCE_THRESHOLD = 25.0
 
     private val gpsAltitudeHistory: ArrayDeque<Double> = ArrayDeque(MOVING_AVERAGE_WINDOW_SIZE)
     private var previousFilteredAltitude: Double? = null
@@ -154,29 +153,22 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
             if (usaBaro && baroPressure == 0.0f) {
                 // Se stiamo usando il barometro ma la pressione è 0,
                 // significa che stiamo ricevendo un dato "sporco" iniziale. Lo ignoriamo.
-                Log.w("ViewModelData", "Ignoro aggiornamento con pressione barometrica a 0.0")
+                //Log.w("ViewModelData", "Ignoro aggiornamento con pressione barometrica a 0.0")
                 return@observeForever
             }
             // Se il controllo passa, procedi con l'elaborazione dei dati
             processNewLocationData(location, mslAltitude, baroPressure)
         }
+        velocita.observeForever { currentSpeed ->
+            if (currentSpeed == 0) {
+                // Se la velocità è 0, anche la pendenza deve essere 0.
+                // Controlliamo se il valore è già 0 per evitare aggiornamenti inutili.
+                if (_pendenza.value != 0) {
+                    _pendenza.postValue(0)
+                }
+            }
+        }
     }
-
-
-    // Crea dei metodi per modificare lo stato in modo controllato
-    // DA AGGIUNGERE PER OBSERVER
-    /*fun startRecording() {
-        if (_isRecording.value == true) return // Già in registrazione
-        _isRecording.value = true
-        oraInizio = System.currentTimeMillis()
-        startUpdates() // Le altre logiche che avevi in attivaGps()
-    }
-
-    fun stopRecording() {
-        if (_isRecording.value == false) return // Già fermo
-        _isRecording.value = false
-        stopUpdates() // Le altre logiche che avevi in fermaRecording()
-    }*/
 
     fun processNewLocationData(loc: Location, altitudine: Double, baroPress: Float) {
         viewModelScope.launch(Dispatchers.IO) { // Esegui su un thread in background
@@ -184,12 +176,9 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
     }
 
-// In SentieriViewModel.kt
-
     private fun _performDataUpdate(loc: Location?, altitudineOriginale: Double, baroPress: Float) {
         if (loc == null) {
             return    }
-
         // 1. Determina l'altitudine da usare
         val usaAltitudineBaro = haBaro && setBaro && isCalibrato.value == true
         val altitudineCalcolata = if (usaAltitudineBaro) {
@@ -197,7 +186,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         } else {
             altitudineOriginale
         }
-        Log.d("SentieriViewModel", "Altitudine calcolata con barometro: $baroPress")
+        //Log.d("SentieriViewModel", "Altitudine calcolata con barometro: $baroPress")
         val currentNewPunto = GeoPoint(loc.latitude, loc.longitude, altitudineCalcolata)
 
         // 2. Logica di inizializzazione e calcolo sequenziale
@@ -221,7 +210,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
 
         // --- DA QUI IN POI, abbiamo la garanzia di avere un 'oldPunto' valido e precedente ---
-
         _locationData.postValue(LocationData(currentNewPunto, loc.bearing))
         _velocita.postValue((loc.speed * 3.6).toInt())
         _quota.postValue(altitudineCalcolata.toInt())
@@ -240,15 +228,18 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         }
 
         // 5. Calcolo PENDENZA
-        referencePointForSlope?.let { refPoint ->
-            val distanceFromRef = refPoint.distanceToAsDouble(currentNewPunto)
-            if (distanceFromRef >= SLOPE_CALCULATION_DISTANCE_THRESHOLD) {
-                val dislivelloPendenza = currentNewPunto.altitude - refPoint.altitude
-                if (distanceFromRef > 0) {
-                    val pendenzaPercentuale = (dislivelloPendenza / distanceFromRef) * 100
-                    _pendenza.postValue(pendenzaPercentuale.toInt())
+        if (_velocita.value!! > 0.1) {
+            referencePointForSlope?.let { refPoint ->
+                val distanceFromRef = refPoint.distanceToAsDouble(currentNewPunto)
+                if (distanceFromRef >= SLOPE_CALCULATION_DISTANCE_THRESHOLD) {
+                    val dislivelloPendenza = currentNewPunto.altitude - refPoint.altitude
+                    if (distanceFromRef > 0) {
+                        val pendenzaPercentuale = (dislivelloPendenza / distanceFromRef) * 100
+                        _pendenza.postValue(pendenzaPercentuale.toInt())
+                        //Log.d("SentieriViewModel", "Pendenza calcolata: $pendenzaPercentuale")
+                    }
+                    referencePointForSlope = currentNewPunto
                 }
-                referencePointForSlope = currentNewPunto
             }
         }
 
@@ -275,8 +266,22 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         oldQuota = quotaFiltrata
     }
 
-
     fun processGpsAltitude(gpsAltitude: Double, currentPoint: GeoPoint) {
+        // Se abbiamo un valore precedente con cui confrontarci...
+        if (previousFilteredAltitude != null) {
+            // Calcola la differenza assoluta tra la nuova lettura e l'ultima media calcolata.
+            val diff = kotlin.math.abs(gpsAltitude - previousFilteredAltitude!!)
+
+            // Se la differenza è troppo grande, è un "spike". Lo ignoriamo e usciamo.
+            if (diff > GPS_ALTITUDE_SPIKE_THRESHOLD) {
+                Log.w(
+                    "GpsFilter",
+                    "Spike GPS rilevato e ignorato. Valore: $gpsAltitude, Media precedente: $previousFilteredAltitude, Diff: $diff"
+                )
+                return // Esci dalla funzione, non processare questo valore anomalo.
+            }
+        }
+
         // La media mobile richiede di riempire prima la "finestra" di dati.
         if (gpsAltitudeHistory.size < MOVING_AVERAGE_WINDOW_SIZE) {
             gpsAltitudeHistory.addLast(gpsAltitude)
@@ -484,7 +489,7 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         // if (idTracciaNuova == idTracciaGraficoCorrente && ...) { return ... }
 
         idTracciaGraficoCorrente = idTracciaNuova
-        Log.d("GRAF_VM", "Preparazione dati grafico per la traccia $idTracciaNuova...")
+        //Log.d("GRAF_VM", "Preparazione dati grafico per la traccia $idTracciaNuova...")
 
         return withContext(Dispatchers.IO) {
             repository.getPuntiTraccia(idTracciaNuova)

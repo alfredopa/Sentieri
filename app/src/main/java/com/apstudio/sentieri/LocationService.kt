@@ -125,9 +125,7 @@ class LocationService : LifecycleService() {
 
             override fun onFirstFix(ttffMillis: Int) {
                 super.onFirstFix(ttffMillis)
-                Log.d("LocationService_Debug", "onFirstFix chiamato. Tento di aggiornare lo stato a 'fixed'")
-                Log.d("LocationService_Debug", "Valore ATTUALE di gpsStatus PRIMA dell'update: ${LocationRepository.gpsStatus.value}") // <-- NUOVO LOG
-                Log.d("LocationService_Thread", "onFirstFix eseguito su thread: ${Thread.currentThread().name}")
+                //Log.d("LocationService_Debug", "onFirstFix chiamato. Tento di aggiornare lo stato a 'fixed'")
                 LocationRepository.updateGpsStatus("fixed")
             }
 
@@ -173,12 +171,21 @@ class LocationService : LifecycleService() {
 
     private fun initializeLocationListener() {
         locationListener = LocationListener { newLocation ->
-            //Log.d(TAG, "LocationService: onLocationChanged: $newLocation, Accuracy = ${newLocation.accuracy}")
+            // 1. Filtro sull'accuratezza
             if (newLocation.accuracy > MIN_ACCURACY_METERS) {
                 Log.w(TAG, "LocationService: Accuratezza troppo bassa: ${newLocation.accuracy}. Location ignorata.")
                 return@LocationListener
             }
-            // 1. Aggiorna lo stato del GPS (solo se non è già 'fixed')
+            // 2. Filtro sulla velocità (per evitare il "GPS drift" da fermo)
+            // Se la velocità è zero (o quasi), significa che siamo fermi. Ignoriamo il punto.
+            if (newLocation.speed <= 0.1f) {
+                Log.d(TAG, "Velocità nulla (${newLocation.speed} m/s). Punto ignorato per evitare drift.")
+                // Opzionale ma consigliato: aggiorna comunque la velocità e pendenza a 0 nel repository,
+                // così l'UI mostra 0 km/h anche se non stiamo processando il punto.
+                LocationRepository.updateVelocita(0)
+                return@LocationListener // Scarta il punto
+            }
+            // Aggiorna lo stato del GPS (solo se non è già 'fixed')
             if (LocationRepository.gpsStatus.value != "fixed") {
                 LocationRepository.updateGpsStatus("fixed")
             }

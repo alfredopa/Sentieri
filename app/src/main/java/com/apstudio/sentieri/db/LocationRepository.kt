@@ -60,7 +60,7 @@ object LocationRepository {
     fun updateGpsStatus(newStatus: String) {
         if (_gpsStatus.value != newStatus) {
             _gpsStatus.postValue(newStatus)
-            Log.d("LocationRepository", "GpsStatus LiveData new value posted: $newStatus")
+            //Log.d("LocationRepository", "GpsStatus LiveData new value posted: $newStatus")
         }
     }
 
@@ -75,6 +75,7 @@ object LocationRepository {
             _velocita.postValue(velocita)
         }
     }
+
     fun updateBaroPressure(pressure: Float) {
         if (_baroPressure.value != pressure) {
             _baroPressure.postValue(pressure)
