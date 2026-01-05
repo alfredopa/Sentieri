@@ -69,7 +69,7 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
         layerModel.isReady.observe(viewLifecycleOwner, Observer { isReady ->
             if (isReady) {
                 // I dati sono pronti, popola l'adapter
-                Log.d(TAG, "ViewModel è pronto. Aggiorno la lista nell'adapter.")
+                //Log.d(TAG, "ViewModel è pronto. Aggiorno la lista nell'adapter.")
                 // progressBar.visibility = View.GONE
                 adapter = FeatureAdapter(layerModel.featureList, this)
                 recyclerView.adapter = adapter
@@ -103,12 +103,12 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
         super.onDismiss(dialog)
         // Notifica al ViewModel che il dialogo è stato chiuso.
         layerModel.requestLayerUpdate()
-        Log.d("GpkgLayer", "Dialogo chiuso. Inviata richiesta via ViewModel.")
+        //Log.d("GpkgLayer", "Dialogo chiuso. Inviata richiesta via ViewModel.")
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "GpkgLayer onDestroy called.")
+        //Log.d(TAG, "GpkgLayer onDestroy called.")
         // Nessuna chiusura esplicita del GeoPackage qui.
     }
 
@@ -124,7 +124,7 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
         // Aggiorna solo lo stato del modello.
         if (featureInfo.isVisible != isChecked) {
             featureInfo.isVisible = isChecked
-            Log.d("SwitchDebug", "Stato 'isVisible' per ${featureInfo.name} aggiornato a: $isChecked nel modello.")
+            //Log.d("SwitchDebug", "Stato 'isVisible' per ${featureInfo.name} aggiornato a: $isChecked nel modello.")
         }
     }
 

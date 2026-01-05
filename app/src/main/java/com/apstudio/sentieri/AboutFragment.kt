@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import com.apstudio.sentieri.BuildConfig.VERSION_NAME
 import com.apstudio.sentieri.databinding.FragmentAboutBinding
 
 class AboutFragment : Fragment() {
@@ -27,8 +28,8 @@ class AboutFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         // Ottieni la versione dell'app dinamicamente dal file build.gradle
-        val appVersionName = BuildConfig.VERSION_NAME
-        binding.tvAppNameVersion.text = "Sentieri v$appVersionName"
+        val appVersionName = VERSION_NAME
+        binding.tvAppNameVersion.text = "Sentieri $appVersionName"
 
         // Qui potresti impostare altro testo dinamicamente se necessario,
         // ad esempio caricandolo da una risorsa stringa.

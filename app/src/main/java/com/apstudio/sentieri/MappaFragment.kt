@@ -431,6 +431,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         isViewRecreated = true
+        Log.d(TAG, "Ripristino degli overlay dal ViewModel sulla nuova MapView.")
+        // 1. Pulisci la mappa per sicurezza (anche se dovrebbe essere già vuota)
+        mapView.overlayManager.clear()
         view.isFocusableInTouchMode = true
         view.requestFocus()
         view.setOnKeyListener(this)// --- INIZIO NUOVA GESTIONE EVENTI ---
@@ -489,6 +492,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             arguments?.clear()
         }
 
+
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
         bottomSheetBehavior.isHideable = true
         bottomSheetBehavior.skipCollapsed = false
@@ -498,6 +502,51 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
             }
         }
+        if (mapView.overlays.isEmpty()) {
+            Log.d(TAG, "Aggiungo gli overlay alla mappa.")
+            mapView.overlays.add(viewModel.listaTracce)
+            mapView.overlays.add(viewModel.recTraccia)
+            mapView.overlays.add(viewModel.topoLayer)
+            for (overlay in viewModel.listaTracce.items) {
+                if (overlay is Polyline) {
+                    setPolylineClickListener(overlay)
+                }
+                if (overlay is Marker) {
+                    setMarkerClickListener(overlay)
+                }
+            }
+
+            // Aggiungi l'overlay della bussola solo se il dispositivo ha i sensori necessari.
+            if (hasCompass()) {
+                val compassOverlay =
+                    CompassOverlay(context, InternalCompassOrientationProvider(context), mapView)
+                compassOverlay.enableCompass()
+                compassOverlay.setCompassCenter(36f, 36f)
+                mapView.overlays.add(compassOverlay)
+            }
+            // Allinea la barra in basso al centro dello schermo.
+            val scaleBarOverlay = ScaleBarOverlay(mapView)
+            scaleBarOverlay.setAlignBottom(true)
+            //scaleBarOverlay.setCentred(true)
+            // Aggiungi la barra della scala alla lista degli overlay della mappa.
+            mapView.overlays.add(scaleBarOverlay)
+        }
+        // 2. Inizializza la Polyline di registrazione traccia, una sola volta.
+        currentTrackPolyline = Polyline() // Crea l'oggetto
+        currentTrackPolyline.outlinePaint.color = coloreTraccia // Imposta il colore iniziale
+        currentTrackPolyline.outlinePaint.strokeWidth = 10f
+        mapView.overlays.add(currentTrackPolyline) // Aggiungila subito agli overlay della mappa
+        // puntatore GPS
+        gpsMarker = Marker(mapView)
+        gpsMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+        gpsMarker.title = "Gps"
+        gpsMarker.icon = ResourcesCompat.getDrawable(
+            requireContext().resources,
+            R.drawable.punto_gps,
+            requireContext().theme
+        )
+        gpsMarker.setVisible(false)
+        mapView.overlays.add(gpsMarker)
 
         mapView.isFocusableInTouchMode = true
         mapView.requestFocus()
@@ -540,44 +589,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
-
-        if (mapView.overlays.isEmpty()) {
-            mapView.overlayManager.add(viewModel.listaTracce)
-            mapView.overlayManager.add(viewModel.recTraccia)
-            mapView.overlayManager.add(viewModel.topoLayer)
-            for (overlay in viewModel.listaTracce.items) {
-                if (overlay is Polyline) {
-                    setPolylineClickListener(overlay)
-                }
-                if (overlay is Marker) {
-                    setMarkerClickListener(overlay)
-                }
-            }
-            gpsMarker = Marker(mapView)
-            gpsMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-            gpsMarker.setVisible(false)
-            gpsMarker.title = "Gps"
-            gpsMarker.icon = ResourcesCompat.getDrawable(
-                requireContext().resources,
-                R.drawable.punto_gps,
-                requireContext().theme
-            )
-            mapView.overlayManager.add(gpsMarker)
-            // Aggiungi l'overlay della bussola solo se il dispositivo ha i sensori necessari.
-            if (hasCompass()) {
-                val compassOverlay =
-                    CompassOverlay(context, InternalCompassOrientationProvider(context), mapView)
-                compassOverlay.enableCompass()
-                compassOverlay.setCompassCenter(36f, 36f)
-                mapView.overlayManager.add(compassOverlay)
-            }
-            // Allinea la barra in basso al centro dello schermo.
-            val scaleBarOverlay = ScaleBarOverlay(mapView)
-            scaleBarOverlay.setAlignBottom(true)
-            //scaleBarOverlay.setCentred(true)
-            // Aggiungi la barra della scala alla lista degli overlay della mappa.
-            mapView.overlays.add(scaleBarOverlay)
-        }
 
         mapView.zoomController?.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
         mapView.setMultiTouchControls(true)
@@ -757,10 +768,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
             }
         }
-        currentTrackPolyline = Polyline()
-        currentTrackPolyline.outlinePaint.color = coloreTraccia
-        currentTrackPolyline.outlinePaint.strokeWidth = 10f
-        mapView.overlays.add(currentTrackPolyline)
 
         LocationRepository.trackPoints.observe(viewLifecycleOwner) { fullTrack ->
             currentTrackPolyline.setPoints(fullTrack)
@@ -945,16 +952,20 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         if (viewModel.isRecording) {
             Log.d(TAG, "onResume: La registrazione è attiva. Ripristino lo stato della traccia.")
             val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
+            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
+            accendiSchermo()
             // 3. Imposta i punti direttamente sulla Polyline.
             //    (Assicurati che currentTrackPolyline sia già inizializzata)
             currentTrackPolyline.outlinePaint.color = coloreTraccia
             currentTrackPolyline.outlinePaint.strokeWidth = 10f
             currentTrackPolyline.setPoints(fullTrackSnapshot)
             // 4. Forza un ridisegno della mappa ORA che i dati sono corretti.
-            mapView.invalidate()
+            mapView.overlays.remove(currentTrackPolyline)
+            mapView.overlays.add(currentTrackPolyline)
+            mapView.overlays.remove(gpsMarker)
+            mapView.overlays.add(gpsMarker)
 
-            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
-            accendiSchermo()
+
             viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
             gpsMarker.setVisible(true)
             bottomSheetBehavior.isHideable = false
@@ -1333,8 +1344,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.resetCruscotto()
         LocationRepository.clearTrack()
         viewModel.isFixed = false
-// Cambia stato GPS ON
-        gpsMarker.setVisible(true)
+
 // imposta schermo sempre acceso
         accendiSchermo()
 // inizio registrazione posizione
@@ -1343,6 +1353,26 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // legge preferenze per il tipo di attività
         val activityType = preferenze.getString("activity_type", "mtb")
         viewModel.startUpdates()
+
+        if (::currentTrackPolyline.isInitialized) {
+            mapView.overlays.remove(currentTrackPolyline)
+        }
+        // 2. Invece di ricreare la polyline, la svuotiamo e la riconfiguriamo.
+        currentTrackPolyline.actualPoints.clear()
+        currentTrackPolyline.outlinePaint.color = coloreTraccia // Usa il colore delle preferenze
+        currentTrackPolyline.outlinePaint.strokeWidth = 10f
+        // 3. Aggiungi la nuova polyline alla mappa. Aggiungendola per ultima,
+        //    sarà disegnata SOPRA tutti gli altri overlay già presenti (come la traccia GPX).
+        mapView.overlays.add(currentTrackPolyline)
+        mapView.overlays.remove(gpsMarker)
+        // 2. Ri-aggiungi il marker alla fine della lista.
+        //    Questo garantisce che venga disegnato sopra a tutto il resto.
+        gpsMarker.setVisible(true)
+        mapView.overlays.add(gpsMarker)
+        // 4. Invalida la mappa per forzare un ridisegno immediato.
+        mapView.invalidate()
+
+
         // avvia il servizio per tracciare locazione in background
         //requireActivity().startService(Intent(context, LocationService::class.java))
         val serviceIntent = Intent(requireContext(), LocationService::class.java)
@@ -1366,7 +1396,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         bottomSheetBehavior.halfExpandedRatio = 0.5f
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
         LocationRepository.updateGpsStatus("started")
-        //updateGpsIcon("started")
     }
 
     private fun caricaGPX(uri: Uri) {
@@ -1463,9 +1492,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.listaTracce.add(polylineFrecce)
 
         // 6. Aggiungi i marker di inizio/fine (associandoli alla polilinea di sfondo)
-        MapUtils.markInizioFine(requireContext(), trackPointsOriginali.first(), mapView, viewModel.recTraccia, 0)
-        MapUtils.markInizioFine(requireContext(), trackPointsOriginali.last(), mapView, viewModel.recTraccia, 1)
-        //addMarker(polylineColore)
+        //MapUtils.markInizioFine(requireContext(), trackPointsOriginali.first(), mapView, viewModel.listaTracce, 0)
+        //MapUtils.markInizioFine(requireContext(), trackPointsOriginali.last(), mapView, viewModel.listaTracce, 1)
+        addMarker(polylineColore)
 
         // questo usato per disegno traccia con altitudine
         //disegnaLine(line)
@@ -1482,9 +1511,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 R.drawable.ic_finish,
                 requireContext().theme
             )
-            waymarker.position.latitude = it.latitude
-            waymarker.position.longitude = it.longitude
-            waymarker.position.altitude = it.elevation ?: 0.0
+            waymarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            waymarker.position = GeoPoint(it.latitude, it.longitude, it.elevation ?: 0.0)
 // carica nel FolderOverlay
             viewModel.listaTracce.add(waymarker)
         }
@@ -1514,6 +1542,23 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             MapUtils.alertSegui(requireContext(), viewModel, polylineColore)
         }
+        if (!mapView.overlays.contains(viewModel.listaTracce)) {
+            mapView.overlays.add(viewModel.listaTracce)
+        }
+        if (viewModel.isRecording) {
+            //Log.d(TAG, "caricaGPX: Ri-ordino gli overlay per portare la registrazione in primo piano.")
+            // Rimuovi e ri-aggiungi la traccia della registrazione IN USO
+            mapView.overlays.remove(currentTrackPolyline)
+            mapView.overlays.add(currentTrackPolyline)
+
+            // Rimuovi e ri-aggiungi il marker GPS
+            mapView.overlays.remove(gpsMarker)
+            mapView.overlays.add(gpsMarker)
+            gpsMarker.setVisible(true)
+            Log.d("caricagpx", "gpsMarker visibile")
+        }
+        // Infine, ridisegna la mappa
+        mapView.invalidate()
     }
 
     private fun updateGpsIcon(status: String?) {
@@ -2081,35 +2126,28 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
+    private fun addMarker(polyline: Polyline) {
+        if (polyline.actualPoints.isEmpty()) return
 
-    private fun addMarker(line: Polyline) {
-// aggiunge marker inizio e fine percorso su tracce caricate
+        // Marker di INIZIO
         val startMarker = Marker(mapView)
-        startMarker.icon = requireContext().let {
-            AppCompatResources.getDrawable(
-                it,
-                R.drawable.ic_start
-            )
-        }
-        startMarker.title = "Inizio"
-        startMarker.id = "start"
-        if (line.actualPoints.isEmpty())
-            return
-        var punto: GeoPoint = line.actualPoints[0]
-        startMarker.position = punto
-        viewModel.listaTracce.add(startMarker)
+        startMarker.position = polyline.actualPoints.first()
+        startMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        startMarker.icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_start) // Icona di partenza
+        startMarker.title = "Partenza"
+
+        // Marker di FINE
         val endMarker = Marker(mapView)
-        endMarker.icon = requireContext().let {
-            AppCompatResources.getDrawable(
-                it,
-                R.drawable.ic_finish
-            )
-        }
-        punto = line.actualPoints[line.actualPoints.size - 1]
-        endMarker.position = punto
-        endMarker.title = "Fine"
+        endMarker.position = polyline.actualPoints.last()
+        endMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        endMarker.icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_finish) // Icona di arrivo
+        endMarker.title = "Arrivo"
+
+        // CORREZIONE: Aggiungi i marker al FolderOverlay nel ViewModel
+        viewModel.listaTracce.add(startMarker)
         viewModel.listaTracce.add(endMarker)
     }
+
 
     override fun onKey(v: View?, keyCode: Int, event: KeyEvent?): Boolean {
         if (event?.action == KeyEvent.ACTION_DOWN) {
