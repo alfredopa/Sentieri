@@ -28,6 +28,12 @@
             android:text="Sentieri è gratuita, senza pubblicità, rispetta la privacy.\n L'app ha lo scopo di ausilio nelle attività escursionistiche, con la visualizzazione di mappe offline ed online, tracciamento tramite gps dei percorsi, memorizzazione degli stessi, visualizzazione di strati informativi del territorio.\n"            android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
             android:lineSpacingExtra="4dp"/>
 
+        <Button
+            android:id="@+id/btnManuale"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Visualizza manuale d'uso" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
