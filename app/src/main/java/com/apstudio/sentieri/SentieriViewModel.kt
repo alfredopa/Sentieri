@@ -2,7 +2,9 @@ package com.apstudio.sentieri
 
 import android.location.Location
 import android.net.Uri
+import android.os.Environment
 import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
@@ -23,15 +25,31 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.federicomatera.agpxp.models.WayPoint
+import org.apache.commons.net.ftp.FTP
+import org.apache.commons.net.ftp.FTPClient
+import org.apache.commons.net.ftp.FTPReply
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.sql.Timestamp
 import java.util.concurrent.CopyOnWriteArrayList
+import android.app.Application
+import android.os.Build
+import androidx.lifecycle.AndroidViewModel
+import com.apstudio.sentieri.layer.Event
+import org.apache.commons.net.io.CopyStreamAdapter // <-- NUOVO IMPORT
+import java.io.InputStream
+import java.io.OutputStream
+import java.util.concurrent.atomic.AtomicLong
+
 
 data class LocationData(val geoPoint: GeoPoint, val bearing: Float)
 
-class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
+class SentieriViewModel(private val repository: SentieriRepo, application: Application) :
+    AndroidViewModel(application) {
 
     companion object {
         private const val MOVING_AVERAGE_WINDOW_SIZE = 11 // Numero di valori da tenere in memoria per la media
@@ -120,8 +138,6 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     var haBaro = false
     var setBaro = false
     private var oldQuota: Int? = 0
-    //private var previousPointForBaroSlope: GeoPoint? = null
-
     // coefficiente per filtro passa basso quota barometro da 0 ad 1
     // 0 massimo smooth 1 minore smooth
     // con 0.1 da valori troppo bassi (-200 dislivello)
@@ -131,8 +147,16 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
     private val _isCalibrato = MutableLiveData(false)
     val isCalibrato : LiveData<Boolean> = _isCalibrato
     var bottomState = 0
-
     var idTracciaGraficoCorrente: Int = -1
+    // LiveData per comunicare messaggi alla UI (sostituisce i Toast diretti)
+    private val _ftpDownloadStatus = MutableLiveData<Event<String>>()
+    val ftpDownloadStatus: LiveData<Event<String>> = _ftpDownloadStatus
+    // Potresti anche usare un LiveData per lo stato di caricamento
+    private val _isDownloading = MutableLiveData<Boolean>()
+    val isDownloading: LiveData<Boolean> = _isDownloading
+    // LiveData per il progresso ---
+    private val _downloadProgress = MutableLiveData(0)
+    val downloadProgress: LiveData<Int> = _downloadProgress
 
     init {
         // L'UNICO trigger per l'aggiornamento dei dati ora è una nuova posizione.
@@ -538,4 +562,193 @@ class SentieriViewModel(private val repository: SentieriRepo) : ViewModel() {
         //Log.d("GRAF_VM", "Calcolo completato per MPAndroidChart. Punti: ${listPunti.size}")
         return listPunti
     }
+
+    /**
+     * Avvia il download di un file da un server FTP.
+     * Ora è 'public' così può essere chiamata dall'esterno (es. dal PreferenceFragment).
+     */
+    fun scaricaFileDaFtp() {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Resetta il progresso all'inizio
+            _isDownloading.postValue(true)
+            _downloadProgress.postValue(0) // <-- AZZERA IL PROGRESSO
+            _ftpDownloadStatus.postValue(Event("Download in corso..."))
+
+            /*val server = "ftp.gwdg.de"
+            val utente = "anonymous"
+            val password = "guest@sentieriapp.com"
+            val percorsoFileRemoto = "/pub/misc/openstreetmap/openandromaps/mapsV5/europe/Sardegna.zip"*/
+            val server = "APstudio01.myqnapcloud.com"
+            val utente = "alfredoftp"
+            val password = "APstudio@01"
+            val percorsoFileRemoto = "/Sardegna.zip"
+
+            val ftpClient = FTPClient()
+            var downloadSuccess = false
+
+            try {
+                // ... (logica di connessione e login rimane la stessa) ...
+                ftpClient.connect(server)
+                // ...
+                ftpClient.login(utente, password)
+                // ...
+                ftpClient.enterLocalPassiveMode()
+                ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
+
+                // --- 2. Ottieni la dimensione del file per calcolare la percentuale ---
+                // Questo comando potrebbe non essere supportato da tutti i server FTP,
+                // ma per ftp.gwdg.de funziona.
+                var fileSize = -1L
+                val reply = ftpClient.sendCommand("SIZE", percorsoFileRemoto)
+                if (FTPReply.isPositiveCompletion(reply)) {
+                    // Il server ha risposto con codice 213 seguito dalla dimensione
+                    try {
+                        fileSize = ftpClient.replyStrings[0].split(" ")[1].toLong()
+                        Log.d("FTP", "Dimensione del file: $fileSize")
+                    } catch (e: Exception) {
+                        Log.w("FTP", "Impossibile parsare la dimensione del file dalla risposta del server.", e)
+                    }
+                } else {
+                    Log.w("FTP", "Il server non supporta il comando SIZE o il file non è stato trovato.")
+                }
+
+                // --- 3. Crea e imposta il Listener per il progresso ---
+                if (fileSize > 0) {
+                    // Implementa correttamente il CopyStreamListener usando un 'object expression'
+                    val streamListener = object : org.apache.commons.net.io.CopyStreamListener {
+
+                        // Questo metodo viene chiamato periodicamente durante il trasferimento
+                        override fun bytesTransferred(totalBytesTransferred: Long, bytesTransferred: Int, streamSize: Long) {
+                            // Calcola la percentuale di progresso
+                            val progress = ((totalBytesTransferred * 100) / fileSize).toInt()
+
+                            // Aggiorna il LiveData, ma solo se la percentuale cambia
+                            // per evitare di inondare il thread UI con aggiornamenti inutili.
+                            if (progress > (_downloadProgress.value ?: 0)) {
+                                _downloadProgress.postValue(progress)
+                            }
+                        }
+
+                        // Questo metodo è richiesto dall'interfaccia ma non ci serve in questo caso.
+                        // Lasciamo il corpo vuoto.
+                        override fun bytesTransferred(event: org.apache.commons.net.io.CopyStreamEvent?) {
+                            // Puoi anche usare questo se preferisci, ma il primo metodo è più diretto.
+                        }
+                    }
+                    ftpClient.copyStreamListener = streamListener
+                }
+
+                // Preparazione del file locale su cartella android/data...
+                /*val applicationContext = getApplication<Application>()
+                val cartellaDestinazione = applicationContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                val fileDestinazione = File(cartellaDestinazione, "Sardegna.zip")
+                // Download del file...
+                FileOutputStream(fileDestinazione).use { outputStream ->
+                    downloadSuccess = ftpClient.retrieveFile(percorsoFileRemoto, outputStream)
+                }*/
+
+                val nomeFileDaSalvare = "Sardegna.zip"
+
+// 1. Inizia il recupero e ottieni l'input stream dal server FTP (NON bloccante).
+                val inputStream: InputStream? = ftpClient.retrieveFileStream(percorsoFileRemoto)
+
+// 2. Controlla se il server ha effettivamente iniziato a inviare il file.
+                if (inputStream == null) {
+                    throw IOException("Il server FTP ha rifiutato il trasferimento del file. Risposta: ${ftpClient.replyString}")
+                }
+
+                Log.d("FTP", "Stream di input ottenuto. Inizio trasferimento dati...")
+
+// 3. Apri l'output stream verso il file locale.
+                val outputStream: OutputStream =
+                    MapUtils.getOutputStreamForPublicDownload(getApplication(), nomeFileDaSalvare)
+                        ?: throw IOException("Impossibile creare il file di output per il download.")
+
+// 4. Usa un blocco .use per garantire la chiusura sicura degli stream DOPO la copia.
+//    Questa è la parte che esegue effettivamente il download.
+                inputStream.use { input ->
+                    outputStream.use { output ->
+                        // Copia i dati. Il listener impostato prima verrà usato automaticamente.
+                        org.apache.commons.net.io.Util.copyStream(input, output)
+                    }
+                }
+
+                Log.d("FTP", "Trasferimento dati tramite stream completato. In attesa di completePendingCommand...")
+
+// 5. Ora che gli stream sono chiusi e i dati scritti, finalizza la transazione FTP.
+                if (!ftpClient.completePendingCommand()) {
+                    Log.e("FTP", "completePendingCommand ha fallito dopo la copia. Il trasferimento potrebbe essere incompleto.")
+                    downloadSuccess = false // Marca come fallito se il server non conferma.
+                } else {
+                    Log.i("FTP", "completePendingCommand riuscito. Trasferimento confermato dal server.")
+                    downloadSuccess = true // Il successo è confermato QUI!
+                }
+
+                if (downloadSuccess && fileSize > 0) {
+                    val applicationContext = getApplication<Application>()
+                    // Dobbiamo trovare il file appena scaricato per controllarne la dimensione.
+                    // Poiché MediaStore non ci dà un percorso diretto, dobbiamo cercarlo.
+                    val fileScaricato: File?
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        // Per Android 10+ il file è nella cartella pubblica Download
+                        @Suppress("DEPRECATION")
+                        val cartellaDownloadPubblica = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                        fileScaricato = File(cartellaDownloadPubblica, nomeFileDaSalvare)
+                    } else {
+                        // Per versioni precedenti, hai un percorso diretto
+                        @Suppress("DEPRECATION")
+                        val cartellaDownloadPubblica = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                        fileScaricato = File(cartellaDownloadPubblica, nomeFileDaSalvare)
+                    }
+
+                    if (fileScaricato != null && fileScaricato.exists()) {
+                        val dimensioneReale = fileScaricato.length()
+                        Log.d("FTP", "Controllo integrità: Dimensione attesa=$fileSize, Dimensione reale=$dimensioneReale")
+                        if (dimensioneReale != fileSize) {
+                            Log.e("FTP", "Il file è incompleto! Il download verrà considerato fallito.")
+                            downloadSuccess = false // <-- CRUCIALE: Marca il download come fallito
+                        }
+                    } else {
+                        Log.w("FTP", "Impossibile trovare il file scaricato per il controllo di integrità.")
+                        // Puoi decidere se marcare il download come fallito anche qui.
+                        downloadSuccess = false
+                    }
+                }
+
+            } catch (e: IOException) {
+                Log.e("FTP", "Errore durante l'operazione FTP", e)
+                downloadSuccess = false
+            } finally {
+                // Aggiorna la UI sul thread principale
+                withContext(Dispatchers.Main) {
+                    _isDownloading.postValue(false)
+                    _downloadProgress.postValue(if (downloadSuccess) 100 else 0)
+
+                    if (downloadSuccess) {
+                        _ftpDownloadStatus.postValue(Event("Download completato! Inizio decompressione..."))
+
+                        // --- CHIAMA LA FUNZIONE DI UNZIP QUI ---
+                        viewModelScope.launch(Dispatchers.IO) {
+                            val nomeFile = "Sardegna.zip" // Assicurati che sia lo stesso nome usato per il download
+                            val unzipSuccess = MapUtils.decomprimiZipInCartellaMappe(getApplication(), nomeFile)
+
+                            // Comunica il risultato finale
+                            withContext(Dispatchers.Main) {
+                                if (unzipSuccess) {
+                                    _ftpDownloadStatus.postValue(Event("Mappa installata con successo!"))
+                                } else {
+                                    _ftpDownloadStatus.postValue(Event("Errore durante l'installazione della mappa."))
+                                }
+                            }
+                        }
+                        // ------------------------------------
+
+                    } else {
+                        _ftpDownloadStatus.postValue(Event("Download fallito. Controlla i log."))
+                    }
+                }
+            }
+        }
+    }
+
 }

@@ -9,18 +9,33 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.db.OnLayerClickListener
+import com.apstudio.sentieri.db.SentieriDB
+import com.apstudio.sentieri.db.SentieriRepo
 import org.osmdroid.views.overlay.Polyline
+import kotlin.getValue
 
 // visualizza le tracce caricate nella mappa
 class LayerDialog : Fragment() {
-    private lateinit var viewModel: SentieriViewModel
-
-
+    private val viewModel: SentieriViewModel by activityViewModels {
+        val application = requireActivity().application
+        // 1. Ottieni una singola istanza del database
+        val database = SentieriDB.getInstance(application)
+        // 2. Crea il repository passando TUTTI i DAO richiesti
+        val repository = SentieriRepo(
+            sentieriDao = database.sentieriDao(),
+            trackDao = database.trackDao(),
+            poiDao = database.poiDao(),
+            fotoPoiDao = database.fotoPoiDao()
+        )
+        // 3. Crea la factory con il repository e l'applicazione
+        SentieriFactory(repository, application)
+    }
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -32,7 +47,6 @@ class LayerDialog : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri)[SentieriViewModel::class.java]
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
@@ -20,17 +21,31 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.apstudio.sentieri.SentieriFragmentDirections.Companion.actionSentieriFragmentToSchedaFragment
 import com.apstudio.sentieri.databinding.FragmentSentieriBinding
 import com.apstudio.sentieri.db.Sentieri
+import com.apstudio.sentieri.db.SentieriDB
+import com.apstudio.sentieri.db.SentieriRepo
+import kotlin.getValue
 
 class SentieriFragment : Fragment() {
-    private lateinit var viewModel: SentieriViewModel
-
+    private val viewModel: SentieriViewModel by activityViewModels {
+        val application = requireActivity().application
+        // 1. Ottieni una singola istanza del database
+        val database = SentieriDB.getInstance(application)
+        // 2. Crea il repository passando TUTTI i DAO richiesti
+        val repository = SentieriRepo(
+            sentieriDao = database.sentieriDao(),
+            trackDao = database.trackDao(),
+            poiDao = database.poiDao(),
+            fotoPoiDao = database.fotoPoiDao()
+        )
+        // 3. Crea la factory con il repository e l'applicazione
+        SentieriFactory(repository, application)
+    }
     private lateinit var binding: FragmentSentieriBinding
     private lateinit var adapter: MyRecyclerViewAdapter
     //private lateinit var searchView: SearchView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri).get(SentieriViewModel::class.java)
     }
 
     override fun onCreateView(

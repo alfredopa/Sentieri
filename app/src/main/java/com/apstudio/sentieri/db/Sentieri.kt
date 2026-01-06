@@ -42,9 +42,6 @@ data class Sentieri(
     var MediaVel: Double
     )
 
-fun Sentieri.prnLunghezza(): String =
-    NumberFormat.getInstance(Locale.ITALIAN).format(lunghezza)
-
 fun Sentieri.prnDislivello(): String =
     NumberFormat.getInstance(Locale.ITALIAN).format(dislivello)
 

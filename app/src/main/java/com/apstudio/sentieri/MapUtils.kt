@@ -1,5 +1,6 @@
 package com.apstudio.sentieri
 
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Paint
@@ -7,11 +8,16 @@ import android.graphics.Path
 import android.icu.text.DecimalFormat
 import android.location.Location
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.provider.OpenableColumns
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
 import com.apstudio.sentieri.db.LayerItem
@@ -29,6 +35,7 @@ import org.osmdroid.views.overlay.milestones.MilestoneManager
 import org.osmdroid.views.overlay.milestones.MilestoneMeterDistanceLister
 import org.osmdroid.views.overlay.milestones.MilestonePathDisplayer
 import org.osmdroid.views.overlay.milestones.MilestonePixelDistanceLister
+import java.io.OutputStream
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDateTime
@@ -42,6 +49,12 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.util.zip.ZipInputStream
 
 object MapUtils {
 
@@ -757,5 +770,106 @@ object MapUtils {
         return pendenzeSmussate
     }
 
+    fun getOutputStreamForPublicDownload(context: Context, fileName: String): OutputStream? {
+        val contentResolver = context.contentResolver
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "application/zip") // O il MIME type corretto
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+
+        // Tenta di inserire il nuovo file nel MediaStore
+        val uri: Uri? = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+
+        // Se l'URI non è nullo, apri un OutputStream per scriverci dentro
+        return uri?.let { contentResolver.openOutputStream(it) }
+    }
+
+    /**
+     * Decomprime un file .zip dalla cartella pubblica di Download
+     * nella cartella Mappe specifica dell'applicazione.
+     *
+     * @param context Il contesto dell'applicazione, necessario per trovare i percorsi delle cartelle.
+     * @param nomeFileZip Il nome del file .zip da cercare nella cartella Download (es. "Sardegna.zip").
+     * @return `true` se l'operazione è riuscita, `false` altrimenti.
+     */
+    fun decomprimiZipInCartellaMappe(context: Context, nomeFileZip: String): Boolean {
+        try {
+            // --- 1. IDENTIFICA IL FILE DI INPUT ---
+            // Accedi alla cartella pubblica di Download.
+            // ATTENZIONE: Questo approccio è stato deprecato, ma è il modo diretto per trovare un file per nome.
+            // Per Android 10+ sarebbe meglio usare MediaStore per ottenere l'URI del file.
+            // Per ora, usiamo l'accesso diretto che funziona ancora per la lettura su molte versioni.
+            @Suppress("DEPRECATION")
+            val cartellaDownload = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val fileZipInput = File(cartellaDownload, nomeFileZip)
+
+            if (!fileZipInput.exists()) {
+                Log.e("Unzip", "File non trovato: ${fileZipInput.absolutePath}")
+                return false
+            }
+            Log.d("Unzip", "File ZIP trovato: ${fileZipInput.absolutePath}")
+
+            // --- 2. IDENTIFICA LA CARTELLA DI OUTPUT ---
+            // Usa `externalMediaDirs` che punta a /Android/media/<package_name>/
+            // È il percorso corretto e non richiede permessi speciali.
+            val cartellaMediaApp = context.externalMediaDirs.firstOrNull()
+            if (cartellaMediaApp == null) {
+                Log.e("Unzip", "Impossibile accedere alla cartella media dell'app.")
+                return false
+            }
+            val cartellaDestinazione = File(cartellaMediaApp, "Mappe")
+
+            // Crea la cartella di destinazione se non esiste
+            if (!cartellaDestinazione.exists()) {
+                if (!cartellaDestinazione.mkdirs()) {
+                    Log.e("Unzip", "Impossibile creare la cartella di destinazione: ${cartellaDestinazione.absolutePath}")
+                    return false
+                }
+            }
+            Log.d("Unzip", "Cartella di destinazione pronta: ${cartellaDestinazione.absolutePath}")
+
+            // --- 3. ESEGUI LO UNZIP ---
+            ZipInputStream(BufferedInputStream(FileInputStream(fileZipInput))).use { zipInputStream ->
+                var zipEntry = zipInputStream.nextEntry
+                while (zipEntry != null) {
+                    val nomeFileDecompresso = zipEntry.name
+                    val fileDecompresso = File(cartellaDestinazione, nomeFileDecompresso)
+
+                    // Prevenire la vulnerabilità "Zip Slip"
+                    if (!fileDecompresso.canonicalPath.startsWith(cartellaDestinazione.canonicalPath)) {
+                        throw SecurityException("Path Traversal attack (Zip Slip) rilevato: $nomeFileDecompresso")
+                    }
+
+                    if (zipEntry.isDirectory) {
+                        // Se l'entry è una directory, creala
+                        fileDecompresso.mkdirs()
+                    } else {
+                        // Se l'entry è un file, assicurati che la sua directory genitore esista
+                        fileDecompresso.parentFile?.mkdirs()
+
+                        // Scrivi il file
+                        BufferedOutputStream(FileOutputStream(fileDecompresso)).use { bufferedOutputStream ->
+                            val buffer = ByteArray(4096)
+                            var read: Int
+                            while (zipInputStream.read(buffer).also { read = it } != -1) {
+                                bufferedOutputStream.write(buffer, 0, read)
+                            }
+                        }
+                        Log.d("Unzip", "File estratto: ${fileDecompresso.absolutePath}")
+                    }
+                    zipInputStream.closeEntry()
+                    zipEntry = zipInputStream.nextEntry
+                }
+            }
+            Log.i("Unzip", "Decompressione completata con successo.")
+            return true
+
+        } catch (e: Exception) {
+            // Gestisce tutti i tipi di errore (IO, Security, etc.)
+            Log.e("Unzip", "Errore durante la decompressione del file '$nomeFileZip'", e)
+            return false
+        }
+    }
 
 }

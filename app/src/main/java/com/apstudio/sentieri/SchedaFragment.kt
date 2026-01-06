@@ -32,10 +32,13 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import androidx.appcompat.widget.SwitchCompat
+import androidx.fragment.app.activityViewModels
 import com.apstudio.sentieri.MapUtils.alertVerificaSegui
 import com.apstudio.sentieri.databinding.FragmentSchedaBinding
 import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.PoiDB
+import com.apstudio.sentieri.db.SentieriDB
+import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.prnDiscesa
 import com.apstudio.sentieri.db.prnDislivello
 import kotlinx.coroutines.Dispatchers
@@ -65,14 +68,27 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.io.File
 import java.util.Date
+import kotlin.getValue
 
 // Fragment che visualizza il dettaglio della traccia selezionata dall'elenco delle tracce
 // su una mappa ridotta e principali dati di riepilogo
 class SchedaFragment : Fragment(), MenuProvider {
 
     private val args: SchedaFragmentArgs by navArgs()
-    private lateinit var viewModel: SentieriViewModel
-
+    private val viewModel: SentieriViewModel by activityViewModels {
+        val application = requireActivity().application
+        // 1. Ottieni una singola istanza del database
+        val database = SentieriDB.getInstance(application)
+        // 2. Crea il repository passando TUTTI i DAO richiesti
+        val repository = SentieriRepo(
+            sentieriDao = database.sentieriDao(),
+            trackDao = database.trackDao(),
+            poiDao = database.poiDao(),
+            fotoPoiDao = database.fotoPoiDao()
+        )
+        // 3. Crea la factory con il repository e l'applicazione
+        SentieriFactory(repository, application)
+    }
     private lateinit var binding: FragmentSchedaBinding
     private lateinit var mapView: MapView
     private var mapController: MapController? = null
@@ -81,7 +97,6 @@ class SchedaFragment : Fragment(), MenuProvider {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri)[SentieriViewModel::class.java]
         setHasOptionsMenu(true) // Abilita le icone nel menu
     }
 
