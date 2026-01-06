@@ -8,14 +8,18 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.SearchView
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.apstudio.sentieri.AppSentieri
 import com.apstudio.sentieri.R
+import com.apstudio.sentieri.SentieriFactory
 import com.apstudio.sentieri.SentieriViewModel
 import com.apstudio.sentieri.databinding.FragmentToponimiListBinding
+import com.apstudio.sentieri.db.SentieriDB
+import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TopoMarkerData
 import com.apstudio.sentieri.layer.placeholder.PlaceholderContent.PlaceholderItem
 import mil.nga.geopackage.GeoPackage
@@ -24,6 +28,7 @@ import mil.nga.geopackage.GeoPackageManager
 import mil.nga.geopackage.features.user.FeatureDao
 import mil.nga.sf.Point
 import java.io.File
+import kotlin.getValue
 
 /**
  * A fragment representing a list of Items.
@@ -35,7 +40,20 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
     private var openedGeoPackage: GeoPackage? = null
     private var featureDao: FeatureDao? = null
     private lateinit var toponimiAdapter: ToponimiRecyclerViewAdapter
-    private lateinit var viewModel: SentieriViewModel
+    private val viewModel: SentieriViewModel by activityViewModels {
+        val application = requireActivity().application
+        // 1. Ottieni una singola istanza del database
+        val database = SentieriDB.getInstance(application)
+        // 2. Crea il repository passando TUTTI i DAO richiesti
+        val repository = SentieriRepo(
+            sentieriDao = database.sentieriDao(),
+            trackDao = database.trackDao(),
+            poiDao = database.poiDao(),
+            fotoPoiDao = database.fotoPoiDao()
+        )
+        // 3. Crea la factory con il repository e l'applicazione
+        SentieriFactory(repository, application)
+    }
 
     // Variabile per memorizzare l'ultima query
     private var lastQuery: String? = null
@@ -46,8 +64,6 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
             columnCount = it.getInt(ARG_COLUMN_COUNT)
         }
         savedInstanceState?.getString("last_query")?.let { lastQuery = it }
-
-        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri)[SentieriViewModel::class.java]
     }
 
 

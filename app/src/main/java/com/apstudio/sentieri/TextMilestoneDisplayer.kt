@@ -1,4 +1,3 @@
-// File: /app/src/main/java/com/apstudio/sentieri/TextMilestoneDisplayer.kt
 package com.apstudio.sentieri
 
 import android.graphics.Canvas

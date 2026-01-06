@@ -74,6 +74,7 @@ import com.apstudio.sentieri.MapUtils.showCustomSnackbar
 import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import android.hardware.Sensor
 import android.hardware.SensorManager
+import androidx.fragment.app.activityViewModels
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
 import com.apstudio.sentieri.db.LocationRepository
@@ -81,6 +82,7 @@ import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.PoiDao
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
+import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TrackDao
 import com.apstudio.sentieri.layer.FeatureTableInfo
 import com.apstudio.sentieri.layer.LayerViewModel
@@ -165,7 +167,21 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val lineStrings: MutableList<LineStringFeature>?
     )
 
-    private lateinit var viewModel: SentieriViewModel
+    private val viewModel: SentieriViewModel by activityViewModels {
+        val application = requireActivity().application
+        // 1. Ottieni una singola istanza del database
+        val database = SentieriDB.getInstance(application)
+        // 2. Crea il repository passando TUTTI i DAO richiesti
+        val repository = SentieriRepo(
+            sentieriDao = database.sentieriDao(),
+            trackDao = database.trackDao(),
+            poiDao = database.poiDao(),
+            fotoPoiDao = database.fotoPoiDao()
+        )
+        // 3. Crea la factory con il repository e l'applicazione
+        SentieriFactory(repository, application)
+    }
+
     private val METERS_IN_A_KILOMETER = 1000.0 // Changed from Int to Double for precision
     private val SECONDS_IN_AN_HOUR = 3600.0 // Changed from Int to Double for precision
 
@@ -314,7 +330,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        try {
+        /*try {
             // Assicurati che AppSentieri sia il nome corretto della tua classe Application
             // e che il ViewModelProvider sia configurato correttamente.
             viewModel =
@@ -322,7 +338,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         } catch (e: Exception) {
             Log.e(TAG, "FATALE: Errore durante l'inizializzazione del ViewModel in onCreate!", e)
             // Considera di gestire questo errore in modo più drastico se l'app non può funzionare senza viewModel
-        }
+        }*/
         // Inizializza le preferenze e registra il listener
         preferenze = PreferenceManager.getDefaultSharedPreferences(requireContext())
         // Legge se esiste SENSORE BAROMETRO da Preferences
@@ -526,7 +542,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             // Allinea la barra in basso al centro dello schermo.
             val scaleBarOverlay = ScaleBarOverlay(mapView)
-            scaleBarOverlay.setAlignBottom(true)
+            scaleBarOverlay.setAlignRight(true) // setAlignBottom(true)
             //scaleBarOverlay.setCentred(true)
             // Aggiungi la barra della scala alla lista degli overlay della mappa.
             mapView.overlays.add(scaleBarOverlay)

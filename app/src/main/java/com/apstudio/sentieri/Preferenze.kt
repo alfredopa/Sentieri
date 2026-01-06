@@ -75,6 +75,8 @@ class Preferenze : PreferenceFragmentCompat() {
             // Restituisci 'true' per indicare che hai gestito l'evento di click.
             true
         }
+        // Observe del download status
+        observeDownloadStatus()
     }
 
     private fun populateThemePreference(preference: ListPreference) {
