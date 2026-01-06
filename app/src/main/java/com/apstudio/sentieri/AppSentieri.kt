@@ -33,7 +33,7 @@ class AppSentieri : Application(), ViewModelStoreOwner {
 
     // Istanzia la Factory (singleton a livello di app)
     val sentieriViewModelFactory: SentieriFactory by lazy {
-        SentieriFactory(sentieriRepository)
+        SentieriFactory(sentieriRepository, this)
     }
 
     // Istanzia il ViewModel (singleton a livello di app)
