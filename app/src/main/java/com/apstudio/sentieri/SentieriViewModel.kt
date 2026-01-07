@@ -1,14 +1,14 @@
 package com.apstudio.sentieri
 
+import android.app.Application
 import android.location.Location
 import android.net.Uri
 import android.os.Environment
 import android.util.Log
-import android.widget.Toast
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.liveData
 import androidx.lifecycle.viewModelScope
@@ -19,6 +19,7 @@ import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TopoMarkerData
+import com.apstudio.sentieri.layer.Event
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -32,18 +33,11 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
-import java.sql.Timestamp
-import java.util.concurrent.CopyOnWriteArrayList
-import android.app.Application
-import android.os.Build
-import androidx.lifecycle.AndroidViewModel
-import com.apstudio.sentieri.layer.Event
-import org.apache.commons.net.io.CopyStreamAdapter // <-- NUOVO IMPORT
 import java.io.InputStream
 import java.io.OutputStream
-import java.util.concurrent.atomic.AtomicLong
+import java.sql.Timestamp
+import java.util.concurrent.CopyOnWriteArrayList
 
 
 data class LocationData(val geoPoint: GeoPoint, val bearing: Float)
@@ -582,17 +576,19 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             val utente = "alfredoftp"
             val password = "APstudio@01"
             val percorsoFileRemoto = "/Sardegna.zip"
-
+            val portaFtp = 2121
             val ftpClient = FTPClient()
             var downloadSuccess = false
 
             try {
                 // ... (logica di connessione e login rimane la stessa) ...
-                ftpClient.connect(server)
-                // ...
+                Log.d("FTP", "Connessione al server FTP...")
+                ftpClient.connect(server, portaFtp)
+                Log.d("FTP", "Connesso al server FTP.")
                 ftpClient.login(utente, password)
-                // ...
+                Log.d("FTP", "Login effettuato con successo.")
                 ftpClient.enterLocalPassiveMode()
+                Log.d("FTP", "Modalità passiva attivata.")
                 ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
 
                 // --- 2. Ottieni la dimensione del file per calcolare la percentuale ---
@@ -617,24 +613,28 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                     // Implementa correttamente il CopyStreamListener usando un 'object expression'
                     val streamListener = object : org.apache.commons.net.io.CopyStreamListener {
 
-                        // Questo metodo viene chiamato periodicamente durante il trasferimento
+                        // Questo metodo non viene usato in questo scenario, puoi lasciarlo vuoto.
                         override fun bytesTransferred(totalBytesTransferred: Long, bytesTransferred: Int, streamSize: Long) {
-                            // Calcola la percentuale di progresso
+                            // Corpo vuoto
+                        }
+
+                        // La logica di progresso va messa nel metodo che accetta CopyStreamEvent
+                        override fun bytesTransferred(event: org.apache.commons.net.io.CopyStreamEvent?) {
+                            event ?: return // Controlla che l'evento non sia nullo per sicurezza
+
+                            val totalBytesTransferred = event.totalBytesTransferred
                             val progress = ((totalBytesTransferred * 100) / fileSize).toInt()
 
                             // Aggiorna il LiveData, ma solo se la percentuale cambia
-                            // per evitare di inondare il thread UI con aggiornamenti inutili.
                             if (progress > (_downloadProgress.value ?: 0)) {
                                 _downloadProgress.postValue(progress)
+                                Log.d("FTP_Progress", "Progresso: $progress%")
                             }
                         }
-
-                        // Questo metodo è richiesto dall'interfaccia ma non ci serve in questo caso.
-                        // Lasciamo il corpo vuoto.
-                        override fun bytesTransferred(event: org.apache.commons.net.io.CopyStreamEvent?) {
-                            // Puoi anche usare questo se preferisci, ma il primo metodo è più diretto.
-                        }
                     }
+
+                    // Assegna il listener al client FTP. Questa riga ora è correttamente
+                    // all'interno del blocco 'if' e dopo la definizione del listener.
                     ftpClient.copyStreamListener = streamListener
                 }
 
@@ -646,36 +646,48 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 FileOutputStream(fileDestinazione).use { outputStream ->
                     downloadSuccess = ftpClient.retrieveFile(percorsoFileRemoto, outputStream)
                 }*/
-
                 val nomeFileDaSalvare = "Sardegna.zip"
 
 // 1. Inizia il recupero e ottieni l'input stream dal server FTP (NON bloccante).
-                val inputStream: InputStream? = ftpClient.retrieveFileStream(percorsoFileRemoto)
+                val inputStream: InputStream = ftpClient.retrieveFileStream(percorsoFileRemoto)
+                    ?: throw IOException("Il server FTP ha rifiutato il trasferimento del file. Risposta: ${ftpClient.replyString}")
 
 // 2. Controlla se il server ha effettivamente iniziato a inviare il file.
-                if (inputStream == null) {
-                    throw IOException("Il server FTP ha rifiutato il trasferimento del file. Risposta: ${ftpClient.replyString}")
-                }
 
-                Log.d("FTP", "Stream di input ottenuto. Inizio trasferimento dati...")
+                Log.d("FTP", "Stream di input ottenuto. Inizio trasferimento dati manuale...")
 
 // 3. Apri l'output stream verso il file locale.
                 val outputStream: OutputStream =
                     MapUtils.getOutputStreamForPublicDownload(getApplication(), nomeFileDaSalvare)
                         ?: throw IOException("Impossibile creare il file di output per il download.")
 
-// 4. Usa un blocco .use per garantire la chiusura sicura degli stream DOPO la copia.
-//    Questa è la parte che esegue effettivamente il download.
-                inputStream.use { input ->
-                    outputStream.use { output ->
-                        // Copia i dati. Il listener impostato prima verrà usato automaticamente.
-                        org.apache.commons.net.io.Util.copyStream(input, output)
+// 4. Ciclo di copia manuale
+                var totalBytesTransferred = 0L
+                val buffer = ByteArray(4096) // Buffer di 4KB
+                var bytesRead: Int
+
+//inputStream.use { input ->  // Rimuoviamo .use per gestire la chiusura manualmente
+                outputStream.use { output ->
+                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        totalBytesTransferred += bytesRead
+
+                        // 5. Invochiamo MANUALMENTE la logica del nostro listener
+                        val progress = ((totalBytesTransferred * 100) / fileSize).toInt()
+                        if (progress > (_downloadProgress.value ?: 0)) {
+                            _downloadProgress.postValue(progress)
+                            Log.d("FTP_Progress", "Progresso manuale: $progress%")
+                        }
                     }
                 }
+// } // Fine del .use di inputStream
 
-                Log.d("FTP", "Trasferimento dati tramite stream completato. In attesa di completePendingCommand...")
+// 6. Chiudi l'input stream dopo aver finito di leggere
+                inputStream.close()
 
-// 5. Ora che gli stream sono chiusi e i dati scritti, finalizza la transazione FTP.
+                Log.d("FTP", "Trasferimento dati manuale completato. In attesa di completePendingCommand...")
+
+// 7. Ora che gli stream sono chiusi e i dati scritti, finalizza la transazione FTP.
                 if (!ftpClient.completePendingCommand()) {
                     Log.e("FTP", "completePendingCommand ha fallito dopo la copia. Il trasferimento potrebbe essere incompleto.")
                     downloadSuccess = false // Marca come fallito se il server non conferma.
@@ -685,23 +697,16 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 }
 
                 if (downloadSuccess && fileSize > 0) {
-                    val applicationContext = getApplication<Application>()
+                    getApplication<Application>()
                     // Dobbiamo trovare il file appena scaricato per controllarne la dimensione.
                     // Poiché MediaStore non ci dà un percorso diretto, dobbiamo cercarlo.
                     val fileScaricato: File?
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        // Per Android 10+ il file è nella cartella pubblica Download
-                        @Suppress("DEPRECATION")
-                        val cartellaDownloadPubblica = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                        fileScaricato = File(cartellaDownloadPubblica, nomeFileDaSalvare)
-                    } else {
-                        // Per versioni precedenti, hai un percorso diretto
-                        @Suppress("DEPRECATION")
-                        val cartellaDownloadPubblica = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                        fileScaricato = File(cartellaDownloadPubblica, nomeFileDaSalvare)
-                    }
+                    // Per Android 10+ il file è nella cartella pubblica Download
+                    @Suppress("DEPRECATION")
+                    val cartellaDownloadPubblica = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    fileScaricato = File(cartellaDownloadPubblica, nomeFileDaSalvare)
 
-                    if (fileScaricato != null && fileScaricato.exists()) {
+                    if (fileScaricato.exists()) {
                         val dimensioneReale = fileScaricato.length()
                         Log.d("FTP", "Controllo integrità: Dimensione attesa=$fileSize, Dimensione reale=$dimensioneReale")
                         if (dimensioneReale != fileSize) {

@@ -914,7 +914,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             viewModel.poi = GeoPoint(0.0, 0.0, 0.0)
         }
-
         onReturnFromLayerDialog()
 
         displayedTopoMarkers.forEach { mapView.overlays.remove(it) }
@@ -981,13 +980,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             mapView.overlays.remove(gpsMarker)
             mapView.overlays.add(gpsMarker)
 
-
             viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
             gpsMarker.setVisible(true)
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = 120
 
-            // --- INIZIO BLOCCO DI SICUREZZA PER IL CRASH ---
             val stateToRestore = viewModel.bottomState
             if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
                 stateToRestore == BottomSheetBehavior.STATE_EXPANDED ||
@@ -1001,11 +998,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 )
                 bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
             }
-            // --- FINE BLOCCO DI SICUREZZA ---
-
             showCustomSnackbar(binding.root, "Registrazione in corso")
         }
-
         mapView.invalidate()
     }
 
@@ -1485,38 +1479,23 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // 5. AGGIORNA i punti della polyline di sfondo per usare quelli con la pendenza.
         //    Questo è il passaggio chiave per "ingannare" il sistema di colorazione.
         polylineColore.setPoints(puntiConPendenza)
-
         // 3. Applica gli stili specifici, PASSANDO la lista delle pendenze
         MapUtils.disegnaLineaSfondo(polylineColore, pendenze)
-        // Le altre due funzioni non sono state modificate nella risposta precedente, ma le includo per completezza
-        // disegnaBordoTraccia(polylineBordo)
-        // disegnaSoloFrecce(polylineFrecce)
-        // --- ATTENZIONE: USA LE VERSIONI CORRETTE CHE HAI GIÀ ---
-        // Nelle risposte precedenti abbiamo definito disegnaBordoTraccia e disegnaSoloFrecce.
-        // Le seguenti sono solo un placeholder.
-        // Assicurati che il tuo MapUtils contenga le definizioni corrette.
-        MapUtils.disegnaLineaSfondo(polylineColore, pendenze)
         MapUtils.disegnaLineaPrimopiano(polylineFrecce)
-
-
         // 4. Aggiungi le  Polyline all'overlay della mappa NELL'ORDINE CORRETTO
         mapView.overlays.add(polylineColore)   // Livello 1: Gradiente (sotto)
         mapView.overlays.add(polylineFrecce)   // Livello 3: Frecce (sopra)
-
         // 5. Aggiungi le tracce alla lista nel ViewModel per la gestione dei layer
         viewModel.listaTracce.add(polylineColore)
         viewModel.listaTracce.add(polylineFrecce)
-
         // 6. Aggiungi i marker di inizio/fine (associandoli alla polilinea di sfondo)
-        //MapUtils.markInizioFine(requireContext(), trackPointsOriginali.first(), mapView, viewModel.listaTracce, 0)
-        //MapUtils.markInizioFine(requireContext(), trackPointsOriginali.last(), mapView, viewModel.listaTracce, 1)
         addMarker(polylineColore)
-
+        //------------------------------------------------------------------------------------------
         // questo usato per disegno traccia con altitudine
         //disegnaLine(line)
         //viewModel.listaTracce.add(line)
         //addMarker(line)
-
+        //------------------------------------------------------------------------------------------
 // carica i waypoints nella lista wayPoints da non salvare con traccia
         gpx.wayPoints?.forEach {
             viewModel.wayPoint.add(it)
