@@ -1,6 +1,7 @@
 package com.apstudio.sentieri
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -63,6 +64,7 @@ class LayerDialog : Fragment() {
                     if (it is Polyline && it.title == viewModel.layerItems[position].nome) {
                         it.isEnabled = !it.isEnabled
                         // attenzione il valore di isEnabled è appena cambiato
+                        Log.d("LayerDialog", "swcVisibileClick isEnabled: ${it.isEnabled}")
                         viewModel.listaTracce.items[position].isEnabled = it.isEnabled
                     }
                 }
