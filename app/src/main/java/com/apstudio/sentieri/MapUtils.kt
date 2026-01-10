@@ -1,5 +1,6 @@
 package com.apstudio.sentieri
 
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Color
@@ -8,7 +9,6 @@ import android.graphics.Path
 import android.icu.text.DecimalFormat
 import android.location.Location
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.OpenableColumns
@@ -17,7 +17,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
 import com.apstudio.sentieri.db.LayerItem
@@ -32,9 +31,13 @@ import org.osmdroid.views.overlay.advancedpolyline.ColorMappingVariationHue
 import org.osmdroid.views.overlay.advancedpolyline.MonochromaticPaintList
 import org.osmdroid.views.overlay.advancedpolyline.PolychromaticPaintList
 import org.osmdroid.views.overlay.milestones.MilestoneManager
-import org.osmdroid.views.overlay.milestones.MilestoneMeterDistanceLister
 import org.osmdroid.views.overlay.milestones.MilestonePathDisplayer
 import org.osmdroid.views.overlay.milestones.MilestonePixelDistanceLister
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.OutputStream
 import java.text.NumberFormat
 import java.time.Instant
@@ -43,18 +46,13 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.zip.ZipInputStream
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
-import java.io.BufferedInputStream
-import java.io.BufferedOutputStream
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.util.zip.ZipInputStream
 
 object MapUtils {
 
@@ -114,7 +112,7 @@ object MapUtils {
 
         if (line.actualPoints.isNotEmpty()) {
             applicaFrecceDirezione(line)
-            // setup border
+            // setup border se attivo bordo non sono visibili le frecce
             //line.outlinePaintLists.add(MonochromaticPaintList(paintBorder))
             // Colore del percorso con gradiente
             line.outlinePaintLists.add(PolychromaticPaintList(paintMapping, mMapping, true))
@@ -125,14 +123,20 @@ object MapUtils {
     private fun applicaFrecceDirezione(line: Polyline) {
         val arrowPaint = Paint().apply {
             color = Color.BLACK
-            //strokeWidth = 5.0f
+            strokeWidth = 5.0f
             style = Paint.Style.FILL_AND_STROKE
             isAntiAlias = true
         }
 
-        val arrowPath = Path().apply {
+        /*val arrowPath = Path().apply {
             moveTo(-10f, -8f)
             lineTo(5f, 0f)
+            lineTo(-10f, 8f)
+            close()
+        }*/
+        val arrowPath = Path().apply {
+            moveTo(10f, 0f)
+            lineTo(-10f, -8f)
             lineTo(-10f, 8f)
             close()
         }
@@ -181,7 +185,7 @@ object MapUtils {
     }
 
     fun alertSegui(context: Context, viewModel: SentieriViewModel, line: Polyline) {
-        val detailsTextView = TextView(context)
+        TextView(context)
         val builder =
             AlertDialog.Builder(context, R.style.AlertDialogCustom)
         with(builder) {
@@ -331,16 +335,8 @@ object MapUtils {
     // funzioni per altitudine barometrica
 // restituisce il valore della pressione livello mare a partire da quota conosciuta
     fun getSealevelPressure(alt: Float, p: Float): Float {
-// P0 = P * (1 - 0,0065 * h)^(-5,2556)
-//return p * ((1 -0.0065 *(alt/1000)).pow(-5.2556).toFloat())
         return (p / (1 - alt / 44330.0f).toDouble().pow(5.255)).toFloat()
     }
-
-    /*    fun calcolaAltitudine(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
-    // metodo con gradiente barometrico
-            val gradienteBarometrico = 0.125f
-            return (pressioneRiferimento - pressioneAttuale) / gradienteBarometrico
-        }*/
 
     fun calcolaAltitudineIpso(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
 // metodo con formula ipsometrica
@@ -507,39 +503,29 @@ object MapUtils {
     fun showCustomSnackbar(view: View, message: String) {
         // 1. Crea lo Snackbar come al solito
         val snackbar = Snackbar.make(view, "", Snackbar.LENGTH_LONG)
-
         // 2. Prendi la view generica dello Snackbar. Non fare più il cast a SnackbarLayout.
         val snackbarView = snackbar.view
-
         // 3. Rimuovi il padding predefinito per avere controllo totale
         snackbarView.setPadding(0, 0, 0, 0)
         // Rendi trasparente lo sfondo predefinito dello Snackbar
         snackbarView.setBackgroundColor(Color.TRANSPARENT)
-
-        // --- LA PARTE CHIAVE È QUI (MODIFICATA) ---
         // 4. Prendi i LayoutParams generici (ViewGroup.MarginLayoutParams) e imposta i margini.
         //    Questo funziona perché la view dello Snackbar si trova sempre dentro un contenitore
         //    che supporta i margini (solitamente un CoordinatorLayout o FrameLayout).
         val params = snackbarView.layoutParams as ViewGroup.MarginLayoutParams
         val marginInDp = 20 // Scegli il margine che preferisci in dp
         val marginInPx = (marginInDp * view.resources.displayMetrics.density).toInt()
-
         // Imposta i margini orizzontali e un margine inferiore per staccarlo dal fondo
         val bottomMarginInDp = 12 // Aggiungi un margine inferiore se vuoi
         val bottomMarginInPx = (bottomMarginInDp * view.resources.displayMetrics.density).toInt()
-
         params.setMargins(marginInPx, params.topMargin, marginInPx, bottomMarginInPx)
         snackbarView.layoutParams = params
-        // ----------------------------------------
-
         // 5. Infla il tuo layout personalizzato
         val inflater = LayoutInflater.from(view.context)
         val customView = inflater.inflate(R.layout.custom_snackbar_layout, null)
-
         // Imposta il testo del tuo layout
         val textView = customView.findViewById<TextView>(R.id.snackbar_text)
         textView.text = message
-
         // 6. Aggiungi la tua view personalizzata.
         //    Dato che non possiamo più usare addView su SnackbarLayout, cerchiamo un modo alternativo.
         //    Il modo più sicuro è rimuovere le view esistenti (il TextView di default)
@@ -549,93 +535,12 @@ object MapUtils {
         if (snackbarView is ViewGroup) {
             snackbarView.addView(customView, 0)
         }
-
         // 7. Mostra lo Snackbar
         snackbar.show()
     }
 
-    /**
-     * Configura una Polyline per visualizzare un gradiente di colore basato sull'altitudine.
-     * Questa sarà la linea di sfondo (Livello 1).
-     * VERSIONE CORRETTA che popola il ColorMappingForScalarContainer.
-     */
-    /*fun disegnaLineaSfondo(line: Polyline, pendenze: MutableList<Float>) {
-        // Range di colori: da Verde (basso) a Rosso (alto)
-        val MIN_HUE = 240f // cyan
-        val MAX_HUE = 0f   // Rosso
-        val SAT = 1.0f
-        val LUM = 0.5f
-
-        val borderPaint = Paint().apply {
-            color = Color.BLACK
-            strokeWidth = 14f
-            style = Paint.Style.STROKE
-            isAntiAlias = true
-            strokeJoin = Paint.Join.ROUND
-        }
-
-        // Configura il Paint per il gradiente
-        val paintMapping = Paint().apply {
-            strokeWidth = 12f // Spessore generoso per essere visibile sotto
-            style = Paint.Style.FILL
-            strokeJoin = Paint.Join.ROUND
-            strokeCap = Paint.Cap.ROUND
-            isAntiAlias = true
-        }
-
-
-        // Trova pendenza min/max
-        val minVal = pendenze.min()
-        val maxVal = pendenze.max()
-        if (maxVal > minVal) {
-            // 1. Definisci come mappare i valori (pendenza) ai colori (hue)
-            val colorMapping = ColorMappingVariationHue(
-                minVal.toFloat(), maxVal.toFloat(), MIN_HUE, MAX_HUE, SAT, LUM
-            )
-
-            //    Crea il contenitore e POPOLALO con i valori di pendenza di ogni punto.
-            val colorContainer = ColorMappingForScalarContainer(colorMapping)
-            pendenze.forEach {
-                // Aggiungi la pendenza di ogni punto al contenitore.
-                // Se un punto non ha altitudine, usa 0.0 o un valore di fallback.
-                colorContainer.add(it)
-            }
-
-            // ALTRO METODO CON ALTITUDINE
-            // Trova altitudine min/max
-            /*val minVal = line.actualPoints.minOfOrNull { it.altitude } ?: 0.0
-            val maxVal = line.actualPoints.maxOfOrNull { it.altitude } ?: 0.0
-
-            if (maxVal > minVal) {
-                // 1. Definisci come mappare i valori (altitudine) ai colori (hue)
-                val colorMapping = ColorMappingVariationHue(
-                    minVal.toFloat(), maxVal.toFloat(), MIN_HUE, MAX_HUE, SAT, LUM
-                )
-
-                // 2. *** PASSAGGIO FONDAMENTALE MANCANTE ***
-                //    Crea il contenitore e POPOLALO con i valori di altitudine di ogni punto.
-                val colorContainer = ColorMappingForScalarContainer(colorMapping)
-                line.actualPoints.forEach {
-                    // Aggiungi l'altitudine di ogni punto al contenitore.
-                    // Se un punto non ha altitudine, usa 0.0 o un valore di fallback.
-                    colorContainer.add(it.altitude.toFloat())
-                }*/
-
-            // 3. Applica la lista di paint policromatici alla polyline.
-            //    Questa lista userà il colorMapping che ora sa a quale punto associare ogni colore
-            //    grazie al colorContainer popolato.
-            line.outlinePaintLists.add(MonochromaticPaintList(borderPaint))
-            line.outlinePaintLists.add(PolychromaticPaintList(paintMapping, colorMapping, true))
-
-
-        } else {
-            // Fallback a colore singolo se non c'è dislivello
-            paintMapping.color = Color.CYAN
-            line.outlinePaintLists.add(MonochromaticPaintList(paintMapping))
-        }
-    }*/
 // SFONDO: Disegna la linea nera di base
-    fun disegnaLineaSfondo(line: Polyline, pendenze: List<Float>) {
+    fun disegnaLineaSfondo(line: Polyline) {
         val paintBorder = Paint().apply {
             color = Color.BLACK
             isAntiAlias = true
@@ -726,19 +631,34 @@ object MapUtils {
 
     fun getOutputStreamForPublicDownload(context: Context, fileName: String): OutputStream? {
         val contentResolver = context.contentResolver
+        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+
+        // --- LOGICA DI SOVRASCRITTURA ---
+        // 1. Cerchiamo se il file esiste già nella cartella Download
+        val projection = arrayOf(MediaStore.MediaColumns._ID)
+        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
+        val selectionArgs = arrayOf(fileName)
+
+        contentResolver.query(collection, projection, selection, selectionArgs, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                // 2. Se esiste, otteniamo l'ID e lo cancelliamo
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
+                val deleteUri = ContentUris.withAppendedId(collection, id)
+                contentResolver.delete(deleteUri, null, null)
+                Log.d("MapUtils", "File esistente eliminato per sovrascrittura: $fileName")
+            }
+        }
+        // --- CREAZIONE NUOVO FILE ---
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-            put(MediaStore.MediaColumns.MIME_TYPE, "application/zip") // O il MIME type corretto
+            put(MediaStore.MediaColumns.MIME_TYPE, "application/zip")
             put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
         }
 
-        // Tenta di inserire il nuovo file nel MediaStore
-        val uri: Uri? =
-            contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-
-        // Se l'URI non è nullo, apri un OutputStream per scriverci dentro
+        val uri: Uri? = contentResolver.insert(collection, contentValues)
         return uri?.let { contentResolver.openOutputStream(it) }
     }
+
 
     /**
      * Decomprime un file .zip dalla cartella pubblica di Download
