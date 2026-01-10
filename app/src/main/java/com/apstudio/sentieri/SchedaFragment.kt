@@ -21,18 +21,15 @@ import android.widget.Switch
 import android.widget.Toast
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat
-import com.google.android.material.snackbar.Snackbar
 import androidx.core.net.toUri
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
-import androidx.appcompat.widget.SwitchCompat
-import androidx.fragment.app.activityViewModels
 import com.apstudio.sentieri.MapUtils.alertVerificaSegui
 import com.apstudio.sentieri.databinding.FragmentSchedaBinding
 import com.apstudio.sentieri.db.LayerItem
@@ -41,6 +38,7 @@ import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.prnDiscesa
 import com.apstudio.sentieri.db.prnDislivello
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -68,7 +66,6 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.io.File
 import java.util.Date
-import kotlin.getValue
 
 // Fragment che visualizza il dettaglio della traccia selezionata dall'elenco delle tracce
 // su una mappa ridotta e principali dati di riepilogo
@@ -94,6 +91,7 @@ class SchedaFragment : Fragment(), MenuProvider {
     private var mapController: MapController? = null
     private val poiDBList = mutableListOf<PoiDB>()
     private lateinit var percorso: Polyline
+    private var puntiOriginali: List<GeoPoint> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -221,7 +219,7 @@ class SchedaFragment : Fragment(), MenuProvider {
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
         val idSentiero: Int = args.idSentiero
         val swcSegui: Switch = binding.swtchSegui
-
+        mapView = binding.Mapview
         viewModel.trovaSentiero(idSentiero).observe(this.viewLifecycleOwner) {
             binding.txNome.text = it.nome
             binding.txDistanza.text = MapUtils.formattastring(it.lunghezza.toInt())
@@ -251,7 +249,7 @@ class SchedaFragment : Fragment(), MenuProvider {
             val percorsoCaricato = viewModel.leggiTrack(idSentiero, poiDBList)
             // Usiamo una nuova variabile locale per chiarezza e sicurezza.
             percorso = percorsoCaricato
-            mapView = binding.Mapview
+            puntiOriginali = percorsoCaricato.actualPoints.map { GeoPoint(it.latitude, it.longitude, it.altitude) }
             mapController = MapController(mapView)
             // DA VERIFICARE cartella Mappa usa quella di default Osmdroid
             if (viewModel.menuMap ==0 )
@@ -294,14 +292,13 @@ class SchedaFragment : Fragment(), MenuProvider {
                     mapView.zoomToBoundingBox(bounds.increaseByScale(1.2f), false)
             }
 
-            // switch per visualizzazione percorso con frecce direzionali
+            // switch per visualizzazione percorso con quota o pendenza
+            binding.swtchFrecce.isChecked = viewModel.mostraPendenza
             val swtchFrecce = binding.swtchFrecce
-            swtchFrecce.setOnClickListener {
-                if (swtchFrecce.isChecked)
-                    percorso.usePath(true)
-                else
-                    percorso.usePath(false)
-                mapView.invalidate()
+            binding.swtchFrecce.setOnCheckedChangeListener { _, isChecked ->
+                viewModel.mostraPendenza = isChecked
+                Log.d("SchedaFragment", "checked aggiornaMappaPercorso")
+                aggiornaMappaPercorso()
             }
 
             val btnSegui: Button = binding.btnSegui
@@ -409,8 +406,71 @@ class SchedaFragment : Fragment(), MenuProvider {
                     SchedaFragmentDirections.actionSchedaFragmentToAltGrafFragment(idSentiero)
                 findNavController().navigate(directions)
             }
+            aggiornaMappaPercorso()
+            Log.d("SchedaFragment", "chiamato aggiornaMappaPercorso, ${percorso.actualPoints.size}")
         }
     }
+
+    private fun aggiornaMappaPercorso() {
+        if (!::percorso.isInitialized || puntiOriginali.isEmpty()) return
+
+        // 1. Pulizia Overlay Mappa
+        mapView.overlays.clear()
+
+        // 2. Pulizia TOTALE della Polyline
+        percorso.outlinePaintLists.clear() // Rimuove tutti i colori precedenti
+        //percorso.setMilestoneManagers(ArrayList()) // Rimuove le frecce (se presenti)
+
+        if (viewModel.mostraPendenza) {
+            // Ripristina i punti originali prima di calcolare
+            percorso.setPoints(puntiOriginali.map { GeoPoint(it.latitude, it.longitude, it.altitude) })
+
+            val pendenze = MapUtils.calcolaPendenzeSmussate(percorso, 8)
+
+            // Crea i punti "fittizi" con la pendenza al posto dell'altitudine
+            val puntiConPendenza = puntiOriginali.mapIndexed { index, geoPoint ->
+                val pendenza = if (index < pendenze.size) pendenze[index].toDouble() else 0.0
+                GeoPoint(geoPoint.latitude, geoPoint.longitude, pendenza)
+            }
+            percorso.setPoints(puntiConPendenza)
+            val percorsoFrecce = Polyline(mapView).apply {
+                setPoints(percorso.actualPoints)
+                isVisible = true
+            }
+            // Applica gli stili (Assicurati che MapUtils usi .add e non crei nuovi oggetti)
+            MapUtils.disegnaLineaSfondo(percorso, pendenze)
+            mapView.overlays.add(percorso)
+            MapUtils.disegnaLineaPrimopiano(percorsoFrecce, pendenze)
+            mapView.overlays.add(percorsoFrecce)
+        } else {
+            // RIPRISTINA PUNTI REALI (metri)
+            percorso.setPoints(puntiOriginali.map { GeoPoint(it.latitude, it.longitude, it.altitude) })
+
+            // Disegna Quota (il metodo disegnaLine deve internamente fare .add alla lista pulita)
+            MapUtils.disegnaLine(percorso)
+            mapView.overlays.add(percorso)
+        }
+        // 3. Riaggiungi i Marker (altrimenti spariscono col clear)
+        aggiungiMarkerInizioFine()
+        mapView.invalidate()
+    }
+
+    private fun aggiungiMarkerInizioFine() {
+        // aggiunge marker inizio e fine percorso
+        val startMarker = Marker(mapView)
+        context?.let { startMarker.icon = AppCompatResources.getDrawable(it, R.drawable.ic_start) }
+        startMarker.title = "Inizio"
+        var punto = percorso.actualPoints[0]
+        startMarker.position = punto
+        mapView.overlays?.add(startMarker)
+        val endMarker = Marker(mapView)
+        context?.let { endMarker.icon = AppCompatResources.getDrawable(it, R.drawable.ic_finish) }
+        punto = percorso.actualPoints[percorso.actualPoints.size - 1]
+        endMarker.position = punto
+        endMarker.title = "Fine"
+        mapView.overlays?.add(endMarker)
+    }
+
 
     // apertura mappa offline locale da Uri
     private fun apreMappa(uri: Uri) {
@@ -421,7 +481,6 @@ class SchedaFragment : Fragment(), MenuProvider {
         if (f.exists()) {
             maps[0] = f
         }
-
 // estensioni registrate: zip, gemf, sqlite, mbtiles e map
         val extension = f.extension
         if (!ArchiveFileFactory.isFileExtensionRegistered(extension) && extension != "map") {
@@ -461,7 +520,6 @@ class SchedaFragment : Fragment(), MenuProvider {
 // importante setIgnoreTileSource consente apertura rapida della mappa evitando il controllo del tipo di sorgente presente nel file tiles
             archives[0].setIgnoreTileSource(true)
         }
-
         mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
         viewModel.connessione = false
         mapView.setUseDataConnection(false)

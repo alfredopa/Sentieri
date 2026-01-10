@@ -576,9 +576,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.setUseDataConnection(false)
                 if (preferenze.contains("URIMappa")) {
                     val uriMappa = preferenze.getString("URIMappa", "")!!.toUri()
-                    apreMappa(uriMappa)
-                    viewModel.uriMappa = uriMappa
-                    menu?.findItem(0)?.isChecked = true
+                    if (apreMappa(uriMappa)) {
+                        viewModel.uriMappa = uriMappa
+                        menu?.findItem(0)?.isChecked = true
+                    } else {
+                        mapView.isTilesScaledToDpi = true
+                    mapView.setUseDataConnection(true)
+                    online(1)
+                    viewModel.menuMap = 1}
                 } else {
                     mapView.isTilesScaledToDpi = true
                     mapView.setUseDataConnection(true)
@@ -1043,7 +1048,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     // apertura mappa offline locale da Uri
-    private fun apreMappa(uri: Uri) {
+    private fun apreMappa(uri: Uri): Boolean {
         val uriPathHelper = URIPathHelper()
         val filePath = uriPathHelper.getPath(requireContext(), uri)
 
@@ -1051,13 +1056,22 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // Prova ad inizializzare OsmDroid qui
         } catch (e: Exception) {
             Log.e("Sentieri", "Errore inizializzazione OsmDroid", e)
+            return false
         }
         //--------------------------------------------------------------------------------------------------
         val maps: Array<File?> = arrayOfNulls(1)
         val f = File(filePath!!)
         if (f.exists()) {
             maps[0] = f
+        } else {
+            Toast.makeText(
+                requireContext(),
+                "Il file selezionato non esiste",
+                Toast.LENGTH_LONG
+            )
+            return false
         }
+
 
 // estensioni registrate: zip, gemf, sqlite, mbtiles e map
         val extension = f.extension
@@ -1068,7 +1082,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 "Il file selezionato non contiene dati mappa",
                 Toast.LENGTH_LONG
             ).show()
-            return
+            return false
         }
         val forgeMappa: MapsForgeTileProvider
         val offlineMappa: OfflineTileProvider
@@ -1131,7 +1145,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
         //Log.d("Mappa", "Mappa caricata  ")
-        //mapView.invalidate()
+        return true
     }
 
     private fun online(mappa: Int) {
@@ -1167,7 +1181,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
      * @return True se sono presenti sia l'accelerometro che il magnetometro, altrimenti False.
      */
     private fun hasCompass(): Boolean {
-        val sensorManager = requireContext().getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val sensorManager =
+            requireContext().getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         val magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
         return accelerometer != null && magnetometer != null
@@ -1481,7 +1496,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         polylineColore.setPoints(puntiConPendenza)
         // 3. Applica gli stili specifici, PASSANDO la lista delle pendenze
         MapUtils.disegnaLineaSfondo(polylineColore, pendenze)
-        MapUtils.disegnaLineaPrimopiano(polylineFrecce)
+        MapUtils.disegnaLineaPrimopiano(polylineFrecce, pendenze)
         // 4. Aggiungi le  Polyline all'overlay della mappa NELL'ORDINE CORRETTO
         mapView.overlays.add(polylineColore)   // Livello 1: Gradiente (sotto)
         mapView.overlays.add(polylineFrecce)   // Livello 3: Frecce (sopra)
@@ -2128,14 +2143,20 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val startMarker = Marker(mapView)
         startMarker.position = polyline.actualPoints.first()
         startMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-        startMarker.icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_start) // Icona di partenza
+        startMarker.icon = AppCompatResources.getDrawable(
+            requireContext(),
+            R.drawable.ic_start
+        ) // Icona di partenza
         startMarker.title = "Partenza"
 
         // Marker di FINE
         val endMarker = Marker(mapView)
         endMarker.position = polyline.actualPoints.last()
         endMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-        endMarker.icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_finish) // Icona di arrivo
+        endMarker.icon = AppCompatResources.getDrawable(
+            requireContext(),
+            R.drawable.ic_finish
+        ) // Icona di arrivo
         endMarker.title = "Arrivo"
 
         // CORREZIONE: Aggiungi i marker al FolderOverlay nel ViewModel
@@ -2337,7 +2358,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private fun mostraAlertDialogSemplice(messaggio: String) {
         if (!isAdded) return //
         // 1. Infla il nuovo layout personalizzato
-        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_details_layout, null)
+        val dialogView =
+            LayoutInflater.from(requireContext()).inflate(R.layout.dialog_details_layout, null)
         // 2. Trova le View all'interno del nostro layout
         val messageTextView: TextView = dialogView.findViewById(R.id.dialog_message_text)
         val closeButton: Button = dialogView.findViewById(R.id.dialog_close_button)

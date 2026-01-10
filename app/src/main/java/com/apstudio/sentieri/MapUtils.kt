@@ -58,7 +58,9 @@ import java.util.zip.ZipInputStream
 
 object MapUtils {
 
-        fun disegnaLine(line: Polyline): Polyline {
+    fun disegnaLine(line: Polyline): Polyline {
+        line.outlinePaintLists.clear()
+        line.setMilestoneManagers(ArrayList())
         // min / max values used in the example
         // scalar meaning is "speed" in this example with no unit
         //val MIN_SCALAR = 0
@@ -69,7 +71,7 @@ object MapUtils {
         val SAT = 1.0f
         val LUM = 0.5f
         var mMapping: ColorMappingVariationHue? = null
-            val paintBorder = Paint()
+        val paintBorder = Paint()
         val paintMapping = Paint()
         // create border paint
         paintBorder.color = Color.BLACK
@@ -105,92 +107,44 @@ object MapUtils {
             )
         }
 
-            val mContainer = ColorMappingForScalarContainer(mMapping)
+        val mContainer = ColorMappingForScalarContainer(mMapping)
         line.actualPoints.forEach {
             mContainer.add(it.altitude.toFloat())
         }
 
         if (line.actualPoints.isNotEmpty()) {
+            applicaFrecceDirezione(line)
             // setup border
-            line.outlinePaintLists.add(MonochromaticPaintList(paintBorder))
+            //line.outlinePaintLists.add(MonochromaticPaintList(paintBorder))
             // Colore del percorso con gradiente
             line.outlinePaintLists.add(PolychromaticPaintList(paintMapping, mMapping, true))
-
-            // gestione del milestone
-            val arrowPaint = Paint()
-            arrowPaint.color = Color.argb(180, 230, 18, 18)
-            arrowPaint.strokeWidth = 6.0f
-            arrowPaint.style = Paint.Style.FILL_AND_STROKE
-            arrowPaint.isAntiAlias = true
-
-            val arrowPath = Path().apply {
-                moveTo(10f, 0f)
-                lineTo(-10f, -8f)
-                lineTo(-10f, 8f)
-                close()
-            }
-            /*val arrowPath = Path() // a simple arrow towards the right
-            // Arrow tip (rightmost point)
-            arrowPath.moveTo(15f, 0f) // Tip of the arrow (adjust x to control length)
-
-            // Right feather
-            arrowPath.lineTo(5f, -5f) // Adjust for feather angle
-            arrowPath.lineTo(5f, -2f) // Back side of the feather
-            arrowPath.lineTo(-15f, -2f) // Back of arrow body (adjust x to control body length)
-
-            // Left feather
-            arrowPath.lineTo(-15f, 2f) // Back of arrow body
-            arrowPath.lineTo(5f, 2f) // Back side of the feather
-            arrowPath.lineTo(5f, 5f) // Adjust for feather angle
-            arrowPath.close()*/
-            val managers: MutableList<MilestoneManager> = ArrayList()
-            managers.add(
-                MilestoneManager(
-                    MilestonePixelDistanceLister(70.0, 70.0),
-                    MilestonePathDisplayer(0.0, true, arrowPath, arrowPaint)
-                )
-            )
-            line.setMilestoneManagers(managers)
-
-            // gestione del milestone
-            //--- SE E' ABILITATA LA VISUALIZZAZIONE DELLE OUTLINE IL MILESTONE VIENE INIBITO.
-            /*val path = Path()
-            path.moveTo(-10f, -10f)
-            path.lineTo(10f, 10f)
-            path.lineTo(-10f, 10f)
-            path.close()
-            val managers: MutableList<MilestoneManager> = ArrayList()
-            managers.add(MilestoneManager(MilestoneMeterDistanceLister(50.0), MilestonePathDisplayer(0.0, true, path, getFillPaint(Color.MAGENTA))))
-            line.setMilestoneManagers(managers)*/
-
-            // Colore del percorso con Linea Blu
-            //line.color = Color.rgb(157, 69, 235)
-
-            // aggiunge marker inizio e fine percorso
-            /*val startMarker = Marker(mMapView)
-            startMarker.icon = contesto?.let {
-                AppCompatResources.getDrawable(
-                    it,
-                    R.drawable.ic_start
-                )
-            }
-            startMarker.title = "Inizio"
-            punto = line.actualPoints[0]
-            startMarker.position = punto
-            mMapView?.overlays?.add(startMarker)
-            val endMarker = Marker(mMapView)
-            endMarker.icon = contesto?.let {
-                AppCompatResources.getDrawable(
-                    it,
-                    R.drawable.ic_finish
-                )
-            }
-            punto = line.actualPoints[line.actualPoints.size - 1]
-            endMarker.position = punto
-            endMarker.title = "Fine"
-            mMapView?.overlays?.add(endMarker)*/
         }
         return line
+    }
+
+    private fun applicaFrecceDirezione(line: Polyline) {
+        val arrowPaint = Paint().apply {
+            color = Color.BLACK
+            //strokeWidth = 5.0f
+            style = Paint.Style.FILL_AND_STROKE
+            isAntiAlias = true
+        }
+
+        val arrowPath = Path().apply {
+            moveTo(-10f, -8f)
+            lineTo(5f, 0f)
+            lineTo(-10f, 8f)
+            close()
+        }
+
+        val managers = mutableListOf<MilestoneManager>()
+        managers.add(
+            MilestoneManager(
+                MilestonePixelDistanceLister(100.0, 100.0),
+                MilestonePathDisplayer(0.0, true, arrowPath, arrowPaint)
+            )
+        )
+        line.setMilestoneManagers(managers)
     }
 
     fun markInizioFine(
@@ -211,7 +165,7 @@ object MapUtils {
                 )
             }
             marker.title = "Inizio"
-            marker.id =  "Inizio"
+            marker.id = "Inizio"
         } else {
             marker.icon = contesto.let {
                 AppCompatResources.getDrawable(
@@ -220,7 +174,7 @@ object MapUtils {
                 )
             }
             marker.title = "Fine"
-            marker.id =  "Fine"
+            marker.id = "Fine"
         }
         marker.position = punto
         folderMarker.add(marker)
@@ -239,7 +193,8 @@ object MapUtils {
             val ascesaTextView = dialogView.findViewById<TextView>(R.id.tv_ascesa)
             val discesaTextView = dialogView.findViewById<TextView>(R.id.tv_discesa)
             // 3. Formatta i valori numerici (come facevi già)
-            val distanza = String.format(Locale.getDefault(), "%,d m", viewModel.trackDistanza.toInt())
+            val distanza =
+                String.format(Locale.getDefault(), "%,d m", viewModel.trackDistanza.toInt())
             val ascesa = String.format(Locale.getDefault(), "%,d m", viewModel.trackAscesa)
             val discesa = String.format(Locale.getDefault(), "%,d m", viewModel.trackDiscesa)
             // 4. Imposta i valori nei rispettivi TextView
@@ -308,8 +263,13 @@ object MapUtils {
                 // aggiunge traccia con flag segui false alla lista layerItems
                 viewModel.layerItems.add(
                     LayerItem(
-                        line.title, line.isEnabled, direzione = false, segui = false,
-                        distanza = viewModel.trackDistanza, ascesa = viewModel.trackAscesa, discesa = viewModel.trackDiscesa
+                        line.title,
+                        line.isEnabled,
+                        direzione = false,
+                        segui = false,
+                        distanza = viewModel.trackDistanza,
+                        ascesa = viewModel.trackAscesa,
+                        discesa = viewModel.trackDiscesa
                     )
                 )
             }
@@ -376,11 +336,11 @@ object MapUtils {
         return (p / (1 - alt / 44330.0f).toDouble().pow(5.255)).toFloat()
     }
 
-/*    fun calcolaAltitudine(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
-// metodo con gradiente barometrico
-        val gradienteBarometrico = 0.125f
-        return (pressioneRiferimento - pressioneAttuale) / gradienteBarometrico
-    }*/
+    /*    fun calcolaAltitudine(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
+    // metodo con gradiente barometrico
+            val gradienteBarometrico = 0.125f
+            return (pressioneRiferimento - pressioneAttuale) / gradienteBarometrico
+        }*/
 
     fun calcolaAltitudineIpso(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
 // metodo con formula ipsometrica
@@ -406,7 +366,8 @@ object MapUtils {
     fun convertMillisToISO8601JavaTime(timestampMillis: Long): String {
         val instant = Instant.ofEpochMilli(timestampMillis)
         val localDateTime = LocalDateTime.ofInstant(instant, ZoneId.systemDefault())
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'") // XXX per l'offset del fuso orario
+        val formatter =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'") // XXX per l'offset del fuso orario
         return localDateTime.format(formatter)
     }
 
@@ -507,7 +468,7 @@ object MapUtils {
         val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
         // Use String.format to add leading zeros
-        return String.format(Locale.ITALY,"%02d:%02d:%02d", hours, minutes, seconds)
+        return String.format(Locale.ITALY, "%02d:%02d:%02d", hours, minutes, seconds)
     }
 
     fun formatElapsedTime(elapsedTime: Long): String {
@@ -598,7 +559,7 @@ object MapUtils {
      * Questa sarà la linea di sfondo (Livello 1).
      * VERSIONE CORRETTA che popola il ColorMappingForScalarContainer.
      */
-    fun disegnaLineaSfondo(line: Polyline, pendenze: MutableList<Float>) {
+    /*fun disegnaLineaSfondo(line: Polyline, pendenze: MutableList<Float>) {
         // Range di colori: da Verde (basso) a Rosso (alto)
         val MIN_HUE = 240f // cyan
         val MAX_HUE = 0f   // Rosso
@@ -672,59 +633,49 @@ object MapUtils {
             paintMapping.color = Color.CYAN
             line.outlinePaintLists.add(MonochromaticPaintList(paintMapping))
         }
+    }*/
+// SFONDO: Disegna la linea nera di base
+    fun disegnaLineaSfondo(line: Polyline, pendenze: List<Float>) {
+        val paintBorder = Paint().apply {
+            color = Color.BLACK
+            isAntiAlias = true
+            strokeWidth = 12f
+            style = Paint.Style.STROKE
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+        }
+        line.outlinePaintLists.clear()
+        line.outlinePaintLists.add(MonochromaticPaintList(paintBorder))
     }
 
-    /**
-     * Configura una Polyline per visualizzare il primo piano: bordo, linea interna e frecce.
-     * Questa sarà la linea sopra lo sfondo (Livello 2).
-     * SPECIFICO PER OSMDROID 6.1.x
-     */
-    fun disegnaLineaPrimopiano(line: Polyline) {
-        // Rendi la linea base trasparente, perché disegneremo tutto con outlinePaintLists e milestone
+    // PRIMOPIANO: Disegna il gradiente basato sulle pendenze fornite
+    fun disegnaLineaPrimopiano(line: Polyline, pendenze: List<Float>) {
         line.paint.color = Color.TRANSPARENT
+        val minPendenza = -20f
+        val maxPendenza = 20f
 
-        // 1. Bordo nero per contrasto
-        /*val borderPaint = Paint().apply {
-            color = Color.BLACK
-            strokeWidth = 15f
-            style = Paint.Style.STROKE
-            isAntiAlias = true
-            strokeJoin = Paint.Join.ROUND
-        }
-        line.outlinePaintLists.add(MonochromaticPaintList(borderPaint))
-
-        // 2. Linea interna bianca
-        val innerPaint = Paint().apply {
-            color = Color.TRANSPARENT
-            strokeWidth = 9f
-            style = Paint.Style.STROKE
-            isAntiAlias = true
-            strokeJoin = Paint.Join.ROUND
-            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
-        }
-        line.outlinePaintLists.add(MonochromaticPaintList(innerPaint))*/
-
-        // 3. Frecce direzionali
-        val arrowPaint = Paint().apply {
-            color = Color.BLACK
-            style = Paint.Style.FILL_AND_STROKE // Riempi le frecce per visibilità
-            isAntiAlias = true
-        }
-        val arrowPath = Path().apply {
-            moveTo(10f, 0f)
-            lineTo(-10f, -8f)
-            lineTo(-10f, 8f)
-            close()
-        }
-        val arrowManager = MilestoneManager(
-            MilestonePixelDistanceLister(100.0, 100.0), // Aumenta distanza per non affollare
-            MilestonePathDisplayer(0.0, true, arrowPath, arrowPaint)
+        val mMapping = ColorMappingVariationHue(
+            minPendenza, maxPendenza,
+            240f, // Blu (Discesa)
+            0f,   // Rosso (Salita)
+            1f, 0.5f
         )
 
-        // Applica le frecce.
-        // **ATTENZIONE**: In osmdroid 6.1.x, i milestone vengono disegnati SOPRA le outlinePaintLists
-        // della STESSA polyline, quindi questo approccio funzionerà.
-        line.setMilestoneManagers(mutableListOf(arrowManager))
+        val mContainer = ColorMappingForScalarContainer(mMapping)
+
+        // Usiamo le pendenze passate come argomento invece di ricalcolarle
+        pendenze.forEach { mContainer.add(it) }
+
+        val paintMapping = Paint().apply {
+            isAntiAlias = true
+            strokeWidth = 8f
+            style = Paint.Style.STROKE
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+        }
+
+        line.outlinePaintLists.add(PolychromaticPaintList(paintMapping, mMapping, true))
+        applicaFrecceDirezione(line)
     }
 
     /**
@@ -782,7 +733,8 @@ object MapUtils {
         }
 
         // Tenta di inserire il nuovo file nel MediaStore
-        val uri: Uri? = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+        val uri: Uri? =
+            contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
 
         // Se l'URI non è nullo, apri un OutputStream per scriverci dentro
         return uri?.let { contentResolver.openOutputStream(it) }
@@ -804,7 +756,8 @@ object MapUtils {
             // Per Android 10+ sarebbe meglio usare MediaStore per ottenere l'URI del file.
             // Per ora, usiamo l'accesso diretto che funziona ancora per la lettura su molte versioni.
             @Suppress("DEPRECATION")
-            val cartellaDownload = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val cartellaDownload =
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             val fileZipInput = File(cartellaDownload, nomeFileZip)
 
             if (!fileZipInput.exists()) {
@@ -826,7 +779,10 @@ object MapUtils {
             // Crea la cartella di destinazione se non esiste
             if (!cartellaDestinazione.exists()) {
                 if (!cartellaDestinazione.mkdirs()) {
-                    Log.e("Unzip", "Impossibile creare la cartella di destinazione: ${cartellaDestinazione.absolutePath}")
+                    Log.e(
+                        "Unzip",
+                        "Impossibile creare la cartella di destinazione: ${cartellaDestinazione.absolutePath}"
+                    )
                     return false
                 }
             }
