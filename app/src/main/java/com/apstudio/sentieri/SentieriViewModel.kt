@@ -122,7 +122,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val gpsAltitudeHistory: ArrayDeque<Double> = ArrayDeque(MOVING_AVERAGE_WINDOW_SIZE)
     private var previousFilteredAltitude: Double? = null
     private var previousPointForGpsSlope: GeoPoint? = null
-
+    // in Scheda per visualizzare pendenza oppure quota
+    var mostraPendenza = false
     // valori di riferimento della traccia da seguire
     var trackDistanza = 0f
     var trackAscesa = 0
@@ -398,11 +399,11 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             }
 
             poiList.addAll(puntiPoiDalDb)
-
+            percorso // valore di polyline restituita
             //  Crea la Polyline usando la funzione di MapUtils che la colora
             //    Passa la lista di punti che abbiamo appena caricato.
-            val percorsoColorato = MapUtils.disegnaLine(percorso)
-            percorsoColorato
+            //val percorsoColorato = MapUtils.disegnaLine(percorso)
+            //percorsoColorato
         }
     }
 
