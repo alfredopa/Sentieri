@@ -569,37 +569,33 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.setOnKeyListener(this)
         mapView.setDestroyMode(false)
 
-        if (preferenze.contains("MenuMap")) {
-            viewModel.menuMap = preferenze.getInt("MenuMap", 0)
-            if (viewModel.menuMap == 0) {
-                mapView.isTilesScaledToDpi = false
-                mapView.setUseDataConnection(false)
-                if (preferenze.contains("URIMappa")) {
-                    val uriMappa = preferenze.getString("URIMappa", "")!!.toUri()
-                    if (apreMappa(uriMappa)) {
-                        viewModel.uriMappa = uriMappa
-                        menu?.findItem(0)?.isChecked = true
-                    } else {
-                        mapView.isTilesScaledToDpi = true
-                    mapView.setUseDataConnection(true)
-                    online(1)
-                    viewModel.menuMap = 1}
-                } else {
-                    mapView.isTilesScaledToDpi = true
-                    mapView.setUseDataConnection(true)
-                    online(viewModel.menuMap)
-                }
-            } else {
-                mapView.isTilesScaledToDpi = true
-                mapView.setUseDataConnection(true)
-                online(viewModel.menuMap)
-            }
+// 1. Extract values with sensible defaults
+        val savedMenuMap = preferenze.getInt("MenuMap", 1)
+        val uriString = preferenze.getString("URIMappa", "") ?: ""
+        val uriMappa = uriString.toUri()
+
+// 2. Determine if we should actually use the offline map
+        val canLoadOfflineMap = savedMenuMap == 0 &&
+                uriString.isNotEmpty() &&
+                apreMappa(uriMappa)
+
+// 3. Update ViewModel and State
+        if (canLoadOfflineMap) {
+            viewModel.menuMap = 0
+            viewModel.uriMappa = uriMappa
+            menu?.findItem(0)?.isChecked = true
         } else {
-            mapView.isTilesScaledToDpi = true
-            mapView.setUseDataConnection(true)
-            online(1)
-            viewModel.menuMap = 1
+            // Fallback to online mode
+            viewModel.menuMap = if (savedMenuMap == 0) 1 else savedMenuMap
+            online(viewModel.menuMap)
         }
+
+// 4. Apply UI settings once based on the final state
+        mapView.apply {
+            isTilesScaledToDpi = !canLoadOfflineMap
+            setUseDataConnection(!canLoadOfflineMap)
+        }
+
 
         val coloreDefault = R.color.black
         coloreTraccia = if (preferenze.contains("colore_traccia")) {
@@ -1495,7 +1491,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         //    Questo è il passaggio chiave per "ingannare" il sistema di colorazione.
         polylineColore.setPoints(puntiConPendenza)
         // 3. Applica gli stili specifici, PASSANDO la lista delle pendenze
-        MapUtils.disegnaLineaSfondo(polylineColore, pendenze)
+        MapUtils.disegnaLineaSfondo(polylineColore)
         MapUtils.disegnaLineaPrimopiano(polylineFrecce, pendenze)
         // 4. Aggiungi le  Polyline all'overlay della mappa NELL'ORDINE CORRETTO
         mapView.overlays.add(polylineColore)   // Livello 1: Gradiente (sotto)

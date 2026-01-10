@@ -438,7 +438,7 @@ class SchedaFragment : Fragment(), MenuProvider {
                 isVisible = true
             }
             // Applica gli stili (Assicurati che MapUtils usi .add e non crei nuovi oggetti)
-            MapUtils.disegnaLineaSfondo(percorso, pendenze)
+            MapUtils.disegnaLineaSfondo(percorso)
             mapView.overlays.add(percorso)
             MapUtils.disegnaLineaPrimopiano(percorsoFrecce, pendenze)
             mapView.overlays.add(percorsoFrecce)
