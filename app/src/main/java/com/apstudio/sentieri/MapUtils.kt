@@ -57,6 +57,7 @@ import kotlin.math.sqrt
 object MapUtils {
 
     fun disegnaLine(line: Polyline): Polyline {
+        // azzera valori in line e milestone
         line.outlinePaintLists.clear()
         line.setMilestoneManagers(ArrayList())
         // min / max values used in the example
@@ -74,19 +75,17 @@ object MapUtils {
         // create border paint
         paintBorder.color = Color.BLACK
         paintBorder.isAntiAlias = true
-        paintBorder.strokeWidth = 10f
+        paintBorder.strokeWidth = 12f
         paintBorder.style = Paint.Style.STROKE
         paintBorder.strokeJoin = Paint.Join.ROUND
         paintBorder.strokeCap = Paint.Cap.ROUND
-        paintBorder.isAntiAlias = true
         // create mapping paint
         paintMapping.color = Color.MAGENTA
         paintMapping.isAntiAlias = true
         paintMapping.strokeWidth = 7f
-        paintMapping.style = Paint.Style.FILL_AND_STROKE
+        paintMapping.style = Paint.Style.STROKE
         paintMapping.strokeJoin = Paint.Join.ROUND
         paintMapping.strokeCap = Paint.Cap.ROUND
-        paintMapping.isAntiAlias = true
 
         // cerca valore min e max di Elevazione nell'array di oggetti Waypoint
         val minVal =
@@ -111,11 +110,12 @@ object MapUtils {
         }
 
         if (line.actualPoints.isNotEmpty()) {
-            applicaFrecceDirezione(line)
+
             // setup border se attivo bordo non sono visibili le frecce
             //line.outlinePaintLists.add(MonochromaticPaintList(paintBorder))
             // Colore del percorso con gradiente
             line.outlinePaintLists.add(PolychromaticPaintList(paintMapping, mMapping, true))
+            applicaFrecceDirezione(line)
         }
         return line
     }
