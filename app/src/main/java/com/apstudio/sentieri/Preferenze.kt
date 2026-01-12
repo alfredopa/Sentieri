@@ -112,8 +112,10 @@ class Preferenze : PreferenceFragmentCompat() {
     }
 
     private fun scaricaFileDaFtp() {
-        Toast.makeText(requireContext(), "Avvio del download FTP...", Toast.LENGTH_SHORT).show()
-        viewModel.scaricaFileDaFtp()
+        //Toast.makeText(requireContext(), "Avvio del download FTP...", Toast.LENGTH_SHORT).show()
+        //viewModel.scaricaFileDaFtp()
+        Toast.makeText(requireContext(), "Avvio del download Remoto...", Toast.LENGTH_SHORT).show()
+        viewModel.scaricaFileDaDrive()
     }
 
     private fun observeDownloadStatus() {
