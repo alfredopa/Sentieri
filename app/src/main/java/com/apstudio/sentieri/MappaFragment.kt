@@ -381,6 +381,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         TAG,
                         "Il layer ${featureInfo.name} è già caricato. Ri-aggiungo ${featureInfo.listOverlay!!.size} overlay alla mappa."
                     )
+                    featureInfo.listOverlay!!.forEach { overlay ->
+                        reattachListenersToOverlay(overlay)}
                     mapView.overlays.addAll(featureInfo.listOverlay!!)
                 }
             } else {
@@ -402,15 +404,28 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
 
             is SimpleFastPointOverlay -> {
-                // Per i punti veloci, il listener originale è sufficiente e non dipende
-                // da elementi esterni, quindi non facciamo nulla.
-                Log.d("ListenerDebug", "Preservo listener originale per SimpleFastPointOverlay")
+                //Log.d("ListenerDebug", "Ri-attacco OnPointClickListener per SimpleFastPointOverlay")
+                // Accediamo alle opzioni dell'overlay esistente
+                // Impostiamo un nuovo OnPointClickListener.
+                // Nota: l'overlay contiene già i punti (IGeoPoint), qui gestiamo solo il tocco.
+                overlay.setOnClickListener { points, point ->
+                    // Recuperiamo il punto cliccato
+                    val clickedPoint = points?.get(point!!)
+                    if (clickedPoint is LabelledGeoPoint) {
+                        // Se i punti hanno delle etichette (label), le mostriamo
+                        val label = clickedPoint.label
+                        if (!label.isNullOrEmpty()) {
+                            mostraAlertDialogSemplice(label)
+                        }
+                    } else if (clickedPoint is GeoPoint) {
+                        // Se non c'è una label, mostriamo almeno le coordinate o un messaggio generico
+                        Log.d("ListenerDebug","Punto cliccato: ${clickedPoint.latitude}, ${clickedPoint.longitude}")
+                    }
+                }
             }
 
             is Polygon -> {
-                // ==> INIZIO MODIFICA <==
-                Log.d("ListenerDebug", "Ri-attacco Listener SEMPLICE per Poligono")
-
+                //Log.d("ListenerDebug", "Ri-attacco Listener SEMPLICE per Poligono")
                 // Anche qui, il listener si limita a mostrare la stringa pre-calcolata.
                 overlay.setOnClickListener { polygon, _, _ ->
                     (polygon.relatedObject as? String)?.let { label ->
@@ -418,13 +433,12 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     }
                     true // Evento gestito
                 }
-                // ==> FINE MODIFICA <==
             }
 
             is Polyline -> {
                 // La logica per le Polyline è CORRETTA e deve rimanere,
                 // perché l'InfoWindow dipende dall'istanza attuale della mapView.
-                Log.d("ListenerDebug", "Ri-attacco InfoWindow per Polyline")
+                //Log.d("ListenerDebug", "Ri-attacco InfoWindow per Polyline")
                 overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
                 overlay.setOnClickListener { clickedPolyline, map, eventPosition ->
                     clickedPolyline.infoWindowLocation = eventPosition
@@ -447,7 +461,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         isViewRecreated = true
-        Log.d(TAG, "Ripristino degli overlay dal ViewModel sulla nuova MapView.")
+        //Log.d(TAG, "Ripristino degli overlay dal ViewModel sulla nuova MapView.")
         // 1. Pulisci la mappa per sicurezza (anche se dovrebbe essere già vuota)
         mapView.overlayManager.clear()
         view.isFocusableInTouchMode = true
@@ -464,7 +478,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // 2. Osserva le richieste di navigazione (da FeatureList).
         layerModel.navigateToPointRequest.observe(viewLifecycleOwner, Observer { event ->
             event.getContentIfNotHandled()?.let { clickedPoint ->
-                Log.d(TAG, "Ricevuta richiesta di navigazione a: $clickedPoint")
+                //Log.d(TAG, "Ricevuta richiesta di navigazione a: $clickedPoint")
                 val animationDuration = 1000L
                 Toast.makeText(requireContext(), "Spostamento in corso...", Toast.LENGTH_SHORT)
                     .show()
@@ -519,7 +533,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
         if (mapView.overlays.isEmpty()) {
-            Log.d(TAG, "Aggiungo gli overlay alla mappa.")
+            //Log.d(TAG, "Aggiungo gli overlay alla mappa.")
             mapView.overlays.add(viewModel.listaTracce)
             mapView.overlays.add(viewModel.recTraccia)
             mapView.overlays.add(viewModel.topoLayer)
@@ -851,6 +865,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             if (viewModel.line.title.isNotEmpty()) {
                 (activity as AppCompatActivity).supportActionBar?.title = viewModel.line.title
             }
+            //Log.d("onResume", "Aggiungo nuova traccia")
             val nuovaTraccia = Polyline(mapView)
             nuovaTraccia.setPoints(viewModel.line.actualPoints)
             val mbounds = viewModel.line.bounds
@@ -966,7 +981,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         // per ultimo ripristino traccia registrazione per averla in primo piano
         if (viewModel.isRecording) {
-            Log.d(TAG, "onResume: La registrazione è attiva. Ripristino lo stato della traccia.")
+            //Log.d(TAG, "onResume: La registrazione è attiva. Ripristino lo stato della traccia.")
             val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
             LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
             accendiSchermo()
@@ -1024,7 +1039,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.onPause() //needed for compass, my location overlays, v6.0.0 and up
         layerModel.recordCurrentLayerVisibility()
         layerModel.loadingStatus.clear()
-        Log.d(TAG, "onPause: Stato di caricamento dei layer resettato.")
+        //Log.d(TAG, "onPause: Stato di caricamento dei layer resettato.")
     }
 
     private fun offline() {
@@ -1064,7 +1079,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 requireContext(),
                 "Il file selezionato non esiste",
                 Toast.LENGTH_LONG
-            )
+            ).show()
             return false
         }
 
