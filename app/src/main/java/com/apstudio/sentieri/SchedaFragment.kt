@@ -30,6 +30,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
+import androidx.appcompat.widget.SwitchCompat
 import com.apstudio.sentieri.MapUtils.alertVerificaSegui
 import com.apstudio.sentieri.databinding.FragmentSchedaBinding
 import com.apstudio.sentieri.db.LayerItem
@@ -38,6 +39,7 @@ import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.prnDiscesa
 import com.apstudio.sentieri.db.prnDislivello
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -218,7 +220,7 @@ class SchedaFragment : Fragment(), MenuProvider {
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
         val idSentiero: Int = args.idSentiero
-        val swcSegui: Switch = binding.swtchSegui
+        val swcSegui: MaterialSwitch = binding.swtchSegui
         mapView = binding.Mapview
         viewModel.trovaSentiero(idSentiero).observe(this.viewLifecycleOwner) {
             binding.txNome.text = it.nome
@@ -294,7 +296,7 @@ class SchedaFragment : Fragment(), MenuProvider {
 
             // switch per visualizzazione percorso con quota o pendenza
             binding.swtchFrecce.isChecked = viewModel.mostraPendenza
-            val swtchFrecce = binding.swtchFrecce
+            val swtchFrecce: MaterialSwitch = binding.swtchFrecce
             binding.swtchFrecce.setOnCheckedChangeListener { _, isChecked ->
                 viewModel.mostraPendenza = isChecked
                 Log.d("SchedaFragment", "checked aggiornaMappaPercorso")
