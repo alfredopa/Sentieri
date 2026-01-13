@@ -332,19 +332,19 @@ class LocationService : LifecycleService() {
         channel.setSound(null, null) // Considera se vuoi un suono o meno
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
+        val notifyIntent = Intent(this, MainActivity::class.java).apply {
+            // FLAG_ACTIVITY_SINGLE_TOP: se l'attività è già in esecuzione, non ne crea una nuova
+            // FLAG_ACTIVITY_CLEAR_TOP: pulisce eventuali altre attività sopra di essa
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
 
         // PendingIntent per navigare a MappaFragment
-        val pendingIntent = NavDeepLinkBuilder(applicationContext)
-            .setGraph(R.navigation.nav_graph)
-            .setDestination(R.id.mappaFragment)
-            .setComponentName(MainActivity::class.java)
-            // Aggiungi qui eventuali argomenti se MappaFragment ne richiede
-            // .setArguments(bundleOf("argomentoChiave" to valore))
-            .createTaskStackBuilder() // Cruciale per un corretto back stack
-            .getPendingIntent(
-                0, // requestCode
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            notifyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val notification = NotificationCompat.Builder(this, channelId)
             .setOngoing(true)
