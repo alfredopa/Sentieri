@@ -852,25 +852,48 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.onResume()
         preferenze.registerOnSharedPreferenceChangeListener(this)
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
-
-        if (viewModel.line.actualPoints.isNotEmpty()) {
-            if (viewModel.line.title.isNotEmpty()) {
-                (activity as AppCompatActivity).supportActionBar?.title = viewModel.line.title
+        // la traccia è stata selezionata da schedafragment
+        if (viewModel.puntiDaSeguire.isNotEmpty()) {
+            if (viewModel.titoloTracciaDaSeguire.isNotEmpty()) {
+                (activity as AppCompatActivity).supportActionBar?.title = viewModel.titoloTracciaDaSeguire
             }
             //Log.d("onResume", "Aggiungo nuova traccia")
             val nuovaTraccia = Polyline(mapView)
-            nuovaTraccia.setPoints(viewModel.line.actualPoints)
-            val mbounds = viewModel.line.bounds
-            nuovaTraccia.title = viewModel.line.title
+            nuovaTraccia.setPoints(viewModel.puntiDaSeguire)
+            nuovaTraccia.title = viewModel.titoloTracciaDaSeguire
+            val mbounds = nuovaTraccia.bounds
+
+            // Applica la colorazione basata sullo stato salvato per pendenza 2 polyline
+            if (viewModel.mostraPendenza) {
+                val pendenze = MapUtils.calcolaPendenzeSmussate(nuovaTraccia, 8)
+                // Trick dell'altitudine per il colore
+                val puntiConPendenza = viewModel.puntiDaSeguire.mapIndexed { index, pt ->
+                    val p = if (index < pendenze.size) pendenze[index].toDouble() else 0.0
+                    GeoPoint(pt.latitude, pt.longitude, p)
+                }
+                nuovaTraccia.setPoints(puntiConPendenza)
+                MapUtils.disegnaLineaSfondo(nuovaTraccia)
+                val percorsoFrecce = Polyline(mapView).apply {
+                    setPoints(nuovaTraccia.actualPoints)
+                    isVisible = true
+                }
+                MapUtils.disegnaLineaPrimopiano(percorsoFrecce, pendenze)
+                mapView.overlays.add(nuovaTraccia)
+                mapView.overlays.add(percorsoFrecce)
+            } else {
+                disegnaLine(nuovaTraccia)
+                mapView.overlays.add(nuovaTraccia)
+            }
+            viewModel.puntiDaSeguire = mutableListOf()
+
+
             setPolylineClickListener(nuovaTraccia)
-            disegnaLine(nuovaTraccia)
+            //disegnaLine(nuovaTraccia)
             viewModel.listaTracce.add(nuovaTraccia)
             addMarker(nuovaTraccia)
-            viewModel.listaTracce.items.lastIndex
             mapView.post {
                 mapView.zoomToBoundingBox(mbounds.increaseByScale(1.2f), false)
             }
-            viewModel.line.actualPoints.clear()
 
             if (viewModel.wayPoint.isNotEmpty()) {
                 viewModel.wayPoint.forEach {
