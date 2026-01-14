@@ -259,7 +259,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         }
 
         // 5. Calcolo PENDENZA
-        if (_velocita.value!! > 0.1) {
+        val velocitaCorrente = (loc.speed * 3.6).toInt() // Calcoliamo la velocità locale
+        if (velocitaCorrente > 0) { // <-- AGGIUNGI QUESTO CONTROLLO
             referencePointForSlope?.let { refPoint ->
                 val distanceFromRef = refPoint.distanceToAsDouble(currentNewPunto)
                 if (distanceFromRef >= SLOPE_CALCULATION_DISTANCE_THRESHOLD) {
@@ -267,10 +268,14 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                     if (distanceFromRef > 0) {
                         val pendenzaPercentuale = (dislivelloPendenza / distanceFromRef) * 100
                         _pendenza.postValue(pendenzaPercentuale.toInt())
-                        //Log.d("SentieriViewModel", "Pendenza calcolata: $pendenzaPercentuale")
                     }
                     referencePointForSlope = currentNewPunto
                 }
+            }
+        } else {
+            // Se la velocità è 0, azzeriamo la pendenza
+            if (_pendenza.value != 0) {
+                _pendenza.postValue(0)
             }
         }
 

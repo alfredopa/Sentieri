@@ -47,7 +47,7 @@
                 android:layout_marginStart="8dp"
                 android:layout_marginTop="4dp"
                 android:scrollIndicators="right"
-                android:text="nome_Text"
+                tools:text="Nome Sentiero"
                 android:textSize="16sp"
                 android:textStyle="bold"
                 app:layout_constraintStart_toStartOf="parent"
@@ -64,14 +64,14 @@
 
             <TextView
                 android:id="@+id/dislivello_Text"
-                android:layout_width="39dp"
-                android:layout_height="19dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
-                android:text="txDisliv"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintHorizontal_bias="0.049"
+                app:layout_constraintHorizontal_bias="0.0"
                 app:layout_constraintStart_toEndOf="@+id/Dislivello"
-                app:layout_constraintTop_toTopOf="@+id/Dislivello" />
+                app:layout_constraintTop_toTopOf="@+id/Dislivello"
+                tools:text="0" />
 
             <TextView
                 android:id="@+id/Distanza"
@@ -88,23 +88,23 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
-                android:text="lungh"
+                tools:text="0 km"
                 app:layout_constraintStart_toEndOf="@+id/Distanza"
                 app:layout_constraintTop_toTopOf="@+id/Distanza" />
 
             <TextView
                 android:id="@+id/discesa_Text"
-                android:layout_width="39dp"
-                android:layout_height="19dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
-                android:text="discesa_Text"
+                tools:text="0"
                 app:layout_constraintStart_toEndOf="@+id/Livello"
                 app:layout_constraintTop_toTopOf="@+id/Livello" />
 
             <TextView
                 android:id="@+id/tvVelo"
-                android:layout_width="42dp"
-                android:layout_height="19dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
                 android:text="Med"
                 app:layout_constraintStart_toEndOf="@+id/imageView"
@@ -115,7 +115,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
-                android:text="HrMedia"
+                tools:text="0"
                 app:layout_constraintStart_toEndOf="@+id/tvVelo"
                 app:layout_constraintTop_toTopOf="@+id/tvVelo" />
 
@@ -133,7 +133,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
-                android:text="hrmax"
+                tools:text="0"
                 app:layout_constraintStart_toEndOf="@+id/tvDistH"
                 app:layout_constraintTop_toTopOf="@+id/tvDistH" />
 
@@ -152,7 +152,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:text="DataOra"
+                tools:text="01-01-2024"
                 app:layout_constraintStart_toEndOf="@+id/tvTempo"
                 app:layout_constraintTop_toTopOf="@+id/tvTempo" />
 
@@ -172,7 +172,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
-                android:text="TempoTot"
+                tools:text="00:00:00"
                 app:layout_constraintStart_toEndOf="@+id/tvQuota"
                 app:layout_constraintTop_toTopOf="@+id/tvQuota" />
 
@@ -190,7 +190,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
-                android:text="TempoMov"
+                tools:text="00:00:00"
                 app:layout_constraintStart_toEndOf="@+id/tTempoMovText"
                 app:layout_constraintTop_toTopOf="@+id/tvQuota" />
 
@@ -217,7 +217,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:text="Fine"
+                tools:text="01-01-2024"
                 app:layout_constraintStart_toEndOf="@+id/textView8"
                 app:layout_constraintTop_toTopOf="@+id/tvTempo" />
 
@@ -235,7 +235,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:text="Media"
+                tools:text="0.0"
                 app:layout_constraintStart_toEndOf="@+id/textView16"
                 app:layout_constraintTop_toTopOf="@+id/textView16" />
 

@@ -17,10 +17,25 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.content.edit
+import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.db.LayerItem
 import com.google.android.material.snackbar.Snackbar
+import org.mapsforge.map.rendertheme.ExternalRenderTheme
+import org.mapsforge.map.rendertheme.InternalRenderTheme
+import org.mapsforge.map.rendertheme.XmlRenderTheme
+import org.osmdroid.mapsforge.MapsForgeTileProvider
+import org.osmdroid.mapsforge.MapsForgeTileSource
+import org.osmdroid.tileprovider.MapTileProviderBasic
+import org.osmdroid.tileprovider.modules.ArchiveFileFactory
+import org.osmdroid.tileprovider.modules.OfflineTileProvider
+import org.osmdroid.tileprovider.tilesource.MapBoxTileSource
+import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.FolderOverlay
@@ -39,7 +54,6 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.OutputStream
-import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -60,60 +74,31 @@ object MapUtils {
         // azzera valori in line e milestone
         line.outlinePaintLists.clear()
         line.setMilestoneManagers(ArrayList())
-        // min / max values used in the example
-        // scalar meaning is "speed" in this example with no unit
-        //val MIN_SCALAR = 0
-        //val MAX_SCALAR = 50
-        // hue range da rosso  for "alto" a blu per "basso"
         val MIN_HUE = 255 // green
         val MAX_HUE = 0 // red
         val SAT = 1.0f
         val LUM = 0.5f
         var mMapping: ColorMappingVariationHue? = null
-        val paintBorder = Paint()
         val paintMapping = Paint()
-        // create border paint
-        paintBorder.color = Color.BLACK
-        paintBorder.isAntiAlias = true
-        paintBorder.strokeWidth = 12f
-        paintBorder.style = Paint.Style.STROKE
-        paintBorder.strokeJoin = Paint.Join.ROUND
-        paintBorder.strokeCap = Paint.Cap.ROUND
-        // create mapping paint
+        
         paintMapping.color = Color.MAGENTA
         paintMapping.isAntiAlias = true
         paintMapping.strokeWidth = 7f
-        paintMapping.style = Paint.Style.STROKE
+        paintMapping.style = Paint.Style.FILL_AND_STROKE
         paintMapping.strokeJoin = Paint.Join.ROUND
         paintMapping.strokeCap = Paint.Cap.ROUND
 
-        // cerca valore min e max di Elevazione nell'array di oggetti Waypoint
-        val minVal =
-            line.actualPoints.minWithOrNull(Comparator.comparing { it.altitude.toFloat() })?.altitude
-        val maxVal =
-            (line.actualPoints.maxWithOrNull(Comparator.comparing { it.altitude.toFloat() }))?.altitude
+        val minVal = line.actualPoints.minWithOrNull(Comparator.comparing { it.altitude.toFloat() })?.altitude
+        val maxVal = line.actualPoints.maxWithOrNull(Comparator.comparing { it.altitude.toFloat() })?.altitude
 
         if (maxVal != null) {
-            mMapping = ColorMappingVariationHue(
-                minVal!!.toFloat(),
-                maxVal.toFloat(),
-                MIN_HUE.toFloat(),
-                MAX_HUE.toFloat(),
-                SAT,
-                LUM
-            )
+            mMapping = ColorMappingVariationHue(minVal!!.toFloat(), maxVal.toFloat(), MIN_HUE.toFloat(), MAX_HUE.toFloat(), SAT, LUM)
         }
 
         val mContainer = ColorMappingForScalarContainer(mMapping)
-        line.actualPoints.forEach {
-            mContainer.add(it.altitude.toFloat())
-        }
+        line.actualPoints.forEach { mContainer.add(it.altitude.toFloat()) }
 
         if (line.actualPoints.isNotEmpty()) {
-
-            // setup border se attivo bordo non sono visibili le frecce
-            //line.outlinePaintLists.add(MonochromaticPaintList(paintBorder))
-            // Colore del percorso con gradiente
             line.outlinePaintLists.add(PolychromaticPaintList(paintMapping, mMapping, true))
             applicaFrecceDirezione(line)
         }
@@ -126,14 +111,9 @@ object MapUtils {
             strokeWidth = 5.0f
             style = Paint.Style.FILL_AND_STROKE
             isAntiAlias = true
+            strokeCap = Paint.Cap.ROUND
         }
 
-        /*val arrowPath = Path().apply {
-            moveTo(-10f, -8f)
-            lineTo(5f, 0f)
-            lineTo(-10f, 8f)
-            close()
-        }*/
         val arrowPath = Path().apply {
             moveTo(10f, 0f)
             lineTo(-10f, -8f)
@@ -142,613 +122,328 @@ object MapUtils {
         }
 
         val managers = mutableListOf<MilestoneManager>()
-        managers.add(
-            MilestoneManager(
-                MilestonePixelDistanceLister(100.0, 100.0),
-                MilestonePathDisplayer(0.0, true, arrowPath, arrowPaint)
-            )
-        )
+        managers.add(MilestoneManager(MilestonePixelDistanceLister(100.0, 100.0), MilestonePathDisplayer(0.0, true, arrowPath, arrowPaint)))
         line.setMilestoneManagers(managers)
     }
 
-    fun markInizioFine(
-        contesto: Context,
-        punto: GeoPoint,
-        mappa: MapView,
-        overTraccia: FolderOverlay,
-        tipo: Int
-    ) {
-        // aggiunge marker inizio oppure fine percorso in base al valore tipo 0 = inizio, 1 = fine
-        val folderMarker = overTraccia
+    fun markInizioFine(contesto: Context?, punto: GeoPoint, mappa: MapView, overTraccia: FolderOverlay, tipo: Int) {
         val marker = Marker(mappa)
         if (tipo == 0) {
-            marker.icon = contesto.let {
-                AppCompatResources.getDrawable(
-                    it,
-                    R.drawable.ic_start
-                )
-            }
+            marker.icon = AppCompatResources.getDrawable(contesto!!, R.drawable.ic_start)
             marker.title = "Inizio"
             marker.id = "Inizio"
         } else {
-            marker.icon = contesto.let {
-                AppCompatResources.getDrawable(
-                    it,
-                    R.drawable.ic_finish
-                )
-            }
+            marker.icon = AppCompatResources.getDrawable(contesto!!, R.drawable.ic_finish)
             marker.title = "Fine"
             marker.id = "Fine"
         }
         marker.position = punto
-        folderMarker.add(marker)
+        overTraccia.add(marker)
+        mappa.invalidate() // CRUCIALE: Forza il ridisegno per far apparire il marker
+    }
+
+    fun apreMappa(context: Context, mapView: MapView, viewModel: SentieriViewModel, uri: Uri): Boolean {
+        if (uri == Uri.EMPTY) return false
+        
+        val uriPathHelper = URIPathHelper()
+        val filePath = uriPathHelper.getPath(context, uri) ?: return false
+        val maps: Array<File?> = arrayOfNulls(1)
+        val f = File(filePath)
+        if (f.exists()) {
+            maps[0] = f
+        } else {
+            Toast.makeText(context, "Il file selezionato non esiste", Toast.LENGTH_LONG).show()
+            return false
+        }
+
+        val extension = f.extension
+        if (!ArchiveFileFactory.isFileExtensionRegistered(extension) && extension != "map") {
+            Toast.makeText(context, "Il file selezionato non contiene dati mappa", Toast.LENGTH_LONG).show()
+            return false
+        }
+
+        if (f.name.contains(".map")) {
+            val preferenze = PreferenceManager.getDefaultSharedPreferences(context)
+            val savedThemePath = preferenze.getString("seleziona_tema_mapsforge", "OSMARENDER")
+            var theme: XmlRenderTheme = InternalRenderTheme.OSMARENDER
+
+            if (savedThemePath != null && savedThemePath != "OSMARENDER") {
+                val themeFile = File(savedThemePath)
+                if (themeFile.exists()) {
+                    try {
+                        theme = ExternalRenderTheme(themeFile)
+                    } catch (e: Exception) {
+                        Log.e("MapUtils", "Errore nel caricamento del tema esterno", e)
+                    }
+                }
+            }
+            val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, "ThemeName")
+            mapView.tileProvider = MapsForgeTileProvider(SimpleRegisterReceiver(context), fromFiles, null)
+        } else {
+            val offlineMappa = OfflineTileProvider(SimpleRegisterReceiver(context), maps)
+            mapView.tileProvider = offlineMappa
+            offlineMappa.archives.firstOrNull()?.setIgnoreTileSource(true)
+        }
+        
+        mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
+        viewModel.connessione = false
+        mapView.setUseDataConnection(false)
+        viewModel.menuMap = 0
+        viewModel.uriMappa = uri
+        PreferenceManager.getDefaultSharedPreferences(context).edit {
+            putInt("MenuMap", 0)
+            putString("URIMappa", uri.toString())
+        }
+        mapView.invalidate()
+        return true
+    }
+
+    fun online(context: Context, mapView: MapView, viewModel: SentieriViewModel, mappa: Int) {
+        val tileProvider: MapTileProviderBasic = when (mappa) {
+            1 -> MapTileProviderBasic(context, TileSourceFactory.MAPNIK)
+            2 -> MapTileProviderBasic(context, TileSourceFactory.OpenTopo)
+            3 -> mappaMapBox(context)
+            else -> MapTileProviderBasic(context, TileSourceFactory.MAPNIK)
+        }
+        viewModel.connessione = true
+        viewModel.menuMap = mappa
+        PreferenceManager.getDefaultSharedPreferences(context).edit {
+            putInt("MenuMap", mappa)
+        }
+        mapView.setUseDataConnection(true)
+        mapView.tileProvider = tileProvider
+        mapView.invalidate()
+    }
+
+    private fun mappaMapBox(context: Context): MapTileProviderBasic {
+        val source = MapBoxTileSource("MapBox", 1, 19, 256, ".png")
+        source.retrieveAccessToken(context)
+        source.setMapboxMapid("mapbox.satellite")
+        source.accessToken = "pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNtMDBzMmQ3ODBoMWIya3NuejJ5NnNzMG0ifQ.kXnCG27oE6go9msYdp3pkA"
+        TileSourceFactory.addTileSource(source)
+        return MapTileProviderBasic(context, source)
     }
 
     fun alertSegui(context: Context, viewModel: SentieriViewModel, line: Polyline) {
-        TextView(context)
-        val builder =
-            AlertDialog.Builder(context, R.style.AlertDialogCustom)
+        val builder = AlertDialog.Builder(context, R.style.AlertDialogCustom)
         with(builder) {
             setTitle("Importa traccia")
             val inflater = LayoutInflater.from(context)
             val dialogView = inflater.inflate(R.layout.dialog_track_details, null)
-            // 2. Trova i TextView all'interno del layout gonfiato
-            val distanzaTextView = dialogView.findViewById<TextView>(R.id.tv_distanza)
-            val ascesaTextView = dialogView.findViewById<TextView>(R.id.tv_ascesa)
-            val discesaTextView = dialogView.findViewById<TextView>(R.id.tv_discesa)
-            // 3. Formatta i valori numerici (come facevi già)
-            val distanza =
-                String.format(Locale.getDefault(), "%,d m", viewModel.trackDistanza.toInt())
-            val ascesa = String.format(Locale.getDefault(), "%,d m", viewModel.trackAscesa)
-            val discesa = String.format(Locale.getDefault(), "%,d m", viewModel.trackDiscesa)
-            // 4. Imposta i valori nei rispettivi TextView
-            distanzaTextView.text = distanza
-            ascesaTextView.text = ascesa
-            discesaTextView.text = discesa
+            dialogView.findViewById<TextView>(R.id.tv_distanza).text = String.format(Locale.getDefault(), "%,d m", viewModel.trackDistanza.toInt())
+            dialogView.findViewById<TextView>(R.id.tv_ascesa).text = String.format(Locale.getDefault(), "%,d m", viewModel.trackAscesa)
+            dialogView.findViewById<TextView>(R.id.tv_discesa).text = String.format(Locale.getDefault(), "%,d m", viewModel.trackDiscesa)
 
-            // 5. Imposta il layout gonfiato come vista del dialogo
             setView(dialogView)
-            setPositiveButton(
-                "Segui"
-            ) { _, _ ->
+            setPositiveButton("Segui") { _, _ ->
                 if (viewModel.tracciaDaSeguire != "") {
                     alertVerificaSegui(context) { segui ->
                         if (segui) {
-                            // resetta tracce con flag segui true
-                            viewModel.layerItems.forEach {
-                                it.segui = false
-                            }
-                            // aggiunge traccia con flag segui true alla lista layerItems
-                            viewModel.layerItems.add(
-                                LayerItem(
-                                    line.title,
-                                    line.isEnabled,
-                                    direzione = false,
-                                    segui = true,
-                                    distanza = viewModel.trackDistanza,
-                                    ascesa = viewModel.trackAscesa,
-                                    discesa = viewModel.trackDiscesa
-                                )
-                            )
-                            // L'utente ha premuto "Segui"
-                            // Esegui le azioni per seguire la traccia
+                            viewModel.layerItems.forEach { it.segui = false }
+                            viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, true, viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
                         } else {
-                            // aggiunge traccia con flag segui false alla lista layerItems
-                            viewModel.layerItems.add(
-                                LayerItem(
-                                    line.title,
-                                    line.isEnabled,
-                                    direzione = false,
-                                    segui = false,
-                                    distanza = viewModel.trackDistanza,
-                                    ascesa = viewModel.trackAscesa,
-                                    discesa = viewModel.trackDiscesa
-                                )
-                            )
-                            // L'utente ha premuto "Annulla"
-                            // Esegui le azioni per annullare l'operazione
+                            viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, false, viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
                         }
                     }
-                } else
-                    viewModel.layerItems.add(
-                        LayerItem(
-                            line.title, line.isEnabled,
-                            direzione = false,
-                            segui = true,
-                            distanza = viewModel.trackDistanza,
-                            ascesa = viewModel.trackAscesa,
-                            discesa = viewModel.trackDiscesa
-                        )
-                    )
+                } else {
+                    viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, true, viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
+                }
                 viewModel.tracciaDaSeguire = line.title
                 viewModel.alertFuoriTraccia = true
             }
             setNegativeButton(android.R.string.cancel) { _, _ ->
-                // aggiunge traccia con flag segui false alla lista layerItems
-                viewModel.layerItems.add(
-                    LayerItem(
-                        line.title,
-                        line.isEnabled,
-                        direzione = false,
-                        segui = false,
-                        distanza = viewModel.trackDistanza,
-                        ascesa = viewModel.trackAscesa,
-                        discesa = viewModel.trackDiscesa
-                    )
-                )
+                viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, false, viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
             }
-//create()
             show()
         }
     }
 
     fun alertVerificaSegui(context: Context, callback: (Boolean) -> Unit) {
-        val builder = AlertDialog.Builder(context, R.style.AlertDialogCustom)
-        with(builder)
-        {
+        AlertDialog.Builder(context, R.style.AlertDialogCustom).apply {
             setTitle("Segui traccia")
             setMessage("E' già stata selezionata una traccia da seguire. Vuoi sostituirla con questa?")
-            setPositiveButton(
-                "Segui"
-            ) { _, _ ->
-                callback(true)
-            }
-            setNegativeButton(android.R.string.cancel) { _, _ ->
-                callback(false)
-            }
-            create()
+            setPositiveButton("Segui") { _, _ -> callback(true) }
+            setNegativeButton(android.R.string.cancel) { _, _ -> callback(false) }
             show()
         }
-
     }
 
     fun getDistanceInMeters(p1: GeoPoint, p2: GeoPoint): Int {
         val output = FloatArray(1)
-        Location.distanceBetween(
-            p1.latitude,
-            p1.longitude,
-            p2.latitude,
-            p2.longitude,
-            output
-        )
+        Location.distanceBetween(p1.latitude, p1.longitude, p2.latitude, p2.longitude, output)
         return output[0].roundToInt()
     }
 
-    /*fun distance(geoPoint1: GeoPoint, geoPoint2: GeoPoint): Int {
-    val r = 6371e3 // Raggio medio della Terra in metri
-    val lat1 = Math.toRadians(geoPoint1.latitude)
-    val lon1 = Math.toRadians(geoPoint1.longitude)
-    val lat2 = Math.toRadians(geoPoint2.latitude)
-    val lon2 = Math.toRadians(geoPoint2.longitude)
-
-    val dLat = lat2 - lat1
-    val dLon = lon2 - lon1
-
-    val a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(lat1) * cos(lat2) *
-        sin(dLon / 2) * sin(dLon / 2)
-    val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-
-    return (r * c).roundToInt()
-    }*/
-
-    // funzioni per altitudine barometrica
-// restituisce il valore della pressione livello mare a partire da quota conosciuta
-    fun getSealevelPressure(alt: Float, p: Float): Float {
-        return (p / (1 - alt / 44330.0f).toDouble().pow(5.255)).toFloat()
-    }
+    fun getSealevelPressure(alt: Float, p: Float): Float = (p / (1 - alt / 44330.0f).toDouble().pow(5.255)).toFloat()
 
     fun calcolaAltitudineIpso(pressioneAttuale: Float, pressioneRiferimento: Float): Float {
-// metodo con formula ipsometrica
-        val BAROMETRIC_CONSTANT = 44330.0F
-        val EXPONENTIAL_COEFFICIENT = 1 / 5.256F
-        return (BAROMETRIC_CONSTANT * (1 - (pressioneAttuale / pressioneRiferimento).pow(
-            EXPONENTIAL_COEFFICIENT
-        )))
+        return (44330.0F * (1 - (pressioneAttuale / pressioneRiferimento).pow(1 / 5.256F)))
     }
 
-    fun formatDecimal(value: Float): String {
-        val decimalFormat = DecimalFormat("#.##")
-        return decimalFormat.format(value)
-    }
+    fun formatDecimal(value: Float): String = DecimalFormat("#.##").format(value)
 
-    fun dataOraIso8601(): String {
-        val now = LocalDateTime.now()
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
-            .withZone(ZoneOffset.UTC)
-        return formatter.format(now)
-    }
+    fun dataOraIso8601(): String = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC).format(LocalDateTime.now())
 
     fun convertMillisToISO8601JavaTime(timestampMillis: Long): String {
         val instant = Instant.ofEpochMilli(timestampMillis)
         val localDateTime = LocalDateTime.ofInstant(instant, ZoneId.systemDefault())
-        val formatter =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'") // XXX per l'offset del fuso orario
-        return localDateTime.format(formatter)
+        return DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").format(localDateTime)
     }
 
-    // restituisce il nome del file dall'URI
-// questo metodo si applica per gli URI con schema content
     fun getFileNameFromUri(context: Context, uri: Uri): String {
         if (uri.scheme == "content") {
-            val cursor = context.contentResolver.query(uri, null, null, null, null)
-            cursor?.use {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                     return cursor.getString(nameIndex)
                 }
             }
         }
-        return uri.path!!.lastIndexOf('/').plus(1).let { uri.path!!.substring(it) }
+        return uri.path?.substringAfterLast('/') ?: ""
     }
 
-    // (algoritmo douglasPeuckerReduction da osmdroid.util) per la riduzione del numero di punti
     fun douglasPeucker(points: ArrayList<GeoPoint>, epsilon: Double): ArrayList<GeoPoint> {
         if (points.size < 3) return points
-
-        // Trova il punto con la massima distanza dalla linea
         var dmax = 0.0
         var index = 0
         val end = points.size - 1
         for (i in 1 until end) {
             val d = perpendicularDistance(points[i], points[0], points[end])
-            if (d > dmax) {
-                index = i
-                dmax = d
-            }
+            if (d > dmax) { index = i; dmax = d }
         }
-
-        // Se la massima distanza è maggiore di epsilon, ricorsivamente semplifica
-        if (dmax > epsilon) {
-            val recResults1 = douglasPeucker(ArrayList(points.subList(0, index + 1)), epsilon)
-            val recResults2 = douglasPeucker(ArrayList(points.subList(index, end + 1)), epsilon)
-
-            // Costruisci la lista dei risultati
-            val result = ArrayList<GeoPoint>(recResults1.subList(0, recResults1.size - 1))
-            result.addAll(recResults2)
-            return result
+        return if (dmax > epsilon) {
+            val res1 = douglasPeucker(ArrayList(points.subList(0, index + 1)), epsilon)
+            val res2 = douglasPeucker(ArrayList(points.subList(index, end + 1)), epsilon)
+            ArrayList<GeoPoint>(res1.subList(0, res1.size - 1)).apply { addAll(res2) }
         } else {
-            // Restituisci solo il primo e l'ultimo punto
-            return arrayListOf(points[0], points[end])
+            arrayListOf(points[0], points[end])
         }
     }
 
-    // Calcola la distanza perpendicolare da un punto a una linea
-    private fun perpendicularDistance(
-        pt: GeoPoint,
-        lineStart: GeoPoint,
-        lineEnd: GeoPoint
-    ): Double {
-        val dx = lineEnd.longitude - lineStart.longitude
-        val dy = lineEnd.latitude - lineStart.latitude
-
+    private fun perpendicularDistance(pt: GeoPoint, start: GeoPoint, end: GeoPoint): Double {
+        val dx = end.longitude - start.longitude
+        val dy = end.latitude - start.latitude
         val mag = sqrt(dx * dx + dy * dy)
         if (mag > 0.0) {
-            val u =
-                ((pt.longitude - lineStart.longitude) * dx + (pt.latitude - lineStart.latitude) * dy) / (mag * mag)
-
-            if (u <= 0.0) return distance(pt, lineStart)
-            if (u >= 1.0)
-                return distance(pt, lineEnd)
-
-            val intersection = GeoPoint(
-                lineStart.latitude + u * dy,
-                lineStart.longitude + u * dx
-            )
-            return distance(pt, intersection)
+            val u = ((pt.longitude - start.longitude) * dx + (pt.latitude - start.latitude) * dy) / (mag * mag)
+            return when {
+                u <= 0.0 -> distance(pt, start)
+                u >= 1.0 -> distance(pt, end)
+                else -> distance(pt, GeoPoint(start.latitude + u * dy, start.longitude + u * dx))
+            }
         }
         return 0.0
     }
 
-    // Calcola la distanza tra due punti
     private fun distance(pt1: GeoPoint, pt2: GeoPoint): Double {
-        val lat1 = Math.toRadians(pt1.latitude)
-        val lon1 = Math.toRadians(pt1.longitude)
-        val lat2 = Math.toRadians(pt2.latitude)
-        val lon2 = Math.toRadians(pt2.longitude)
-
-        val dLat = lat2 - lat1
-        val dLon = lon2 - lon1
-
-        val a = sin(dLat / 2) * sin(dLat / 2) +
-                cos(lat1) * cos(lat2) *
-                sin(dLon / 2) * sin(dLon / 2)
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-
-        val r = 6371e3 // Raggio medio della Terra in metri
-        return r * c
+        val lat1 = Math.toRadians(pt1.latitude); val lon1 = Math.toRadians(pt1.longitude)
+        val lat2 = Math.toRadians(pt2.latitude); val lon2 = Math.toRadians(pt2.longitude)
+        val dLat = lat2 - lat1; val dLon = lon2 - lon1
+        val a = sin(dLat / 2).pow(2) + cos(lat1) * cos(lat2) * sin(dLon / 2).pow(2)
+        return 6371e3 * 2 * atan2(sqrt(a), sqrt(1 - a))
     }
 
-    fun formatSeconds(totalSeconds: Long): String {
-        val hours = totalSeconds / 3600
-        val minutes = (totalSeconds % 3600) / 60
-        val seconds = totalSeconds % 60
-        // Use String.format to add leading zeros
-        return String.format(Locale.ITALY, "%02d:%02d:%02d", hours, minutes, seconds)
-    }
+    fun formatSeconds(totalSeconds: Long): String = String.format(Locale.ITALY, "%02d:%02d:%02d", totalSeconds / 3600, (totalSeconds % 3600) / 60, totalSeconds % 60)
 
-    fun formatElapsedTime(elapsedTime: Long): String {
-        val totalSeconds = elapsedTime / 1000
-        val hours = totalSeconds / 3600
-        val minutes = (totalSeconds % 3600) / 60
-        val seconds = totalSeconds % 60
-        // Use String.format to add leading zeros
-        return String.format(Locale.ITALY, "%02d:%02d:%02d", hours, minutes, seconds)
-    }
+    fun formatElapsedTime(elapsedTime: Long): String = formatSeconds(elapsedTime / 1000)
 
     fun prnDataFromUtc(dataOra: String): String {
-        return if (dataOra == "")
-            ""
-        else {
-            // data ora UTC
-            val odt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
-                .withZone(ZoneOffset.UTC)
-            val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")
+        return if (dataOra == "") "" else {
+            val odt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC)
             val dateTime = LocalDateTime.parse(dataOra, odt)
-            formatter.format(dateTime)
+            DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm").format(dateTime)
         }
     }
 
     fun formattastring(distanza: Int): String {
-        // visualizza distanza in metri o km
-        return if (distanza < 1_000)
-            String.format(Locale.getDefault(), "%d m", distanza)
-        else {
-            NumberFormat.getNumberInstance(Locale.getDefault())
-            val km = distanza / 1_000.0
-            String.format(Locale.getDefault(), "%.1f km", km)
-        }
+        return if (distanza < 1_000) String.format(Locale.getDefault(), "%d m", distanza)
+        else String.format(Locale.getDefault(), "%.1f km", distanza / 1_000.0)
     }
 
     fun showCustomSnackbar(view: View, message: String) {
-        // 1. Crea lo Snackbar come al solito
         val snackbar = Snackbar.make(view, "", Snackbar.LENGTH_LONG)
-        // 2. Prendi la view generica dello Snackbar. Non fare più il cast a SnackbarLayout.
-        val snackbarView = snackbar.view
-        // 3. Rimuovi il padding predefinito per avere controllo totale
-        snackbarView.setPadding(0, 0, 0, 0)
-        // Rendi trasparente lo sfondo predefinito dello Snackbar
-        snackbarView.setBackgroundColor(Color.TRANSPARENT)
-        // 4. Prendi i LayoutParams generici (ViewGroup.MarginLayoutParams) e imposta i margini.
-        //    Questo funziona perché la view dello Snackbar si trova sempre dentro un contenitore
-        //    che supporta i margini (solitamente un CoordinatorLayout o FrameLayout).
-        val params = snackbarView.layoutParams as ViewGroup.MarginLayoutParams
-        val marginInDp = 20 // Scegli il margine che preferisci in dp
-        val marginInPx = (marginInDp * view.resources.displayMetrics.density).toInt()
-        // Imposta i margini orizzontali e un margine inferiore per staccarlo dal fondo
-        val bottomMarginInDp = 12 // Aggiungi un margine inferiore se vuoi
-        val bottomMarginInPx = (bottomMarginInDp * view.resources.displayMetrics.density).toInt()
-        params.setMargins(marginInPx, params.topMargin, marginInPx, bottomMarginInPx)
-        snackbarView.layoutParams = params
-        // 5. Infla il tuo layout personalizzato
-        val inflater = LayoutInflater.from(view.context)
-        val customView = inflater.inflate(R.layout.custom_snackbar_layout, null)
-        // Imposta il testo del tuo layout
-        val textView = customView.findViewById<TextView>(R.id.snackbar_text)
-        textView.text = message
-        // 6. Aggiungi la tua view personalizzata.
-        //    Dato che non possiamo più usare addView su SnackbarLayout, cerchiamo un modo alternativo.
-        //    Il modo più sicuro è rimuovere le view esistenti (il TextView di default)
-        //    e aggiungere la nostra. Ma dato che abbiamo reso lo sfondo trasparente,
-        //    possiamo provare a sovrapporla. Il metodo più semplice è usare addView
-        //    se la snackbarView è un ViewGroup.
-        if (snackbarView is ViewGroup) {
-            snackbarView.addView(customView, 0)
+        val snackbarView = snackbar.view as ViewGroup
+        snackbarView.apply {
+            setPadding(0, 0, 0, 0)
+            setBackgroundColor(Color.TRANSPARENT)
+            val params = layoutParams as ViewGroup.MarginLayoutParams
+            val density = view.resources.displayMetrics.density
+            params.setMargins((20 * density).toInt(), params.topMargin, (20 * density).toInt(), (12 * density).toInt())
+            layoutParams = params
+            addView(LayoutInflater.from(view.context).inflate(R.layout.custom_snackbar_layout, null).apply {
+                findViewById<TextView>(R.id.snackbar_text).text = message
+            }, 0)
         }
-        // 7. Mostra lo Snackbar
         snackbar.show()
     }
 
-// SFONDO: Disegna la linea nera di base
     fun disegnaLineaSfondo(line: Polyline) {
-        val paintBorder = Paint().apply {
-            color = Color.BLACK
-            isAntiAlias = true
-            strokeWidth = 12f
-            style = Paint.Style.STROKE
-            strokeJoin = Paint.Join.ROUND
-            strokeCap = Paint.Cap.ROUND
-        }
         line.outlinePaintLists.clear()
-        line.outlinePaintLists.add(MonochromaticPaintList(paintBorder))
+        line.outlinePaintLists.add(MonochromaticPaintList(Paint().apply {
+            color = Color.BLACK; isAntiAlias = true; strokeWidth = 12f; style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND; strokeCap = Paint.Cap.ROUND
+        }))
     }
 
-    // PRIMOPIANO: Disegna il gradiente basato sulle pendenze fornite
     fun disegnaLineaPrimopiano(line: Polyline, pendenze: List<Float>) {
         line.paint.color = Color.TRANSPARENT
-        val minPendenza = -20f
-        val maxPendenza = 20f
-
-        val mMapping = ColorMappingVariationHue(
-            minPendenza, maxPendenza,
-            240f, // Blu (Discesa)
-            0f,   // Rosso (Salita)
-            1f, 0.5f
-        )
-
+        val mMapping = ColorMappingVariationHue(-20f, 20f, 240f, 0f, 1f, 0.5f)
         val mContainer = ColorMappingForScalarContainer(mMapping)
-
-        // Usiamo le pendenze passate come argomento invece di ricalcolarle
         pendenze.forEach { mContainer.add(it) }
-
-        val paintMapping = Paint().apply {
-            isAntiAlias = true
-            strokeWidth = 8f
-            style = Paint.Style.STROKE
-            strokeJoin = Paint.Join.ROUND
-            strokeCap = Paint.Cap.ROUND
-        }
-
-        line.outlinePaintLists.add(PolychromaticPaintList(paintMapping, mMapping, true))
+        line.outlinePaintLists.add(PolychromaticPaintList(Paint().apply {
+            isAntiAlias = true; strokeWidth = 8f; style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND; strokeCap = Paint.Cap.ROUND
+        }, mMapping, true))
         applicaFrecceDirezione(line)
     }
 
-    /**
-     * Calcola una lista di pendenze SMUSSATE (smoothed) per ogni punto di una Polyline,
-     * usando una media mobile per ottenere valori più stabili e rappresentativi.
-     *
-     * @param line La Polyline contenente i GeoPoint con altitudine.
-     * @param finestra La dimensione della finestra di punti da considerare (metà prima, metà dopo).
-     *                 Un valore tipico è tra 10 e 20. Più è alto, più il risultato è "liscio".
-     * @return Una MutableList<Float> con la pendenza smussata per ogni punto.
-     */
     fun calcolaPendenzeSmussate(line: Polyline, finestra: Int = 10): MutableList<Float> {
         val punti = line.actualPoints
         if (punti.size < 2) return mutableListOf()
-
-        val pendenzeNette = mutableListOf<Float>()
-        // Calcola prima le pendenze nette punto-punto
-        pendenzeNette.add(0f)
+        val nette = mutableListOf<Float>().apply { add(0f) }
         for (i in 1 until punti.size) {
-            val p1 = punti[i - 1]
-            val p2 = punti[i]
-            val distanza = p1.distanceToAsDouble(p2)
-            val dislivello = p2.altitude - p1.altitude
-            pendenzeNette.add(if (distanza > 0) (dislivello / distanza * 100).toFloat() else 0f)
+            val dist = punti[i-1].distanceToAsDouble(punti[i])
+            nette.add(if (dist > 0) ((punti[i].altitude - punti[i-1].altitude) / dist * 100).toFloat() else 0f)
         }
-
-        // Ora calcola la media mobile (smoothing) sulle pendenze nette
-        val pendenzeSmussate = mutableListOf<Float>()
-        val mezzaFinestra = finestra / 2
-
-        for (i in pendenzeNette.indices) {
-            // Definisci i limiti della finestra di media, senza uscire dagli array bounds
-            val start = maxOf(0, i - mezzaFinestra)
-            val end = minOf(pendenzeNette.size - 1, i + mezzaFinestra)
-
-            // Estrai la sotto-lista di pendenze da mediare
-            val sottoLista = pendenzeNette.subList(start, end + 1)
-
-            // Calcola la media e aggiungila al risultato finale
-            if (sottoLista.isNotEmpty()) {
-                pendenzeSmussate.add(sottoLista.average().toFloat())
-            } else {
-                pendenzeSmussate.add(0f)
-            }
-        }
-        return pendenzeSmussate
+        return nette.indices.map { i ->
+            nette.subList(maxOf(0, i - finestra/2), minOf(nette.size, i + finestra/2 + 1)).average().toFloat()
+        }.toMutableList()
     }
 
     fun getOutputStreamForPublicDownload(context: Context, fileName: String): OutputStream? {
-        val contentResolver = context.contentResolver
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-
-        // --- LOGICA DI SOVRASCRITTURA ---
-        // 1. Cerchiamo se il file esiste già nella cartella Download
-        val projection = arrayOf(MediaStore.MediaColumns._ID)
-        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
-        val selectionArgs = arrayOf(fileName)
-
-        contentResolver.query(collection, projection, selection, selectionArgs, null)?.use { cursor ->
+        context.contentResolver.query(collection, arrayOf(MediaStore.MediaColumns._ID), "${MediaStore.MediaColumns.DISPLAY_NAME} = ?", arrayOf(fileName), null)?.use { cursor ->
             if (cursor.moveToFirst()) {
-                // 2. Se esiste, otteniamo l'ID e lo cancelliamo
                 val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
-                val deleteUri = ContentUris.withAppendedId(collection, id)
-                contentResolver.delete(deleteUri, null, null)
-                Log.d("MapUtils", "File esistente eliminato per sovrascrittura: $fileName")
+                context.contentResolver.delete(ContentUris.withAppendedId(collection, id), null, null)
             }
         }
-        // --- CREAZIONE NUOVO FILE ---
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-            put(MediaStore.MediaColumns.MIME_TYPE, "application/zip")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName); put(MediaStore.MediaColumns.MIME_TYPE, "application/zip"); put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
         }
-
-        val uri: Uri? = contentResolver.insert(collection, contentValues)
-        return uri?.let { contentResolver.openOutputStream(it) }
+        return context.contentResolver.insert(collection, values)?.let { context.contentResolver.openOutputStream(it) }
     }
 
-
-    /**
-     * Decomprime un file .zip dalla cartella pubblica di Download
-     * nella cartella Mappe specifica dell'applicazione.
-     *
-     * @param context Il contesto dell'applicazione, necessario per trovare i percorsi delle cartelle.
-     * @param nomeFileZip Il nome del file .zip da cercare nella cartella Download (es. "Sardegna.zip").
-     * @return `true` se l'operazione è riuscita, `false` altrimenti.
-     */
-    fun decomprimiZipInCartellaMappe(context: Context, nomeFileZip: String): Boolean {
-        try {
-            // --- 1. IDENTIFICA IL FILE DI INPUT ---
-            // Accedi alla cartella pubblica di Download.
-            // ATTENZIONE: Questo approccio è stato deprecato, ma è il modo diretto per trovare un file per nome.
-            // Per Android 10+ sarebbe meglio usare MediaStore per ottenere l'URI del file.
-            // Per ora, usiamo l'accesso diretto che funziona ancora per la lettura su molte versioni.
+    fun decomprimiZipInCartellaMappe(context: Context, nomeZip: String): Boolean {
+        return try {
             @Suppress("DEPRECATION")
-            val cartellaDownload =
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val fileZipInput = File(cartellaDownload, nomeFileZip)
-
-            if (!fileZipInput.exists()) {
-                Log.e("Unzip", "File non trovato: ${fileZipInput.absolutePath}")
-                return false
-            }
-            Log.d("Unzip", "File ZIP trovato: ${fileZipInput.absolutePath}")
-
-            // --- 2. IDENTIFICA LA CARTELLA DI OUTPUT ---
-            // Usa `externalMediaDirs` che punta a /Android/media/<package_name>/
-            // È il percorso corretto e non richiede permessi speciali.
-            val cartellaMediaApp = context.externalMediaDirs.firstOrNull()
-            if (cartellaMediaApp == null) {
-                Log.e("Unzip", "Impossibile accedere alla cartella media dell'app.")
-                return false
-            }
-            val cartellaDestinazione = File(cartellaMediaApp, "Mappe")
-
-            // Crea la cartella di destinazione se non esiste
-            if (!cartellaDestinazione.exists()) {
-                if (!cartellaDestinazione.mkdirs()) {
-                    Log.e(
-                        "Unzip",
-                        "Impossibile creare la cartella di destinazione: ${cartellaDestinazione.absolutePath}"
-                    )
-                    return false
-                }
-            }
-            Log.d("Unzip", "Cartella di destinazione pronta: ${cartellaDestinazione.absolutePath}")
-
-            // --- 3. ESEGUI LO UNZIP ---
-            ZipInputStream(BufferedInputStream(FileInputStream(fileZipInput))).use { zipInputStream ->
-                var zipEntry = zipInputStream.nextEntry
-                while (zipEntry != null) {
-                    val nomeFileDecompresso = zipEntry.name
-                    val fileDecompresso = File(cartellaDestinazione, nomeFileDecompresso)
-
-                    // Prevenire la vulnerabilità "Zip Slip"
-                    if (!fileDecompresso.canonicalPath.startsWith(cartellaDestinazione.canonicalPath)) {
-                        throw SecurityException("Path Traversal attack (Zip Slip) rilevato: $nomeFileDecompresso")
-                    }
-
-                    if (zipEntry.isDirectory) {
-                        // Se l'entry è una directory, creala
-                        fileDecompresso.mkdirs()
-                    } else {
-                        // Se l'entry è un file, assicurati che la sua directory genitore esista
-                        fileDecompresso.parentFile?.mkdirs()
-
-                        // Scrivi il file
-                        BufferedOutputStream(FileOutputStream(fileDecompresso)).use { bufferedOutputStream ->
-                            val buffer = ByteArray(4096)
-                            var read: Int
-                            while (zipInputStream.read(buffer).also { read = it } != -1) {
-                                bufferedOutputStream.write(buffer, 0, read)
-                            }
+            val zip = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), nomeZip)
+            if (!zip.exists()) return false
+            val dest = File(context.externalMediaDirs.first(), "Mappe").apply { if (!exists()) mkdirs() }
+            ZipInputStream(BufferedInputStream(FileInputStream(zip))).use { zis ->
+                var entry = zis.nextEntry
+                while (entry != null) {
+                    val file = File(dest, entry.name)
+                    if (!file.canonicalPath.startsWith(dest.canonicalPath)) throw SecurityException("Zip Slip")
+                    if (entry.isDirectory) file.mkdirs() else {
+                        file.parentFile?.mkdirs()
+                        BufferedOutputStream(FileOutputStream(file)).use { bos ->
+                            val buf = ByteArray(4096); var r: Int
+                            while (zis.read(buf).also { r = it } != -1) bos.write(buf, 0, r)
                         }
-                        Log.d("Unzip", "File estratto: ${fileDecompresso.absolutePath}")
                     }
-                    zipInputStream.closeEntry()
-                    zipEntry = zipInputStream.nextEntry
+                    zis.closeEntry(); entry = zis.nextEntry
                 }
             }
-            Log.i("Unzip", "Decompressione completata con successo.")
-            return true
-
-        } catch (e: Exception) {
-            // Gestisce tutti i tipi di errore (IO, Security, etc.)
-            Log.e("Unzip", "Errore durante la decompressione del file '$nomeFileZip'", e)
-            return false
-        }
+            true
+        } catch (e: Exception) { false }
     }
-
 }
