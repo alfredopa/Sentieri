@@ -49,7 +49,6 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
@@ -71,10 +70,12 @@ import com.apstudio.sentieri.MapUtils.disegnaLine
 import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.MapUtils.getFileNameFromUri
 import com.apstudio.sentieri.MapUtils.showCustomSnackbar
+import com.apstudio.sentieri.MapUtils.apreMappa
 import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import android.hardware.Sensor
 import android.hardware.SensorManager
 import androidx.fragment.app.activityViewModels
+import com.apstudio.sentieri.MapUtils.online
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
 import com.apstudio.sentieri.db.LocationRepository
@@ -106,20 +107,12 @@ import net.federicomatera.agpxp.models.GpxMetadata
 import net.federicomatera.agpxp.models.Link
 import net.federicomatera.agpxp.models.Track
 import net.federicomatera.agpxp.models.WayPoint
-import org.mapsforge.map.rendertheme.ExternalRenderTheme
-import org.mapsforge.map.rendertheme.InternalRenderTheme
-import org.mapsforge.map.rendertheme.XmlRenderTheme
 import org.osmdroid.api.IGeoPoint
 import org.osmdroid.api.IMapController
-import org.osmdroid.mapsforge.MapsForgeTileProvider
-import org.osmdroid.mapsforge.MapsForgeTileSource
 import org.osmdroid.tileprovider.MapTileProviderBasic
-import org.osmdroid.tileprovider.modules.ArchiveFileFactory
-import org.osmdroid.tileprovider.modules.OfflineTileProvider
 import org.osmdroid.tileprovider.tilesource.MapBoxTileSource
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapController
@@ -245,8 +238,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                // Logica che prima era in onActivityResult per SELECT_MAP_FILE
-                apreMappa(uri)
+                apreMappa(requireContext(), mapView, viewModel, uri)
             }
         }
     }
@@ -591,7 +583,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 // 2. Determine if we should actually use the offline map
         val canLoadOfflineMap = savedMenuMap == 0 &&
                 uriString.isNotEmpty() &&
-                apreMappa(uriMappa)
+                apreMappa(requireContext(), mapView, viewModel, uriMappa)
 
 // 3. Update ViewModel and State
         if (canLoadOfflineMap) {
@@ -601,7 +593,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         } else {
             // Fallback to online mode
             viewModel.menuMap = if (savedMenuMap == 0) 1 else savedMenuMap
-            online(viewModel.menuMap)
+            online(requireContext(), mapView, viewModel, viewModel.menuMap )
         }
 
 // 4. Apply UI settings once based on the final state
@@ -1058,135 +1050,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapFileSelectorLauncher.launch(intent)
     }
 
-    // apertura mappa offline locale da Uri
-    private fun apreMappa(uri: Uri): Boolean {
-        val uriPathHelper = URIPathHelper()
-        val filePath = uriPathHelper.getPath(requireContext(), uri)
-
-        try {
-            // Prova ad inizializzare OsmDroid qui
-        } catch (e: Exception) {
-            Log.e("Sentieri", "Errore inizializzazione OsmDroid", e)
-            return false
-        }
-        //--------------------------------------------------------------------------------------------------
-        val maps: Array<File?> = arrayOfNulls(1)
-        val f = File(filePath!!)
-        if (f.exists()) {
-            maps[0] = f
-        } else {
-            Toast.makeText(
-                requireContext(),
-                "Il file selezionato non esiste",
-                Toast.LENGTH_LONG
-            ).show()
-            return false
-        }
-
-
-// estensioni registrate: zip, gemf, sqlite, mbtiles e map
-        val extension = f.extension
-        if (!ArchiveFileFactory.isFileExtensionRegistered(extension) && extension != "map") {
-            val context: Context = requireActivity().application
-            Toast.makeText(
-                context,
-                "Il file selezionato non contiene dati mappa",
-                Toast.LENGTH_LONG
-            ).show()
-            return false
-        }
-        val forgeMappa: MapsForgeTileProvider
-        val offlineMappa: OfflineTileProvider
-        var theme: XmlRenderTheme?
-        if (f.name.contains(".map")) {
-            val savedThemePath = preferenze.getString("seleziona_tema_mapsforge", "OSMARENDER")
-
-            if (savedThemePath != null && savedThemePath != "OSMARENDER") {
-                val themeFile = File(savedThemePath)
-                if (themeFile.exists()) {
-                    try {
-                        theme = ExternalRenderTheme(themeFile)
-                        //Log.d(TAG, "Tema esterno caricato: ${themeFile.name}")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Errore nel caricamento del tema esterno, uso il default", e)
-                        theme = InternalRenderTheme.OSMARENDER
-                    }
-                } else {
-                    // Il file salvato non esiste più, usa il default
-                    theme = InternalRenderTheme.OSMARENDER
-                }
-            } else {
-                // Il valore è "OSMARENDER" o nullo, usa il tema di default
-                theme = InternalRenderTheme.OSMARENDER
-            }
-
-            val fromFiles = MapsForgeTileSource.createFromFiles(
-                maps,
-                theme,
-                "ThemeName"
-            ) // Il nome qui non è cruciale
-            forgeMappa = MapsForgeTileProvider(
-                SimpleRegisterReceiver(activity),
-                fromFiles, null
-            )
-            mapView.tileProvider = forgeMappa
-        } else {
-            offlineMappa = OfflineTileProvider(
-                SimpleRegisterReceiver(
-                    requireContext()
-                ), maps
-            )
-            mapView.tileProvider = offlineMappa
-            val archives = offlineMappa.archives
-// importante setIgnoreTileSource consente apertura rapida della mappa evitando il controllo del tipo di sorgente presente nel file tiles
-            archives[0].setIgnoreTileSource(true)
-        }
-
-        viewModel.connessione = false
-        mapView.setUseDataConnection(false)
-        // 2. Aggiorna lo stato nel ViewModel per riflettere la selezione offline
-        viewModel.menuMap = 0
-        viewModel.uriMappa = uri
-
-        // 3. Salva questo stato nelle preferenze per il prossimo avvio
-        preferenze.edit {
-            putInt("MenuMap", 0)
-            putString("URIMappa", uri.toString())
-        }
-
-        mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
-        //Log.d("Mappa", "Mappa caricata  ")
-        return true
-    }
-
-    private fun online(mappa: Int) {
-        viewModel.connessione = true
-        // salvo indice menu selezionato
-        val tileProvider: MapTileProviderBasic? = when (mappa) {
-            1 -> MapTileProviderBasic(context, TileSourceFactory.MAPNIK)  // OpenStreetMap
-            2 -> MapTileProviderBasic(context, TileSourceFactory.OpenTopo) // OpenTopo
-            3 -> mappaMapBox() // MapBox
-            else -> {
-                // Caso di default: se viene passato un indice non valido (come 0),
-                // imposta comunque una mappa di default (es. OpenStreetMap) e aggiorna l'indice.
-                // Questo gestisce anche la tua condizione iniziale.
-                Log.w(
-                    TAG,
-                    "Indice mappa non valido ($mappa), impostazione predefinita su OpenStreetMap (1)."
-                )
-                MapTileProviderBasic(context, TileSourceFactory.MAPNIK)
-            }
-        }
-        // Determina l'indice finale da salvare. Se era 0, ora sarà 1.
-        val finalMapIndex = if (mappa == 0) 1 else mappa
-        // Salva l'indice corretto nel ViewModel e nelle Preferenze.
-        viewModel.menuMap = finalMapIndex
-        preferenze.edit { putInt("MenuMap", finalMapIndex) }
-        // Applica il tile provider alla mappa.
-        mapView.tileProvider = tileProvider
-        mapView.invalidate()
-    }
-
     /**
      * Controlla se il dispositivo è dotato dei sensori necessari per la bussola.
      * @return True se sono presenti sia l'accelerometro che il magnetometro, altrimenti False.
@@ -1225,10 +1088,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // La logica per caricare la mappa corretta (online o offline) rimane invariata.
             if (menuMap == 0 && uriString != null) {
                 Log.d(TAG, "Ripristino mappa offline dall'URI: $uriString")
-                apreMappa(uriString.toUri())
+                apreMappa(requireContext(), mapView, viewModel, uriString.toUri())
             } else {
                 Log.d(TAG, "Ripristino mappa online, indice: $menuMap")
-                online(menuMap)
+                online(requireContext(), mapView, viewModel, menuMap)
             }
 
             mapView.postInvalidate()
@@ -1923,9 +1786,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             R.id.Online, R.id.Mapquest, R.id.MapBox -> {
                 menuItem.isChecked = !menuItem.isChecked
                 when (menuItem.itemId) {
-                    R.id.Online -> online(1)
-                    R.id.Mapquest -> online(2)
-                    R.id.MapBox -> online(3)
+                    R.id.Online -> online(requireContext(), mapView, viewModel,1)
+                    R.id.Mapquest -> online(requireContext(), mapView, viewModel,2)
+                    R.id.MapBox -> online(requireContext(), mapView, viewModel,3)
                 }
                 true // Restituisce true per tutti e tre i casi
             }
