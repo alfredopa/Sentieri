@@ -55,7 +55,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     var listaTracce: FolderOverlay = FolderOverlay() // overlay per aggiungere le tracce da gpx e db
     val recTraccia = FolderOverlay() // overlay per traccia in registrazione e marker inizio e fine
     val topoLayer = FolderOverlay()
-    var line: Polyline = Polyline()
+    var puntiDaSeguire = mutableListOf<GeoPoint>() // percorso caricato in MappaFragment da SchedaFragment
+    var titoloTracciaDaSeguire = ""
 
     // liste di punti gps e waypoint
     val puntiGPS = CopyOnWriteArrayList<WayPoint>()

@@ -205,6 +205,8 @@ class SchedaFragment : Fragment(), MenuProvider {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
+        viewModel.puntiDaSeguire.clear()
+
         val idSentiero: Int = args.idSentiero
         mapView = binding.Mapview
         mapController = MapController(mapView)
@@ -222,8 +224,9 @@ class SchedaFragment : Fragment(), MenuProvider {
         val btnSegui: Button = binding.btnSegui
         btnSegui.setOnClickListener {
             // scrive i punti su polilinea d'appoggio in viewmodel
-            viewModel.line.title = binding.txNome.text.toString()
-            viewModel.line.setPoints(percorso.actualPoints)
+            viewModel.puntiDaSeguire = puntiOriginali.toMutableList()
+            viewModel.titoloTracciaDaSeguire = binding.txNome.text.toString()
+            viewModel.mostraPendenza = binding.swtchFrecce.isChecked
             // carica i waypoint nella viewmodel da visualizzare sulla mappa
             poiDBList.forEach {
                 viewModel.wayPoint.add(
@@ -258,8 +261,8 @@ class SchedaFragment : Fragment(), MenuProvider {
                             // aggiunge traccia con flag segui true alla lista layerItems e imposta alert
                             viewModel.layerItems.add(
                                 LayerItem(
-                                    viewModel.line.title,
-                                    viewModel.line.isEnabled,
+                                    viewModel.titoloTracciaDaSeguire,
+                                    true,
                                     direzione = false,
                                     segui = true,
                                     distanza = viewModel.trackDistanza,
@@ -267,7 +270,7 @@ class SchedaFragment : Fragment(), MenuProvider {
                                     discesa = viewModel.trackDiscesa
                                 )
                             )
-                            viewModel.tracciaDaSeguire = viewModel.line.title
+                            viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
                             viewModel.alertFuoriTraccia = true
                             // L'utente ha premuto "Segui"
                             // Esegui le azioni per seguire la traccia
@@ -275,8 +278,8 @@ class SchedaFragment : Fragment(), MenuProvider {
                             // aggiunge traccia con flag segui false alla lista layerItems
                             viewModel.layerItems.add(
                                 LayerItem(
-                                    viewModel.line.title,
-                                    viewModel.line.isEnabled,
+                                    viewModel.titoloTracciaDaSeguire,
+                                    true,
                                     direzione = false,
                                     segui = false,
                                     distanza = viewModel.trackDistanza,
@@ -291,8 +294,8 @@ class SchedaFragment : Fragment(), MenuProvider {
                 } else {
                     viewModel.layerItems.add(
                         LayerItem(
-                            viewModel.line.title,
-                            viewModel.line.isEnabled,
+                            viewModel.titoloTracciaDaSeguire,
+                            true,
                             direzione = false,
                             segui = true,
                             distanza = viewModel.trackDistanza,
@@ -300,13 +303,14 @@ class SchedaFragment : Fragment(), MenuProvider {
                             discesa = viewModel.trackDiscesa
                         )
                     )
-                    viewModel.tracciaDaSeguire = viewModel.line.title
+                    viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
                     viewModel.alertFuoriTraccia = true
                 }
             } else
                 viewModel.layerItems.add(
                     LayerItem(
-                        viewModel.line.title, viewModel.line.isEnabled,
+                        viewModel.titoloTracciaDaSeguire,
+                        true,
                         direzione = false,
                         segui = false,
                         distanza = viewModel.trackDistanza,
