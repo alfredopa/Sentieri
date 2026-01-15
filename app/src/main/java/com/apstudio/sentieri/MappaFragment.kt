@@ -880,16 +880,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 MapUtils.disegnaLineaPrimopiano(percorsoFrecce, pendenze)
                 mapView.overlays.add(nuovaTraccia)
                 mapView.overlays.add(percorsoFrecce)
+                viewModel.listaTracce.add(nuovaTraccia)
+                viewModel.listaTracce.add(percorsoFrecce)
             } else {
                 disegnaLine(nuovaTraccia)
                 mapView.overlays.add(nuovaTraccia)
+                viewModel.listaTracce.add(nuovaTraccia)
             }
             viewModel.puntiDaSeguire = mutableListOf()
-
-
             setPolylineClickListener(nuovaTraccia)
-            //disegnaLine(nuovaTraccia)
-            viewModel.listaTracce.add(nuovaTraccia)
             addMarker(nuovaTraccia)
             mapView.post {
                 mapView.zoomToBoundingBox(mbounds.increaseByScale(1.2f), false)

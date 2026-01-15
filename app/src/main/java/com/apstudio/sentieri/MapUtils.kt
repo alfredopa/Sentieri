@@ -105,7 +105,7 @@ object MapUtils {
         return line
     }
 
-    private fun applicaFrecceDirezione(line: Polyline) {
+    fun applicaFrecceDirezione(line: Polyline) {
         val arrowPaint = Paint().apply {
             color = Color.BLACK
             strokeWidth = 5.0f

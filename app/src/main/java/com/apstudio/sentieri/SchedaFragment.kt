@@ -227,6 +227,11 @@ class SchedaFragment : Fragment(), MenuProvider {
             viewModel.puntiDaSeguire = puntiOriginali.toMutableList()
             viewModel.titoloTracciaDaSeguire = binding.txNome.text.toString()
             viewModel.mostraPendenza = binding.swtchFrecce.isChecked
+            if (viewModel.mostraPendenza) {
+                viewModel.coloriPuntiDaSeguire = puntiOriginali.map { it.altitude }
+            } else {
+                viewModel.coloriPuntiDaSeguire = null
+            }
             // carica i waypoint nella viewmodel da visualizzare sulla mappa
             poiDBList.forEach {
                 viewModel.wayPoint.add(
