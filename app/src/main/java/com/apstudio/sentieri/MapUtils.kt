@@ -70,42 +70,51 @@ import kotlin.math.sqrt
 
 object MapUtils {
 
-    fun disegnaLine(line: Polyline): Polyline {
-        // azzera valori in line e milestone
-        line.outlinePaintLists.clear()
-        line.setMilestoneManagers(ArrayList())
-        val MIN_HUE = 255 // green
-        val MAX_HUE = 0 // red
-        val SAT = 1.0f
-        val LUM = 0.5f
-        var mMapping: ColorMappingVariationHue? = null
-        val paintMapping = Paint()
-        
-        paintMapping.color = Color.MAGENTA
-        paintMapping.isAntiAlias = true
-        paintMapping.strokeWidth = 7f
-        paintMapping.style = Paint.Style.FILL_AND_STROKE
-        paintMapping.strokeJoin = Paint.Join.ROUND
-        paintMapping.strokeCap = Paint.Cap.ROUND
+    /**
+     * Disegna una polilinea con gradiente di colore.
+     * @param line La Polyline da colorare.
+     * @param pendenze Lista opzionale di pendenze. Se null, usa l'altitudine dei punti.
+     */
+    fun disegnaPercorsoColorato(line: Polyline, pendenze: List<Float>? = null) {
+        val values = pendenze ?: line.actualPoints.map { it.altitude.toFloat() }
+        if (values.isEmpty()) return
 
-        val minVal = line.actualPoints.minWithOrNull(Comparator.comparing { it.altitude.toFloat() })?.altitude
-        val maxVal = line.actualPoints.maxWithOrNull(Comparator.comparing { it.altitude.toFloat() })?.altitude
+        val minVal: Float
+        val maxVal: Float
+        val minHue: Float
+        val maxHue: Float
 
-        if (maxVal != null) {
-            mMapping = ColorMappingVariationHue(minVal!!.toFloat(), maxVal.toFloat(), MIN_HUE.toFloat(), MAX_HUE.toFloat(), SAT, LUM)
+        if (pendenze == null) {
+            // Gradiente per Altitudine: Verde (basso) -> Rosso (alto)
+            minVal = values.minOrNull() ?: 0f
+            maxVal = values.maxOrNull() ?: 0f
+            minHue = 255f // Verde
+            maxHue = 0f   // Rosso
+        } else {
+            // Gradiente per Pendenza: Blu (-20%) -> Rosso (+20%)
+            minVal = -20f
+            maxVal = 20f
+            minHue = 240f // Blu
+            maxHue = 0f   // Rosso
         }
 
+        val mMapping = ColorMappingVariationHue(minVal, maxVal, minHue, maxHue, 1.0f, 0.5f)
         val mContainer = ColorMappingForScalarContainer(mMapping)
-        line.actualPoints.forEach { mContainer.add(it.altitude.toFloat()) }
+        values.forEach { mContainer.add(it) }
 
-        if (line.actualPoints.isNotEmpty()) {
-            line.outlinePaintLists.add(PolychromaticPaintList(paintMapping, mMapping, true))
-            applicaFrecceDirezione(line)
+        val paint = Paint().apply {
+            isAntiAlias = true
+            strokeWidth = 8f
+            style = Paint.Style.STROKE
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
         }
-        return line
+
+        line.outlinePaintLists.add(PolychromaticPaintList(paint, mMapping, true))
     }
 
     fun applicaFrecceDirezione(line: Polyline) {
+        line.setMilestoneManagers(mutableListOf())
         val arrowPaint = Paint().apply {
             color = Color.BLACK
             strokeWidth = 5.0f
@@ -139,7 +148,7 @@ object MapUtils {
         }
         marker.position = punto
         overTraccia.add(marker)
-        mappa.invalidate() // CRUCIALE: Forza il ridisegno per far apparire il marker
+        mappa.invalidate() 
     }
 
     fun apreMappa(context: Context, mapView: MapView, viewModel: SentieriViewModel, uri: Uri): Boolean {
@@ -379,20 +388,10 @@ object MapUtils {
 
     fun disegnaLineaSfondo(line: Polyline) {
         line.outlinePaintLists.clear()
+        line.setMilestoneManagers(ArrayList())
         line.outlinePaintLists.add(MonochromaticPaintList(Paint().apply {
             color = Color.BLACK; isAntiAlias = true; strokeWidth = 12f; style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND; strokeCap = Paint.Cap.ROUND
         }))
-    }
-
-    fun disegnaLineaPrimopiano(line: Polyline, pendenze: List<Float>) {
-        line.paint.color = Color.TRANSPARENT
-        val mMapping = ColorMappingVariationHue(-20f, 20f, 240f, 0f, 1f, 0.5f)
-        val mContainer = ColorMappingForScalarContainer(mMapping)
-        pendenze.forEach { mContainer.add(it) }
-        line.outlinePaintLists.add(PolychromaticPaintList(Paint().apply {
-            isAntiAlias = true; strokeWidth = 8f; style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND; strokeCap = Paint.Cap.ROUND
-        }, mMapping, true))
-        applicaFrecceDirezione(line)
     }
 
     fun calcolaPendenzeSmussate(line: Polyline, finestra: Int = 10): MutableList<Float> {
