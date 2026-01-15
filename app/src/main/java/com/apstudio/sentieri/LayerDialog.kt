@@ -19,6 +19,9 @@ import com.apstudio.sentieri.db.OnLayerClickListener
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import org.osmdroid.views.overlay.Polyline
+import org.osmdroid.views.overlay.milestones.MilestoneManager
+import org.osmdroid.views.overlay.milestones.MilestonePathDisplayer
+import org.osmdroid.views.overlay.milestones.MilestonePixelDistanceLister
 import kotlin.getValue
 
 // visualizza le tracce caricate nella mappa
@@ -78,7 +81,12 @@ class LayerDialog : Fragment() {
                 viewModel.listaTracce.items.forEach {
                     if (it is Polyline && it.title == viewModel.layerItems[position].nome) {
                         //assegna il valore della direzione alla traccia direttamente
-                        it.usePath(swcDirezione)
+                        if (swcDirezione) {
+                            MapUtils.applicaFrecceDirezione(it)
+                        } else {
+                            val listaNumeri: MutableList<MilestoneManager> = mutableListOf()
+                            it.setMilestoneManagers(listaNumeri)
+                        }
                     }
                 }
             }
