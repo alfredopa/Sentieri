@@ -66,7 +66,8 @@ import androidx.preference.PreferenceManager
 import btools.routingapp.IBRouterService
 import com.apstudio.sentieri.MapUtils.convertMillisToISO8601JavaTime
 import com.apstudio.sentieri.MapUtils.dataOraIso8601
-import com.apstudio.sentieri.MapUtils.disegnaLine
+import com.apstudio.sentieri.MapUtils.disegnaLineaSfondo
+import com.apstudio.sentieri.MapUtils.disegnaPercorsoColorato
 import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.MapUtils.getFileNameFromUri
 import com.apstudio.sentieri.MapUtils.showCustomSnackbar
@@ -75,6 +76,7 @@ import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import android.hardware.Sensor
 import android.hardware.SensorManager
 import androidx.fragment.app.activityViewModels
+import com.apstudio.sentieri.MapUtils.applicaFrecceDirezione
 import com.apstudio.sentieri.MapUtils.online
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
@@ -374,7 +376,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         "Il layer ${featureInfo.name} è già caricato. Ri-aggiungo ${featureInfo.listOverlay!!.size} overlay alla mappa."
                     )
                     featureInfo.listOverlay!!.forEach { overlay ->
-                        reattachListenersToOverlay(overlay)}
+                        reattachListenersToOverlay(overlay)
+                    }
                     mapView.overlays.addAll(featureInfo.listOverlay!!)
                 }
             } else {
@@ -411,7 +414,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         }
                     } else if (clickedPoint is GeoPoint) {
                         // Se non c'è una label, mostriamo almeno le coordinate o un messaggio generico
-                        Log.d("ListenerDebug","Punto cliccato: ${clickedPoint.latitude}, ${clickedPoint.longitude}")
+                        Log.d(
+                            "ListenerDebug",
+                            "Punto cliccato: ${clickedPoint.latitude}, ${clickedPoint.longitude}"
+                        )
                     }
                 }
             }
@@ -593,7 +599,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         } else {
             // Fallback to online mode
             viewModel.menuMap = if (savedMenuMap == 0) 1 else savedMenuMap
-            online(requireContext(), mapView, viewModel, viewModel.menuMap )
+            online(requireContext(), mapView, viewModel, viewModel.menuMap)
         }
 
 // 4. Apply UI settings once based on the final state
@@ -852,41 +858,37 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.onResume()
         preferenze.registerOnSharedPreferenceChangeListener(this)
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
+        Log.d("onResume", "onResume")
+
         // la traccia è stata selezionata da schedafragment
         if (viewModel.puntiDaSeguire.isNotEmpty()) {
             if (viewModel.titoloTracciaDaSeguire.isNotEmpty()) {
-                (activity as AppCompatActivity).supportActionBar?.title = viewModel.titoloTracciaDaSeguire
+                (activity as AppCompatActivity).supportActionBar?.title =
+                    viewModel.titoloTracciaDaSeguire
             }
             //Log.d("onResume", "Aggiungo nuova traccia")
             val nuovaTraccia = Polyline(mapView)
-            nuovaTraccia.setPoints(viewModel.puntiDaSeguire)
             nuovaTraccia.title = viewModel.titoloTracciaDaSeguire
+            nuovaTraccia.setPoints(viewModel.puntiDaSeguire)
             val mbounds = nuovaTraccia.bounds
-
-            // Applica la colorazione basata sullo stato salvato per pendenza 2 polyline
-            if (viewModel.mostraPendenza) {
-                val pendenze = MapUtils.calcolaPendenzeSmussate(nuovaTraccia, 8)
-                // Trick dell'altitudine per il colore
-                val puntiConPendenza = viewModel.puntiDaSeguire.mapIndexed { index, pt ->
-                    val p = if (index < pendenze.size) pendenze[index].toDouble() else 0.0
-                    GeoPoint(pt.latitude, pt.longitude, p)
-                }
-                nuovaTraccia.setPoints(puntiConPendenza)
-                MapUtils.disegnaLineaSfondo(nuovaTraccia)
-                val percorsoFrecce = Polyline(mapView).apply {
-                    setPoints(nuovaTraccia.actualPoints)
-                    isVisible = true
-                }
-                MapUtils.disegnaLineaPrimopiano(percorsoFrecce, pendenze)
-                mapView.overlays.add(nuovaTraccia)
-                mapView.overlays.add(percorsoFrecce)
-                viewModel.listaTracce.add(nuovaTraccia)
-                viewModel.listaTracce.add(percorsoFrecce)
-            } else {
-                disegnaLine(nuovaTraccia)
-                mapView.overlays.add(nuovaTraccia)
-                viewModel.listaTracce.add(nuovaTraccia)
+            disegnaLineaSfondo(nuovaTraccia)
+            mapView.overlays.add(nuovaTraccia)
+            viewModel.listaTracce.add(nuovaTraccia)
+            val percorsoColorato = Polyline(mapView).apply {
+                setPoints(viewModel.puntiDaSeguire)
+                isVisible = true
             }
+            // Applica la colorazione basata sullo stato salvato per pendenza 2 polyline
+            percorsoColorato.title = viewModel.titoloTracciaDaSeguire
+            if (viewModel.coloriPuntiDaSeguire?.isNotEmpty() == true) {
+                disegnaPercorsoColorato(percorsoColorato, viewModel.coloriPuntiDaSeguire)
+            } else {
+                disegnaPercorsoColorato(percorsoColorato)
+            }
+            mapView.overlays.add(percorsoColorato)
+            viewModel.listaTracce.add(percorsoColorato)
+
+            //applicaFrecceDirezione(percorsoColorato)
             viewModel.puntiDaSeguire = mutableListOf()
             setPolylineClickListener(nuovaTraccia)
             addMarker(nuovaTraccia)
@@ -1031,6 +1033,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             showCustomSnackbar(binding.root, "Registrazione in corso")
         }
         mapView.invalidate()
+        Log.d(TAG, "invalidate")
     }
 
     override fun onPrepareMenu(menu: Menu) {
@@ -1391,8 +1394,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         //    Questo è il passaggio chiave per "ingannare" il sistema di colorazione.
         polylineColore.setPoints(puntiConPendenza)
         // 3. Applica gli stili specifici, PASSANDO la lista delle pendenze
-        MapUtils.disegnaLineaSfondo(polylineColore)
-        MapUtils.disegnaLineaPrimopiano(polylineFrecce, pendenze)
+        disegnaLineaSfondo(polylineColore)
+        disegnaPercorsoColorato(polylineFrecce, pendenze)
         // 4. Aggiungi le  Polyline all'overlay della mappa NELL'ORDINE CORRETTO
         mapView.overlays.add(polylineColore)   // Livello 1: Gradiente (sotto)
         mapView.overlays.add(polylineFrecce)   // Livello 3: Frecce (sopra)
@@ -1808,9 +1811,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             R.id.Online, R.id.Mapquest, R.id.MapBox -> {
                 menuItem.isChecked = !menuItem.isChecked
                 when (menuItem.itemId) {
-                    R.id.Online -> online(requireContext(), mapView, viewModel,1)
-                    R.id.Mapquest -> online(requireContext(), mapView, viewModel,2)
-                    R.id.MapBox -> online(requireContext(), mapView, viewModel,3)
+                    R.id.Online -> online(requireContext(), mapView, viewModel, 1)
+                    R.id.Mapquest -> online(requireContext(), mapView, viewModel, 2)
+                    R.id.MapBox -> online(requireContext(), mapView, viewModel, 3)
                 }
                 true // Restituisce true per tutti e tre i casi
             }

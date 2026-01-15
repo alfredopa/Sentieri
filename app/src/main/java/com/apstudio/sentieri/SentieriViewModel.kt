@@ -130,7 +130,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     // in Scheda per visualizzare pendenza oppure quota
     var mostraPendenza = false
-    var coloriPuntiDaSeguire: List<Double>? = null
+    var coloriPuntiDaSeguire: List<Float>? = null
 
     // valori di riferimento della traccia da seguire
     var trackDistanza = 0f

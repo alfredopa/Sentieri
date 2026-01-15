@@ -27,6 +27,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.apstudio.sentieri.MapUtils.alertVerificaSegui
+import com.apstudio.sentieri.MapUtils.applicaFrecceDirezione
 import com.apstudio.sentieri.MapUtils.apreMappa
 import com.apstudio.sentieri.MapUtils.online
 import com.apstudio.sentieri.databinding.FragmentSchedaBinding
@@ -227,11 +228,14 @@ class SchedaFragment : Fragment(), MenuProvider {
             viewModel.puntiDaSeguire = puntiOriginali.toMutableList()
             viewModel.titoloTracciaDaSeguire = binding.txNome.text.toString()
             viewModel.mostraPendenza = binding.swtchFrecce.isChecked
-            if (viewModel.mostraPendenza) {
-                viewModel.coloriPuntiDaSeguire = puntiOriginali.map { it.altitude }
-            } else {
+            
+            // Se NON è attiva la pendenza, azzeriamo la lista colori affinché la MappaFragment usi l'altitudine
+            if (!viewModel.mostraPendenza) {
                 viewModel.coloriPuntiDaSeguire = null
             }
+            // NOTA: Se mostraPendenza è true, coloriPuntiDaSeguire è già stato correttamente 
+            // popolato con le PENDENZE dalla funzione aggiornaMappaPercorso().
+
             // carica i waypoint nella viewmodel da visualizzare sulla mappa
             poiDBList.forEach {
                 viewModel.wayPoint.add(
@@ -394,36 +398,27 @@ class SchedaFragment : Fragment(), MenuProvider {
         mapView.overlays.clear()
         // 2. Pulizia TOTALE della Polyline
         percorso.outlinePaintLists.clear() // Rimuove tutti i colori precedenti
-        //percorso.setMilestoneManagers(ArrayList()) // Rimuove le frecce (se presenti)
-
+        percorso.setMilestoneManagers(ArrayList()) // Rimuove le frecce (se presenti)
+        viewModel.coloriPuntiDaSeguire = null
+        // Disegna bordo per tutti i punti percorso
+        MapUtils.disegnaLineaSfondo(percorso)
+        mapView.overlays.add(percorso)
         if (viewModel.mostraPendenza) {
-            // Ripristina i punti originali prima di calcolare
-            percorso.setPoints(puntiOriginali.map { GeoPoint(it.latitude, it.longitude, it.altitude) })
-
             val pendenze = MapUtils.calcolaPendenzeSmussate(percorso, 8)
 
-            // Crea i punti "fittizi" con la pendenza al posto dell'altitudine
-            val puntiConPendenza = puntiOriginali.mapIndexed { index, geoPoint ->
-                val pendenza = if (index < pendenze.size) pendenze[index].toDouble() else 0.0
-                GeoPoint(geoPoint.latitude, geoPoint.longitude, pendenza)
-            }
-            percorso.setPoints(puntiConPendenza)
             val percorsoFrecce = Polyline(mapView).apply {
                 setPoints(percorso.actualPoints)
                 isVisible = true
             }
-            // Applica gli stili (Assicurati che MapUtils usi .add e non crei nuovi oggetti)
-            MapUtils.disegnaLineaSfondo(percorso)
-            mapView.overlays.add(percorso)
-            MapUtils.disegnaLineaPrimopiano(percorsoFrecce, pendenze)
+            // SALVA LE PENDENZE NEL VIEWMODEL
+            viewModel.coloriPuntiDaSeguire = pendenze.toMutableList()
+            MapUtils.disegnaPercorsoColorato(percorsoFrecce, pendenze)
             mapView.overlays.add(percorsoFrecce)
         } else {
-            // RIPRISTINA PUNTI REALI (metri)
-            percorso.setPoints(puntiOriginali.map { GeoPoint(it.latitude, it.longitude, it.altitude) })
-
-            // Disegna Quota (il metodo disegnaLine deve internamente fare .add alla lista pulita)
-            MapUtils.disegnaLine(percorso)
+            // USA LA NUOVA FUNZIONE UNIFICATA (senza secondo parametro per l'altitudine)
+            MapUtils.disegnaPercorsoColorato(percorso)
             mapView.overlays.add(percorso)
+            viewModel.coloriPuntiDaSeguire = null
         }
         // 3. Riaggiungi i Marker (altrimenti spariscono col clear)
         aggiungiMarkerInizioFine()
