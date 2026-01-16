@@ -13,6 +13,8 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Paint
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import android.icu.text.SimpleDateFormat
 import android.location.LocationManager
 import android.media.MediaRecorder
@@ -55,6 +57,7 @@ import androidx.core.net.toUri
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
@@ -64,20 +67,16 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
 import androidx.preference.PreferenceManager
 import btools.routingapp.IBRouterService
+import com.apstudio.sentieri.MapUtils.apreMappa
 import com.apstudio.sentieri.MapUtils.convertMillisToISO8601JavaTime
 import com.apstudio.sentieri.MapUtils.dataOraIso8601
 import com.apstudio.sentieri.MapUtils.disegnaLineaSfondo
 import com.apstudio.sentieri.MapUtils.disegnaPercorsoColorato
 import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.MapUtils.getFileNameFromUri
-import com.apstudio.sentieri.MapUtils.showCustomSnackbar
-import com.apstudio.sentieri.MapUtils.apreMappa
-import com.apstudio.sentieri.databinding.FragmentMappaBinding
-import android.hardware.Sensor
-import android.hardware.SensorManager
-import androidx.fragment.app.activityViewModels
-import com.apstudio.sentieri.MapUtils.applicaFrecceDirezione
 import com.apstudio.sentieri.MapUtils.online
+import com.apstudio.sentieri.MapUtils.showCustomSnackbar
+import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
 import com.apstudio.sentieri.db.LocationRepository
@@ -111,10 +110,6 @@ import net.federicomatera.agpxp.models.Track
 import net.federicomatera.agpxp.models.WayPoint
 import org.osmdroid.api.IGeoPoint
 import org.osmdroid.api.IMapController
-import org.osmdroid.tileprovider.MapTileProviderBasic
-import org.osmdroid.tileprovider.tilesource.MapBoxTileSource
-import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapController
@@ -138,7 +133,6 @@ import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.text.contains
 
 private const val TAG = "MappaFragment"
 
@@ -1130,7 +1124,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    private fun mappaMapBox(): MapTileProviderBasic {
+    /*private fun mappaMapBox(): MapTileProviderBasic {
         val MAPBOXSATELLITELABELLED: OnlineTileSourceBase =
             MapBoxTileSource("MapBox", 1, 19, 256, ".png")
         (MAPBOXSATELLITELABELLED as MapBoxTileSource).retrieveAccessToken(requireContext())
@@ -1141,7 +1135,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         TileSourceFactory.addTileSource(MAPBOXSATELLITELABELLED)
         val bitmapProvider = MapTileProviderBasic(requireContext(), MAPBOXSATELLITELABELLED)
         return bitmapProvider
-    }
+    }*/
 
     private fun altDaBaro() {
 // chiede se calibrare il barometro oppure annullare

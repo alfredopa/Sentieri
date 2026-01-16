@@ -27,7 +27,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.apstudio.sentieri.MapUtils.alertVerificaSegui
-import com.apstudio.sentieri.MapUtils.applicaFrecceDirezione
 import com.apstudio.sentieri.MapUtils.apreMappa
 import com.apstudio.sentieri.MapUtils.online
 import com.apstudio.sentieri.databinding.FragmentSchedaBinding

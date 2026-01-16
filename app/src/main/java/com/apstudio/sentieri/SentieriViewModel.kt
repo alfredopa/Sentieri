@@ -824,9 +824,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _isDownloading.postValue(true)
             _downloadProgress.postValue(0)
             _ftpDownloadStatus.postValue(Event("Download da Remoto in corso..."))
-
-            // ID del tuo file estratto dal link
-            val fileId = "1sZl43O4aVJHYTO0anl8e5sq3j9XHgnKS"
             // URL di download diretto (uc = user content)
             //val urlString = "https://drive.usercontent.google.com/download?id=1sZl43O4aVJHYTO0anl8e5sq3j9XHgnKS&export=download&authuser=0&confirm=t&uuid=ce1c3d68-fe2f-4d4d-b785-c2a23a4758bb&at=ANTm3cy87PrdFq80FCYNG8I8rOVI%3A1768214837093"
             val urlString = "https://github.com/alfredopa/Sentieri/releases/download/risorse/Sardegna.zip"
@@ -904,9 +901,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
         // --- CHIAMA LA FUNZIONE DI UNZIP QUI ---
         viewModelScope.launch(Dispatchers.IO) {
-            val nomeFile = fileScaricato // Assicurati che sia lo stesso nome usato per il download
             val unzipSuccess = MapUtils.decomprimiZipInCartellaMappe(getApplication(), fileScaricato)
-
             // Comunica il risultato finale
             withContext(Dispatchers.Main) {
                 if (unzipSuccess) {
