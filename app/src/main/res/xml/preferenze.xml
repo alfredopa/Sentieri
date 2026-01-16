@@ -23,7 +23,7 @@
             app:summary="%s"
             app:entries="@array/activity_type_entries"
             app:entryValues="@array/activity_type_values"
-            app:defaultValue="Mountain Bike" />
+            app:defaultValue="mtb" />
         <com.apstudio.sentieri.ColorPickerPreference
             app:key="colore_traccia"
             app:title="Colore Traccia"
@@ -32,7 +32,7 @@
         <Preference
             app:key="download_ftp_button"
             app:title="Scarica mappe dal server"
-            app:summary="Scarica o aggiorna il file mappa dal server FTP." />
+            app:summary="Scarica o aggiorna il file mappa dal server" />
         <ListPreference
             app:key="seleziona_tema_mapsforge"
             app:title="Seleziona Tema Mappa Offline"
