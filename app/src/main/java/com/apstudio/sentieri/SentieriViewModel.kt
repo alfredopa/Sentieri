@@ -191,15 +191,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             // Se il controllo passa, procedi con l'elaborazione dei dati
             processNewLocationData(location, mslAltitude, baroPressure)
         }
-        velocita.observeForever { currentSpeed ->
-            if (currentSpeed == 0) {
-                // Se la velocità è 0, anche la pendenza deve essere 0.
-                // Controlliamo se il valore è già 0 per evitare aggiornamenti inutili.
-                if (_pendenza.value != 0) {
-                    _pendenza.postValue(0)
-                }
-            }
-        }
+
     }
 
     fun processNewLocationData(loc: Location, altitudine: Double, baroPress: Float) {
@@ -261,23 +253,26 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         }
 
         // 5. Calcolo PENDENZA
-        val velocitaCorrente = (loc.speed * 3.6).toInt() // Calcoliamo la velocità locale
-        if (velocitaCorrente > 0) { // <-- AGGIUNGI QUESTO CONTROLLO
+        val velocitaCorrente = (loc.speed * 3.6).toInt()
+        if (velocitaCorrente <= 0.1) {
+            // Se siamo fermi, la pendenza DEVE essere 0.
+            // Usiamo postValue solo se necessario per evitare loop di aggiornamento UI.
+            if (_pendenza.value != 0) {
+                _pendenza.postValue(0)
+            }
+        } else {
+            // Calcoliamo la pendenza solo se ci stiamo muovendo
             referencePointForSlope?.let { refPoint ->
                 val distanceFromRef = refPoint.distanceToAsDouble(currentNewPunto)
                 if (distanceFromRef >= SLOPE_CALCULATION_DISTANCE_THRESHOLD) {
                     val dislivelloPendenza = currentNewPunto.altitude - refPoint.altitude
-                    if (distanceFromRef > 0) {
-                        val pendenzaPercentuale = (dislivelloPendenza / distanceFromRef) * 100
-                        _pendenza.postValue(pendenzaPercentuale.toInt())
-                    }
+                    val pendenzaPercentuale = (dislivelloPendenza / distanceFromRef) * 100
+
+                    // Applichiamo un limite ragionevole o un piccolo filtro se necessario
+                    _pendenza.postValue(pendenzaPercentuale.toInt())
+
                     referencePointForSlope = currentNewPunto
                 }
-            }
-        } else {
-            // Se la velocità è 0, azzeriamo la pendenza
-            if (_pendenza.value != 0) {
-                _pendenza.postValue(0)
             }
         }
 
