@@ -33,7 +33,6 @@ import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.tileprovider.modules.ArchiveFileFactory
 import org.osmdroid.tileprovider.modules.OfflineTileProvider
 import org.osmdroid.tileprovider.tilesource.MapBoxTileSource
-import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
 import org.osmdroid.util.GeoPoint
@@ -249,19 +248,43 @@ object MapUtils {
                     alertVerificaSegui(context) { segui ->
                         if (segui) {
                             viewModel.layerItems.forEach { it.segui = false }
-                            viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, true, viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
+                            viewModel.layerItems.add(LayerItem(line.title, line.isEnabled,
+                                direzione = false,
+                                segui = true,
+                                distanza = viewModel.trackDistanza,
+                                ascesa = viewModel.trackAscesa,
+                                discesa = viewModel.trackDiscesa
+                            ))
                         } else {
-                            viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, false, viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
+                            viewModel.layerItems.add(LayerItem(line.title, line.isEnabled,
+                                direzione = false,
+                                segui = false,
+                                distanza = viewModel.trackDistanza,
+                                ascesa = viewModel.trackAscesa,
+                                discesa = viewModel.trackDiscesa
+                            ))
                         }
                     }
                 } else {
-                    viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, true, viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
+                    viewModel.layerItems.add(LayerItem(line.title, line.isEnabled,
+                        direzione = false,
+                        segui = true,
+                        distanza = viewModel.trackDistanza,
+                        ascesa = viewModel.trackAscesa,
+                        discesa = viewModel.trackDiscesa
+                    ))
                 }
                 viewModel.tracciaDaSeguire = line.title
                 viewModel.alertFuoriTraccia = true
             }
             setNegativeButton(android.R.string.cancel) { _, _ ->
-                viewModel.layerItems.add(LayerItem(line.title, line.isEnabled, false, false, viewModel.trackDistanza, viewModel.trackAscesa, viewModel.trackDiscesa))
+                viewModel.layerItems.add(LayerItem(line.title, line.isEnabled,
+                    direzione = false,
+                    segui = false,
+                    distanza = viewModel.trackDistanza,
+                    ascesa = viewModel.trackAscesa,
+                    discesa = viewModel.trackDiscesa
+                ))
             }
             show()
         }
@@ -443,6 +466,6 @@ object MapUtils {
                 }
             }
             true
-        } catch (e: Exception) { false }
+        } catch (_: Exception) { false }
     }
 }
