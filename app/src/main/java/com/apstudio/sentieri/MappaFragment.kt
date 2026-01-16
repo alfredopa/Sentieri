@@ -138,6 +138,7 @@ import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.text.contains
 
 private const val TAG = "MappaFragment"
 
@@ -434,15 +435,21 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
 
             is Polyline -> {
-                // La logica per le Polyline è CORRETTA e deve rimanere,
-                // perché l'InfoWindow dipende dall'istanza attuale della mapView.
                 //Log.d("ListenerDebug", "Ri-attacco InfoWindow per Polyline")
-                overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
-                overlay.setOnClickListener { clickedPolyline, map, eventPosition ->
-                    clickedPolyline.infoWindowLocation = eventPosition
-                    clickedPolyline.showInfoWindow()
-                    map.controller.animateTo(eventPosition)
-                    true
+                // Recuperiamo i dati e verifichiamo se è il layer CAI
+                val lineFeature = overlay.relatedObject as? LineStringFeature
+                val isCai = overlay.id?.contains("Sentieri CAI")
+                if (isCai == true) {
+                    WebsiteInfoWindow(lineFeature!!, mapView)
+                } else {
+                    overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
+                    overlay.setOnClickListener { clickedPolyline, map, eventPosition ->
+                        clickedPolyline.infoWindowLocation = eventPosition
+                        clickedPolyline.showInfoWindow()
+                        map.controller.animateTo(eventPosition)
+                        true
+                }
+
                 }
             }
         }
@@ -2447,6 +2454,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             osmdroidPolyline.outlinePaint.strokeWidth = 8f
             // --- Gestione InfoWindow ---
             osmdroidPolyline.id = "line_${featureInfo.name}_$index"
+            osmdroidPolyline.relatedObject = lineFeature
             osmdroidPolyline.title = ngaLineString.title
             // Imposta lo snippet, servirà alla BasicInfoWindow
             osmdroidPolyline.snippet = lineFeature.description
