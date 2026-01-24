@@ -1,6 +1,6 @@
 package com.apstudio.sentieri
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.ContentValues
 import android.graphics.Color
 import android.icu.text.DecimalFormat
@@ -81,11 +81,6 @@ class SchedaFragment : Fragment(), MenuProvider {
     private lateinit var percorso: Polyline
     private var puntiOriginali: List<GeoPoint> = emptyList()
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setHasOptionsMenu(true) // Abilita le icone nel menu
-    }
-
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -105,7 +100,7 @@ class SchedaFragment : Fragment(), MenuProvider {
                 val scriviGpx = GpxWriter()
                 val alink = Link("", "")
                 val time = Date()
-                val points = percorso.points
+                val points = percorso.actualPoints
                 val trackPoints = mutableListOf<WayPoint>()
                 val poiGpx = mutableListOf<WayPoint>()
                 var puntoGps: WayPoint
@@ -179,25 +174,17 @@ class SchedaFragment : Fragment(), MenuProvider {
                 }
                 snackbar.show()
             }
-            R.id.eliminaSentiero -> {
-                // chiede conferma cancellazione
-                val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
-                with(builder)
-                {   // chiede salvataggio traccia
-                    setTitle("Eliminazione percorso")
-                    setMessage("Sei sicuro di voler eliminare il percorso?")
-                    setPositiveButton(
-                        "Confermo"
-                    ) { _, _ ->
-                        // elimina sentiero con transazione?
-                        viewModel.cancellaSentiero(args.idSentiero)
-                        requireActivity().onBackPressedDispatcher.onBackPressed()
-                    }
-                    setNegativeButton(android.R.string.cancel) { _, _ ->}
-                    setCancelable(false) // Impedisce la chiusura tramite tocco esterno o tasto Indietro
-                    show()
-                }
 
+            R.id.eliminaSentiero -> {
+                MaterialAlertDialogBuilder(requireContext(), R.style.AlertDialogCustom)
+                    .setTitle("Eliminazione percorso")
+                    .setMessage("Sei sicuro di voler eliminare il percorso?")
+                    .setPositiveButton("Confermo") { _, _ ->
+                        viewModel.cancellaSentiero(args.idSentiero)
+                        findNavController().popBackStack()
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
             }
         }
         return false
