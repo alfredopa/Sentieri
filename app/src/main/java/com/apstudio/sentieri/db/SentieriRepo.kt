@@ -22,7 +22,7 @@ class SentieriRepo(
         return sentieriDao.getItems()
     }
 
-    fun cercaId(id: Int): LiveData<Sentieri> {
+    fun cercaId(id: Int): LiveData<Sentieri?> {
         return sentieriDao.getItem(id).asLiveData()
     }
 
@@ -54,7 +54,6 @@ class SentieriRepo(
     fun getFotoPoi(idPoi: Int): List<FotoPoi> {
         return fotoPoiDao.getFotoPoibyID(idPoi)
     }
-
 
     // --- OPERAZIONI COMBINATE (TRANSAZIONI) ---
 
