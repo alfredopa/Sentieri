@@ -488,7 +488,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         }
     }
 
-    fun trovaSentiero(id: Int): LiveData<Sentieri> {
+    fun trovaSentiero(id: Int): LiveData<Sentieri?> {
         return repository.cercaId(id)
     }
 

@@ -14,7 +14,7 @@ interface SentieriDao {
     fun getItems(): Flow<List<Sentieri>>
 
     @Query("SELECT * from sentieri WHERE id = :id")
-    fun getItem(id: Int): Flow<Sentieri>
+    fun getItem(id: Int): Flow<Sentieri?>
 
     // Specify the conflict strategy as IGNORE, when the user tries to add an
     // existing Item into the database Room ignores the conflict.

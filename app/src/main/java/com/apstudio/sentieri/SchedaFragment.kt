@@ -191,12 +191,13 @@ class SchedaFragment : Fragment(), MenuProvider {
                     ) { _, _ ->
                         // elimina sentiero con transazione?
                         viewModel.cancellaSentiero(args.idSentiero)
+                        requireActivity().onBackPressedDispatcher.onBackPressed()
                     }
                     setNegativeButton(android.R.string.cancel) { _, _ ->}
                     setCancelable(false) // Impedisce la chiusura tramite tocco esterno o tasto Indietro
                     show()
                 }
-                requireActivity().onBackPressedDispatcher.onBackPressed()
+
             }
         }
         return false
@@ -337,8 +338,8 @@ class SchedaFragment : Fragment(), MenuProvider {
             findNavController().navigate(directions)
         }
 
-        viewModel.trovaSentiero(idSentiero).observe(this.viewLifecycleOwner) {sentiero ->
-            aggiornaTestiScheda(sentiero)
+        viewModel.trovaSentiero(idSentiero).observe(this.viewLifecycleOwner) { sentiero ->
+            sentiero?.let { aggiornaTestiScheda(it) }
         }
 
         // carica punti percorso ed eventuali waypoint
