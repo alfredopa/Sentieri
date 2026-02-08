@@ -49,8 +49,10 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         private const val MOVING_AVERAGE_WINDOW_SIZE =
             11 // Numero di valori da tenere in memoria per la media
         private const val GPS_ALTITUDE_SPIKE_THRESHOLD =
-            8.0// Soglia massima di variazione di altitudine in metri tra due letture
+            20.0// Soglia massima di variazione di altitudine in metri tra due letture
     }
+    private var discardedGpsPointsCount: Int = 0
+    private val WARMUP_READINGS_TO_DISCARD = 10
 
     var listaTracce: FolderOverlay = FolderOverlay() // overlay per aggiungere le tracce da gpx e db
     val recTraccia = FolderOverlay() // overlay per traccia in registrazione e marker inizio e fine
@@ -214,25 +216,61 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         //Log.d("SentieriViewModel", "Altitudine calcolata con barometro: $baroPress")
         val currentNewPunto = GeoPoint(loc.latitude, loc.longitude, altitudineCalcolata)
 
-        // 2. Logica di inizializzazione e calcolo sequenziale
-        // Se oldPunto non è stato ancora impostato (latitudine a 0.0), questo è il PRIMO punto in assoluto.
-        if (oldPunto.latitude == 0.0) {
-            // Inizializza tutto e esci. Non fare NESSUN calcolo.
-            _locationData.postValue(LocationData(currentNewPunto, loc.bearing))
-            oldPunto = currentNewPunto
-            isFixed = true
+        // 1. LOGICA DI WARM-UP e INIZIALIZZAZIONE (se isFixed è ancora falso)
+        if (!isFixed) {
+            // A. Se è il primissimo punto in assoluto (oldPunto non valido)
+            if (oldPunto.latitude == 0.0) {
+                oldPunto = currentNewPunto
+                referencePointForSlope = currentNewPunto
 
-            referencePointForSlope = currentNewPunto
+                if (!usaAltitudineBaro) {
+                    gpsAltitudeHistory.clear()
+                    gpsAltitudeHistory.addLast(altitudineCalcolata)
+                    previousFilteredAltitude = altitudineCalcolata
+                } else {
+                    oldQuota = altitudineCalcolata.toInt()
+                }
 
-            if (usaAltitudineBaro) {
-                oldQuota = altitudineCalcolata.toInt()
-            } else {
-                gpsAltitudeHistory.clear()
-                gpsAltitudeHistory.addLast(altitudineCalcolata)
-                previousFilteredAltitude = altitudineCalcolata
+                // Non usciamo subito: passiamo al punto B se siamo in modalità GPS (non Baro)
             }
-            return
+
+            // B. Logica di scarto delle letture iniziali (solo per GPS)
+            if (!usaAltitudineBaro) {
+                if (discardedGpsPointsCount < WARMUP_READINGS_TO_DISCARD) {
+                    discardedGpsPointsCount++
+
+                    // Aggiorna la history e previousFilteredAltitude per costruire la base di media mobile,
+                    // ma NON aggiornare UI, distanza o pendenza.
+                    if (gpsAltitudeHistory.size < MOVING_AVERAGE_WINDOW_SIZE) {
+                        gpsAltitudeHistory.addLast(altitudineCalcolata)
+                        previousFilteredAltitude = gpsAltitudeHistory.average()
+                    }
+
+                    // Postiamo i dati base per mantenere la mappa al corrente, ma non i dati di tracciamento.
+                    _locationData.postValue(LocationData(currentNewPunto, loc.bearing))
+                    _quota.postValue(altitudineCalcolata.toInt())
+
+                    Log.d("Warmup", "GPS Warmup: $discardedGpsPointsCount/${WARMUP_READINGS_TO_DISCARD} ignorati.")
+
+                    // Se abbiamo raggiunto la dimensione della finestra, possiamo considerare il warm-up finito
+                    if (discardedGpsPointsCount == WARMUP_READINGS_TO_DISCARD) {
+                        isFixed = true
+                        Log.i("Warmup", "GPS Warmup Finito. Inizio calcoli.")
+                    }
+
+                    oldPunto = currentNewPunto
+                    isFixed = true
+                    referencePointForSlope = currentNewPunto
+                    return // ESCI: Non fare calcoli di distanza/dislivello/pendenza
+                }
+            }
+
+            // Se siamo qui e !isFixed, e usiamo il Barometro, o se il warm-up GPS è finito, procedi.
+            if (!isFixed) {
+                isFixed = true // Se siamo qui per il Barometro, consideriamo il primo punto come fisso.
+            }
         }
+
 
         // --- DA QUI IN POI, abbiamo la garanzia di avere un 'oldPunto' valido e precedente ---
         _locationData.postValue(LocationData(currentNewPunto, loc.bearing))
