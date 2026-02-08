@@ -51,13 +51,15 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         private const val GPS_ALTITUDE_SPIKE_THRESHOLD =
             20.0// Soglia massima di variazione di altitudine in metri tra due letture
     }
+
     private var discardedGpsPointsCount: Int = 0
     private val WARMUP_READINGS_TO_DISCARD = 10
 
     var listaTracce: FolderOverlay = FolderOverlay() // overlay per aggiungere le tracce da gpx e db
     val recTraccia = FolderOverlay() // overlay per traccia in registrazione e marker inizio e fine
     val topoLayer = FolderOverlay()
-    var puntiDaSeguire = mutableListOf<GeoPoint>() // percorso caricato in MappaFragment da SchedaFragment
+    var puntiDaSeguire =
+        mutableListOf<GeoPoint>() // percorso caricato in MappaFragment da SchedaFragment
     var titoloTracciaDaSeguire = ""
 
     // liste di punti gps e waypoint
@@ -215,59 +217,55 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         }
         //Log.d("SentieriViewModel", "Altitudine calcolata con barometro: $baroPress")
         val currentNewPunto = GeoPoint(loc.latitude, loc.longitude, altitudineCalcolata)
+        Log.d("SentieriViewModel", "currentNewPunto: $currentNewPunto")
 
         // 1. LOGICA DI WARM-UP e INIZIALIZZAZIONE (se isFixed è ancora falso)
         if (!isFixed) {
+            // visualizza subito localizzazione corrente
+            // Postiamo i dati base per mantenere la mappa al corrente, ma non i dati di tracciamento.
+            _locationData.postValue(LocationData(currentNewPunto, loc.bearing))
             // A. Se è il primissimo punto in assoluto (oldPunto non valido)
             if (oldPunto.latitude == 0.0) {
                 oldPunto = currentNewPunto
                 referencePointForSlope = currentNewPunto
 
-                if (!usaAltitudineBaro) {
-                    gpsAltitudeHistory.clear()
-                    gpsAltitudeHistory.addLast(altitudineCalcolata)
-                    previousFilteredAltitude = altitudineCalcolata
-                } else {
+                if (usaAltitudineBaro) {
                     oldQuota = altitudineCalcolata.toInt()
+                    isFixed = true // Barometro procede subito
+                    Log.i("Warmup", "Barometro: isFixed=true. oldQuota=${oldQuota}")
+                } else {
+                    // GPS: Non impostiamo isFixed=true. La history verrà riempita nei cicli successivi.
+                    gpsAltitudeHistory.clear()
+                    previousFilteredAltitude = null
+                    Log.i("Warmup", "GPS: Primo punto. Inizio conteggio scarti.")
                 }
-
-                // Non usciamo subito: passiamo al punto B se siamo in modalità GPS (non Baro)
             }
-
             // B. Logica di scarto delle letture iniziali (solo per GPS)
             if (!usaAltitudineBaro) {
                 if (discardedGpsPointsCount < WARMUP_READINGS_TO_DISCARD) {
-                    discardedGpsPointsCount++
-
-                    // Aggiorna la history e previousFilteredAltitude per costruire la base di media mobile,
-                    // ma NON aggiornare UI, distanza o pendenza.
-                    if (gpsAltitudeHistory.size < MOVING_AVERAGE_WINDOW_SIZE) {
-                        gpsAltitudeHistory.addLast(altitudineCalcolata)
-                        previousFilteredAltitude = gpsAltitudeHistory.average()
-                    }
-
-                    // Postiamo i dati base per mantenere la mappa al corrente, ma non i dati di tracciamento.
-                    _locationData.postValue(LocationData(currentNewPunto, loc.bearing))
-                    _quota.postValue(altitudineCalcolata.toInt())
-
                     Log.d("Warmup", "GPS Warmup: $discardedGpsPointsCount/${WARMUP_READINGS_TO_DISCARD} ignorati.")
-
-                    // Se abbiamo raggiunto la dimensione della finestra, possiamo considerare il warm-up finito
-                    if (discardedGpsPointsCount == WARMUP_READINGS_TO_DISCARD) {
-                        isFixed = true
-                        Log.i("Warmup", "GPS Warmup Finito. Inizio calcoli.")
-                    }
-
-                    oldPunto = currentNewPunto
-                    isFixed = true
-                    referencePointForSlope = currentNewPunto
+                    discardedGpsPointsCount++
                     return // ESCI: Non fare calcoli di distanza/dislivello/pendenza
+                } else {
+                    // Se abbiamo raggiunto la dimensione della finestra, possiamo considerare il warm-up finito
+                    discardedGpsPointsCount == WARMUP_READINGS_TO_DISCARD
+                    isFixed = true
+                    Log.i("Warmup", "GPS Warmup Finito. Inizio calcoli.")
                 }
+                // Aggiorna la history e previousFilteredAltitude per costruire la base di media mobile,
+                // ma NON aggiornare UI, distanza o pendenza.
+                if (gpsAltitudeHistory.size < MOVING_AVERAGE_WINDOW_SIZE) {
+                    gpsAltitudeHistory.addLast(altitudineCalcolata)
+                    previousFilteredAltitude = gpsAltitudeHistory.average()
+                }
+                oldPunto = currentNewPunto
+                isFixed = true
+                referencePointForSlope = currentNewPunto
             }
-
             // Se siamo qui e !isFixed, e usiamo il Barometro, o se il warm-up GPS è finito, procedi.
             if (!isFixed) {
-                isFixed = true // Se siamo qui per il Barometro, consideriamo il primo punto come fisso.
+                isFixed =
+                    true // Se siamo qui per il Barometro, consideriamo il primo punto come fisso.
             }
         }
 
@@ -339,7 +337,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     fun processGpsAltitude(gpsAltitude: Double, currentPoint: GeoPoint) {
         // Se abbiamo un valore precedente con cui confrontarci...
-        if (previousFilteredAltitude != null) {
+        /*if (previousFilteredAltitude != null) {
             // Calcola la differenza assoluta tra la nuova lettura e l'ultima media calcolata.
             val diff = kotlin.math.abs(gpsAltitude - previousFilteredAltitude!!)
 
@@ -351,7 +349,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 )
                 return // Esci dalla funzione, non processare questo valore anomalo.
             }
-        }
+        }*/
 
         // La media mobile richiede di riempire prima la "finestra" di dati.
         if (gpsAltitudeHistory.size < MOVING_AVERAGE_WINDOW_SIZE) {
@@ -412,6 +410,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         oldPunto = GeoPoint(0.0, 0.0, 0.0)
         oldQuota = 0
         previousFilteredAltitude = null
+        discardedGpsPointsCount = 0
         referencePointForSlope = null
         gpsAltitudeHistory.clear()
         // -----------------------------------------
@@ -864,7 +863,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _ftpDownloadStatus.postValue(Event("Download da Remoto in corso..."))
             // URL di download diretto (uc = user content)
             //val urlString = "https://drive.usercontent.google.com/download?id=1sZl43O4aVJHYTO0anl8e5sq3j9XHgnKS&export=download&authuser=0&confirm=t&uuid=ce1c3d68-fe2f-4d4d-b785-c2a23a4758bb&at=ANTm3cy87PrdFq80FCYNG8I8rOVI%3A1768214837093"
-            val urlString = "https://github.com/alfredopa/Sentieri/releases/download/risorse/Sardegna.zip"
+            val urlString =
+                "https://github.com/alfredopa/Sentieri/releases/download/risorse/Sardegna.zip"
             val nomeFile = "Sardegna.zip"
             var downloadSuccess = false
 
@@ -889,12 +889,16 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 // Se il server non restituisce la dimensione o è troppo piccola,
                 // potrebbe esserci l'avviso virus di Google.
                 if (fileSize < 10000) {
-                    Log.e("DRIVE", "Il file sembra troppo piccolo. Probabile avviso virus di Google.")
+                    Log.e(
+                        "DRIVE",
+                        "Il file sembra troppo piccolo. Probabile avviso virus di Google."
+                    )
                     // Nota: gestire l'avviso virus via codice è molto complesso (richiede cookie)
                 }
 
-                val outputStream = MapUtils.getOutputStreamForPublicDownload(getApplication(), nomeFile)
-                    ?: throw IOException("Impossibile creare il file locale")
+                val outputStream =
+                    MapUtils.getOutputStreamForPublicDownload(getApplication(), nomeFile)
+                        ?: throw IOException("Impossibile creare il file locale")
 
                 val inputStream = connection.inputStream
                 val buffer = ByteArray(8192)
@@ -939,7 +943,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
         // --- CHIAMA LA FUNZIONE DI UNZIP QUI ---
         viewModelScope.launch(Dispatchers.IO) {
-            val unzipSuccess = MapUtils.decomprimiZipInCartellaMappe(getApplication(), fileScaricato)
+            val unzipSuccess =
+                MapUtils.decomprimiZipInCartellaMappe(getApplication(), fileScaricato)
             // Comunica il risultato finale
             withContext(Dispatchers.Main) {
                 if (unzipSuccess) {
