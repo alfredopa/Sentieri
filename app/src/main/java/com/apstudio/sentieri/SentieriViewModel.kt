@@ -53,7 +53,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     }
 
     private var discardedGpsPointsCount: Int = 0
-    private val WARMUP_READINGS_TO_DISCARD = 10
+    private val WARMUP_READINGS_TO_DISCARD = 9
 
     var listaTracce: FolderOverlay = FolderOverlay() // overlay per aggiungere le tracce da gpx e db
     val recTraccia = FolderOverlay() // overlay per traccia in registrazione e marker inizio e fine
@@ -170,6 +170,10 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _downloadProgress = MutableLiveData(0)
     val downloadProgress: LiveData<Int> = _downloadProgress
 
+    // NUOVO: LiveData per l'elenco dei file FTP
+    private val _ftpFileList = MutableLiveData<List<String>>()
+    val ftpFileList: LiveData<List<String>> = _ftpFileList
+
     init {
         // L'UNICO trigger per l'aggiornamento dei dati ora è una nuova posizione.
         _combinedData.addSource(locationFromRepo) { location ->
@@ -215,7 +219,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         } else {
             altitudineOriginale
         }
-        //Log.d("SentieriViewModel", "Altitudine calcolata con barometro: $baroPress")
         val currentNewPunto = GeoPoint(loc.latitude, loc.longitude, altitudineCalcolata)
         Log.d("SentieriViewModel", "currentNewPunto: $currentNewPunto")
 
@@ -336,8 +339,9 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     }
 
     fun processGpsAltitude(gpsAltitude: Double, currentPoint: GeoPoint) {
-        // Se abbiamo un valore precedente con cui confrontarci...
-        /*if (previousFilteredAltitude != null) {
+        // **RIATTIVAZIONE E MODIFICA FILTRO GPS**
+        // filtro basato su spike
+        if (previousFilteredAltitude != null) {
             // Calcola la differenza assoluta tra la nuova lettura e l'ultima media calcolata.
             val diff = kotlin.math.abs(gpsAltitude - previousFilteredAltitude!!)
 
@@ -349,7 +353,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 )
                 return // Esci dalla funzione, non processare questo valore anomalo.
             }
-        }*/
+        }
 
         // La media mobile richiede di riempire prima la "finestra" di dati.
         if (gpsAltitudeHistory.size < MOVING_AVERAGE_WINDOW_SIZE) {
@@ -370,6 +374,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         }
 
         previousFilteredAltitude = currentFilteredAltitude
+        previousPointForGpsSlope = currentPoint
     }
 
     private fun updateAltitudeChanges(currentFilteredAltitude: Double, currentPoint: GeoPoint) {
@@ -625,30 +630,71 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     }
 
     /**
-     * Avvia il download di un file da un server FTP.
-     * Ora è 'public' così può essere chiamata dall'esterno (es. dal PreferenceFragment).
+     * Elenca i file presenti nella directory remota del server FTP.
      */
-    fun scaricaFileDaFtp() {
+    fun listDirectory(remotePath: String = "/") {
+        viewModelScope.launch(Dispatchers.IO) {
+            _ftpDownloadStatus.postValue(Event("Richiesta lista file..."))
+            _ftpFileList.postValue(emptyList()) // Pulisce la lista precedente
+
+            val ftpClient = FTPClient()
+            try {
+                val server = "APstudio01.myqnapcloud.com"
+                val utente = "alfredoftp"
+                val password = "APstudio@01"
+                val portaFtp = 2121
+
+                ftpClient.connect(server, portaFtp)
+                ftpClient.login(utente, password)
+                ftpClient.enterLocalPassiveMode()
+
+                // Uso di listNames per ottenere solo i nomi dei file/directory
+                val files = ftpClient.listNames(remotePath)
+                if (files != null && files.isNotEmpty()) {
+                    // Filtra i file per escludere directory se possibile,
+                    // altrimenti lascia tutti gli elementi. Per semplicità qui usiamo tutti i nomi.
+                    _ftpFileList.postValue(files.toList())
+                    _ftpDownloadStatus.postValue(Event("File listati con successo. Seleziona un file da scaricare."))
+                } else {
+                    _ftpFileList.postValue(emptyList())
+                    _ftpDownloadStatus.postValue(Event("Nessun file trovato nella directory specificata."))
+                }
+
+            } catch (e: IOException) {
+                Log.e("FTP_LIST", "Errore nel listare i file FTP", e)
+                _ftpDownloadStatus.postValue(Event("Errore nella connessione/lettura lista FTP: ${e.message}"))
+            } finally {
+                try {
+                    ftpClient.logout()
+                    ftpClient.disconnect()
+                } catch (e: Exception) {
+                    Log.e("FTP_LIST", "Errore in logout/disconnect", e)
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Avvia il download di un file specifico da un server FTP.
+     */
+    fun downloadFileFromFtp(percorsoFileRemoto: String) {
         viewModelScope.launch(Dispatchers.IO) {
             // Resetta il progresso all'inizio
             _isDownloading.postValue(true)
             _downloadProgress.postValue(0) // <-- AZZERA IL PROGRESSO
-            _ftpDownloadStatus.postValue(Event("Download in corso..."))
+            _ftpDownloadStatus.postValue(Event("Download in corso: $percorsoFileRemoto..."))
 
-            /*val server = "ftp.gwdg.de"
-            val utente = "anonymous"
-            val password = "guest@sentieriapp.com"
-            val percorsoFileRemoto = "/pub/misc/openstreetmap/openandromaps/mapsV5/europe/Sardegna.zip"*/
             val server = "APstudio01.myqnapcloud.com"
             val utente = "alfredoftp"
             val password = "APstudio@01"
-            val percorsoFileRemoto = "/Sardegna.zip"
+            //val percorsoFileRemoto = nomeFileDaSalvare // Assumiamo che la lista sia basata sulla root
             val portaFtp = 2121
             val ftpClient = FTPClient()
             var downloadSuccess = false
             val fileScaricato: File?
-            val nomeFileDaSalvare = "Sardegna.zip"
-
+            val nomeFileDaSalvare = percorsoFileRemoto.substringAfterLast("/")
+            
             try {
                 // ... (logica di connessione e login rimane la stessa) ...
                 Log.d("FTP", "Connessione al server FTP...")
@@ -661,8 +707,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
 
                 // --- 2. Ottieni la dimensione del file per calcolare la percentuale ---
-                // Questo comando potrebbe non essere supportato da tutti i server FTP,
-                // ma per ftp.gwdg.de funziona.
                 var fileSize = -1L
                 val reply = ftpClient.sendCommand("SIZE", percorsoFileRemoto)
                 if (FTPReply.isPositiveCompletion(reply)) {
@@ -713,8 +757,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                         }
                     }
 
-                    // Assegna il listener al client FTP. Questa riga ora è correttamente
-                    // all'interno del blocco 'if' e dopo la definizione del listener.
+                    // Assegna il listener al client FTP.
                     ftpClient.copyStreamListener = streamListener
                 }
 
@@ -732,11 +775,10 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 val inputStream: InputStream = ftpClient.retrieveFileStream(percorsoFileRemoto)
                     ?: throw IOException("Il server FTP ha rifiutato il trasferimento del file. Risposta: ${ftpClient.replyString}")
 
-// 2. Controlla se il server ha effettivamente iniziato a inviare il file.
-
                 Log.d("FTP", "Stream di input ottenuto. Inizio trasferimento dati manuale...")
 
 // 3. Apri l'output stream verso il file locale.
+
                 val outputStream: OutputStream =
                     MapUtils.getOutputStreamForPublicDownload(getApplication(), nomeFileDaSalvare)
                         ?: throw IOException("Impossibile creare il file di output per il download.")
@@ -746,21 +788,23 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 val buffer = ByteArray(4096) // Buffer di 4KB
                 var bytesRead: Int
 
-//inputStream.use { input ->  // Rimuoviamo .use per gestire la chiusura manualmente
                 outputStream.use { output ->
-                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        totalBytesTransferred += bytesRead
+                    inputStream.use { input ->
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                            totalBytesTransferred += bytesRead
 
-                        // 5. Invochiamo MANUALMENTE la logica del nostro listener
-                        val progress = ((totalBytesTransferred * 100) / fileSize).toInt()
-                        if (progress > (_downloadProgress.value ?: 0)) {
-                            _downloadProgress.postValue(progress)
-                            Log.d("FTP_Progress", "Progresso manuale: $progress%")
+                            // 5. Invochiamo MANUALMENTE la logica del nostro listener
+                            if (fileSize > 0) {
+                                val progress = ((totalBytesTransferred * 100) / fileSize).toInt()
+                                if (progress > (_downloadProgress.value ?: 0)) {
+                                    _downloadProgress.postValue(progress)
+                                    Log.d("FTP_Progress", "Progresso manuale: $progress%")
+                                }
+                            }
                         }
                     }
                 }
-// } // Fine del .use di inputStream
 
 // 6. Chiudi l'input stream dopo aver finito di leggere
                 inputStream.close()
@@ -787,9 +831,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
                 if (downloadSuccess && fileSize > 0) {
                     getApplication<Application>()
-                    // Dobbiamo trovare il file appena scaricato per controllarne la dimensione.
-                    // Poiché MediaStore non ci dà un percorso diretto, dobbiamo cercarlo.
-                    // Per Android 10+ il file è nella cartella pubblica Download
+                    // Controllo integrità
                     @Suppress("DEPRECATION")
                     val cartellaDownloadPubblica =
                         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
@@ -813,7 +855,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                             "FTP",
                             "Impossibile trovare il file scaricato per il controllo di integrità."
                         )
-                        // Puoi decidere se marcare il download come fallito anche qui.
                         downloadSuccess = false
                     }
                 }
@@ -851,6 +892,12 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                     } else {
                         _ftpDownloadStatus.postValue(Event("Download fallito. Controlla i log."))
                     }
+                }
+                try {
+                    ftpClient.logout()
+                    ftpClient.disconnect()
+                } catch (e: Exception) {
+                    Log.e("FTP_DL", "Errore in logout/disconnect", e)
                 }
             }
         }

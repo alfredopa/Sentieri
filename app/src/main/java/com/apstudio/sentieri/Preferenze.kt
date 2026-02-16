@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -57,6 +58,7 @@ class Preferenze : PreferenceFragmentCompat() {
 
         setPreferencesFromResource(R.xml.preferenze, rootKey)
 
+        viewModel.listDirectory()
         // Trova la ListPreference per i temi
         val themePreference = findPreference<ListPreference>("seleziona_tema_mapsforge")
         themePreference?.let {
@@ -69,12 +71,13 @@ class Preferenze : PreferenceFragmentCompat() {
         // 2. Imposta un listener per il click.
         ftpButton?.setOnPreferenceClickListener {
             // 3. Esegui la tua funzione qui.
-            scaricaFileDaFtp() // Chiamiamo la funzione che vogliamo eseguire
+            mostraDialogoLista(requireContext())
+            //scaricaFileDaFtp() // Chiamiamo la funzione che vogliamo eseguire
             // Restituisci 'true' per indicare che hai gestito l'evento di click.
             true
         }
         // Observe del download status
-        observeDownloadStatus()
+        //observeDownloadStatus()
     }
 
     private fun populateThemePreference(preference: ListPreference) {
@@ -156,6 +159,31 @@ class Preferenze : PreferenceFragmentCompat() {
             .create()
 
         downloadDialog?.show()
+    }
+
+    fun mostraDialogoLista(context: Context) {
+        // 1. La serie di stringhe da visualizzare
+        val elementi = viewModel.ftpFileList.value
+        Log.d("preferenze", "elementi: $elementi")
+
+        // 2. Creazione del Builder
+        val builder = AlertDialog.Builder(context)
+        builder.setTitle("Seleziona un'opzione")
+
+        // 3. Impostazione degli elementi e del click listener
+        builder.setItems(elementi?.toTypedArray()) { dialog, quale ->
+            // 'quale' è l'indice della stringa cliccata (0, 1, 2...)
+            val scelta = elementi!!.get(quale)
+            Toast.makeText(context, "Hai scelto: $scelta", Toast.LENGTH_SHORT).show()
+            Log.d("preferenze", "scelta: $scelta")
+            viewModel.downloadFileFromFtp(scelta)
+            // Observe del download status
+            observeDownloadStatus()
+        }
+
+        // 4. Mostra il dialogo
+        val dialog = builder.create()
+        dialog.show()
     }
 
 }
