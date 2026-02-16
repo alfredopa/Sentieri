@@ -121,6 +121,7 @@ import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.ScaleBarOverlay
 import org.osmdroid.views.overlay.compass.CompassOverlay
 import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider
+import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 import org.osmdroid.views.overlay.infowindow.BasicInfoWindow
 import org.osmdroid.views.overlay.infowindow.InfoWindow
 import org.osmdroid.views.overlay.simplefastpoint.LabelledGeoPoint
@@ -442,7 +443,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         clickedPolyline.showInfoWindow()
                         map.controller.animateTo(eventPosition)
                         true
-                }
+                    }
 
                 }
             }
@@ -463,6 +464,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         //Log.d(TAG, "Ripristino degli overlay dal ViewModel sulla nuova MapView.")
         // 1. Pulisci la mappa per sicurezza (anche se dovrebbe essere già vuota)
         mapView.overlayManager.clear()
+        val mRotationGestureOverlay = RotationGestureOverlay(context, mapView)
+        mRotationGestureOverlay.setEnabled(true)
+        mapView.setMultiTouchControls(true)
+        mapView.getOverlays().add(mRotationGestureOverlay)
         view.isFocusableInTouchMode = true
         view.requestFocus()
         view.setOnKeyListener(this)// --- INIZIO NUOVA GESTIONE EVENTI ---
@@ -531,20 +536,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
             }
         }
-        if (mapView.overlays.isEmpty()) {
-            //Log.d(TAG, "Aggiungo gli overlay alla mappa.")
-            mapView.overlays.add(viewModel.listaTracce)
-            mapView.overlays.add(viewModel.recTraccia)
-            mapView.overlays.add(viewModel.topoLayer)
-            for (overlay in viewModel.listaTracce.items) {
-                if (overlay is Polyline) {
-                    setPolylineClickListener(overlay)
-                }
-                if (overlay is Marker) {
-                    setMarkerClickListener(overlay)
-                }
-            }
 
+// Assicurati che gli overlay di stato siano presenti
+        if (!mapView.overlays.contains(viewModel.listaTracce)) {
+            mapView.overlays.add(viewModel.listaTracce)
+        }
+        if (!mapView.overlays.contains(viewModel.recTraccia)) {
+            mapView.overlays.add(viewModel.recTraccia) // Assicura che sia qui
+        }
+        if (!mapView.overlays.contains(viewModel.topoLayer)) {
+            mapView.overlays.add(viewModel.topoLayer)
+        }
+
+        for (overlay in viewModel.listaTracce.items) {
+            if (overlay is Polyline) {
+                setPolylineClickListener(overlay)
+            }
+            if (overlay is Marker) {
+                setMarkerClickListener(overlay)
+            }
             // Aggiungi l'overlay della bussola solo se il dispositivo ha i sensori necessari.
             if (hasCompass()) {
                 val compassOverlay =
@@ -560,6 +570,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // Aggiungi la barra della scala alla lista degli overlay della mappa.
             mapView.overlays.add(scaleBarOverlay)
         }
+
         // 2. Inizializza la Polyline di registrazione traccia, una sola volta.
         currentTrackPolyline = Polyline() // Crea l'oggetto
         currentTrackPolyline.outlinePaint.color = coloreTraccia // Imposta il colore iniziale
@@ -859,7 +870,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.onResume()
         preferenze.registerOnSharedPreferenceChangeListener(this)
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
-        Log.d("onResume", "onResume")
+        Log.d("onResume", "${viewModel.recTraccia})")
 
         // la traccia è stata selezionata da schedafragment
         if (viewModel.puntiDaSeguire.isNotEmpty()) {
@@ -1012,7 +1023,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             mapView.overlays.add(currentTrackPolyline)
             mapView.overlays.remove(gpsMarker)
             mapView.overlays.add(gpsMarker)
-
+            if (!mapView.overlays.contains(viewModel.recTraccia)) {
+                Log.d(TAG, "Ripristino viewModel.recTraccia in onResume.")
+                mapView.overlays.add(viewModel.recTraccia)
+            }
             viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
             gpsMarker.setVisible(true)
             bottomSheetBehavior.isHideable = false
