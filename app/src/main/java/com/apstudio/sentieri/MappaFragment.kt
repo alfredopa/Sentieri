@@ -382,7 +382,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
 
-        mapView.invalidate() // Forza un singolo ridisegno alla fine di tutte le operazioni.
+        mapView.invalidate()      // Forza un singolo ridisegno alla fine di tutte le operazioni.
+        Log.d(TAG, "invalidate onReturnFromLayerDialog.")
     }
 
     // Helper function to re-attach listeners
@@ -813,13 +814,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         LocationRepository.trackPoints.observe(viewLifecycleOwner) { fullTrack ->
             currentTrackPolyline.setPoints(fullTrack)
             mapView.invalidate()
+            Log.d(TAG, "LocationRepository trackPoints invalidate")
         }
         LocationRepository.newTrackPoint.observe(viewLifecycleOwner) { newPoint ->
             currentTrackPolyline.addPoint(newPoint)
             mapView.invalidate()
+            Log.d(TAG, "LocationRepository newTrackPoint invalidate")
         }
         ripristinaStatoMappa()
         mapView.invalidate()
+        Log.d(TAG, "ripristinaStatoMappa invalidate")
     }
 
     private fun mostraAllarmeFuoriTraccia() {
@@ -1007,49 +1011,77 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
 
-        // per ultimo ripristino traccia registrazione per averla in primo piano
-        if (viewModel.isRecording) {
-            //Log.d(TAG, "onResume: La registrazione è attiva. Ripristino lo stato della traccia.")
-            val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
-            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
-            accendiSchermo()
-            // 3. Imposta i punti direttamente sulla Polyline.
-            //    (Assicurati che currentTrackPolyline sia già inizializzata)
-            currentTrackPolyline.outlinePaint.color = coloreTraccia
-            currentTrackPolyline.outlinePaint.strokeWidth = 10f
-            currentTrackPolyline.setPoints(fullTrackSnapshot)
-            // 4. Forza un ridisegno della mappa ORA che i dati sono corretti.
-            mapView.overlays.remove(currentTrackPolyline)
-            mapView.overlays.add(currentTrackPolyline)
-            mapView.overlays.remove(gpsMarker)
-            mapView.overlays.add(gpsMarker)
+// In MappaFragment.kt, all'interno di override fun onResume()
+
+// ... (codice precedente: gestione GPX caricato, POI, Toponimi, ecc.) ...
+
+        val hasRecordedPoints = LocationRepository.trackPointsList.isNotEmpty()
+
+        if (hasRecordedPoints) {
+            // --- RIPRISTINO STATO TRACCIA REGISTRATA ---
+
+            // 1. ASSICURATI CHE GLI OVERLAY DI STATO SIANO PRESENTI NELLA MAP VIEW
+
+            // Aggiungi/Assicurati che currentTrackPolyline sia nella lista
+            if (!mapView.overlays.contains(currentTrackPolyline)) {
+                mapView.overlays.add(currentTrackPolyline) // Aggiungi la traccia temporanea
+            }
+            // Aggiungi/Assicurati che gpsMarker sia nella lista
+            if (!mapView.overlays.contains(gpsMarker)) {
+                mapView.overlays.add(gpsMarker)
+            }
+            // Aggiungi/Assicurati che il FolderOverlay per Inizio/Fine sia presente
             if (!mapView.overlays.contains(viewModel.recTraccia)) {
                 Log.d(TAG, "Ripristino viewModel.recTraccia in onResume.")
                 mapView.overlays.add(viewModel.recTraccia)
             }
-            viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
-            gpsMarker.setVisible(true)
-            bottomSheetBehavior.isHideable = false
-            bottomSheetBehavior.peekHeight = 120
 
-            val stateToRestore = viewModel.bottomState
-            if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
-                stateToRestore == BottomSheetBehavior.STATE_EXPANDED ||
-                stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED
-            ) {
-                bottomSheetBehavior.state = stateToRestore
+            // 2. SINCRONIZZAZIONE DEI DATI DI TRACCIA E UI
+
+            // Sincronizza i punti della traccia (necessario se il DB è stato letto o per sicurezza)
+            val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
+            currentTrackPolyline.outlinePaint.color = coloreTraccia
+            currentTrackPolyline.outlinePaint.strokeWidth = 10f
+            // *** AZIONE CRUCIALE: Forza il set dei punti ***
+            currentTrackPolyline.setPoints(fullTrackSnapshot)
+
+            gpsMarker.setVisible(viewModel.isRecording) // Mostra solo se stiamo attivamente registrando
+
+            if (viewModel.isRecording) {
+                LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
+                accendiSchermo()
+
+                viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
+                gpsMarker.setVisible(true)
+
+                bottomSheetBehavior.isHideable = false
+                bottomSheetBehavior.peekHeight = 120
+
+                val stateToRestore = viewModel.bottomState
+                if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
+                    stateToRestore == BottomSheetBehavior.STATE_EXPANDED ||
+                    stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED
+                ) {
+                    bottomSheetBehavior.state = stateToRestore
+                } else {
+                    Log.w(
+                        TAG,
+                        "Stato BottomSheet non valido ($stateToRestore). Imposto collassato di default."
+                    )
+                    bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+                }
+                showCustomSnackbar(binding.root, "Registrazione in corso")
             } else {
-                Log.w(
-                    TAG,
-                    "Stato BottomSheet non valido ($stateToRestore). Imposto collassato di default."
-                )
-                bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+                // Se la registrazione è finita ma c'erano punti, assicurati che il BottomSheet sia nascosto
+                bottomSheetBehavior.isHideable = true
+                bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
             }
-            showCustomSnackbar(binding.root, "Registrazione in corso")
         }
+
         mapView.invalidate()
-        Log.d(TAG, "invalidate")
+        Log.d(TAG, "onResume invalidate")
     }
+
 
     override fun onPrepareMenu(menu: Menu) {
         super.onPrepareMenu(menu)
@@ -1135,6 +1167,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
 
             mapView.postInvalidate()
+            Log.d(TAG, "Ripristino stato mappa Invalidate")
         }
     }
 
@@ -1282,6 +1315,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // pulizia eventuali registrazione precedente
         viewModel.resetCruscotto()
         LocationRepository.clearTrack()
+        viewModel.recTraccia.items.clear()
         viewModel.isFixed = false
 
 // imposta schermo sempre acceso
