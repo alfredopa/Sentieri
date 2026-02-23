@@ -1171,18 +1171,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    /*private fun mappaMapBox(): MapTileProviderBasic {
-        val MAPBOXSATELLITELABELLED: OnlineTileSourceBase =
-            MapBoxTileSource("MapBox", 1, 19, 256, ".png")
-        (MAPBOXSATELLITELABELLED as MapBoxTileSource).retrieveAccessToken(requireContext())
-        MAPBOXSATELLITELABELLED.setMapboxMapid("mapbox.satellite")
-        MAPBOXSATELLITELABELLED.accessToken =
-            "pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNtMDBzMmQ3ODBoMWIya3NuejJ5NnNzMG0ifQ.kXnCG27oE6go9msYdp3pkA"
-        //"pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNrd29tYXJiZjAwd24ydnJ0Yno3NGJ4aHUifQ.4QyOTn9AYZhWCyWSs36R_w"
-        TileSourceFactory.addTileSource(MAPBOXSATELLITELABELLED)
-        val bitmapProvider = MapTileProviderBasic(requireContext(), MAPBOXSATELLITELABELLED)
-        return bitmapProvider
-    }*/
 
     private fun altDaBaro() {
 // chiede se calibrare il barometro oppure annullare

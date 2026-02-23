@@ -43,12 +43,10 @@
         android:requestLegacyExternalStorage="true"
         android:largeHeap="true"
         tools:targetApi="33">
-        <meta-data
-            android:name="MAPBOX_MAPID"
-            android:value="mapbox.satellite" />
-        <meta-data
-            android:name="MAPBOX_ACCESS_TOKEN"
-            android:value="pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNrd29tYXJiZjAwd24ydnJ0Yno3NGJ4aHUifQ.4QyOTn9AYZhWCyWSs36R_w" />
+<!--        <meta-data-->
+<!--            android:name="MAPBOX_MAPID"-->
+<!--            android:value="mapbox.satellite" -->
+<!--            android:value="pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNrd29tYXJiZjAwd24ydnJ0Yno3NGJ4aHUifQ.4QyOTn9AYZhWCyWSs36R_w" />-->
         <service
             android:name=".LocationService"
             android:enabled="true"
