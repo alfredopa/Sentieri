@@ -7,180 +7,252 @@
     android:layout_height="wrap_content"
     android:background="@drawable/border_segment_round"
     android:backgroundTint="#09155A"
-    app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
-    app:layout_constraintVertical_bias="1.0">
+    android:padding="8dp"
+    app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline_col1_end"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.42" />
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline_col2_end"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.70" />
+
+
+    <!-- RIGA 1: Distanza, Velocità -->
     <ImageView
-        android:id="@+id/imageView4"
+        android:id="@+id/icon_dist"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
-        android:layout_marginTop="12dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/imageView3"
-        app:srcCompat="@drawable/ic_time" />
-
-    <ImageView
-        android:id="@+id/imageView7"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="140dp"
-        app:layout_constraintStart_toEndOf="@+id/tvQuota"
-        app:layout_constraintTop_toTopOf="@+id/tvQuota"
-        app:srcCompat="@drawable/ic_trending_down" />
-
-    <ImageView
-        android:id="@+id/imageView6"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="136dp"
-        app:layout_constraintStart_toEndOf="@+id/imageView5"
-        app:layout_constraintTop_toTopOf="@+id/tvQuota"
-        app:srcCompat="@drawable/ic_trending_up" />
-
-    <TextView
-        android:id="@+id/tvVelo"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:text="Km/h"
-        android:textSize="28sp"
-        app:layout_constraintStart_toEndOf="@+id/imageView2"
-        app:layout_constraintTop_toTopOf="@+id/tvDist" />
-
-    <TextView
-        android:id="@+id/tvQuota"
-        android:layout_width="81dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:text="Quota"
-        android:textSize="28sp"
-        app:layout_constraintStart_toEndOf="@+id/imageView5"
-        app:layout_constraintTop_toTopOf="@+id/imageView5" />
-
-    <ImageView
-        android:id="@+id/imageView5"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
-        android:layout_marginTop="12dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/imageView"
-        app:srcCompat="@drawable/ic_pin_drop" />
-
-    <ImageView
-        android:id="@+id/imageView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
-        android:layout_marginTop="8dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:srcCompat="@drawable/ic_distance" />
-
-    <ImageView
-        android:id="@+id/imageView2"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="136dp"
-        android:layout_marginTop="8dp"
-        app:layout_constraintStart_toEndOf="@+id/imageView"
-        app:layout_constraintTop_toTopOf="parent"
-        app:srcCompat="@drawable/ic_avg_speed" />
+        app:srcCompat="@drawable/ic_distance"
+        tools:ignore="ContentDescription" />
 
     <TextView
         android:id="@+id/tvDist"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textSize="22sp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="@id/icon_dist"
+        app:layout_constraintEnd_toStartOf="@id/guideline_col1_end"
+        app:layout_constraintStart_toEndOf="@id/icon_dist"
+        app:layout_constraintTop_toTopOf="@id/icon_dist"
+        tools:text="123 m" />
+
+    <ImageView
+        android:id="@+id/icon_velo"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:layout_marginTop="4dp"
-        android:text="Dist."
-        android:textSize="28sp"
-        app:layout_constraintStart_toEndOf="@+id/imageView"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintStart_toStartOf="@id/guideline_col1_end"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@drawable/ic_avg_speed"
+        tools:ignore="ContentDescription" />
 
     <TextView
-        android:id="@+id/tvTempo"
-        android:layout_width="149dp"
+        android:id="@+id/tvVelo"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:text="Tempo"
-        android:textSize="28sp"
-        app:layout_constraintStart_toEndOf="@+id/imageView3"
-        app:layout_constraintTop_toTopOf="@+id/imageView3" />
+        android:layout_marginStart="8dp"
+        android:textSize="22sp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="@id/icon_velo"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/icon_velo"
+        app:layout_constraintTop_toTopOf="@id/icon_velo"
+        tools:text="5.5 km/h" />
+
+    <!-- Barriera per iniziare la riga successiva sotto la più alta della prima riga -->
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/barrier_row1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:barrierDirection="bottom"
+        app:constraint_referenced_ids="tvDist, tvVelo" />
+
+    <!-- RIGA 2: Quota, Dislivello+, Dislivello- -->
+    <ImageView
+        android:id="@+id/icon_quota"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/barrier_row1"
+        app:srcCompat="@drawable/ic_pin_drop"
+        tools:ignore="ContentDescription" />
+
+    <TextView
+        android:id="@+id/tvQuota"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textSize="22sp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="@id/icon_quota"
+        app:layout_constraintEnd_toStartOf="@id/guideline_col1_end"
+        app:layout_constraintStart_toEndOf="@id/icon_quota"
+        app:layout_constraintTop_toTopOf="@id/icon_quota"
+        tools:text="1234" />
+
+    <ImageView
+        android:id="@+id/icon_dpiu"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="@id/guideline_col1_end"
+        app:layout_constraintTop_toTopOf="@id/icon_quota"
+        app:srcCompat="@drawable/ic_trending_up"
+        tools:ignore="ContentDescription" />
 
     <TextView
         android:id="@+id/tvDPiu"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
-        android:text="Dis+"
-        android:textSize="28sp"
-        app:layout_constraintStart_toEndOf="@+id/imageView2"
-        app:layout_constraintTop_toTopOf="@+id/imageView5" />
+        android:textSize="22sp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="@id/icon_dpiu"
+        app:layout_constraintEnd_toStartOf="@id/guideline_col2_end"
+        app:layout_constraintStart_toEndOf="@id/icon_dpiu"
+        app:layout_constraintTop_toTopOf="@id/icon_dpiu"
+        tools:text="1500" />
+
+    <ImageView
+        android:id="@+id/icon_dmeno"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="@id/guideline_col2_end"
+        app:layout_constraintTop_toTopOf="@id/icon_quota"
+        app:srcCompat="@drawable/ic_trending_down"
+        tools:ignore="ContentDescription" />
 
     <TextView
         android:id="@+id/tvDMeno"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textSize="22sp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="@id/icon_dmeno"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/icon_dmeno"
+        app:layout_constraintTop_toTopOf="@id/icon_dmeno"
+        tools:text="-1200" />
+
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/barrier_row2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="262dp"
-        android:text="Dis-"
-        android:textSize="28sp"
-        app:layout_constraintStart_toEndOf="@+id/imageView5"
-        app:layout_constraintTop_toTopOf="@+id/imageView5" />
+        app:barrierDirection="bottom"
+        app:constraint_referenced_ids="tvQuota, tvDPiu, tvDMeno" />
+
+    <!-- RIGA 3: Tempo, Pendenza, GPS/BARO -->
+    <ImageView
+        android:id="@+id/icon_tempo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/barrier_row2"
+        app:srcCompat="@drawable/ic_time"
+        tools:ignore="ContentDescription" />
+
+    <TextView
+        android:id="@+id/tvTempo"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textSize="22sp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="@id/icon_tempo"
+        app:layout_constraintEnd_toStartOf="@id/guideline_col1_end"
+        app:layout_constraintStart_toEndOf="@id/icon_tempo"
+        app:layout_constraintTop_toTopOf="@id/icon_tempo"
+        tools:text="00:04:28" />
 
     <ImageView
-        android:id="@+id/imageView3"
+        android:id="@+id/icon_pendenza"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
-        android:layout_marginTop="12dp"
+        app:layout_constraintStart_toStartOf="@id/guideline_col1_end"
+        app:layout_constraintTop_toTopOf="@id/icon_tempo"
+        app:srcCompat="@drawable/ic_slope"
+        tools:ignore="ContentDescription" />
+
+    <TextView
+        android:id="@+id/tvPendenza"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textSize="22sp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="@id/icon_pendenza"
+        app:layout_constraintEnd_toStartOf="@id/guideline_col2_end"
+        app:layout_constraintStart_toEndOf="@id/icon_pendenza"
+        app:layout_constraintTop_toTopOf="@id/icon_pendenza"
+        tools:text="-4 %" />
+
+    <TextView
+        android:id="@+id/tvCalcQuota"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:gravity="right"
+        android:text="BARO"
+        android:textSize="16sp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="@id/icon_pendenza"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@id/guideline_col2_end"
+        app:layout_constraintTop_toTopOf="@id/icon_pendenza"
+        tools:text="GPS" />
+
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/barrier_row3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:barrierDirection="bottom"
+        app:constraint_referenced_ids="tvTempo, tvPendenza, tvCalcQuota" />
+
+    <!-- RIGA 4: Tempo Movimento, Allarme -->
+    <ImageView
+        android:id="@+id/icon_tempo_mov"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/imageView5"
-        app:srcCompat="@drawable/ic_time" />
+        app:layout_constraintTop_toBottomOf="@id/barrier_row3"
+        app:srcCompat="@drawable/ic_time"
+        tools:ignore="ContentDescription" />
+
+    <TextView
+        android:id="@+id/tvTempoMov"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textSize="22sp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="@id/icon_tempo_mov"
+        app:layout_constraintEnd_toStartOf="@id/btnAllarme"
+        app:layout_constraintStart_toEndOf="@id/icon_tempo_mov"
+        app:layout_constraintTop_toTopOf="@id/icon_tempo_mov"
+        tools:text="00:00:00" />
 
     <Button
         android:id="@+id/btnAllarme"
         android:layout_width="wrap_content"
         android:layout_height="40dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginBottom="4dp"
-        android:backgroundTint="@color/red"
         android:text="Allarme on"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:backgroundTint="@color/red"
+        app:layout_constraintBottom_toBottomOf="@id/icon_tempo_mov"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/imageView3"
-        app:layout_constraintVertical_bias="0.0" />
-
-    <TextView
-        android:id="@+id/tvTempoMov"
-        android:layout_width="149dp"
-        android:layout_height="38dp"
-        android:layout_marginStart="12dp"
-        android:text="0"
-        android:textSize="28sp"
-        app:layout_constraintStart_toEndOf="@id/imageView4"
-        app:layout_constraintTop_toTopOf="@id/imageView4" />
-
-    <TextView
-        android:id="@+id/tvPendenza"
-        android:layout_width="82dp"
-        android:layout_height="37dp"
-        android:layout_marginStart="168dp"
-        android:text="0"
-        android:textSize="28sp"
-        app:layout_constraintStart_toEndOf="@id/imageView4"
-        app:layout_constraintTop_toTopOf="@id/imageView4" />
-
-    <TextView
-        android:id="@+id/tvCalcQuota"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="128dp"
-        android:layout_marginTop="16dp"
-        android:text="BARO"
-        android:textSize="16sp"
-        app:layout_constraintStart_toEndOf="@+id/tvTempoMov"
-        app:layout_constraintTop_toTopOf="@+id/imageView4" />
+        app:layout_constraintTop_toTopOf="@id/icon_tempo_mov" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

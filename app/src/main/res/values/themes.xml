@@ -17,24 +17,26 @@
     </style>
 
     <!-- AlertDialog personalizzato per temi Chiaro e Scuro -->
+    <!-- res/values/themes.xml -->
     <style name="AlertDialogCustom" parent="Theme.Material3.DayNight.Dialog.Alert">
-        <!-- Colore del testo del titolo -->
-        <item name="android:windowTitleStyle">@style/AlertDialogTitleStyle</item>
-        <!-- Colore del testo del messaggio -->
-        <item name="android:textColor">?android:attr/textColorPrimary</item>
-        <!-- Colore di sfondo del dialogo -->
-        <item name="android:background">?attr/colorSurface</item>
+        <item name="android:windowTitleStyle">@style/AlertDialogTitleStyle</item><item name="android:textColor">?android:attr/textColorPrimary</item>
 
-        <!-- Stile per i pulsanti -->
-        <item name="buttonBarPositiveButtonStyle">@style/AlertDialogButtonStyle</item>
+        <!-- Rimuoviamo l'override del background per lasciare che Material 3 lo gestisca con i bordi arrotondati corretti -->
+
+        <!-- Stile pulsanti: usiamo stili Material 3 specifici -->
+        <item name="buttonBarPositiveButtonStyle">@style/AlertDialogButtonStyle.Positive</item>
         <item name="buttonBarNegativeButtonStyle">@style/AlertDialogButtonStyle</item>
-        <item name="buttonBarNeutralButtonStyle">@style/AlertDialogButtonStyle</item>
     </style>
 
-    <!-- Stile per i pulsanti del dialogo -->
     <style name="AlertDialogButtonStyle" parent="Widget.Material3.Button.TextButton.Dialog">
-        <!-- Usa il colore primario del tema, che si adatta a chiaro/scuro -->
         <item name="android:textColor">?attr/colorPrimary</item>
+        <item name="android:textStyle">bold</item> <!-- Testo in grassetto per visibilità -->
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <!-- Opzionale: per il pulsante di conferma/eliminazione usiamo un colore di contrasto (es. Rosso/Error) -->
+    <style name="AlertDialogButtonStyle.Positive" parent="AlertDialogButtonStyle">
+        <item name="android:textColor">?attr/colorError</item> <!-- Rosso per l'azione di eliminazione -->
     </style>
 
     <!-- Stile per il titolo del dialogo (opzionale, per coerenza) -->

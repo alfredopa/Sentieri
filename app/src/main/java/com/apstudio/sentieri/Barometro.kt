@@ -20,8 +20,12 @@ import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.ViewModelProvider
 import com.apstudio.sentieri.databinding.FragmentBarometroBinding
+import com.apstudio.sentieri.db.SentieriDB
+import com.apstudio.sentieri.db.SentieriRepo
+import kotlin.getValue
 import kotlin.math.pow
 
 // TODO: Rename parameter arguments, choose names that match
@@ -38,7 +42,20 @@ class Barometro : Fragment() , SensorEventListener {
     // TODO: Rename and change types of parameters
     private var param1: String? = null
     private var param2: String? = null
-    private lateinit var viewModel: SentieriViewModel
+    private val viewModel: SentieriViewModel by activityViewModels {
+        val application = requireActivity().application
+        // 1. Ottieni una singola istanza del database
+        val database = SentieriDB.getInstance(application)
+        // 2. Crea il repository passando TUTTI i DAO richiesti
+        val repository = SentieriRepo(
+            sentieriDao = database.sentieriDao(),
+            trackDao = database.trackDao(),
+            poiDao = database.poiDao(),
+            fotoPoiDao = database.fotoPoiDao()
+        )
+        // 3. Crea la factory con il repository e l'applicazione
+        SentieriFactory(repository, application)
+    }
 
     private lateinit var binding: FragmentBarometroBinding
     private lateinit var sensorManager: SensorManager
@@ -55,7 +72,6 @@ class Barometro : Fragment() , SensorEventListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri)[SentieriViewModel::class.java]
         arguments?.let {
             param1 = it.getString(ARG_PARAM1)
             param2 = it.getString(ARG_PARAM2)

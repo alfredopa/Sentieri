@@ -1,6 +1,7 @@
 package com.apstudio.sentieri
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -9,18 +10,32 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.ViewModelProvider
+import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.db.OnLayerClickListener
+import com.apstudio.sentieri.db.SentieriDB
+import com.apstudio.sentieri.db.SentieriRepo
 import org.osmdroid.views.overlay.Polyline
+import org.osmdroid.views.overlay.milestones.MilestoneManager
 
 // visualizza le tracce caricate nella mappa
 class LayerDialog : Fragment() {
-    private lateinit var viewModel: SentieriViewModel
-
-
+    private val viewModel: SentieriViewModel by activityViewModels {
+        val application = requireActivity().application
+        // 1. Ottieni una singola istanza del database
+        val database = SentieriDB.getInstance(application)
+        // 2. Crea il repository passando TUTTI i DAO richiesti
+        val repository = SentieriRepo(
+            sentieriDao = database.sentieriDao(),
+            trackDao = database.trackDao(),
+            poiDao = database.poiDao(),
+            fotoPoiDao = database.fotoPoiDao()
+        )
+        // 3. Crea la factory con il repository e l'applicazione
+        SentieriFactory(repository, application)
+    }
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -32,7 +47,6 @@ class LayerDialog : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri)[SentieriViewModel::class.java]
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -49,6 +63,7 @@ class LayerDialog : Fragment() {
                     if (it is Polyline && it.title == viewModel.layerItems[position].nome) {
                         it.isEnabled = !it.isEnabled
                         // attenzione il valore di isEnabled è appena cambiato
+                        Log.d("LayerDialog", "swcVisibileClick isEnabled: ${it.isEnabled}")
                         viewModel.listaTracce.items[position].isEnabled = it.isEnabled
                     }
                 }
@@ -62,7 +77,13 @@ class LayerDialog : Fragment() {
                 viewModel.listaTracce.items.forEach {
                     if (it is Polyline && it.title == viewModel.layerItems[position].nome) {
                         //assegna il valore della direzione alla traccia direttamente
-                        it.usePath(swcDirezione)
+                        if (swcDirezione) {
+                            MapUtils.applicaFrecceDirezione(it)
+                            Log.d("LayerDialog", "swcDirezioneClick applica freccia direzione")
+                        } else {
+                            val listaNumeri: MutableList<MilestoneManager> = mutableListOf()
+                            it.setMilestoneManagers(listaNumeri)
+                        }
                     }
                 }
             }

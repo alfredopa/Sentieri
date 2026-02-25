@@ -1,11 +1,9 @@
 package com.apstudio.sentieri
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.ContentValues
-import android.content.Context
 import android.graphics.Color
 import android.icu.text.DecimalFormat
-import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
@@ -17,27 +15,30 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.Switch
-import android.widget.Toast
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat
-import com.google.android.material.snackbar.Snackbar
 import androidx.core.net.toUri
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
-import androidx.appcompat.widget.SwitchCompat
 import com.apstudio.sentieri.MapUtils.alertVerificaSegui
+import com.apstudio.sentieri.MapUtils.apreMappa
+import com.apstudio.sentieri.MapUtils.online
 import com.apstudio.sentieri.databinding.FragmentSchedaBinding
 import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.PoiDB
+import com.apstudio.sentieri.db.Sentieri
+import com.apstudio.sentieri.db.SentieriDB
+import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.prnDiscesa
 import com.apstudio.sentieri.db.prnDislivello
+import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -47,23 +48,11 @@ import net.federicomatera.agpxp.models.GpxMetadata
 import net.federicomatera.agpxp.models.Link
 import net.federicomatera.agpxp.models.Track
 import net.federicomatera.agpxp.models.WayPoint
-import org.mapsforge.map.rendertheme.ExternalRenderTheme
-import org.mapsforge.map.rendertheme.XmlRenderTheme
-import org.osmdroid.mapsforge.MapsForgeTileProvider
-import org.osmdroid.mapsforge.MapsForgeTileSource
-import org.osmdroid.tileprovider.MapTileProviderBasic
-import org.osmdroid.tileprovider.modules.ArchiveFileFactory
-import org.osmdroid.tileprovider.modules.OfflineTileProvider
-import org.osmdroid.tileprovider.tilesource.MapBoxTileSource
-import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
-import java.io.File
 import java.util.Date
 
 // Fragment che visualizza il dettaglio della traccia selezionata dall'elenco delle tracce
@@ -71,19 +60,26 @@ import java.util.Date
 class SchedaFragment : Fragment(), MenuProvider {
 
     private val args: SchedaFragmentArgs by navArgs()
-    private lateinit var viewModel: SentieriViewModel
-
+    private val viewModel: SentieriViewModel by activityViewModels {
+        val application = requireActivity().application
+        // 1. Ottieni una singola istanza del database
+        val database = SentieriDB.getInstance(application)
+        // 2. Crea il repository passando TUTTI i DAO richiesti
+        val repository = SentieriRepo(
+            sentieriDao = database.sentieriDao(),
+            trackDao = database.trackDao(),
+            poiDao = database.poiDao(),
+            fotoPoiDao = database.fotoPoiDao()
+        )
+        // 3. Crea la factory con il repository e l'applicazione
+        SentieriFactory(repository, application)
+    }
     private lateinit var binding: FragmentSchedaBinding
     private lateinit var mapView: MapView
     private var mapController: MapController? = null
     private val poiDBList = mutableListOf<PoiDB>()
     private lateinit var percorso: Polyline
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(requireActivity().applicationContext as AppSentieri)[SentieriViewModel::class.java]
-        setHasOptionsMenu(true) // Abilita le icone nel menu
-    }
+    private var puntiOriginali: List<GeoPoint> = emptyList()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -104,7 +100,7 @@ class SchedaFragment : Fragment(), MenuProvider {
                 val scriviGpx = GpxWriter()
                 val alink = Link("", "")
                 val time = Date()
-                val points = percorso.points
+                val points = percorso.actualPoints
                 val trackPoints = mutableListOf<WayPoint>()
                 val poiGpx = mutableListOf<WayPoint>()
                 var puntoGps: WayPoint
@@ -178,24 +174,17 @@ class SchedaFragment : Fragment(), MenuProvider {
                 }
                 snackbar.show()
             }
+
             R.id.eliminaSentiero -> {
-                // chiede conferma cancellazione
-                val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
-                with(builder)
-                {   // chiede salvataggio traccia
-                    setTitle("Eliminazione percorso")
-                    setMessage("Sei sicuro di voler eliminare il percorso?")
-                    setPositiveButton(
-                        "Confermo"
-                    ) { _, _ ->
-                        // elimina sentiero con transazione?
+                MaterialAlertDialogBuilder(requireContext(), R.style.AlertDialogCustom)
+                    .setTitle("Eliminazione percorso")
+                    .setMessage("Sei sicuro di voler eliminare il percorso?")
+                    .setPositiveButton("Confermo") { _, _ ->
                         viewModel.cancellaSentiero(args.idSentiero)
+                        findNavController().popBackStack()
                     }
-                    setNegativeButton(android.R.string.cancel) { _, _ ->}
-                    setCancelable(false) // Impedisce la chiusura tramite tocco esterno o tasto Indietro
-                    show()
-                }
-                requireActivity().onBackPressedDispatcher.onBackPressed()
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
             }
         }
         return false
@@ -204,29 +193,140 @@ class SchedaFragment : Fragment(), MenuProvider {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
-        val idSentiero: Int = args.idSentiero
-        val swcSegui: Switch = binding.swtchSegui
+        viewModel.puntiDaSeguire.clear()
 
-        viewModel.trovaSentiero(idSentiero).observe(this.viewLifecycleOwner) {
-            binding.txNome.text = it.nome
-            binding.txDistanza.text = MapUtils.formattastring(it.lunghezza.toInt())
-            //binding.txDistanza.text = it.prnLunghezza()
-            binding.txDislivello.text = it.prnDislivello()
-            binding.txDiscesa.text = it.prnDiscesa()
-            binding.tDataInizioText.text = MapUtils.prnDataFromUtc(it.DataOra)
-            binding.tDataFineText.text = MapUtils.prnDataFromUtc(it.DataFine)
-            binding.tvTempoTot.text = MapUtils.formatSeconds(it.TempoTot.toLong())
-            binding.tvTMov.text = MapUtils.formatSeconds(it.TempoInMov.toLong())
-            binding.HrMedText.text = it.HrMed.toString()
-            binding.HrMaxText.text = it.HrMax.toString()
-            binding.tVelMedText.text = DecimalFormat("##.#").format(it.MediaVel)
-            //binding.tMediaText.text = DecimalFormat("##.#").format(it.TempMedia)
-            //binding.tMaxText.text = DecimalFormat("##.#").format(it.TempMax)
-            //binding.tMinText.text = DecimalFormat("##.#").format(it.TempMin)
-            // valorizza le variabili che serviranno se viene caricato il percorso
-            viewModel.trackDistanza = it.lunghezza.toFloat()
-            viewModel.trackAscesa = it.dislivello
-            viewModel.trackDiscesa = it.discesa
+        val idSentiero: Int = args.idSentiero
+        mapView = binding.Mapview
+        mapController = MapController(mapView)
+        setupMappaIniziale()
+        // configurazione eventi switch e pulsanti
+        val swcSegui: MaterialSwitch = binding.swtchSegui
+        // switch per visualizzazione percorso con quota o pendenza
+        binding.swtchFrecce.isChecked = viewModel.mostraPendenza
+        binding.swtchFrecce.setOnCheckedChangeListener { _, isChecked ->
+            viewModel.mostraPendenza = isChecked
+            //Log.d("SchedaFragment", "checked aggiornaMappaPercorso")
+            aggiornaMappaPercorso()
+        }
+
+        val btnSegui: Button = binding.btnSegui
+        btnSegui.setOnClickListener {
+            // scrive i punti su polilinea d'appoggio in viewmodel
+            viewModel.puntiDaSeguire = puntiOriginali.toMutableList()
+            viewModel.titoloTracciaDaSeguire = binding.txNome.text.toString()
+            viewModel.mostraPendenza = binding.swtchFrecce.isChecked
+            
+            // Se NON è attiva la pendenza, azzeriamo la lista colori affinché la MappaFragment usi l'altitudine
+            if (!viewModel.mostraPendenza) {
+                viewModel.coloriPuntiDaSeguire = null
+            }
+            // NOTA: Se mostraPendenza è true, coloriPuntiDaSeguire è già stato correttamente 
+            // popolato con le PENDENZE dalla funzione aggiornaMappaPercorso().
+
+            // carica i waypoint nella viewmodel da visualizzare sulla mappa
+            poiDBList.forEach {
+                viewModel.wayPoint.add(
+                    WayPoint(
+                        latitude = it.Latit,
+                        longitude = it.Longit,
+                        elevation = it.Ele,
+                        name = it.NomePOI,
+                        description = it.DescrPOI,
+                        src = it.UriPath
+                    )
+                )
+            }
+            // necessario un thread per la lettura dal db delle foto della traccia
+            MainScope().launch(Dispatchers.IO) {
+                // aggiunge elenco foto traccia
+                viewModel.listaFotoId(idSentiero).forEach {
+                    viewModel.fotoList.add(
+                        it.uriPath.toUri()
+                    )
+                }
+            }
+            // verifica se traccia da seguire e se esiste già una traccia da seguire
+            if (swcSegui.isChecked) {
+                if (viewModel.tracciaDaSeguire != "") {
+                    alertVerificaSegui(requireContext()) { segui ->
+                        if (segui) {
+                            // resetta tracce con flag segui true
+                            viewModel.layerItems.forEach {
+                                it.segui = false
+                            }
+                            // aggiunge traccia con flag segui true alla lista layerItems e imposta alert
+                            viewModel.layerItems.add(
+                                LayerItem(
+                                    viewModel.titoloTracciaDaSeguire,
+                                    true,
+                                    direzione = false,
+                                    segui = true,
+                                    distanza = viewModel.trackDistanza,
+                                    ascesa = viewModel.trackAscesa,
+                                    discesa = viewModel.trackDiscesa
+                                )
+                            )
+                            viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
+                            viewModel.alertFuoriTraccia = true
+                            // L'utente ha premuto "Segui"
+                            // Esegui le azioni per seguire la traccia
+                        } else {
+                            // aggiunge traccia con flag segui false alla lista layerItems
+                            viewModel.layerItems.add(
+                                LayerItem(
+                                    viewModel.titoloTracciaDaSeguire,
+                                    true,
+                                    direzione = false,
+                                    segui = false,
+                                    distanza = viewModel.trackDistanza,
+                                    ascesa = viewModel.trackAscesa,
+                                    discesa = viewModel.trackDiscesa
+                                )
+                            )
+                            // L'utente ha premuto "Annulla"
+                            // Esegui le azioni per annullare l'operazione
+                        }
+                    }
+                } else {
+                    viewModel.layerItems.add(
+                        LayerItem(
+                            viewModel.titoloTracciaDaSeguire,
+                            true,
+                            direzione = false,
+                            segui = true,
+                            distanza = viewModel.trackDistanza,
+                            ascesa = viewModel.trackAscesa,
+                            discesa = viewModel.trackDiscesa
+                        )
+                    )
+                    viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
+                    viewModel.alertFuoriTraccia = true
+                }
+            } else
+                viewModel.layerItems.add(
+                    LayerItem(
+                        viewModel.titoloTracciaDaSeguire,
+                        true,
+                        direzione = false,
+                        segui = false,
+                        distanza = viewModel.trackDistanza,
+                        ascesa = viewModel.trackAscesa,
+                        discesa = viewModel.trackDiscesa
+                    )
+                )
+
+            findNavController().navigate(R.id.action_schedaFragment_to_mappaFragment)
+        }
+
+        val btnAltimetria: Button = binding.btnAltimetria
+        btnAltimetria.setOnClickListener {
+            val directions =
+                SchedaFragmentDirections.actionSchedaFragmentToAltGrafFragment(idSentiero)
+            findNavController().navigate(directions)
+        }
+
+        viewModel.trovaSentiero(idSentiero).observe(this.viewLifecycleOwner) { sentiero ->
+            sentiero?.let { aggiornaTestiScheda(it) }
         }
 
         // carica punti percorso ed eventuali waypoint
@@ -236,248 +336,96 @@ class SchedaFragment : Fragment(), MenuProvider {
             val percorsoCaricato = viewModel.leggiTrack(idSentiero, poiDBList)
             // Usiamo una nuova variabile locale per chiarezza e sicurezza.
             percorso = percorsoCaricato
-            mapView = binding.Mapview
-            mapController = MapController(mapView)
-            // DA VERIFICARE cartella Mappa usa quella di default Osmdroid
-            if (viewModel.menuMap ==0 )
-                apreMappa(viewModel.uriMappa)
-            else
-                online(viewModel.menuMap)
-            mapView.setMultiTouchControls(true)
-            mapView.minZoomLevel = 9.0
-            mapView.maxZoomLevel = 19.0
-            mapController!!.setZoom(19.0)
-            mapView.overlays.clear()
-            if (percorso.actualPoints.isNotEmpty()) {
-                // aggiunge marker inizio e fine percorso
-                val startMarker = Marker(mapView)
-                startMarker.icon = requireContext().let {
-                    AppCompatResources.getDrawable(
-                        it,
-                        R.drawable.ic_start
-                    )
-                }
-                startMarker.title = "Inizio"
-                var punto: GeoPoint = percorso.actualPoints[0]
-                startMarker.position = punto
-                mapView.overlays?.add(startMarker)
-                val endMarker = Marker(mapView)
-                endMarker.icon = requireContext().let {
-                    AppCompatResources.getDrawable(
-                        it,
-                        R.drawable.ic_finish
-                    )
-                }
-                punto = percorso.actualPoints[percorso.actualPoints.size - 1]
-                endMarker.position = punto
-                endMarker.title = "Fine"
-                mapView.overlays?.add(endMarker)
-                mapView.overlays.add(percorso)
-            }
+            puntiOriginali = percorsoCaricato.actualPoints.map { GeoPoint(it.latitude, it.longitude, it.altitude) }
 
             percorso.bounds?.let { bounds ->
                     mapView.zoomToBoundingBox(bounds.increaseByScale(1.2f), false)
             }
-
-            // switch per visualizzazione percorso con frecce direzionali
-            val swtchFrecce = binding.swtchFrecce
-            swtchFrecce.setOnClickListener {
-                if (swtchFrecce.isChecked)
-                    percorso.usePath(true)
-                else
-                    percorso.usePath(false)
-                mapView.invalidate()
-            }
-
-            val btnSegui: Button = binding.btnSegui
-            btnSegui.setOnClickListener {
-                // scrive i punti su polilinea d'appoggio in viewmodel
-                viewModel.line.title = binding.txNome.text.toString()
-                viewModel.line.setPoints(percorso.actualPoints)
-                // carica i waypoint nella viewmodel da visualizzare sulla mappa
-                poiDBList.forEach {
-                    viewModel.wayPoint.add(
-                        WayPoint(
-                            latitude = it.Latit,
-                            longitude = it.Longit,
-                            elevation = it.Ele,
-                            name = it.NomePOI,
-                            description = it.DescrPOI,
-                            src = it.UriPath
-                        )
-                    )
-                }
-                // necessario un thread per la lettura dal db delle foto della traccia
-                MainScope().launch(Dispatchers.IO) {
-                    // aggiunge elenco foto traccia
-                    viewModel.listaFotoId(idSentiero).forEach {
-                        viewModel.fotoList.add(
-                            it.uriPath.toUri()
-                        )
-                    }
-                }
-                // verifica se traccia da seguire e se esiste già una traccia da seguire
-                if (swcSegui.isChecked) {
-                    if (viewModel.tracciaDaSeguire != "") {
-                        alertVerificaSegui(requireContext()) { segui ->
-                            if (segui) {
-                                // resetta tracce con flag segui true
-                                viewModel.layerItems.forEach {
-                                    it.segui = false
-                                }
-                                // aggiunge traccia con flag segui true alla lista layerItems e imposta alert
-                                viewModel.layerItems.add(
-                                    LayerItem(
-                                        viewModel.line.title,
-                                        viewModel.line.isEnabled,
-                                        direzione = false,
-                                        segui = true,
-                                        distanza = viewModel.trackDistanza,
-                                        ascesa = viewModel.trackAscesa,
-                                        discesa = viewModel.trackDiscesa
-                                    )
-                                )
-                                viewModel.tracciaDaSeguire = viewModel.line.title
-                                viewModel.alertFuoriTraccia = true
-                                // L'utente ha premuto "Segui"
-                                // Esegui le azioni per seguire la traccia
-                            } else {
-                                // aggiunge traccia con flag segui false alla lista layerItems
-                                viewModel.layerItems.add(
-                                    LayerItem(
-                                        viewModel.line.title,
-                                        viewModel.line.isEnabled,
-                                        direzione = false,
-                                        segui = false,
-                                        distanza = viewModel.trackDistanza,
-                                        ascesa = viewModel.trackAscesa,
-                                        discesa = viewModel.trackDiscesa
-                                    )
-                                )
-                                // L'utente ha premuto "Annulla"
-                                // Esegui le azioni per annullare l'operazione
-                            }
-                        }
-                    } else {
-                        viewModel.layerItems.add(
-                            LayerItem(
-                                viewModel.line.title,
-                                viewModel.line.isEnabled,
-                                direzione = false,
-                                segui = true,
-                                distanza = viewModel.trackDistanza,
-                                ascesa = viewModel.trackAscesa,
-                                discesa = viewModel.trackDiscesa
-                            )
-                        )
-                        viewModel.tracciaDaSeguire = viewModel.line.title
-                        viewModel.alertFuoriTraccia = true
-                    }
-                } else
-                    viewModel.layerItems.add(
-                        LayerItem(
-                            viewModel.line.title, viewModel.line.isEnabled,
-                            direzione = false,
-                            segui = false,
-                            distanza = viewModel.trackDistanza,
-                            ascesa = viewModel.trackAscesa,
-                            discesa = viewModel.trackDiscesa
-                        )
-                    )
-
-                findNavController().navigate(R.id.action_schedaFragment_to_mappaFragment)
-            }
-
-            val btnAltimetria: Button = binding.btnAltimetria
-            btnAltimetria.setOnClickListener {
-                val directions =
-                    SchedaFragmentDirections.actionSchedaFragmentToAltGrafFragment(idSentiero)
-                findNavController().navigate(directions)
-            }
+            aggiornaMappaPercorso()
+            //Log.d("SchedaFragment", "chiamato aggiornaMappaPercorso, ${percorso.actualPoints.size}")
         }
     }
 
-    // apertura mappa offline locale da Uri
-    private fun apreMappa(uri: Uri) {
-        val uriPathHelper = URIPathHelper()
-        val filePath = uriPathHelper.getPath(requireContext(), uri)
-        val maps: Array<File?> = arrayOfNulls(1)
-        val f = File(filePath!!)
-        if (f.exists()) {
-            maps[0] = f
-        }
+    private fun aggiornaTestiScheda(sentiero: Sentieri) {
+        binding.txNome.text = sentiero.nome
+        binding.txDistanza.text = MapUtils.formattastring(sentiero.lunghezza.toInt())
+        //binding.txDistanza.text = it.prnLunghezza()
+        binding.txDislivello.text = sentiero.prnDislivello()
+        binding.txDiscesa.text = sentiero.prnDiscesa()
+        binding.tDataInizioText.text = MapUtils.prnDataFromUtc(sentiero.DataOra)
+        binding.tDataFineText.text = MapUtils.prnDataFromUtc(sentiero.DataFine)
+        binding.tvTempoTot.text = MapUtils.formatSeconds(sentiero.TempoTot.toLong())
+        binding.tvTMov.text = MapUtils.formatSeconds(sentiero.TempoInMov.toLong())
+        binding.HrMedText.text = sentiero.HrMed.toString()
+        binding.HrMaxText.text = sentiero.HrMax.toString()
+        binding.tVelMedText.text = DecimalFormat("##.#").format(sentiero.MediaVel)
+        //binding.tMediaText.text = DecimalFormat("##.#").format(it.TempMedia)
+        //binding.tMaxText.text = DecimalFormat("##.#").format(it.TempMax)
+        //binding.tMinText.text = DecimalFormat("##.#").format(it.TempMin)
+        // valorizza le variabili che serviranno se viene caricato il percorso
+        viewModel.trackDistanza = sentiero.lunghezza.toFloat()
+        viewModel.trackAscesa = sentiero.dislivello
+        viewModel.trackDiscesa = sentiero.discesa
+    }
 
-// estensioni registrate: zip, gemf, sqlite, mbtiles e map
-        val extension = f.extension
-        if (!ArchiveFileFactory.isFileExtensionRegistered(extension) && extension != "map") {
-            val context: Context = requireActivity().application
-            Toast.makeText(
-                context,
-                "Il file selezionato non contiene dati mappa",
-                Toast.LENGTH_LONG
-            ).show()
-            return
-        }
-// Mappe MapsForge estensione .map il path del rendertheme è hard coded, da cambiare
-        val forgeMappa: MapsForgeTileProvider
-        val offlineMappa: OfflineTileProvider
-        var theme: XmlRenderTheme?  = null
-        if (f.name.contains(".map")) {
-            val documentsDir =
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS).absolutePath
-            val folderTema = File("$documentsDir/Sentieri/Mappe/4UMaps/4UMaps.xml")
-            if (folderTema.exists()) {
-                theme = ExternalRenderTheme("$documentsDir/Sentieri/Mappe/4UMaps/4UMaps.xml")
+    private fun setupMappaIniziale() {
+        if (viewModel.menuMap == 0)
+            apreMappa(requireContext(), mapView, viewModel, viewModel.uriMappa)
+        else
+            online(requireContext(), mapView, viewModel,viewModel.menuMap)
+        mapView.setMultiTouchControls(true)
+        mapView.minZoomLevel = 9.0
+        mapView.maxZoomLevel = 19.0
+        mapController?.setZoom(19.0)
+    }
+
+    private fun aggiornaMappaPercorso() {
+        if (!::percorso.isInitialized || puntiOriginali.isEmpty()) return
+        // 1. Pulizia Overlay Mappa
+        mapView.overlays.clear()
+        // 2. Pulizia TOTALE della Polyline
+        percorso.outlinePaintLists.clear() // Rimuove tutti i colori precedenti
+        percorso.setMilestoneManagers(ArrayList()) // Rimuove le frecce (se presenti)
+        viewModel.coloriPuntiDaSeguire = null
+        // Disegna bordo per tutti i punti percorso
+        MapUtils.disegnaLineaSfondo(percorso)
+        mapView.overlays.add(percorso)
+        if (viewModel.mostraPendenza) {
+            val pendenze = MapUtils.calcolaPendenzeSmussate(percorso, 8)
+
+            val percorsoFrecce = Polyline(mapView).apply {
+                setPoints(percorso.actualPoints)
+                isVisible = true
             }
-            val fromFiles = MapsForgeTileSource.createFromFiles(maps, theme, null)
-            forgeMappa = MapsForgeTileProvider(
-                SimpleRegisterReceiver(activity),
-                fromFiles, null
-            )
-            mapView.tileProvider = forgeMappa
+            // SALVA LE PENDENZE NEL VIEWMODEL
+            viewModel.coloriPuntiDaSeguire = pendenze.toMutableList()
+            MapUtils.disegnaPercorsoColorato(percorsoFrecce, pendenze)
+            mapView.overlays.add(percorsoFrecce)
         } else {
-            offlineMappa = OfflineTileProvider(
-                SimpleRegisterReceiver(
-                    requireContext()
-                ), maps
-            )
-            mapView.tileProvider = offlineMappa
-            val archives = offlineMappa.archives
-// importante setIgnoreTileSource consente apertura rapida della mappa evitando il controllo del tipo di sorgente presente nel file tiles
-            archives[0].setIgnoreTileSource(true)
+            // USA LA NUOVA FUNZIONE UNIFICATA (senza secondo parametro per l'altitudine)
+            MapUtils.disegnaPercorsoColorato(percorso)
+            mapView.overlays.add(percorso)
+            viewModel.coloriPuntiDaSeguire = null
         }
-
-        mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
-        viewModel.connessione = false
-        mapView.setUseDataConnection(false)
+        // 3. Riaggiungi i Marker (altrimenti spariscono col clear)
+        aggiungiMarkerInizioFine()
         mapView.invalidate()
     }
 
-    private fun online(mappa: Int) {
-        var scarica: MapTileProviderBasic? = null
-        viewModel.connessione = true
-        // salvo indice menu selezionato
-        viewModel.menuMap = mappa
-        mapView.setUseDataConnection(true)
-        when (mappa) {
-            1 -> scarica = MapTileProviderBasic(context, TileSourceFactory.MAPNIK)  // OpenStreetmap
-            2 -> scarica = MapTileProviderBasic(context, TileSourceFactory.OpenTopo) // OpenTopo
-            3 -> scarica = MappaMapBox() // MapBox
-        }
-        mapView.tileProvider = scarica
-        mapView.invalidate()
-    }
-
-    private fun MappaMapBox(): MapTileProviderBasic {
-        val MAPBOXSATELLITELABELLED: OnlineTileSourceBase =
-            MapBoxTileSource("MapBox", 1, 19, 256, ".png")
-        (MAPBOXSATELLITELABELLED as MapBoxTileSource).retrieveAccessToken(requireContext())
-        MAPBOXSATELLITELABELLED.setMapboxMapid("mapbox.satellite")
-        MAPBOXSATELLITELABELLED.accessToken =
-            "pk.eyJ1IjoiYWxmcmVkb3BhIiwiYSI6ImNtMDBzMmQ3ODBoMWIya3NuejJ5NnNzMG0ifQ.kXnCG27oE6go9msYdp3pkA"
-        TileSourceFactory.addTileSource(MAPBOXSATELLITELABELLED)
-        val bitmapProvider = MapTileProviderBasic(requireContext(), MAPBOXSATELLITELABELLED)
-        return bitmapProvider
+    private fun aggiungiMarkerInizioFine() {
+        // aggiunge marker inizio e fine percorso
+        val startMarker = Marker(mapView)
+        context?.let { startMarker.icon = AppCompatResources.getDrawable(it, R.drawable.ic_start) }
+        startMarker.title = "Inizio"
+        var punto = percorso.actualPoints[0]
+        startMarker.position = punto
+        mapView.overlays?.add(startMarker)
+        val endMarker = Marker(mapView)
+        context?.let { endMarker.icon = AppCompatResources.getDrawable(it, R.drawable.ic_finish) }
+        punto = percorso.actualPoints[percorso.actualPoints.size - 1]
+        endMarker.position = punto
+        endMarker.title = "Fine"
+        mapView.overlays?.add(endMarker)
     }
 
 }

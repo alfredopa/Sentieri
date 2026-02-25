@@ -20,15 +20,19 @@
         <ListPreference
             app:key="activity_type"
             app:title="Tipo di Attività"
-            app:summary="Scegli il tipo di attività predefinita"
+            app:summary="%s"
             app:entries="@array/activity_type_entries"
             app:entryValues="@array/activity_type_values"
-            app:defaultValue="Mountain Bike" />
+            app:defaultValue="mtb" />
         <com.apstudio.sentieri.ColorPickerPreference
             app:key="colore_traccia"
             app:title="Colore Traccia"
             app:summary="Seleziona il colore per la linea della traccia"
             app:defaultValue="@android:color/holo_red_dark" />
+        <Preference
+            app:key="download_ftp_button"
+            app:title="Scarica mappe dal server"
+            app:summary="Scarica o aggiorna il file mappa dal server" />
         <ListPreference
             app:key="seleziona_tema_mapsforge"
             app:title="Seleziona Tema Mappa Offline"

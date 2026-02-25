@@ -80,11 +80,9 @@ class LocationService : LifecycleService() {
 
     companion object {
         private const val LOCATION_SERVICE_CHANNEL = 1234 // canale delle notifiche
-        private var LOCATION_UPDATE_INTERVAL_MS = 2000L
-        private var MIN_DISTANCE_CHANGE_METERS = 3f
-        // per utilizzo trekking
-        //private const val LOCATION_UPDATE_INTERVAL_MS = 4000L
-        //private const val MIN_DISTANCE_CHANGE_METERS = 1f
+        private var LOCATION_UPDATE_INTERVAL_MS = 3000L
+        private var MIN_DISTANCE_CHANGE_METERS = 6f
+
         private const val MIN_ACCURACY_METERS = 40f
         private const val TAG = "LocationService"
     }
@@ -127,9 +125,7 @@ class LocationService : LifecycleService() {
 
             override fun onFirstFix(ttffMillis: Int) {
                 super.onFirstFix(ttffMillis)
-                Log.d("LocationService_Debug", "onFirstFix chiamato. Tento di aggiornare lo stato a 'fixed'")
-                Log.d("LocationService_Debug", "Valore ATTUALE di gpsStatus PRIMA dell'update: ${LocationRepository.gpsStatus.value}") // <-- NUOVO LOG
-                Log.d("LocationService_Thread", "onFirstFix eseguito su thread: ${Thread.currentThread().name}")
+                //Log.d("LocationService_Debug", "onFirstFix chiamato. Tento di aggiornare lo stato a 'fixed'")
                 LocationRepository.updateGpsStatus("fixed")
             }
 
@@ -150,11 +146,11 @@ class LocationService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         val activityType =
-            intent?.getStringExtra("ACTIVITY_TYPE") ?: "trekking" // Usa trekking se null
+            intent?.getStringExtra("ACTIVITY_TYPE") ?: "mtb" // Usa mountain_bike se null
         //Log.d(TAG, "Servizio avviato con tipo attività: $activityType")
 
         when (activityType) {
-            "mountain_bike" -> {
+            "mtb" -> {
                 LOCATION_UPDATE_INTERVAL_MS = 3000L // 4 secondi
                 MIN_DISTANCE_CHANGE_METERS = 6f// 6 metri
             }
@@ -175,24 +171,35 @@ class LocationService : LifecycleService() {
 
     private fun initializeLocationListener() {
         locationListener = LocationListener { newLocation ->
-            //Log.d(TAG, "LocationService: onLocationChanged: $newLocation, Accuracy = ${newLocation.accuracy}")
+            // 1. Filtro sull'accuratezza
             if (newLocation.accuracy > MIN_ACCURACY_METERS) {
                 Log.w(TAG, "LocationService: Accuratezza troppo bassa: ${newLocation.accuracy}. Location ignorata.")
                 return@LocationListener
             }
-            // UNICA FONTE DI AGGIORNAMENTO PER IL REPOSITORY
-            // Aggiorna la traccia
-            LocationRepository.addTrackPoint(newLocation)
-            // Aggiorna lo stato (necessario per ripristinare l'icona se il fragment viene ricreato)
-            LocationRepository.updateGpsStatus("fixed")
+            // 2. Filtro sulla velocità (per evitare il "GPS drift" da fermo)
+            // Se la velocità è zero (o quasi), significa che siamo fermi. Ignoriamo il punto.
+            if (newLocation.speed <= 0.1f) {
+                Log.d(TAG, "Velocità nulla (${newLocation.speed} m/s). Punto ignorato per evitare drift.")
+                // Opzionale ma consigliato: aggiorna comunque la velocità e pendenza a 0 nel repository,
+                // così l'UI mostra 0 km/h anche se non stiamo processando il punto.
+                LocationRepository.updateVelocita(0)
+                return@LocationListener // Scarta il punto
+            }
+            // Aggiorna lo stato del GPS (solo se non è già 'fixed')
+            if (LocationRepository.gpsStatus.value != "fixed") {
+                LocationRepository.updateGpsStatus("fixed")
+            }
             // Aggiorna la velocità come fallback, anche se NMEA è preferito
             val speedKmh = (newLocation.speed * 3.6).toInt()
             LocationRepository.updateVelocita(speedKmh)
             // AGGIORNA LA PRESSIONE SE DISPONIBILE
-            if (LocationRepository.usaBaro && baroRepo.baroData.isInitialized) {
-                val milliBar = baroRepo.baroData.value ?: 0.0F
-                LocationRepository.updateBaroPressure(milliBar)
+            if (LocationRepository.usaBaro) {
+                baroRepo.getLatestPressure()?.let { currentPressure ->
+                    LocationRepository.updateBaroPressure(currentPressure)
+                }
             }
+            // Aggiorna la traccia
+            LocationRepository.addTrackPoint(newLocation)
         }
     }
 
@@ -325,19 +332,19 @@ class LocationService : LifecycleService() {
         channel.setSound(null, null) // Considera se vuoi un suono o meno
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
+        val notifyIntent = Intent(this, MainActivity::class.java).apply {
+            // FLAG_ACTIVITY_SINGLE_TOP: se l'attività è già in esecuzione, non ne crea una nuova
+            // FLAG_ACTIVITY_CLEAR_TOP: pulisce eventuali altre attività sopra di essa
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
 
         // PendingIntent per navigare a MappaFragment
-        val pendingIntent = NavDeepLinkBuilder(applicationContext)
-            .setGraph(R.navigation.nav_graph)
-            .setDestination(R.id.mappaFragment)
-            .setComponentName(MainActivity::class.java)
-            // Aggiungi qui eventuali argomenti se MappaFragment ne richiede
-            // .setArguments(bundleOf("argomentoChiave" to valore))
-            .createTaskStackBuilder() // Cruciale per un corretto back stack
-            .getPendingIntent(
-                0, // requestCode
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            notifyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val notification = NotificationCompat.Builder(this, channelId)
             .setOngoing(true)

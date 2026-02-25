@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--  Definisce una cartella "shared_pdfs" nella cache della tua app  -->
+    <cache-path name="shared_pdfs" path="shared_pdfs/"/>
+</paths>

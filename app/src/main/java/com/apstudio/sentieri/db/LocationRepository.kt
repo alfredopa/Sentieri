@@ -75,6 +75,7 @@ object LocationRepository {
             _velocita.postValue(velocita)
         }
     }
+
     fun updateBaroPressure(pressure: Float) {
         if (_baroPressure.value != pressure) {
             _baroPressure.postValue(pressure)

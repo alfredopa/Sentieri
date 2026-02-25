@@ -22,6 +22,10 @@ class BaroRepo (context: Context) {
         sensorManager.unregisterListener(sensorEventListener)
     }
 
+    fun getLatestPressure(): Float? {
+        return if (baroData.isInitialized) baroData.value else null
+    }
+
     private val sensorEventListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent?) {
             if (event != null) {

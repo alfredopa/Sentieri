@@ -13,6 +13,8 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Paint
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import android.icu.text.SimpleDateFormat
 import android.location.LocationManager
 import android.media.MediaRecorder
@@ -49,13 +51,13 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
@@ -65,15 +67,16 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
 import androidx.preference.PreferenceManager
 import btools.routingapp.IBRouterService
+import com.apstudio.sentieri.MapUtils.apreMappa
 import com.apstudio.sentieri.MapUtils.convertMillisToISO8601JavaTime
 import com.apstudio.sentieri.MapUtils.dataOraIso8601
-import com.apstudio.sentieri.MapUtils.disegnaLine
+import com.apstudio.sentieri.MapUtils.disegnaLineaSfondo
+import com.apstudio.sentieri.MapUtils.disegnaPercorsoColorato
 import com.apstudio.sentieri.MapUtils.formatSeconds
 import com.apstudio.sentieri.MapUtils.getFileNameFromUri
+import com.apstudio.sentieri.MapUtils.online
 import com.apstudio.sentieri.MapUtils.showCustomSnackbar
 import com.apstudio.sentieri.databinding.FragmentMappaBinding
-import android.hardware.Sensor
-import android.hardware.SensorManager
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
 import com.apstudio.sentieri.db.LocationRepository
@@ -81,6 +84,7 @@ import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.PoiDao
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
+import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TrackDao
 import com.apstudio.sentieri.layer.FeatureTableInfo
 import com.apstudio.sentieri.layer.LayerViewModel
@@ -104,20 +108,8 @@ import net.federicomatera.agpxp.models.GpxMetadata
 import net.federicomatera.agpxp.models.Link
 import net.federicomatera.agpxp.models.Track
 import net.federicomatera.agpxp.models.WayPoint
-import org.mapsforge.map.rendertheme.ExternalRenderTheme
-import org.mapsforge.map.rendertheme.InternalRenderTheme
-import org.mapsforge.map.rendertheme.XmlRenderTheme
 import org.osmdroid.api.IGeoPoint
 import org.osmdroid.api.IMapController
-import org.osmdroid.mapsforge.MapsForgeTileProvider
-import org.osmdroid.mapsforge.MapsForgeTileSource
-import org.osmdroid.tileprovider.MapTileProviderBasic
-import org.osmdroid.tileprovider.modules.ArchiveFileFactory
-import org.osmdroid.tileprovider.modules.OfflineTileProvider
-import org.osmdroid.tileprovider.tilesource.MapBoxTileSource
-import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapController
@@ -165,7 +157,21 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val lineStrings: MutableList<LineStringFeature>?
     )
 
-    private lateinit var viewModel: SentieriViewModel
+    private val viewModel: SentieriViewModel by activityViewModels {
+        val application = requireActivity().application
+        // 1. Ottieni una singola istanza del database
+        val database = SentieriDB.getInstance(application)
+        // 2. Crea il repository passando TUTTI i DAO richiesti
+        val repository = SentieriRepo(
+            sentieriDao = database.sentieriDao(),
+            trackDao = database.trackDao(),
+            poiDao = database.poiDao(),
+            fotoPoiDao = database.fotoPoiDao()
+        )
+        // 3. Crea la factory con il repository e l'applicazione
+        SentieriFactory(repository, application)
+    }
+
     private val METERS_IN_A_KILOMETER = 1000.0 // Changed from Int to Double for precision
     private val SECONDS_IN_AN_HOUR = 3600.0 // Changed from Int to Double for precision
 
@@ -229,8 +235,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                // Logica che prima era in onActivityResult per SELECT_MAP_FILE
-                apreMappa(uri)
+                apreMappa(requireContext(), mapView, viewModel, uri)
             }
         }
     }
@@ -314,7 +319,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        try {
+        /*try {
             // Assicurati che AppSentieri sia il nome corretto della tua classe Application
             // e che il ViewModelProvider sia configurato correttamente.
             viewModel =
@@ -322,7 +327,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         } catch (e: Exception) {
             Log.e(TAG, "FATALE: Errore durante l'inizializzazione del ViewModel in onCreate!", e)
             // Considera di gestire questo errore in modo più drastico se l'app non può funzionare senza viewModel
-        }
+        }*/
         // Inizializza le preferenze e registra il listener
         preferenze = PreferenceManager.getDefaultSharedPreferences(requireContext())
         // Legge se esiste SENSORE BAROMETRO da Preferences
@@ -365,6 +370,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         TAG,
                         "Il layer ${featureInfo.name} è già caricato. Ri-aggiungo ${featureInfo.listOverlay!!.size} overlay alla mappa."
                     )
+                    featureInfo.listOverlay!!.forEach { overlay ->
+                        reattachListenersToOverlay(overlay)
+                    }
                     mapView.overlays.addAll(featureInfo.listOverlay!!)
                 }
             } else {
@@ -386,15 +394,31 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
 
             is SimpleFastPointOverlay -> {
-                // Per i punti veloci, il listener originale è sufficiente e non dipende
-                // da elementi esterni, quindi non facciamo nulla.
-                Log.d("ListenerDebug", "Preservo listener originale per SimpleFastPointOverlay")
+                //Log.d("ListenerDebug", "Ri-attacco OnPointClickListener per SimpleFastPointOverlay")
+                // Accediamo alle opzioni dell'overlay esistente
+                // Impostiamo un nuovo OnPointClickListener.
+                // Nota: l'overlay contiene già i punti (IGeoPoint), qui gestiamo solo il tocco.
+                overlay.setOnClickListener { points, point ->
+                    // Recuperiamo il punto cliccato
+                    val clickedPoint = points?.get(point!!)
+                    if (clickedPoint is LabelledGeoPoint) {
+                        // Se i punti hanno delle etichette (label), le mostriamo
+                        val label = clickedPoint.label
+                        if (!label.isNullOrEmpty()) {
+                            mostraAlertDialogSemplice(label)
+                        }
+                    } else if (clickedPoint is GeoPoint) {
+                        // Se non c'è una label, mostriamo almeno le coordinate o un messaggio generico
+                        Log.d(
+                            "ListenerDebug",
+                            "Punto cliccato: ${clickedPoint.latitude}, ${clickedPoint.longitude}"
+                        )
+                    }
+                }
             }
 
             is Polygon -> {
-                // ==> INIZIO MODIFICA <==
-                Log.d("ListenerDebug", "Ri-attacco Listener SEMPLICE per Poligono")
-
+                //Log.d("ListenerDebug", "Ri-attacco Listener SEMPLICE per Poligono")
                 // Anche qui, il listener si limita a mostrare la stringa pre-calcolata.
                 overlay.setOnClickListener { polygon, _, _ ->
                     (polygon.relatedObject as? String)?.let { label ->
@@ -402,19 +426,24 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     }
                     true // Evento gestito
                 }
-                // ==> FINE MODIFICA <==
             }
 
             is Polyline -> {
-                // La logica per le Polyline è CORRETTA e deve rimanere,
-                // perché l'InfoWindow dipende dall'istanza attuale della mapView.
-                Log.d("ListenerDebug", "Ri-attacco InfoWindow per Polyline")
-                overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
-                overlay.setOnClickListener { clickedPolyline, map, eventPosition ->
-                    clickedPolyline.infoWindowLocation = eventPosition
-                    clickedPolyline.showInfoWindow()
-                    map.controller.animateTo(eventPosition)
-                    true
+                //Log.d("ListenerDebug", "Ri-attacco InfoWindow per Polyline")
+                // Recuperiamo i dati e verifichiamo se è il layer CAI
+                val lineFeature = overlay.relatedObject as? LineStringFeature
+                val isCai = overlay.id?.contains("Sentieri CAI")
+                if (isCai == true) {
+                    WebsiteInfoWindow(lineFeature!!, mapView)
+                } else {
+                    overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
+                    overlay.setOnClickListener { clickedPolyline, map, eventPosition ->
+                        clickedPolyline.infoWindowLocation = eventPosition
+                        clickedPolyline.showInfoWindow()
+                        map.controller.animateTo(eventPosition)
+                        true
+                }
+
                 }
             }
         }
@@ -431,6 +460,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         isViewRecreated = true
+        //Log.d(TAG, "Ripristino degli overlay dal ViewModel sulla nuova MapView.")
+        // 1. Pulisci la mappa per sicurezza (anche se dovrebbe essere già vuota)
+        mapView.overlayManager.clear()
         view.isFocusableInTouchMode = true
         view.requestFocus()
         view.setOnKeyListener(this)// --- INIZIO NUOVA GESTIONE EVENTI ---
@@ -445,7 +477,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // 2. Osserva le richieste di navigazione (da FeatureList).
         layerModel.navigateToPointRequest.observe(viewLifecycleOwner, Observer { event ->
             event.getContentIfNotHandled()?.let { clickedPoint ->
-                Log.d(TAG, "Ricevuta richiesta di navigazione a: $clickedPoint")
+                //Log.d(TAG, "Ricevuta richiesta di navigazione a: $clickedPoint")
                 val animationDuration = 1000L
                 Toast.makeText(requireContext(), "Spostamento in corso...", Toast.LENGTH_SHORT)
                     .show()
@@ -489,6 +521,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             arguments?.clear()
         }
 
+
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
         bottomSheetBehavior.isHideable = true
         bottomSheetBehavior.skipCollapsed = false
@@ -498,38 +531,84 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
             }
         }
+        if (mapView.overlays.isEmpty()) {
+            //Log.d(TAG, "Aggiungo gli overlay alla mappa.")
+            mapView.overlays.add(viewModel.listaTracce)
+            mapView.overlays.add(viewModel.recTraccia)
+            mapView.overlays.add(viewModel.topoLayer)
+            for (overlay in viewModel.listaTracce.items) {
+                if (overlay is Polyline) {
+                    setPolylineClickListener(overlay)
+                }
+                if (overlay is Marker) {
+                    setMarkerClickListener(overlay)
+                }
+            }
+
+            // Aggiungi l'overlay della bussola solo se il dispositivo ha i sensori necessari.
+            if (hasCompass()) {
+                val compassOverlay =
+                    CompassOverlay(context, InternalCompassOrientationProvider(context), mapView)
+                compassOverlay.enableCompass()
+                compassOverlay.setCompassCenter(36f, 36f)
+                mapView.overlays.add(compassOverlay)
+            }
+            // Allinea la barra in basso al centro dello schermo.
+            val scaleBarOverlay = ScaleBarOverlay(mapView)
+            scaleBarOverlay.setAlignRight(true) // setAlignBottom(true)
+            //scaleBarOverlay.setCentred(true)
+            // Aggiungi la barra della scala alla lista degli overlay della mappa.
+            mapView.overlays.add(scaleBarOverlay)
+        }
+        // 2. Inizializza la Polyline di registrazione traccia, una sola volta.
+        currentTrackPolyline = Polyline() // Crea l'oggetto
+        currentTrackPolyline.outlinePaint.color = coloreTraccia // Imposta il colore iniziale
+        currentTrackPolyline.outlinePaint.strokeWidth = 10f
+        mapView.overlays.add(currentTrackPolyline) // Aggiungila subito agli overlay della mappa
+        // puntatore GPS
+        gpsMarker = Marker(mapView)
+        gpsMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+        gpsMarker.title = "Gps"
+        gpsMarker.icon = ResourcesCompat.getDrawable(
+            requireContext().resources,
+            R.drawable.punto_gps,
+            requireContext().theme
+        )
+        gpsMarker.setVisible(false)
+        mapView.overlays.add(gpsMarker)
 
         mapView.isFocusableInTouchMode = true
         mapView.requestFocus()
         mapView.setOnKeyListener(this)
         mapView.setDestroyMode(false)
 
-        if (preferenze.contains("MenuMap")) {
-            viewModel.menuMap = preferenze.getInt("MenuMap", 0)
-            if (viewModel.menuMap == 0) {
-                mapView.isTilesScaledToDpi = false
-                mapView.setUseDataConnection(false)
-                if (preferenze.contains("URIMappa")) {
-                    val uriMappa = preferenze.getString("URIMappa", "")!!.toUri()
-                    apreMappa(uriMappa)
-                    viewModel.uriMappa = uriMappa
-                    menu?.findItem(0)?.isChecked = true
-                } else {
-                    mapView.isTilesScaledToDpi = true
-                    mapView.setUseDataConnection(true)
-                    online(viewModel.menuMap)
-                }
-            } else {
-                mapView.isTilesScaledToDpi = true
-                mapView.setUseDataConnection(true)
-                online(viewModel.menuMap)
-            }
+// 1. Extract values with sensible defaults
+        val savedMenuMap = preferenze.getInt("MenuMap", 1)
+        val uriString = preferenze.getString("URIMappa", "") ?: ""
+        val uriMappa = uriString.toUri()
+
+// 2. Determine if we should actually use the offline map
+        val canLoadOfflineMap = savedMenuMap == 0 &&
+                uriString.isNotEmpty() &&
+                apreMappa(requireContext(), mapView, viewModel, uriMappa)
+
+// 3. Update ViewModel and State
+        if (canLoadOfflineMap) {
+            viewModel.menuMap = 0
+            viewModel.uriMappa = uriMappa
+            menu?.findItem(0)?.isChecked = true
         } else {
-            mapView.isTilesScaledToDpi = true
-            mapView.setUseDataConnection(true)
-            online(1)
-            viewModel.menuMap = 1
+            // Fallback to online mode
+            viewModel.menuMap = if (savedMenuMap == 0) 1 else savedMenuMap
+            online(requireContext(), mapView, viewModel, viewModel.menuMap)
         }
+
+// 4. Apply UI settings once based on the final state
+        mapView.apply {
+            isTilesScaledToDpi = !canLoadOfflineMap
+            setUseDataConnection(!canLoadOfflineMap)
+        }
+
 
         val coloreDefault = R.color.black
         coloreTraccia = if (preferenze.contains("colore_traccia")) {
@@ -540,44 +619,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
-
-        if (mapView.overlays.isEmpty()) {
-            mapView.overlayManager.add(viewModel.listaTracce)
-            mapView.overlayManager.add(viewModel.recTraccia)
-            mapView.overlayManager.add(viewModel.topoLayer)
-            for (overlay in viewModel.listaTracce.items) {
-                if (overlay is Polyline) {
-                    setPolylineClickListener(overlay)
-                }
-                if (overlay is Marker) {
-                    setMarkerClickListener(overlay)
-                }
-            }
-            gpsMarker = Marker(mapView)
-            gpsMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-            gpsMarker.setVisible(false)
-            gpsMarker.title = "Gps"
-            gpsMarker.icon = ResourcesCompat.getDrawable(
-                requireContext().resources,
-                R.drawable.punto_gps,
-                requireContext().theme
-            )
-            mapView.overlayManager.add(gpsMarker)
-            // Aggiungi l'overlay della bussola solo se il dispositivo ha i sensori necessari.
-            if (hasCompass()) {
-                val compassOverlay =
-                    CompassOverlay(context, InternalCompassOrientationProvider(context), mapView)
-                compassOverlay.enableCompass()
-                compassOverlay.setCompassCenter(36f, 36f)
-                mapView.overlayManager.add(compassOverlay)
-            }
-            // Allinea la barra in basso al centro dello schermo.
-            val scaleBarOverlay = ScaleBarOverlay(mapView)
-            scaleBarOverlay.setAlignBottom(true)
-            //scaleBarOverlay.setCentred(true)
-            // Aggiungi la barra della scala alla lista degli overlay della mappa.
-            mapView.overlays.add(scaleBarOverlay)
-        }
 
         mapView.zoomController?.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
         mapView.setMultiTouchControls(true)
@@ -757,10 +798,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
             }
         }
-        currentTrackPolyline = Polyline()
-        currentTrackPolyline.outlinePaint.color = coloreTraccia
-        currentTrackPolyline.outlinePaint.strokeWidth = 10f
-        mapView.overlays.add(currentTrackPolyline)
 
         LocationRepository.trackPoints.observe(viewLifecycleOwner) { fullTrack ->
             currentTrackPolyline.setPoints(fullTrack)
@@ -822,59 +859,43 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.onResume()
         preferenze.registerOnSharedPreferenceChangeListener(this)
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
+        Log.d("onResume", "onResume")
 
-        if (viewModel.isRecording) {
-            Log.d(TAG, "onResume: La registrazione è attiva. Ripristino lo stato della traccia.")
-            val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
-            // 3. Imposta i punti direttamente sulla Polyline.
-            //    (Assicurati che currentTrackPolyline sia già inizializzata)
-            currentTrackPolyline.setPoints(fullTrackSnapshot)
-            // 4. Forza un ridisegno della mappa ORA che i dati sono corretti.
-            mapView.invalidate()
-
-            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
-            accendiSchermo()
-            viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
-            gpsMarker.setVisible(true)
-            bottomSheetBehavior.isHideable = false
-            bottomSheetBehavior.peekHeight = 120
-
-            // --- INIZIO BLOCCO DI SICUREZZA PER IL CRASH ---
-            val stateToRestore = viewModel.bottomState
-            if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
-                stateToRestore == BottomSheetBehavior.STATE_EXPANDED ||
-                stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED
-            ) {
-                bottomSheetBehavior.state = stateToRestore
-            } else {
-                Log.w(
-                    TAG,
-                    "Stato BottomSheet non valido ($stateToRestore). Imposto collassato di default."
-                )
-                bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+        // la traccia è stata selezionata da schedafragment
+        if (viewModel.puntiDaSeguire.isNotEmpty()) {
+            if (viewModel.titoloTracciaDaSeguire.isNotEmpty()) {
+                (activity as AppCompatActivity).supportActionBar?.title =
+                    viewModel.titoloTracciaDaSeguire
             }
-            // --- FINE BLOCCO DI SICUREZZA ---
-
-            showCustomSnackbar(binding.root, "Registrazione in corso")
-        }
-
-        if (viewModel.line.actualPoints.isNotEmpty()) {
-            if (viewModel.line.title.isNotEmpty()) {
-                (activity as AppCompatActivity).supportActionBar?.title = viewModel.line.title
-            }
+            //Log.d("onResume", "Aggiungo nuova traccia")
             val nuovaTraccia = Polyline(mapView)
-            nuovaTraccia.setPoints(viewModel.line.actualPoints)
-            val mbounds = viewModel.line.bounds
-            nuovaTraccia.title = viewModel.line.title
-            setPolylineClickListener(nuovaTraccia)
-            disegnaLine(nuovaTraccia)
+            nuovaTraccia.title = viewModel.titoloTracciaDaSeguire
+            nuovaTraccia.setPoints(viewModel.puntiDaSeguire)
+            val mbounds = nuovaTraccia.bounds
+            disegnaLineaSfondo(nuovaTraccia)
+            mapView.overlays.add(nuovaTraccia)
             viewModel.listaTracce.add(nuovaTraccia)
+            val percorsoColorato = Polyline(mapView).apply {
+                setPoints(viewModel.puntiDaSeguire)
+                isVisible = true
+            }
+            // Applica la colorazione basata sullo stato salvato per pendenza 2 polyline
+            percorsoColorato.title = viewModel.titoloTracciaDaSeguire
+            if (viewModel.coloriPuntiDaSeguire?.isNotEmpty() == true) {
+                disegnaPercorsoColorato(percorsoColorato, viewModel.coloriPuntiDaSeguire)
+            } else {
+                disegnaPercorsoColorato(percorsoColorato)
+            }
+            mapView.overlays.add(percorsoColorato)
+            viewModel.listaTracce.add(percorsoColorato)
+
+            //applicaFrecceDirezione(percorsoColorato)
+            viewModel.puntiDaSeguire = mutableListOf()
+            setPolylineClickListener(nuovaTraccia)
             addMarker(nuovaTraccia)
-            viewModel.listaTracce.items.lastIndex
             mapView.post {
                 mapView.zoomToBoundingBox(mbounds.increaseByScale(1.2f), false)
             }
-            viewModel.line.actualPoints.clear()
 
             if (viewModel.wayPoint.isNotEmpty()) {
                 viewModel.wayPoint.forEach {
@@ -926,7 +947,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             viewModel.poi = GeoPoint(0.0, 0.0, 0.0)
         }
-
         onReturnFromLayerDialog()
 
         displayedTopoMarkers.forEach { mapView.overlays.remove(it) }
@@ -975,160 +995,46 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 mapView.overlays.add(newMarker)
             }
         }
-        mapView.invalidate()
-    }
 
-    private fun applicaModificheLayer() {
-        if (_binding == null) {
-            Log.w(TAG, "sincronizzaUIConStato chiamato ma la vista è nulla. Interruzione.")
-            return
-        }
-        Log.d(TAG, "Eseguo sincronizzazione completa della UI con lo stato del ViewModel.")
-
-        // 1. Logica dei Layer (da onReturnFromLayerDialog)
-        // Itera su tutti i layer e aggiorna la loro visibilità sulla mappa.
-        layerModel.featureList.forEach { featureInfo ->
-            // Rimuovi sempre i vecchi overlay per evitare duplicati
-            featureInfo.listOverlay?.let { existingOverlays ->
-                if (existingOverlays.isNotEmpty()) {
-                    mapView.overlays.removeAll(existingOverlays.toSet())
-                }
-            }
-            // Se il layer deve essere visibile, caricalo o ri-aggiungilo
-            if (featureInfo.isVisible) {
-                Log.d(
-                    TAG,
-                    "SINC: Il layer ${featureInfo.name} è visibile. Avvio ricaricamento completo."
-                )
-                puntiSuMappa(featureInfo.name, featureInfo)
-            } else {
-                // Se il layer NON deve essere visibile, svuotiamo la sua lista in memoria.
-                featureInfo.listOverlay?.clear()
-            }
-        }
-
-        // toponimi
-        displayedTopoMarkers.forEach { mapView.overlays.remove(it) }
-        displayedTopoMarkers.clear()
-        // Process selected toponyms from ViewModel
-        if (viewModel.toponimiSelezionati.isNotEmpty()) {
-            viewModel.toponimiSelezionati.forEach { topoData -> // topoData.id ora esiste
-                val newMarker = RemovableMarker(mapView)
-                newMarker.id = topoData.id // Imposta l'ID univoco sul marker!
-                newMarker.position = GeoPoint(topoData.latitude, topoData.longitude)
-                newMarker.title = topoData.name
-                newMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                //Log.d("MappaFragment_Debug", "Creating marker: ID='${newMarker.id}', Title='${newMarker.title}'")
-
-                newMarker.icon = ResourcesCompat.getDrawable(
-                    requireContext().resources,
-                    R.drawable.pin_rosso, requireContext().theme
-                )
-
-                newMarker.setOnMarkerClickListener { marker, mv ->
-                    // ... (codice invariato per il click normale) ...
-                    if (marker.isInfoWindowShown) {
-                        marker.closeInfoWindow()
-                    } else {
-                        if (marker.infoWindow == null) {
-                            marker.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mv)
-                        }
-                        marker.showInfoWindow()
-                        mv.controller.animateTo(marker.position)
-                    }
-                    true
-                }
-
-                newMarker.onMarkerLongClick =
-                    { markerInstance -> // markerInstance è il RemovableMarker
-                        val toponimoDataToRemove = viewModel.toponimiSelezionati.find {
-                            it.id == markerInstance.id // Cerca per ID univoco
-                        }
-
-                        if (toponimoDataToRemove != null) {
-                            viewModel.toponimiSelezionati.remove(toponimoDataToRemove)
-                            mapView.overlays.remove(markerInstance)
-                            displayedTopoMarkers.remove(markerInstance)
-                            mapView.invalidate()
-                            Toast.makeText(
-                                requireContext(),
-                                "Rimosso ${markerInstance.title}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        } else {
-                            //Log.w("MappaFragment_Debug", "TopoData not found for removal. Marker ID='${markerInstance.id}', Title='${markerInstance.title}'")
-                        }
-                        true // Event consumed
-                    }
-                displayedTopoMarkers.add(newMarker)
-                mapView.overlays.add(newMarker)
-            }
-        }
-
-        // 2. Logica della Traccia in Registrazione (da onResume)
+        // per ultimo ripristino traccia registrazione per averla in primo piano
         if (viewModel.isRecording) {
-            Log.d(TAG, "SINC: La registrazione è attiva. Ripristino lo stato della traccia.")
-            LocationRepository.requestFullTrack() // Forza il ridisegno della traccia
-            // Ripristina lo stato visivo della UI di registrazione
+            //Log.d(TAG, "onResume: La registrazione è attiva. Ripristino lo stato della traccia.")
+            val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
+            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
             accendiSchermo()
+            // 3. Imposta i punti direttamente sulla Polyline.
+            //    (Assicurati che currentTrackPolyline sia già inizializzata)
+            currentTrackPolyline.outlinePaint.color = coloreTraccia
+            currentTrackPolyline.outlinePaint.strokeWidth = 10f
+            currentTrackPolyline.setPoints(fullTrackSnapshot)
+            // 4. Forza un ridisegno della mappa ORA che i dati sono corretti.
+            mapView.overlays.remove(currentTrackPolyline)
+            mapView.overlays.add(currentTrackPolyline)
+            mapView.overlays.remove(gpsMarker)
+            mapView.overlays.add(gpsMarker)
+
+            viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
+            gpsMarker.setVisible(true)
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = 120
-            bottomSheetBehavior.state = viewModel.bottomState
+
+            val stateToRestore = viewModel.bottomState
+            if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
+                stateToRestore == BottomSheetBehavior.STATE_EXPANDED ||
+                stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED
+            ) {
+                bottomSheetBehavior.state = stateToRestore
+            } else {
+                Log.w(
+                    TAG,
+                    "Stato BottomSheet non valido ($stateToRestore). Imposto collassato di default."
+                )
+                bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+            }
             showCustomSnackbar(binding.root, "Registrazione in corso")
         }
         mapView.invalidate()
-    }
-
-    /**
-     * Imposta gli osservatori per i LiveData del ViewModel condiviso.
-     * Questo sostituisce i FragmentResultListener.
-     */
-    private fun setupViewModelObservers() {
-        // 1. Osservatore per l'aggiornamento dei layer
-        layerModel.layerUpdateRequest.observe(viewLifecycleOwner, Observer { event ->
-            event.getContentIfNotHandled()?.let {
-                Log.d(
-                    TAG,
-                    "Ricevuta richiesta di aggiornamento layer dal ViewModel. Avvio sincronizzazione."
-                )
-                // Chiama la funzione che prima era nel listener
-                applicaModificheLayer()
-            }
-        })
-
-        // 2. Osservatore per la navigazione a un punto
-        layerModel.navigateToPointRequest.observe(viewLifecycleOwner, Observer { event ->
-            event.getContentIfNotHandled()?.let { clickedPoint ->
-                Log.d(
-                    TAG,
-                    "Ricevuta richiesta di navigazione. Imposto punto di centraggio: $clickedPoint"
-                )
-                // 1. Imposta il punto che verrà usato per centrare la mappa quando sarà pronta.
-                initialCenterPoint = clickedPoint
-                // 2. Mostra subito l'highlight.
-                highlightPoint(clickedPoint)
-            }
-        })
-    }
-
-    /**
-     * Mostra solo un marker di highlight temporaneo su un punto, senza muovere la mappa.
-     */
-    private fun highlightPoint(point: GeoPoint) {
-        val highlightMarker = Marker(mapView).apply {
-            position = point
-            icon = ContextCompat.getDrawable(requireContext(), R.drawable.gps_on)
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-        }
-        mapView.overlays.add(highlightMarker)
-        mapView.postInvalidate()
-
-        Handler(Looper.getMainLooper()).postDelayed({
-            if (_binding != null) {
-                mapView.overlays.remove(highlightMarker)
-                mapView.postInvalidate()
-            }
-        }, 6000)
+        Log.d(TAG, "invalidate")
     }
 
     override fun onPrepareMenu(menu: Menu) {
@@ -1151,7 +1057,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.onPause() //needed for compass, my location overlays, v6.0.0 and up
         layerModel.recordCurrentLayerVisibility()
         layerModel.loadingStatus.clear()
-        Log.d(TAG, "onPause: Stato di caricamento dei layer resettato.")
+        //Log.d(TAG, "onPause: Stato di caricamento dei layer resettato.")
     }
 
     private fun offline() {
@@ -1170,132 +1076,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapFileSelectorLauncher.launch(intent)
     }
 
-    // apertura mappa offline locale da Uri
-    private fun apreMappa(uri: Uri) {
-        val uriPathHelper = URIPathHelper()
-        val filePath = uriPathHelper.getPath(requireContext(), uri)
-
-        try {
-            // Prova ad inizializzare OsmDroid qui
-        } catch (e: Exception) {
-            Log.e("Sentieri", "Errore inizializzazione OsmDroid", e)
-        }
-        //--------------------------------------------------------------------------------------------------
-        val maps: Array<File?> = arrayOfNulls(1)
-        val f = File(filePath!!)
-        if (f.exists()) {
-            maps[0] = f
-        }
-
-// estensioni registrate: zip, gemf, sqlite, mbtiles e map
-        val extension = f.extension
-        if (!ArchiveFileFactory.isFileExtensionRegistered(extension) && extension != "map") {
-            val context: Context = requireActivity().application
-            Toast.makeText(
-                context,
-                "Il file selezionato non contiene dati mappa",
-                Toast.LENGTH_LONG
-            ).show()
-            return
-        }
-        val forgeMappa: MapsForgeTileProvider
-        val offlineMappa: OfflineTileProvider
-        var theme: XmlRenderTheme?
-        if (f.name.contains(".map")) {
-            val savedThemePath = preferenze.getString("seleziona_tema_mapsforge", "OSMARENDER")
-
-            if (savedThemePath != null && savedThemePath != "OSMARENDER") {
-                val themeFile = File(savedThemePath)
-                if (themeFile.exists()) {
-                    try {
-                        theme = ExternalRenderTheme(themeFile)
-                        //Log.d(TAG, "Tema esterno caricato: ${themeFile.name}")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Errore nel caricamento del tema esterno, uso il default", e)
-                        theme = InternalRenderTheme.OSMARENDER
-                    }
-                } else {
-                    // Il file salvato non esiste più, usa il default
-                    theme = InternalRenderTheme.OSMARENDER
-                }
-            } else {
-                // Il valore è "OSMARENDER" o nullo, usa il tema di default
-                theme = InternalRenderTheme.OSMARENDER
-            }
-
-            val fromFiles = MapsForgeTileSource.createFromFiles(
-                maps,
-                theme,
-                "ThemeName"
-            ) // Il nome qui non è cruciale
-            forgeMappa = MapsForgeTileProvider(
-                SimpleRegisterReceiver(activity),
-                fromFiles, null
-            )
-            mapView.tileProvider = forgeMappa
-        } else {
-            offlineMappa = OfflineTileProvider(
-                SimpleRegisterReceiver(
-                    requireContext()
-                ), maps
-            )
-            mapView.tileProvider = offlineMappa
-            val archives = offlineMappa.archives
-// importante setIgnoreTileSource consente apertura rapida della mappa evitando il controllo del tipo di sorgente presente nel file tiles
-            archives[0].setIgnoreTileSource(true)
-        }
-
-        viewModel.connessione = false
-        mapView.setUseDataConnection(false)
-        // 2. Aggiorna lo stato nel ViewModel per riflettere la selezione offline
-        viewModel.menuMap = 0
-        viewModel.uriMappa = uri
-
-        // 3. Salva questo stato nelle preferenze per il prossimo avvio
-        preferenze.edit {
-            putInt("MenuMap", 0)
-            putString("URIMappa", uri.toString())
-        }
-
-        mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
-        //Log.d("Mappa", "Mappa caricata  ")
-        //mapView.invalidate()
-    }
-
-    private fun online(mappa: Int) {
-        viewModel.connessione = true
-        // salvo indice menu selezionato
-        val tileProvider: MapTileProviderBasic? = when (mappa) {
-            1 -> MapTileProviderBasic(context, TileSourceFactory.MAPNIK)  // OpenStreetMap
-            2 -> MapTileProviderBasic(context, TileSourceFactory.OpenTopo) // OpenTopo
-            3 -> mappaMapBox() // MapBox
-            else -> {
-                // Caso di default: se viene passato un indice non valido (come 0),
-                // imposta comunque una mappa di default (es. OpenStreetMap) e aggiorna l'indice.
-                // Questo gestisce anche la tua condizione iniziale.
-                Log.w(
-                    TAG,
-                    "Indice mappa non valido ($mappa), impostazione predefinita su OpenStreetMap (1)."
-                )
-                MapTileProviderBasic(context, TileSourceFactory.MAPNIK)
-            }
-        }
-        // Determina l'indice finale da salvare. Se era 0, ora sarà 1.
-        val finalMapIndex = if (mappa == 0) 1 else mappa
-        // Salva l'indice corretto nel ViewModel e nelle Preferenze.
-        viewModel.menuMap = finalMapIndex
-        preferenze.edit { putInt("MenuMap", finalMapIndex) }
-        // Applica il tile provider alla mappa.
-        mapView.tileProvider = tileProvider
-        mapView.invalidate()
-    }
-
     /**
      * Controlla se il dispositivo è dotato dei sensori necessari per la bussola.
      * @return True se sono presenti sia l'accelerometro che il magnetometro, altrimenti False.
      */
     private fun hasCompass(): Boolean {
-        val sensorManager = requireContext().getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val sensorManager =
+            requireContext().getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         val magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
         return accelerometer != null && magnetometer != null
@@ -1327,17 +1114,17 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             // La logica per caricare la mappa corretta (online o offline) rimane invariata.
             if (menuMap == 0 && uriString != null) {
                 Log.d(TAG, "Ripristino mappa offline dall'URI: $uriString")
-                apreMappa(uriString.toUri())
+                apreMappa(requireContext(), mapView, viewModel, uriString.toUri())
             } else {
                 Log.d(TAG, "Ripristino mappa online, indice: $menuMap")
-                online(menuMap)
+                online(requireContext(), mapView, viewModel, menuMap)
             }
 
             mapView.postInvalidate()
         }
     }
 
-    private fun mappaMapBox(): MapTileProviderBasic {
+    /*private fun mappaMapBox(): MapTileProviderBasic {
         val MAPBOXSATELLITELABELLED: OnlineTileSourceBase =
             MapBoxTileSource("MapBox", 1, 19, 256, ".png")
         (MAPBOXSATELLITELABELLED as MapBoxTileSource).retrieveAccessToken(requireContext())
@@ -1348,7 +1135,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         TileSourceFactory.addTileSource(MAPBOXSATELLITELABELLED)
         val bitmapProvider = MapTileProviderBasic(requireContext(), MAPBOXSATELLITELABELLED)
         return bitmapProvider
-    }
+    }*/
 
     private fun altDaBaro() {
 // chiede se calibrare il barometro oppure annullare
@@ -1479,18 +1266,38 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
         // pulizia eventuali registrazione precedente
+        viewModel.resetCruscotto()
         LocationRepository.clearTrack()
         viewModel.isFixed = false
-// Cambia stato GPS ON
-        gpsMarker.setVisible(true)
+
 // imposta schermo sempre acceso
         accendiSchermo()
 // inizio registrazione posizione
         viewModel.isRecording = true
         viewModel.oraInizio = System.currentTimeMillis()
         // legge preferenze per il tipo di attività
-        val activityType = preferenze.getString("activity_type_preference", "Mountain Bike")
+        val activityType = preferenze.getString("activity_type", "mtb")
         viewModel.startUpdates()
+
+        if (::currentTrackPolyline.isInitialized) {
+            mapView.overlays.remove(currentTrackPolyline)
+        }
+        // 2. Invece di ricreare la polyline, la svuotiamo e la riconfiguriamo.
+        currentTrackPolyline.actualPoints.clear()
+        currentTrackPolyline.outlinePaint.color = coloreTraccia // Usa il colore delle preferenze
+        currentTrackPolyline.outlinePaint.strokeWidth = 10f
+        // 3. Aggiungi la nuova polyline alla mappa. Aggiungendola per ultima,
+        //    sarà disegnata SOPRA tutti gli altri overlay già presenti (come la traccia GPX).
+        mapView.overlays.add(currentTrackPolyline)
+        mapView.overlays.remove(gpsMarker)
+        // 2. Ri-aggiungi il marker alla fine della lista.
+        //    Questo garantisce che venga disegnato sopra a tutto il resto.
+        gpsMarker.setVisible(true)
+        mapView.overlays.add(gpsMarker)
+        // 4. Invalida la mappa per forzare un ridisegno immediato.
+        mapView.invalidate()
+
+
         // avvia il servizio per tracciare locazione in background
         //requireActivity().startService(Intent(context, LocationService::class.java))
         val serviceIntent = Intent(requireContext(), LocationService::class.java)
@@ -1498,12 +1305,22 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         serviceIntent.putExtra("ACTIVITY_TYPE", activityType)
         // 4. Avvia il servizio usando l'Intent modificato.
         ContextCompat.startForegroundService(requireContext(), serviceIntent)
+        // predispone cruscotto
+        // 3. IMPOSTA LA VISIBILITÀ DELLA PENDENZA IN BASE AL TIPO DI ATTIVITÀ
+        if (activityType != "mtb") {
+            // Se l'attività NON è "Mountain Bike", nascondi gli elementi della pendenza
+            binding.cruscotto.iconPendenza.visibility = View.GONE
+            binding.cruscotto.tvPendenza.visibility = View.GONE
+        } else {
+            // Altrimenti, assicurati che siano visibili
+            binding.cruscotto.iconPendenza.visibility = View.VISIBLE
+            binding.cruscotto.tvPendenza.visibility = View.VISIBLE
+        }
         bottomSheetBehavior.isHideable = false
         bottomSheetBehavior.peekHeight = 120
         bottomSheetBehavior.halfExpandedRatio = 0.5f
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
         LocationRepository.updateGpsStatus("started")
-        //updateGpsIcon("started")
     }
 
     private fun caricaGPX(uri: Uri) {
@@ -1577,38 +1394,23 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // 5. AGGIORNA i punti della polyline di sfondo per usare quelli con la pendenza.
         //    Questo è il passaggio chiave per "ingannare" il sistema di colorazione.
         polylineColore.setPoints(puntiConPendenza)
-
         // 3. Applica gli stili specifici, PASSANDO la lista delle pendenze
-        MapUtils.disegnaLineaSfondo(polylineColore, pendenze)
-        // Le altre due funzioni non sono state modificate nella risposta precedente, ma le includo per completezza
-        // disegnaBordoTraccia(polylineBordo)
-        // disegnaSoloFrecce(polylineFrecce)
-        // --- ATTENZIONE: USA LE VERSIONI CORRETTE CHE HAI GIÀ ---
-        // Nelle risposte precedenti abbiamo definito disegnaBordoTraccia e disegnaSoloFrecce.
-        // Le seguenti sono solo un placeholder.
-        // Assicurati che il tuo MapUtils contenga le definizioni corrette.
-        MapUtils.disegnaLineaSfondo(polylineColore, pendenze)
-        MapUtils.disegnaLineaPrimopiano(polylineFrecce)
-
-
+        disegnaLineaSfondo(polylineColore)
+        disegnaPercorsoColorato(polylineFrecce, pendenze)
         // 4. Aggiungi le  Polyline all'overlay della mappa NELL'ORDINE CORRETTO
         mapView.overlays.add(polylineColore)   // Livello 1: Gradiente (sotto)
         mapView.overlays.add(polylineFrecce)   // Livello 3: Frecce (sopra)
-
         // 5. Aggiungi le tracce alla lista nel ViewModel per la gestione dei layer
         viewModel.listaTracce.add(polylineColore)
         viewModel.listaTracce.add(polylineFrecce)
-
         // 6. Aggiungi i marker di inizio/fine (associandoli alla polilinea di sfondo)
-        MapUtils.markInizioFine(requireContext(), trackPointsOriginali.first(), mapView, viewModel.recTraccia, 0)
-        MapUtils.markInizioFine(requireContext(), trackPointsOriginali.last(), mapView, viewModel.recTraccia, 1)
-        //addMarker(polylineColore)
-
+        addMarker(polylineColore)
+        //------------------------------------------------------------------------------------------
         // questo usato per disegno traccia con altitudine
         //disegnaLine(line)
         //viewModel.listaTracce.add(line)
         //addMarker(line)
-
+        //------------------------------------------------------------------------------------------
 // carica i waypoints nella lista wayPoints da non salvare con traccia
         gpx.wayPoints?.forEach {
             viewModel.wayPoint.add(it)
@@ -1619,9 +1421,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 R.drawable.ic_finish,
                 requireContext().theme
             )
-            waymarker.position.latitude = it.latitude
-            waymarker.position.longitude = it.longitude
-            waymarker.position.altitude = it.elevation ?: 0.0
+            waymarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            waymarker.position = GeoPoint(it.latitude, it.longitude, it.elevation ?: 0.0)
 // carica nel FolderOverlay
             viewModel.listaTracce.add(waymarker)
         }
@@ -1651,6 +1452,23 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             MapUtils.alertSegui(requireContext(), viewModel, polylineColore)
         }
+        if (!mapView.overlays.contains(viewModel.listaTracce)) {
+            mapView.overlays.add(viewModel.listaTracce)
+        }
+        if (viewModel.isRecording) {
+            //Log.d(TAG, "caricaGPX: Ri-ordino gli overlay per portare la registrazione in primo piano.")
+            // Rimuovi e ri-aggiungi la traccia della registrazione IN USO
+            mapView.overlays.remove(currentTrackPolyline)
+            mapView.overlays.add(currentTrackPolyline)
+
+            // Rimuovi e ri-aggiungi il marker GPS
+            mapView.overlays.remove(gpsMarker)
+            mapView.overlays.add(gpsMarker)
+            gpsMarker.setVisible(true)
+            Log.d("caricagpx", "gpsMarker visibile")
+        }
+        // Infine, ridisegna la mappa
+        mapView.invalidate()
     }
 
     private fun updateGpsIcon(status: String?) {
@@ -1994,9 +1812,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             R.id.Online, R.id.Mapquest, R.id.MapBox -> {
                 menuItem.isChecked = !menuItem.isChecked
                 when (menuItem.itemId) {
-                    R.id.Online -> online(1)
-                    R.id.Mapquest -> online(2)
-                    R.id.MapBox -> online(3)
+                    R.id.Online -> online(requireContext(), mapView, viewModel, 1)
+                    R.id.Mapquest -> online(requireContext(), mapView, viewModel, 2)
+                    R.id.MapBox -> online(requireContext(), mapView, viewModel, 3)
                 }
                 true // Restituisce true per tutti e tre i casi
             }
@@ -2218,35 +2036,34 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
+    private fun addMarker(polyline: Polyline) {
+        if (polyline.actualPoints.isEmpty()) return
 
-    private fun addMarker(line: Polyline) {
-// aggiunge marker inizio e fine percorso su tracce caricate
+        // Marker di INIZIO
         val startMarker = Marker(mapView)
-        startMarker.icon = requireContext().let {
-            AppCompatResources.getDrawable(
-                it,
-                R.drawable.ic_start
-            )
-        }
-        startMarker.title = "Inizio"
-        startMarker.id = "start"
-        if (line.actualPoints.isEmpty())
-            return
-        var punto: GeoPoint = line.actualPoints[0]
-        startMarker.position = punto
-        viewModel.listaTracce.add(startMarker)
+        startMarker.position = polyline.actualPoints.first()
+        startMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        startMarker.icon = AppCompatResources.getDrawable(
+            requireContext(),
+            R.drawable.ic_start
+        ) // Icona di partenza
+        startMarker.title = "Partenza"
+
+        // Marker di FINE
         val endMarker = Marker(mapView)
-        endMarker.icon = requireContext().let {
-            AppCompatResources.getDrawable(
-                it,
-                R.drawable.ic_finish
-            )
-        }
-        punto = line.actualPoints[line.actualPoints.size - 1]
-        endMarker.position = punto
-        endMarker.title = "Fine"
+        endMarker.position = polyline.actualPoints.last()
+        endMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        endMarker.icon = AppCompatResources.getDrawable(
+            requireContext(),
+            R.drawable.ic_finish
+        ) // Icona di arrivo
+        endMarker.title = "Arrivo"
+
+        // CORREZIONE: Aggiungi i marker al FolderOverlay nel ViewModel
+        viewModel.listaTracce.add(startMarker)
         viewModel.listaTracce.add(endMarker)
     }
+
 
     override fun onKey(v: View?, keyCode: Int, event: KeyEvent?): Boolean {
         if (event?.action == KeyEvent.ACTION_DOWN) {
@@ -2424,7 +2241,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     Color.blue(parsedColor)
                 )
                 osmdroidPolygon.fillPaint.color = semiTransparentColor
-            } catch (e: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 Log.w(TAG, "Colore non valido nel database: '$colore'. Uso un colore casuale.")
                 osmdroidPolygon.fillPaint.color = layerModel.getRandomIntColor(80)
             }
@@ -2441,7 +2258,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private fun mostraAlertDialogSemplice(messaggio: String) {
         if (!isAdded) return //
         // 1. Infla il nuovo layout personalizzato
-        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_details_layout, null)
+        val dialogView =
+            LayoutInflater.from(requireContext()).inflate(R.layout.dialog_details_layout, null)
         // 2. Trova le View all'interno del nostro layout
         val messageTextView: TextView = dialogView.findViewById(R.id.dialog_message_text)
         val closeButton: Button = dialogView.findViewById(R.id.dialog_close_button)
@@ -2576,7 +2394,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             textSize = 24f
             try {
                 color = featureInfo.colore.toColorInt()
-            } catch (e: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 Log.w(
                     TAG,
                     "Colore non valido per il layer di punti '${featureInfo.name}'. Uso il colore di default."
@@ -2630,6 +2448,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             osmdroidPolyline.outlinePaint.strokeWidth = 8f
             // --- Gestione InfoWindow ---
             osmdroidPolyline.id = "line_${featureInfo.name}_$index"
+            osmdroidPolyline.relatedObject = lineFeature
             osmdroidPolyline.title = ngaLineString.title
             // Imposta lo snippet, servirà alla BasicInfoWindow
             osmdroidPolyline.snippet = lineFeature.description
@@ -3286,7 +3105,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 websiteButton.visibility = View.VISIBLE
                 websiteButton.setOnClickListener {
                     try {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(lineFeature.website))
+                        val intent = Intent(Intent.ACTION_VIEW, lineFeature.website.toUri())
                         // Usa il contesto del fragment per avviare l'activity
                         context?.startActivity(intent)
                     } catch (e: Exception) {
