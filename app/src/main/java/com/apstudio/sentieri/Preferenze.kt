@@ -57,7 +57,7 @@ class Preferenze : PreferenceFragmentCompat() {
         }
 
         setPreferencesFromResource(R.xml.preferenze, rootKey)
-
+        //  popola lista mappe da download FTP
         viewModel.listDirectory()
         // Trova la ListPreference per i temi
         val themePreference = findPreference<ListPreference>("seleziona_tema_mapsforge")
@@ -72,12 +72,11 @@ class Preferenze : PreferenceFragmentCompat() {
         ftpButton?.setOnPreferenceClickListener {
             // 3. Esegui la tua funzione qui.
             mostraDialogoLista(requireContext())
-            //scaricaFileDaFtp() // Chiamiamo la funzione che vogliamo eseguire
             // Restituisci 'true' per indicare che hai gestito l'evento di click.
             true
         }
         // Observe del download status
-        //observeDownloadStatus()
+        observeDownloadStatus()
     }
 
     private fun populateThemePreference(preference: ListPreference) {
@@ -168,7 +167,7 @@ class Preferenze : PreferenceFragmentCompat() {
 
         // 2. Creazione del Builder
         val builder = AlertDialog.Builder(context)
-        builder.setTitle("Seleziona un'opzione")
+        builder.setTitle("Seleziona file da scaricare")
 
         // 3. Impostazione degli elementi e del click listener
         builder.setItems(elementi?.toTypedArray()) { dialog, quale ->
@@ -177,8 +176,6 @@ class Preferenze : PreferenceFragmentCompat() {
             Toast.makeText(context, "Hai scelto: $scelta", Toast.LENGTH_SHORT).show()
             Log.d("preferenze", "scelta: $scelta")
             viewModel.downloadFileFromFtp(scelta)
-            // Observe del download status
-            observeDownloadStatus()
         }
 
         // 4. Mostra il dialogo

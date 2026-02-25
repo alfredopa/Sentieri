@@ -621,13 +621,14 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             setUseDataConnection(!canLoadOfflineMap)
         }
 
-
-        val coloreDefault = R.color.black
+        val defaultColorArgb = ContextCompat.getColor(requireContext(), R.color.red)
+        coloreTraccia = preferenze.getInt("colore_traccia", defaultColorArgb)
+        /*val coloreDefault = R.color.black
         coloreTraccia = if (preferenze.contains("colore_traccia")) {
             preferenze.getInt("colore_traccia", coloreDefault)
         } else {
             coloreDefault
-        }
+        }*/
 
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
@@ -1211,7 +1212,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 salvaTraccia(inputEditTextField.text.toString())
                 azzeraCruscotto()
             }
-            setNegativeButton(android.R.string.cancel) { _, _ ->
+            setNegativeButton("Elimina") { _, _ ->
                 fermaRecording(false)
                 azzeraCruscotto()
             }
@@ -2151,8 +2152,19 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 // Anche se questo valore non dovrebbe cambiare, è buona norma gestirlo.
                 viewModel.haBaro = sharedPreferences.getBoolean(key, false)
             }
-            // Aggiungi qui altri 'case' per altre preferenze che vuoi osservare,
-            // come "colore_traccia", ecc.
+
+            "colore_traccia" -> { // NUOVA LOGICA QUI
+                // 1. Rileva il cambiamento del colore traccia
+                val defaultColorArgb = ContextCompat.getColor(requireContext(), R.color.red)
+                val newColorArgb = sharedPreferences.getInt("colore_traccia", defaultColorArgb)
+                // 3. Aggiorna la variabile di classe
+                coloreTraccia = newColorArgb
+                // 4. Applica immediatamente il nuovo colore
+                /*if (::currentTrackPolyline.isInitialized) {
+                    currentTrackPolyline.outlinePaint.color = coloreTraccia
+                    mapView.invalidate()
+                }*/
+            }
         }
     }
 

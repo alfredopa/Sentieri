@@ -293,12 +293,9 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
         // 5. Calcolo PENDENZA
         val velocitaCorrente = (loc.speed * 3.6).toInt()
-        if (velocitaCorrente <= 0.1) {
+        if (velocitaCorrente <= 0) {
             // Se siamo fermi, la pendenza DEVE essere 0.
-            // Usiamo postValue solo se necessario per evitare loop di aggiornamento UI.
-            if (_pendenza.value != 0) {
                 _pendenza.postValue(0)
-            }
         } else {
             // Calcoliamo la pendenza solo se ci stiamo muovendo
             referencePointForSlope?.let { refPoint ->
@@ -632,7 +629,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     /**
      * Elenca i file presenti nella directory remota del server FTP.
      */
-    fun listDirectory(remotePath: String = "/") {
+    fun listDirectory(remotePath: String = "") {
         viewModelScope.launch(Dispatchers.IO) {
             _ftpDownloadStatus.postValue(Event("Richiesta lista file..."))
             _ftpFileList.postValue(emptyList()) // Pulisce la lista precedente
