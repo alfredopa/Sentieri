@@ -651,10 +651,10 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                     // Filtra i file per escludere directory se possibile,
                     // altrimenti lascia tutti gli elementi. Per semplicità qui usiamo tutti i nomi.
                     _ftpFileList.postValue(files.toList())
-                    _ftpDownloadStatus.postValue(Event("File listati con successo. Seleziona un file da scaricare."))
+                    //_ftpDownloadStatus.postValue(Event("File listati con successo. Seleziona un file da scaricare."))
                 } else {
                     _ftpFileList.postValue(emptyList())
-                    _ftpDownloadStatus.postValue(Event("Nessun file trovato nella directory specificata."))
+                    //_ftpDownloadStatus.postValue(Event("Nessun file trovato nella directory specificata."))
                 }
 
             } catch (e: IOException) {

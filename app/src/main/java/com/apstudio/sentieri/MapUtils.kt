@@ -431,41 +431,137 @@ object MapUtils {
     }
 
     fun getOutputStreamForPublicDownload(context: Context, fileName: String): OutputStream? {
+        // Ottieni l'URI per la directory di download pubblica
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-        context.contentResolver.query(collection, arrayOf(MediaStore.MediaColumns._ID), "${MediaStore.MediaColumns.DISPLAY_NAME} = ?", arrayOf(fileName), null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
-                context.contentResolver.delete(ContentUris.withAppendedId(collection, id), null, null)
+        var fileUriToDelete: Uri? = null
+
+        try {
+            // 1. Cerca se un file con lo stesso nome esiste già
+            context.contentResolver.query(
+                collection,
+                arrayOf(MediaStore.MediaColumns._ID), // Richiedi solo l'ID
+                "${MediaStore.MediaColumns.DISPLAY_NAME} = ?", // Condizione WHERE
+                arrayOf(fileName), // Valore per la condizione WHERE
+                null // Ordinamento
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    // Ottieni l'ID del file esistente
+                    val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
+                    fileUriToDelete = ContentUris.withAppendedId(collection, id)
+                }
+            } ?: run {
+                Log.e("MapUtils", "Errore durante la query iniziale per verificare l'esistenza del file '$fileName'.")
             }
+        } catch (e: Exception) {
+            Log.e("MapUtils", "Eccezione durante la query iniziale per il file '$fileName'.", e)
         }
+
+        // 2. Se abbiamo trovato un URI per il file, tenta di eliminarlo
+        if (fileUriToDelete != null) {
+            try {
+                val deleteResult = context.contentResolver.delete(fileUriToDelete!!, null, null)
+                if (deleteResult > 0) {
+                    Log.d("MapUtils", "File esistente '$fileName' (URI: $fileUriToDelete) eliminato con successo (record affected: $deleteResult). Procedo con la creazione del nuovo file.")
+                } else {
+                    Log.w("MapUtils", "Tentativo di eliminare il file esistente '$fileName' (URI: $fileUriToDelete) fallito (deleteResult = $deleteResult). Il file potrebbe non essere più presente o non eliminabile.")
+                    // Se l'eliminazione fallisce, potremmo voler gestire questo come un errore critico per la sovrascrittura.
+                    // Tuttavia, per ora, proviamo a procedere sperando che MediaStore gestisca la creazione di un nome univoco.
+                    // Potremmo anche scegliere di interrompere qui: return null
+                }
+            } catch (e: Exception) {
+                Log.e("MapUtils", "Eccezione durante l'eliminazione del file esistente '$fileName' (URI: $fileUriToDelete).", e)
+                // In caso di eccezione durante l'eliminazione, è probabile che la sovrascrittura fallisca.
+                // return null // Interrompi se l'eliminazione fallisce
+            }
+        } else {
+            Log.d("MapUtils", "File '$fileName' non trovato nella directory di download. Nessuna eliminazione necessaria.")
+        }
+
+        // 3. Prepara i ContentValues per il nuovo file
         val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName); put(MediaStore.MediaColumns.MIME_TYPE, "application/zip"); put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "application/zip") // Assicurati che il MIME type sia corretto
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
         }
-        return context.contentResolver.insert(collection, values)?.let { context.contentResolver.openOutputStream(it) }
+
+        // 4. Inserisci un nuovo record per il file e ottieni l'OutputStream.
+        // Il MediaStore gestirà la creazione di nomi univoci se l'inserimento fallisce per nome duplicato
+        // e il delete precedente non ha funzionato.
+        // Importante: La funzione ora ritorna l'OutputStream associato all'URI che il MediaStore ha effettivamente creato.
+        return context.contentResolver.insert(collection, values)?.let { uri ->
+            context.contentResolver.openOutputStream(uri)?.also { outputStream ->
+                Log.d("MapUtils", "OutputStream creato con successo per l'URI: $uri.")
+                // Qui è importante notare che l'OutputStream è pronto.
+                // Se il file è stato rinominato internamente dal MediaStore (es. a Sardegna (1).zip),
+                // questo è il momento in cui dovremmo esserne a conoscenza.
+                // Per semplicità, al momento, ci affidiamo al fatto che l'OutputStream sia valido.
+            } ?: run {
+                Log.e("MapUtils", "Impossibile aprire l'OutputStream per l'URI '$uri' del file.")
+                null
+            }
+        } ?: run {
+            Log.e("MapUtils", "Impossibile inserire un nuovo file con nome '$fileName' nel MediaStore.")
+            null
+        }
     }
 
-    fun decomprimiZipInCartellaMappe(context: Context, nomeZip: String): Boolean {
+    fun decomprimiZipInCartellaMappe(context: Context, nomeZip: String): Boolean { // <-- Modifica la firma qui
+        Log.d("MapUtils", "Inizio decompressione zip: $nomeZip") // Aggiungi un log per capire se questa funzione viene chiamata
+
         return try {
             @Suppress("DEPRECATION")
-            val zip = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), nomeZip)
-            if (!zip.exists()) return false
-            val dest = File(context.externalMediaDirs.first(), "Mappe").apply { if (!exists()) mkdirs() }
-            ZipInputStream(BufferedInputStream(FileInputStream(zip))).use { zis ->
-                var entry = zis.nextEntry
-                while (entry != null) {
-                    val file = File(dest, entry.name)
-                    if (!file.canonicalPath.startsWith(dest.canonicalPath)) throw SecurityException("Zip Slip")
-                    if (entry.isDirectory) file.mkdirs() else {
-                        file.parentFile?.mkdirs()
-                        BufferedOutputStream(FileOutputStream(file)).use { bos ->
-                            val buf = ByteArray(4096); var r: Int
-                            while (zis.read(buf).also { r = it } != -1) bos.write(buf, 0, r)
-                        }
-                    }
-                    zis.closeEntry(); entry = zis.nextEntry
+            val zipFile = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), nomeZip)
+
+            if (!zipFile.exists()) {
+                Log.e("MapUtils", "File zip da decomprimere non trovato: ${zipFile.absolutePath}")
+                false // Restituisce false se il file zip non esiste
+            } else {
+                // Assicurati che la directory di destinazione esista
+                val destDir = File(context.externalMediaDirs.first(), "Mappe")
+                if (!destDir.exists()) {
+                    destDir.mkdirs()
+                    Log.d("MapUtils", "Creata directory di destinazione: ${destDir.absolutePath}")
+                } else {
+                    Log.d("MapUtils", "Directory di destinazione già esistente: ${destDir.absolutePath}")
                 }
+
+                ZipInputStream(BufferedInputStream(FileInputStream(zipFile))).use { zis ->
+                    var entry = zis.nextEntry
+                    while (entry != null) {
+                        // Controllo di sicurezza per evitare attacchi Zip Slip
+                        val entryPath = entry.name
+                        val entryFile = File(destDir, entryPath)
+                        val canonicalDestDir = destDir.canonicalPath
+                        val canonicalEntryFile = entryFile.canonicalPath
+
+                        if (!canonicalEntryFile.startsWith(canonicalDestDir)) {
+                            Log.e("MapUtils", "Zip Slip attack detected! Entry path: $entryPath")
+                            throw SecurityException("Zip Slip attack detected")
+                        }
+
+                        if (entry.isDirectory) {
+                            entryFile.mkdirs()
+                            Log.d("MapUtils", "Creata directory: ${entryFile.absolutePath}")
+                        } else {
+                            entryFile.parentFile?.mkdirs() // Crea le directory padre se necessario
+                            BufferedOutputStream(FileOutputStream(entryFile)).use { bos ->
+                                val buf = ByteArray(4096); var bytesRead: Int
+                                while (zis.read(buf).also { bytesRead = it } != -1) {
+                                    bos.write(buf, 0, bytesRead)
+                                }
+                            }
+                            //Log.d("MapUtils", "Estratto file: ${entryFile.absolutePath}")
+                        }
+                        zis.closeEntry()
+                        entry = zis.nextEntry
+                    }
+                }
+                Log.d("MapUtils", "Decompressione completata con successo per: $nomeZip")
+                true // Restituisce true in caso di successo
             }
-            true
-        } catch (_: Exception) { false }
+        } catch (e: Exception) {
+            Log.e("MapUtils", "Errore durante la decompressione di $nomeZip", e)
+            false // Restituisce false in caso di qualsiasi eccezione
+        }
     }
 }
