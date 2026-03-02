@@ -548,6 +548,21 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             mapView.overlays.add(viewModel.topoLayer)
         }
 
+        // Aggiungi l'overlay della bussola solo se il dispositivo ha i sensori necessari.
+        if (hasCompass()) {
+            val compassOverlay =
+                CompassOverlay(context, InternalCompassOrientationProvider(context), mapView)
+            compassOverlay.enableCompass()
+            compassOverlay.setCompassCenter(36f, 36f)
+            mapView.overlays.add(compassOverlay)
+        }
+        // Allinea la barra in basso al centro dello schermo.
+        val scaleBarOverlay = ScaleBarOverlay(mapView)
+        scaleBarOverlay.setAlignRight(true) // setAlignBottom(true)
+        //scaleBarOverlay.setCentred(true)
+        // Aggiungi la barra della scala alla lista degli overlay della mappa.
+        mapView.overlays.add(scaleBarOverlay)
+
         for (overlay in viewModel.listaTracce.items) {
             if (overlay is Polyline) {
                 setPolylineClickListener(overlay)
@@ -555,20 +570,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             if (overlay is Marker) {
                 setMarkerClickListener(overlay)
             }
-            // Aggiungi l'overlay della bussola solo se il dispositivo ha i sensori necessari.
-            if (hasCompass()) {
-                val compassOverlay =
-                    CompassOverlay(context, InternalCompassOrientationProvider(context), mapView)
-                compassOverlay.enableCompass()
-                compassOverlay.setCompassCenter(36f, 36f)
-                mapView.overlays.add(compassOverlay)
-            }
-            // Allinea la barra in basso al centro dello schermo.
-            val scaleBarOverlay = ScaleBarOverlay(mapView)
-            scaleBarOverlay.setAlignRight(true) // setAlignBottom(true)
-            //scaleBarOverlay.setCentred(true)
-            // Aggiungi la barra della scala alla lista degli overlay della mappa.
-            mapView.overlays.add(scaleBarOverlay)
+
         }
 
         // 2. Inizializza la Polyline di registrazione traccia, una sola volta.
