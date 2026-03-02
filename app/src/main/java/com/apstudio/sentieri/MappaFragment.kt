@@ -510,7 +510,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }, 6000)
             }
         })
-        // --- FINE NUOVA GESTIONE ---
 
         arguments?.getString("gpx_file_uri")?.let { uriString ->
             val gpxUri = uriString.toUri()
