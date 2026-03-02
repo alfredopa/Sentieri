@@ -59,12 +59,12 @@ class LayerDialog : Fragment() {
 
             override fun onswcVisibileClick(position: Int) {
                 viewModel.layerItems[position].abilitato = !viewModel.layerItems[position].abilitato
+                val nome = viewModel.layerItems[position].nome
                 viewModel.listaTracce.items.forEach {
-                    if (it is Polyline && it.title == viewModel.layerItems[position].nome) {
+                    if (it is Polyline && it.title == nome) {
                         it.isEnabled = !it.isEnabled
                         // attenzione il valore di isEnabled è appena cambiato
-                        Log.d("LayerDialog", "swcVisibileClick isEnabled: ${it.isEnabled}")
-                        viewModel.listaTracce.items[position].isEnabled = it.isEnabled
+                        //Log.d("LayerDialog", "swcVisibileClick isEnabled: ${it.isEnabled}  $nome")
                     }
                 }
             }

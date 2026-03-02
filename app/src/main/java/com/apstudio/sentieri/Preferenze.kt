@@ -58,7 +58,8 @@ class Preferenze : PreferenceFragmentCompat() {
 
         setPreferencesFromResource(R.xml.preferenze, rootKey)
         //  popola lista mappe da download FTP
-        viewModel.listDirectory()
+        // Rimosso caricamento iniziale: listDirectory() sarà chiamato solo al click sul bottone.
+        // viewModel.listDirectory() // Rimosso
         // Trova la ListPreference per i temi
         val themePreference = findPreference<ListPreference>("seleziona_tema_mapsforge")
         themePreference?.let {
@@ -70,13 +71,15 @@ class Preferenze : PreferenceFragmentCompat() {
 
         // 2. Imposta un listener per il click.
         ftpButton?.setOnPreferenceClickListener {
-            // 3. Esegui la tua funzione qui.
-            mostraDialogoLista(requireContext())
+            // Avvia il caricamento della lista, e l'Observer mostrerà il dialogo
+            // solo quando la lista è pronta.
+            viewModel.listDirectory()
             // Restituisci 'true' per indicare che hai gestito l'evento di click.
             true
         }
         // Observe del download status
         observeDownloadStatus()
+        observeFtpFileList()
     }
 
     private fun populateThemePreference(preference: ListPreference) {
@@ -146,6 +149,39 @@ class Preferenze : PreferenceFragmentCompat() {
         }
     }
 
+    private fun observeFtpFileList() {
+        viewModel.ftpFileList.observe(this) { fileList ->
+            // Quando la lista viene aggiornata (sia vuota che piena),
+            // controlla se è il momento di mostrare il dialogo.
+
+            // Per evitare di mostrare il dialogo durante un download attivo, controlliamo isDownloading.
+            if (viewModel.isDownloading.value != true) {
+                if (fileList.isNotEmpty()) {
+                    // Se la lista è pronta e non stiamo scaricando, mostra il dialogo
+                    mostraDialogoLista(requireContext())
+                } else {
+                    // Se la lista è vuota, potresti voler mostrare un messaggio
+                    // (Questo è già gestito dal messaggio di ftpDownloadStatus nel observeDownloadStatus)
+                }
+            }
+
+            // Nascondi l'indicatore di caricamento se la lista è stata ricevuta (sia piena che vuota)
+            setLoadingIndicator(false)
+        }
+    }
+
+    private fun setLoadingIndicator(isLoading: Boolean) {
+        if (isLoading) {
+            // Mostra un messaggio di caricamento quando listDirectory() viene chiamato
+            Toast.makeText(requireContext(), "Caricamento lista file FTP...", Toast.LENGTH_SHORT).show()
+        }
+        // Nota: Se isLoading è false, non facciamo nulla qui, perché l'aggiornamento finale
+        // (successo/fallimento della lista) è gestito tramite ftpDownloadStatus
+        // o quando ftpFileList si popola e mostra il dialogo.
+    }
+
+
+
     private fun showDownloadDialog() {
         // Infla un layout personalizzato per il dialogo
         val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_download_progress, null)
@@ -176,6 +212,7 @@ class Preferenze : PreferenceFragmentCompat() {
             Toast.makeText(context, "Hai scelto: $scelta", Toast.LENGTH_SHORT).show()
             Log.d("preferenze", "scelta: $scelta")
             viewModel.downloadFileFromFtp(scelta)
+            dialog.dismiss() // Chiude il dialogo dopo la selezione
         }
 
         // 4. Mostra il dialogo
