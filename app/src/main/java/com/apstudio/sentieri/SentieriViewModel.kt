@@ -636,10 +636,11 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
             val ftpClient = FTPClient()
             try {
-                val server = "APstudio01.myqnapcloud.com"
-                val utente = "alfredoftp"
-                val password = "APstudio@01"
-                val portaFtp = 2121
+                val server = BuildConfig.FTP_SERVER
+                val utente = BuildConfig.FTP_USER
+                val password = BuildConfig.FTP_PASS
+                val portaFtp = BuildConfig.FTP_PORT
+                val ftpClient = FTPClient()
 
                 ftpClient.connect(server, portaFtp)
                 ftpClient.login(utente, password)
@@ -682,10 +683,10 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _downloadProgress.postValue(0) // <-- AZZERA IL PROGRESSO
             _ftpDownloadStatus.postValue(Event("Download in corso: $percorsoFileRemoto..."))
 
-            val server = "APstudio01.myqnapcloud.com"
-            val utente = "alfredoftp"
-            val password = "APstudio@01"
-            val portaFtp = 2121
+            val server = BuildConfig.FTP_SERVER
+            val utente = BuildConfig.FTP_USER
+            val password = BuildConfig.FTP_PASS
+            val portaFtp = BuildConfig.FTP_PORT
             val ftpClient = FTPClient()
             var downloadSuccess = false
             val fileScaricato: File?

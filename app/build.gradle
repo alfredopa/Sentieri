@@ -11,12 +11,31 @@ android {
     namespace 'com.apstudio.sentieri'
     compileSdk 36
 
+    buildFeatures {
+        buildConfig true
+        // DataBinding è complesso e può causare problemi.
+        // Usa ViewBinding che è più moderno e leggero.
+        dataBinding true
+        viewBinding true
+        aidl true
+    }
+
     defaultConfig {
         applicationId "com.apstudio.sentieri"
         minSdk 30
-        targetSdk 35
+        targetSdk 36
         versionCode 33
         versionName '2.0.2'
+        // Definisci le variabili FTP leggendole dal file properties
+        // Access properties using .get() or bracket notation
+        def ftpServer = findProperty("ftp.server")
+        def ftpUser = findProperty("ftp.username")
+        def ftpPass = findProperty("ftp.password")
+        def ftpPort = findProperty("ftp.port")
+        buildConfigField("String", "FTP_SERVER", ftpServer)
+        buildConfigField("String", "FTP_USER", ftpUser)
+        buildConfigField("String", "FTP_PASS", ftpPass)
+        buildConfigField("Integer", "FTP_PORT", ftpPort)
     }
 
     buildFeatures {
@@ -106,4 +125,3 @@ dependencies {
 ksp {
     arg("room.generateKotlin", "true")
 }
-    
