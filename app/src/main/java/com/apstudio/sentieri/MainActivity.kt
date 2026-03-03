@@ -99,7 +99,7 @@ class MainActivity :
     override fun onCreate(savedInstanceState: Bundle?) {
         //SimpleFileLogger.log("Mainactivity", "MainActivity onCreate")
         super.onCreate(savedInstanceState)
-        val app = applicationContext as AppSentieri
+        applicationContext as AppSentieri
         // inizializza le preferenze
         initPreferenze()
         // Controlla se è necessario l'aggiornamento
@@ -130,7 +130,7 @@ class MainActivity :
         setupBackPressHandling()
         Log.d("Mappa", "MainActivity onCreate: $intent")
         handleIntent(intent) // Gestisci anche l'intent iniziale che ha creato l'Activity
-        enableEdgeToEdge()
+        //enableEdgeToEdge()
     }
 
     private fun initAppAndPermissions() {
