@@ -223,10 +223,10 @@ class GpxParser {
                     SRC_NODE -> src = currentNode.firstChild.nodeValue
                     MAGVAR_NODE -> magneticDeclination = currentNode.firstChild.nodeValue.toDouble()
                     GEOIDHEIGHT_NODE -> geoIdHeight = currentNode.firstChild.nodeValue.toDouble()
-                    SYM_NODE -> sym = currentNode.firstChild.nodeValue
+                    SYM_NODE -> sym = currentNode.firstChild?.nodeValue
                     FIX_NODE -> fix =
-                        FixType.values().first { it.value == node.firstChild.nodeValue }
-                    TYPE_NODE -> type = currentNode.firstChild.nodeValue
+                        FixType.values().firstOrNull { it.value == node.firstChild?.nodeValue }
+                    TYPE_NODE -> type = currentNode.firstChild?.nodeValue
                     SAT_NODE -> sat = currentNode.firstChild.nodeValue.toInt()
                     HDOP_NODE -> hDop = currentNode.firstChild.nodeValue.toDouble()
                     VDOP_NODE -> vDop = currentNode.firstChild.nodeValue.toDouble()

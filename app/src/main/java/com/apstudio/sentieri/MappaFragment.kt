@@ -1384,9 +1384,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         viewModel.trackDiscesa = 0
 
 
-// carica i punti della traccia se esistono- da verificare con gpx multisegmento
+// Carica i punti della traccia se esistono- da verificare con gpx multisegmento
         // 2. POPOLAMENTO DELLA LISTA: Leggi i punti e aggiungili alla nostra lista.
-        gpx.tracks.first().trackPoints.forEach { trackPoint ->
+        gpx.tracks.firstOrNull()?.trackPoints?.forEach { trackPoint ->
             val punto =
                 GeoPoint(trackPoint.latitude, trackPoint.longitude, trackPoint.elevation ?: 0.0)
             trackPointsOriginali.add(punto)
