@@ -1065,7 +1065,25 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                     stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED
                 ) {
                     bottomSheetBehavior.state = stateToRestore
-                } else {
+                    if (stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED || stateToRestore == BottomSheetBehavior.STATE_EXPANDED) {
+                        Log.d(TAG, "Ripristinato su HALF_EXPANDED. Ricarico i dati visivi.")
+                        // Forza l'aggiornamento di TUTTI gli elementi del cruscotto forzando
+                        // un nuovo emission sul LiveData (se possibile) o un aggiornamento manuale.
+                        val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
+                        // Aggiornamento manuale forzato dei valori noti al ViewModel:
+                        viewModel.quota.value?.let {
+                            binding.cruscotto.tvQuota.text = numberFormat.format(it)
+                        }
+                        viewModel.dislivPiu.value?.let {
+                            binding.cruscotto.tvDPiu.text = numberFormat.format(it.toInt())
+                        }
+                        viewModel.dislivMeno.value?.let {
+                            binding.cruscotto.tvDMeno.text = numberFormat.format(it.toInt())
+                        }
+                        // Ridisegna la view per essere sicuro
+                        binding.cruscotto.root.invalidate()
+                    }
+                    } else {
                     Log.w(
                         TAG,
                         "Stato BottomSheet non valido ($stateToRestore). Imposto collassato di default."
