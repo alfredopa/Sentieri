@@ -344,7 +344,11 @@ class MainActivity :
         }
 
         // Tenta prima di navigare indietro con NavController
-        val navigatedUp = navController.navigateUp()
+        val navigatedUp = if (::navController.isInitialized) {
+            navController.navigateUp()
+        } else {
+            false
+        }
         if (navigatedUp) {
             return
         }
