@@ -24,8 +24,8 @@ android {
         applicationId "com.apstudio.sentieri"
         minSdk 30
         targetSdk 36
-        versionCode 33
-        versionName '2.0.2'
+        versionCode 34
+        versionName '2.0.4'
         // Definisci le variabili FTP leggendole dal file properties
         // Access properties using .get() or bracket notation
         def ftpServer = findProperty("ftp.server")
