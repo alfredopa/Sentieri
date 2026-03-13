@@ -299,7 +299,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             brouterService = IBRouterService.Stub.asInterface(service)
             isBound = true
-            Log.d(TAG, "BRouterService connesso con successo.")
+            //Log.d(TAG, "BRouterService connesso con successo.")
 
             // Se ci sono punti in attesa (impostati dal click del pulsante), calcola il percorso ora.
             if (startPointForRouting != null && endPointForRouting != null) {
@@ -313,7 +313,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         override fun onServiceDisconnected(arg0: ComponentName) {
             brouterService = null
             isBound = false
-            Log.d(TAG, "BRouterService disconnesso.")
+            //Log.d(TAG, "BRouterService disconnesso.")
         }
     }
 
@@ -345,7 +345,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             Log.w(TAG, "onReturnFromLayerDialog chiamato ma la vista è nulla. Interruzione.")
             return
         }
-        Log.d(TAG, "Eseguo onReturnFromLayerDialog: Sincronizzazione stato overlay...")
+        //Log.d(TAG, "Eseguo onReturnFromLayerDialog: Sincronizzazione stato overlay...")
 
         // Itera su tutti i layer e sincronizza il loro stato con la mappa attuale.
         layerModel.featureList.forEach { featureInfo ->
@@ -360,17 +360,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 // Se il layer deve essere visibile...
                 if (featureInfo.listOverlay.isNullOrEmpty()) {
                     // ...e non abbiamo gli overlay in memoria, caricali da capo.
-                    Log.d(
-                        TAG,
-                        "Il layer ${featureInfo.name} è visibile e non caricato. Avvio caricamento."
-                    )
+                    //Log.d(TAG,"Il layer ${featureInfo.name} è visibile e non caricato. Avvio caricamento.")
                     puntiSuMappa(featureInfo.name, featureInfo)
                 } else {
                     // ...e abbiamo già gli overlay in memoria, semplicemente ri-aggiungili alla NUOVA mapView.
-                    Log.d(
-                        TAG,
-                        "Il layer ${featureInfo.name} è già caricato. Ri-aggiungo ${featureInfo.listOverlay!!.size} overlay alla mappa."
-                    )
+                    //Log.d(TAG,"Il layer ${featureInfo.name} è già caricato. Ri-aggiungo ${featureInfo.listOverlay!!.size} overlay alla mappa.")
                     featureInfo.listOverlay!!.forEach { overlay ->
                         reattachListenersToOverlay(overlay)
                     }
@@ -383,7 +377,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
 
         mapView.invalidate()      // Forza un singolo ridisegno alla fine di tutte le operazioni.
-        Log.d(TAG, "invalidate onReturnFromLayerDialog.")
+        //Log.d(TAG, "invalidate onReturnFromLayerDialog.")
     }
 
     // Helper function to re-attach listeners
@@ -411,10 +405,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         }
                     } else if (clickedPoint is GeoPoint) {
                         // Se non c'è una label, mostriamo almeno le coordinate o un messaggio generico
-                        Log.d(
-                            "ListenerDebug",
-                            "Punto cliccato: ${clickedPoint.latitude}, ${clickedPoint.longitude}"
-                        )
+                        //Log.d("ListenerDebug","Punto cliccato: ${clickedPoint.latitude}, ${clickedPoint.longitude}")
                     }
                 }
             }
@@ -475,7 +466,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // 1. Osserva le richieste di aggiornamento dei layer (da GpkgLayer).
         layerModel.layerUpdateRequest.observe(viewLifecycleOwner, Observer { event ->
             event.getContentIfNotHandled()?.let {
-                Log.d(TAG, "Ricevuta richiesta di aggiornamento layer via ViewModel. Sincronizzo.")
+                //Log.d(TAG, "Ricevuta richiesta di aggiornamento layer via ViewModel. Sincronizzo.")
                 onReturnFromLayerDialog()
             }
         })
@@ -816,16 +807,16 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         LocationRepository.trackPoints.observe(viewLifecycleOwner) { fullTrack ->
             currentTrackPolyline.setPoints(fullTrack)
             mapView.invalidate()
-            Log.d(TAG, "LocationRepository trackPoints invalidate")
+            //Log.d(TAG, "LocationRepository trackPoints invalidate")
         }
         LocationRepository.newTrackPoint.observe(viewLifecycleOwner) { newPoint ->
             currentTrackPolyline.addPoint(newPoint)
             mapView.invalidate()
-            Log.d(TAG, "LocationRepository newTrackPoint invalidate")
+            //Log.d(TAG, "LocationRepository newTrackPoint invalidate")
         }
         ripristinaStatoMappa()
         mapView.invalidate()
-        Log.d(TAG, "ripristinaStatoMappa invalidate")
+        //Log.d(TAG, "ripristinaStatoMappa invalidate")
     }
 
     private fun mostraAllarmeFuoriTraccia() {
@@ -876,7 +867,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.onResume()
         preferenze.registerOnSharedPreferenceChangeListener(this)
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
-        Log.d("onResume", "${viewModel.recTraccia})")
+        //Log.d("onResume", "${viewModel.recTraccia})")
 
         // la traccia è stata selezionata da schedafragment
         if (viewModel.puntiDaSeguire.isNotEmpty()) {
@@ -1034,7 +1025,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
             // Aggiungi/Assicurati che il FolderOverlay per Inizio/Fine sia presente
             if (!mapView.overlays.contains(viewModel.recTraccia)) {
-                Log.d(TAG, "Ripristino viewModel.recTraccia in onResume.")
+                //Log.d(TAG, "Ripristino viewModel.recTraccia in onResume.")
                 mapView.overlays.add(viewModel.recTraccia)
             }
 
@@ -1066,7 +1057,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 ) {
                     bottomSheetBehavior.state = stateToRestore
                     if (stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED || stateToRestore == BottomSheetBehavior.STATE_EXPANDED) {
-                        Log.d(TAG, "Ripristinato su HALF_EXPANDED. Ricarico i dati visivi.")
+                        //Log.d(TAG, "Ripristinato su HALF_EXPANDED. Ricarico i dati visivi.")
                         // Forza l'aggiornamento di TUTTI gli elementi del cruscotto forzando
                         // un nuovo emission sul LiveData (se possibile) o un aggiornamento manuale.
                         val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
@@ -1099,7 +1090,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
 
         mapView.invalidate()
-        Log.d(TAG, "onResume invalidate")
+        //Log.d(TAG, "onResume invalidate")
     }
 
 
@@ -1159,35 +1150,35 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val uriString = preferenze.getString("URIMappa", null)
 
         mapView.addOnFirstLayoutListener { _, _, _, _, _ ->
-            Log.d(TAG, "OnFirstLayoutListener eseguito. La mappa è pronta.")
+            //Log.d(TAG, "OnFirstLayoutListener eseguito. La mappa è pronta.")
 
             // --- MODIFICA FONDAMENTALE ---
             // Controlla se c'è una richiesta di navigazione in sospeso.
             if (initialCenterPoint != null) {
                 // Se c'è, ha la PRIORITÀ. Centra la mappa su quel punto.
-                Log.d(TAG, "Centro mappa sulla nuova destinazione: $initialCenterPoint")
+                //Log.d(TAG, "Centro mappa sulla nuova destinazione: $initialCenterPoint")
                 mapView.controller.setZoom(14.0)
                 mapView.controller.setCenter(initialCenterPoint)
                 initialCenterPoint =
                     null // Consuma la richiesta per evitare che venga riutilizzata.
             } else {
                 // Altrimenti, ripristina la posizione e lo zoom precedenti.
-                Log.d(TAG, "Nessuna nuova destinazione. Ripristino stato precedente.")
+                //Log.d(TAG, "Nessuna nuova destinazione. Ripristino stato precedente.")
                 mapView.controller.setZoom(viewModel.ultZoom.toDouble())
                 mapView.controller.setCenter(viewModel.ultPosizione)
             }
 
             // La logica per caricare la mappa corretta (online o offline) rimane invariata.
             if (menuMap == 0 && uriString != null) {
-                Log.d(TAG, "Ripristino mappa offline dall'URI: $uriString")
+                //Log.d(TAG, "Ripristino mappa offline dall'URI: $uriString")
                 apreMappa(requireContext(), mapView, viewModel, uriString.toUri())
             } else {
-                Log.d(TAG, "Ripristino mappa online, indice: $menuMap")
+                //Log.d(TAG, "Ripristino mappa online, indice: $menuMap")
                 online(requireContext(), mapView, viewModel, menuMap)
             }
 
             mapView.postInvalidate()
-            Log.d(TAG, "Ripristino stato mappa Invalidate")
+            //Log.d(TAG, "Ripristino stato mappa Invalidate")
         }
     }
 
@@ -1243,7 +1234,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     private fun fermaRecording(fine: Boolean = false) {
 // ferma aggiornamenti posizione ui e ferma servizio LocationService
-        // Log.d("Posizione","Stop servizio")
+        // //Log.d("Posizione","Stop servizio")
         requireActivity().stopService(Intent(context, LocationService::class.java))
         viewModel.stopUpdates()
         viewModel.isRecording = false
@@ -1521,7 +1512,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             mapView.overlays.remove(gpsMarker)
             mapView.overlays.add(gpsMarker)
             gpsMarker.setVisible(true)
-            Log.d("caricagpx", "gpsMarker visibile")
+            //Log.d("caricagpx", "gpsMarker visibile")
         }
         // Infine, ridisegna la mappa
         mapView.invalidate()
@@ -1940,7 +1931,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 }
                 try {
                     requireContext().bindService(intent, connection, Context.BIND_AUTO_CREATE)
-                    Log.d(TAG, "Tentativo di connessione a BRouterService...")
+                    //Log.d(TAG, "Tentativo di connessione a BRouterService...")
                 } catch (e: SecurityException) {
                     Log.e(
                         TAG,
@@ -1988,7 +1979,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         // FASE 3: HAI TUTTI I PERMESSI NECESSARI.
         // Procedi con la logica di avvio della registrazione.
-        Log.d(TAG, "Tutti i permessi sono stati concessi. Avvio registrazione.")
+        //Log.d(TAG, "Tutti i permessi sono stati concessi. Avvio registrazione.")
         if (viewModel.haBaro && viewModel.setBaro) {
             if (!viewModel.isCalibrato.value!!) {
                 altDaBaro()
@@ -2164,7 +2155,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             "setBaro" -> {
                 // Aggiorna il ViewModel quando la preferenza 'setBaro' cambia.
                 viewModel.setBaro = sharedPreferences.getBoolean(key, false)
-                Log.d(TAG, "Preferenza 'setBaro' aggiornata a: ${viewModel.setBaro}")
+                //Log.d(TAG, "Preferenza 'setBaro' aggiornata a: ${viewModel.setBaro}")
             }
 
             "haBaro" -> {
@@ -2232,7 +2223,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             geoPackage.close()
             mapView.invalidate()
         } catch (ex: Exception) {
-            Log.d("packgage", "inside geopackage exception " + ex.message)
+            //Log.d("packgage", "inside geopackage exception " + ex.message)
         }
     }*/
 
@@ -2349,10 +2340,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     // Attorno alla riga 2297
     private fun puntiSuMappa(tableName: String, featureInfo: FeatureTableInfo) {
         if (featureInfo.listOverlay != null && featureInfo.listOverlay!!.isNotEmpty()) {
-            Log.d(
-                TAG,
-                "Pulizia di ${featureInfo.listOverlay!!.size} overlay esistenti per il layer: $tableName"
-            )
+            //Log.d(TAG,"Pulizia di ${featureInfo.listOverlay!!.size} overlay esistenti per il layer: $tableName")
             // 2. Rimuovi tutti gli overlay precedentemente associati a questo layer dalla mappa.
             mapView.overlays.removeAll(featureInfo.listOverlay!!.toSet()) // .toSet() è più sicuro
             // 3. Svuota la lista di overlay salvata nel modello dati.
@@ -2378,7 +2366,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         // Usa viewLifecycleOwner.lifecycleScope per legare la coroutine alla VISTA
         viewLifecycleOwner.lifecycleScope.launch {
-            Log.d(TAG, "Avvio coroutine per layer: $tableName")
+            //Log.d(TAG, "Avvio coroutine per layer: $tableName")
 
             val processedData = withContext(Dispatchers.IO) {
                 loadAndProcessFeaturesInBackground(tableName, featureInfo)
@@ -2418,7 +2406,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             featureInfo.listOverlay = createdOverlays
             mapView.overlays.addAll(createdOverlays)
             mapView.invalidate()
-            Log.d(TAG, "Aggiunti ${createdOverlays.size} nuovi overlay per $tableName")
+            //Log.d(TAG, "Aggiunti ${createdOverlays.size} nuovi overlay per $tableName")
 
             // Rilascia il blocco alla fine
             layerModel.loadingStatus[tableName] = false
@@ -2853,7 +2841,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             requireContext().unbindService(connection)
             brouterService = null
             isBound = false
-            Log.d(TAG, "Disconnessione da BRouterService.")
+            //Log.d(TAG, "Disconnessione da BRouterService.")
         }
         if (isAudioRecording) {
             // Potresti voler cambiare il testo del bottone, ma il dialogo potrebbe non essere più visibile.
@@ -2884,7 +2872,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // Lancia una coroutine legata al ciclo di vita del fragment.
         // Verrà cancellata automaticamente quando il Fragment viene distrutto.
         viewLifecycleOwner.lifecycleScope.launch {
-            Log.d(TAG, "Avvio del calcolo del percorso in background...")
+            //Log.d(TAG, "Avvio del calcolo del percorso in background...")
 
             val params = Bundle().apply {
                 putDoubleArray("lons", doubleArrayOf(startPoint.longitude, endPoint.longitude))
@@ -2909,7 +2897,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         Log.e(TAG, "Errore da BRouter: $gpxString")
                         Result.failure(Exception("Errore da BRouter: $gpxString"))
                     } else {
-                        Log.d(TAG, "Tracciato GPX ricevuto, inizio parsing...")
+                        //Log.d(TAG, "Tracciato GPX ricevuto, inizio parsing...")
 
                         // 3. Parsing del GPX (operazione potenzialmente pesante)
                         val parser = GpxParser()
@@ -2948,7 +2936,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     private fun handleResult(result: Result<List<GeoPoint>>) {
         result.onSuccess { geoPoints ->
             // Se il risultato è un successo, disegna la traccia
-            Log.d(TAG, "Disegno della traccia sulla mappa...")
+            //Log.d(TAG, "Disegno della traccia sulla mappa...")
             disegnaTracciaBrouter(geoPoints)
         }.onFailure { exception ->
             // Se c'è stato un errore in qualsiasi punto, mostra un Toast
@@ -2962,7 +2950,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                 requireContext().unbindService(connection)
                 brouterService = null
                 isBound = false
-                Log.d(TAG, "Disconnessione da BRouterService.")
+                //Log.d(TAG, "Disconnessione da BRouterService.")
             } catch (_: IllegalArgumentException) {
                 Log.w(TAG, "Servizio già disconnesso.")
             }
@@ -3017,7 +3005,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
                     override fun onMarkerDragEnd(marker: Marker) {
                         // Puoi aggiornare un'infowindow o fare altro qui se vuoi
-                        Log.d("MappaFragment", "Destinazione impostata a: ${marker.position}")
+                        //Log.d("MappaFragment", "Destinazione impostata a: ${marker.position}")
                     }
 
                     override fun onMarkerDragStart(marker: Marker) { /* Non serve fare nulla qui */
@@ -3054,7 +3042,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // Pulisci la cache della mappa se la pressione sulla memoria è moderata o superiore.
         if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
             _binding?.let {
-                Log.d(TAG, "Clearing map tile cache due to memory pressure (level: $level)")
+                //Log.d(TAG, "Clearing map tile cache due to memory pressure (level: $level)")
                 it.Mapview.tileProvider.clearTileCache() // Accedi tramite 'it' per sicurezza
             }
         }
