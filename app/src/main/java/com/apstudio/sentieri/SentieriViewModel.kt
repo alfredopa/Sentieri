@@ -47,13 +47,13 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     companion object {
         private const val MOVING_AVERAGE_WINDOW_SIZE =
-            11 // Numero di valori da tenere in memoria per la media
+            10 // Numero di valori da tenere in memoria per la media
         private const val GPS_ALTITUDE_SPIKE_THRESHOLD =
             20.0// Soglia massima di variazione di altitudine in metri tra due letture
     }
 
     private var discardedGpsPointsCount: Int = 0
-    private val WARMUP_READINGS_TO_DISCARD = 9
+    private val WARMUP_READINGS_TO_DISCARD = 8
 
     var listaTracce: FolderOverlay = FolderOverlay() // overlay per aggiungere le tracce da gpx e db
     val recTraccia = FolderOverlay() // overlay per traccia in registrazione e marker inizio e fine
