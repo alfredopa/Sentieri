@@ -3119,26 +3119,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             .show()
     }
 
-    /*private fun colorNavigationViewItems(navigationView: NavigationView, colorResId: Int) {
-        // ...
-        for (i in 0 until (menu?.size() ?: 0)) {
-            val menuItem = menu?.getItem(i)
-            val iconColor = ContextCompat.getColor(requireContext(), colorResId)
-            menuItem?.icon?.setTint(iconColor) // Colorazione icona
-
-            // Per forzare il colore del testo...
-            val spannableString = SpannableStringBuilder(menuItem?.title)
-            spannableString.setSpan(
-                ForegroundColorSpan(iconColor),
-                0,
-                spannableString.length,
-                0
-            )
-            menuItem?.title = spannableString // <-- **QUI STAI SOSTITUENDO IL TESTO CON UNA SPAN COLORATA**
-        }
-    }*/
-
-
     inner class RemovableMarker(mapView: MapView) : Marker(mapView) {
         var onMarkerLongClick: ((RemovableMarker) -> Boolean)? = null
 

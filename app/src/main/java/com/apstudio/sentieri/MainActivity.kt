@@ -159,7 +159,7 @@ class MainActivity :
         val textViewInHeader: TextView? = headerView.findViewById(R.id.textView1)
         // Oppure se usi l'ID che ho suggerito:
         // val textViewInHeader: TextView? = headerView.findViewById<TextView>(R.id.textViewNameToUpdate)
-        textViewInHeader?.text = BuildConfig.VERSION_NAME
+        textViewInHeader?.text = ("Sentieri ${BuildConfig.VERSION_NAME}")
         navController = findNavController(R.id.nav_host_fragment)
         // Make sure actions in the ActionBar get propagated to the NavController
         // Connect the drawer layout to the navigation graph
