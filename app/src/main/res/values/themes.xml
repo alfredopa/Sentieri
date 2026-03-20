@@ -11,18 +11,14 @@
         <item name="colorOnSecondary">@color/black</item>
         <!-- Status bar color. -->
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
-        <!--<item name="windowActionBar">false</item>
-        <item name="windowNoTitle">true</item> -->
-        <!-- Customize your theme here. -->
+        <item name="windowNoTitle">true</item>
+        <!-- Colore hamburger menu e contestuale. -->
+        <item name="colorControlNormal">@color/white</item>
     </style>
 
     <!-- AlertDialog personalizzato per temi Chiaro e Scuro -->
-    <!-- res/values/themes.xml -->
     <style name="AlertDialogCustom" parent="Theme.Material3.DayNight.Dialog.Alert">
         <item name="android:windowTitleStyle">@style/AlertDialogTitleStyle</item><item name="android:textColor">?android:attr/textColorPrimary</item>
-
-        <!-- Rimuoviamo l'override del background per lasciare che Material 3 lo gestisca con i bordi arrotondati corretti -->
-
         <!-- Stile pulsanti: usiamo stili Material 3 specifici -->
         <item name="buttonBarPositiveButtonStyle">@style/AlertDialogButtonStyle.Positive</item>
         <item name="buttonBarNegativeButtonStyle">@style/AlertDialogButtonStyle</item>

@@ -119,17 +119,21 @@ class MainActivity :
 
                 // Continua con l'inizializzazione dell'UI che dipende da questi file
                 initAppAndPermissions()
+                // Gestisci l'intent DOPO l'inizializzazione di navController
+                handleIntent(intent)
             }
         } else {
             // Nessun aggiornamento necessario, procedi subito
             verificaCartelleDB() // In questo caso sarà velocissimo perché i file esistono già
             initAppAndPermissions()
+            // Gestisci l'intent DOPO l'inizializzazione di navController
+            handleIntent(intent)
         }
 
         // gestione evento indietro
         setupBackPressHandling()
         Log.d("Mappa", "MainActivity onCreate: $intent")
-        handleIntent(intent) // Gestisci anche l'intent iniziale che ha creato l'Activity
+        // RIMOSSO: handleIntent(intent) // Gestisci anche l'intent iniziale che ha creato l'Activity
         //enableEdgeToEdge()
     }
 

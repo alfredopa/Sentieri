@@ -26,6 +26,8 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.MediaStore
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.view.KeyEvent
 import android.view.KeyEvent.KEYCODE_VOLUME_DOWN
@@ -90,6 +92,7 @@ import com.apstudio.sentieri.layer.FeatureTableInfo
 import com.apstudio.sentieri.layer.LayerViewModel
 import com.apstudio.sentieri.layer.LineStringFeature
 import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.navigation.NavigationView
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -3115,6 +3118,26 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             .setCancelable(false)
             .show()
     }
+
+    /*private fun colorNavigationViewItems(navigationView: NavigationView, colorResId: Int) {
+        // ...
+        for (i in 0 until (menu?.size() ?: 0)) {
+            val menuItem = menu?.getItem(i)
+            val iconColor = ContextCompat.getColor(requireContext(), colorResId)
+            menuItem?.icon?.setTint(iconColor) // Colorazione icona
+
+            // Per forzare il colore del testo...
+            val spannableString = SpannableStringBuilder(menuItem?.title)
+            spannableString.setSpan(
+                ForegroundColorSpan(iconColor),
+                0,
+                spannableString.length,
+                0
+            )
+            menuItem?.title = spannableString // <-- **QUI STAI SOSTITUENDO IL TESTO CON UNA SPAN COLORATA**
+        }
+    }*/
+
 
     inner class RemovableMarker(mapView: MapView) : Marker(mapView) {
         var onMarkerLongClick: ((RemovableMarker) -> Boolean)? = null

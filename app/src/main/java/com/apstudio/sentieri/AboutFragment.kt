@@ -39,8 +39,7 @@ class AboutFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         // Ottieni la versione dell'app dinamicamente dal file build.gradle
-        val appVersionName = VERSION_NAME
-        binding.tvAppNameVersion.text = "Sentieri $appVersionName"
+        binding.tvAppNameVersion.text = "Sentieri $VERSION_NAME"
         binding.btnManuale.setOnClickListener {
             apriGuidaPdf()
         }
