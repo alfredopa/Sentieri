@@ -13,6 +13,6 @@
         <!-- Permetti al layout di estendersi sotto le system bars -->
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <!-- Per API 27+ per gestire meglio i cutout e il colore della navigation bar -->
-        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="o_mr1">shortEdges</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" >shortEdges</item>
     </style>
 </resources>
