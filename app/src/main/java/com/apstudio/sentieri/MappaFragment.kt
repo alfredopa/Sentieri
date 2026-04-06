@@ -2880,8 +2880,9 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val params = Bundle().apply {
                 putDoubleArray("lons", doubleArrayOf(startPoint.longitude, endPoint.longitude))
                 putDoubleArray("lats", doubleArrayOf(startPoint.latitude, endPoint.latitude))
-                putString("profile", "trekking")
+                putString("profile", "mtb")
                 putString("trackFormat", "gpx")
+                //putString("turnInstructionMode", "3") opzione per generare le istruzioni turn by turn
             }
 
             // Esegui la chiamata di rete, il parsing del GPX e la conversione dei punti
