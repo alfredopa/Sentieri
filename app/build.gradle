@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         applicationId "com.apstudio.sentieri"
-        minSdk 30
+        minSdk 31
         targetSdk 36
         versionCode 34
         versionName '2.0.4'

@@ -26,8 +26,6 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.MediaStore
-import android.text.SpannableStringBuilder
-import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.view.KeyEvent
 import android.view.KeyEvent.KEYCODE_VOLUME_DOWN
@@ -92,7 +90,7 @@ import com.apstudio.sentieri.layer.FeatureTableInfo
 import com.apstudio.sentieri.layer.LayerViewModel
 import com.apstudio.sentieri.layer.LineStringFeature
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.navigation.NavigationView
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -520,11 +518,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             arguments?.clear()
         }
 
-
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
         bottomSheetBehavior.isHideable = true
         bottomSheetBehavior.skipCollapsed = false
         bottomSheetBehavior.peekHeight = 120
+
         binding.cruscotto.root.post {
             if (isAdded) {
                 bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
@@ -547,7 +545,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val compassOverlay =
                 CompassOverlay(context, InternalCompassOrientationProvider(context), mapView)
             compassOverlay.enableCompass()
-            compassOverlay.setCompassCenter(36f, 36f)
+            compassOverlay.setCompassCenter(36f, 60f)
             mapView.overlays.add(compassOverlay)
         }
         // Allinea la barra in basso al centro dello schermo.
@@ -637,6 +635,10 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapController.setZoom(viewModel.ultZoom.toDouble())
 
         aggiornaUIFabBlocMappa()
+
+        binding.btnMenu.setOnClickListener { view ->
+            showMenuBottomSheet()
+        }
 
         binding.fabBlocMappa.setOnClickListener {
             viewModel.bloccaMappa = !viewModel.bloccaMappa
@@ -1007,17 +1009,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
 
-// In MappaFragment.kt, all'interno di override fun onResume()
-
 // ... (codice precedente: gestione GPX caricato, POI, Toponimi, ecc.) ...
 
         val hasRecordedPoints = LocationRepository.trackPointsList.isNotEmpty()
 
         if (hasRecordedPoints) {
             // --- RIPRISTINO STATO TRACCIA REGISTRATA ---
-
             // 1. ASSICURATI CHE GLI OVERLAY DI STATO SIANO PRESENTI NELLA MAP VIEW
-
             // Aggiungi/Assicurati che currentTrackPolyline sia nella lista
             if (!mapView.overlays.contains(currentTrackPolyline)) {
                 mapView.overlays.add(currentTrackPolyline) // Aggiungi la traccia temporanea
@@ -3027,6 +3025,54 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             "Trascina il marker e conferma la destinazione",
             Toast.LENGTH_LONG
         ).show()
+    }
+
+    private fun showMenuBottomSheet() {
+        val bottomSheet = BottomSheetDialog(requireContext())
+        val view = layoutInflater.inflate(R.layout.menu_bottom_sheet, null)
+        bottomSheet.setContentView(view)
+
+        // Gestione dei click
+        view.findViewById<TextView>(R.id.menu_lista).setOnClickListener {
+            // Logica per Lista
+            val directions = MappaFragmentDirections.actionMappaFragmentToSentieriFragment()
+            this@MappaFragment.findNavController().navigate(directions)
+            bottomSheet.dismiss()
+        }
+
+        view.findViewById<TextView>(R.id.menu_gps).setOnClickListener {
+            // Logica per GPS
+            if (viewModel.isRecording) stopGPS() else avviaLogicaRegistrazione()
+            bottomSheet.dismiss()
+        }
+
+        view.findViewById<TextView>(R.id.menu_poi).setOnClickListener {
+            if (viewModel.isRecording) {
+                if (!viewModel.isFixed) {
+                    Toast.makeText(
+                        requireActivity(),
+                        "Fix Gps non ancora disponbile",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    creaWayPoint()
+                }
+            } else {
+                Toast.makeText(
+                    requireActivity(),
+                    "Waypoint solo in modalita' registrazione traccia",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+        // Aggiungi gli altri listener...
+
+        bottomSheet.show()
+    }
+
+    // Extension function per convertire DP in PX
+    private fun Int.dpToPx(): Int {
+        return (this * resources.displayMetrics.density).toInt()
     }
 
     private fun exitDestinationSelectionMode() {

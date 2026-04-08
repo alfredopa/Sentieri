@@ -8,68 +8,68 @@
     android:backgroundTint="@color/design_default_color_background"
     tools:context=".MappaFragment">
 
+    <org.osmdroid.views.MapView
+        android:id="@+id/Mapview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:backgroundTint="@color/design_default_color_background" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btnMenu"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="16dp"
+        android:contentDescription="Menu"
+        android:src="@drawable/ic_menu_mapmode"
+        app:fabSize="mini"
+        app:backgroundTint="@color/white"
+        app:tint="@color/black" />
+
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabBlocMappa"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center|right|top"
-        android:layout_marginTop="28dp"
+        android:layout_gravity="end|top"
+        android:layout_marginTop="140dp"
+        android:layout_marginEnd="4dp"
         android:contentDescription="@string/app_name"
         android:outlineProvider="none"
         android:src="@drawable/pin_rosso"
         app:fabCustomSize="36dp"
-        app:layout_anchorGravity="right|top"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
         app:tint="@null" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/camera"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center|right|top"
-        android:layout_marginTop="68dp"
+        android:layout_gravity="end|top"
+        android:layout_marginTop="190dp"
+        android:layout_marginEnd="4dp"
         android:contentDescription="waypoint"
         android:outlineProvider="none"
         android:src="@drawable/camera"
-        app:fabCustomSize="36dp"
-        app:layout_anchorGravity="right|top"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:fabCustomSize="36dp" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_select_destination"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center|right|top"
-        android:layout_marginTop="110dp"
+        android:layout_gravity="end|top"
+        android:layout_marginTop="240dp"
+        android:layout_marginEnd="4dp"
         android:contentDescription="Seleziona destinazione"
         android:src="@drawable/ic_distance"
-        app:fabCustomSize="36dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <org.osmdroid.views.MapView
-        android:id="@+id/Mapview"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:backgroundTint="@color/design_default_color_background"
-        app:layout_anchorGravity="center"></org.osmdroid.views.MapView>
+        app:fabCustomSize="36dp" />
 
     <Button
         android:id="@+id/button_confirm_destination"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center|top"
+        android:layout_gravity="center|bottom"
         android:layout_marginBottom="16dp"
         android:text="Conferma Destinazione"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
         tools:visibility="visible" /> <!-- 'tools:visibility' lo rende visibile solo nell'anteprima -->
 
     <ProgressBar
