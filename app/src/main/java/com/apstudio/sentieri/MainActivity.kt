@@ -14,6 +14,7 @@ import android.widget.TextView
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -22,10 +23,11 @@ import androidx.activity.viewModels
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import androidx.core.view.WindowCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
-import androidx.navigation.findNavController
+import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.navigateUp
 import androidx.navigation.ui.setupActionBarWithNavController
@@ -33,6 +35,7 @@ import androidx.navigation.ui.setupWithNavController
 import androidx.preference.PreferenceManager.getDefaultSharedPreferences
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
+import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.navigation.NavigationView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -99,6 +102,7 @@ class MainActivity :
     override fun onCreate(savedInstanceState: Bundle?) {
         //SimpleFileLogger.log("Mainactivity", "MainActivity onCreate")
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         applicationContext as AppSentieri
         // inizializza le preferenze
         initPreferenze()
@@ -134,7 +138,6 @@ class MainActivity :
         setupBackPressHandling()
         Log.d("Mappa", "MainActivity onCreate: $intent")
         // RIMOSSO: handleIntent(intent) // Gestisci anche l'intent iniziale che ha creato l'Activity
-        //enableEdgeToEdge()
     }
 
     private fun initAppAndPermissions() {
@@ -144,8 +147,6 @@ class MainActivity :
 
     private fun initApp() {
         setContentView(R.layout.activity_main)
-        //  il layout verticale è impostato nel manifest
-        //requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
@@ -160,12 +161,20 @@ class MainActivity :
         // Oppure se usi l'ID che ho suggerito:
         // val textViewInHeader: TextView? = headerView.findViewById<TextView>(R.id.textViewNameToUpdate)
         textViewInHeader?.text = ("Sentieri ${BuildConfig.VERSION_NAME}")
-        navController = findNavController(R.id.nav_host_fragment)
+        val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+        navController = navHostFragment.navController
         // Make sure actions in the ActionBar get propagated to the NavController
         // Connect the drawer layout to the navigation graph
         appBarConfiguration = AppBarConfiguration(navController.graph, drawerLayout)
         setupActionBarWithNavController(navController, appBarConfiguration)
         navigationView.setupWithNavController(navController)
+        navController.addOnDestinationChangedListener { _, destination, _ ->
+            if (destination.id in (setOf(R.id.mappaFragment, R.id.gpkgLayer))) {
+                toolbar.visibility = View.GONE
+            } else {
+                toolbar.visibility = View.VISIBLE
+            }
+        }
 
         // Le preferenze vanno caricate dal main e sono indispensabili per il
         // corretto caricamento delle mappe
@@ -428,6 +437,10 @@ class MainActivity :
             // In caso di errore, ritorna un valore che non innescherà l'aggiornamento
             -1L
         }
+    }
+
+    fun showAppBar(show: Boolean) {
+        findViewById<AppBarLayout>(R.id.app_bar_layout).visibility = if (show) View.VISIBLE else View.INVISIBLE
     }
 
     /*fun isBatteryOptimizationEnabled(context: Context): Boolean {
