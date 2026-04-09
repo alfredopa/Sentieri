@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Quando l'elemento è selezionato (checked), usa il colore di sfondo -->
+    <item android:state_checked="true" android:drawable="@color/purple_200" />
+
+    <!-- Quando non è selezionato, usa il colore trasparente -->
+    <item android:drawable="@android:color/transparent" />
+</selector>
