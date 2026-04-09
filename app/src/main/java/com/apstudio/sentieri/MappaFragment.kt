@@ -44,7 +44,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
@@ -91,6 +90,7 @@ import com.apstudio.sentieri.layer.LayerViewModel
 import com.apstudio.sentieri.layer.LineStringFeature
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.navigation.NavigationView
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -460,7 +460,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         val mRotationGestureOverlay = RotationGestureOverlay(context, mapView)
         mRotationGestureOverlay.setEnabled(true)
         mapView.setMultiTouchControls(true)
-        mapView.getOverlays().add(mRotationGestureOverlay)
+        mapView.overlays.add(mRotationGestureOverlay)
         view.isFocusableInTouchMode = true
         view.requestFocus()
         view.setOnKeyListener(this)// --- INIZIO NUOVA GESTIONE EVENTI ---
@@ -545,7 +545,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             val compassOverlay =
                 CompassOverlay(context, InternalCompassOrientationProvider(context), mapView)
             compassOverlay.enableCompass()
-            compassOverlay.setCompassCenter(36f, 60f)
+            compassOverlay.setCompassCenter(36f, 80f)
             mapView.overlays.add(compassOverlay)
         }
         // Allinea la barra in basso al centro dello schermo.
@@ -636,7 +636,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         aggiornaUIFabBlocMappa()
 
-        binding.btnMenu.setOnClickListener { view ->
+        binding.btnMenu.setOnClickListener { _ ->
             showMenuBottomSheet()
         }
 
@@ -1846,7 +1846,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         updateGpsIcon(LocationRepository.gpsStatus.value)
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
         // Fai in modo che l'intero blocco 'when' restituisca il valore booleano.
         // La keyword 'return' ora è all'inizio.
@@ -1949,7 +1948,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
     private fun avviaLogicaRegistrazione() {
         // FASE 1: Controlla se hai i permessi in PRIMO PIANO.
         if (!isFineLocationPermissionGranted()) {
@@ -1992,7 +1990,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
     private fun creaWayPoint() {
         val nomePoiEditText = EditText(requireActivity())
         nomePoiEditText.hint = "Nome Waypoint"
@@ -2703,9 +2700,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
 
     // --- Inizio Funzioni di Registrazione Audio ---
-    @RequiresApi(Build.VERSION_CODES.S)
-// In MappaFragment.kt
-
     private fun startAudioRecording(button: Button) {
         if (isAudioRecording) return
 
@@ -3028,51 +3022,35 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun showMenuBottomSheet() {
-        val bottomSheet = BottomSheetDialog(requireContext())
+        val bottomSheetDialog = BottomSheetDialog(requireContext())
         val view = layoutInflater.inflate(R.layout.menu_bottom_sheet, null)
-        bottomSheet.setContentView(view)
+        bottomSheetDialog.setContentView(view)
 
-        // Gestione dei click
-        view.findViewById<TextView>(R.id.menu_lista).setOnClickListener {
-            // Logica per Lista
-            val directions = MappaFragmentDirections.actionMappaFragmentToSentieriFragment()
-            this@MappaFragment.findNavController().navigate(directions)
-            bottomSheet.dismiss()
-        }
+        val navigationView = view.findViewById<NavigationView>(R.id.navigation_view)
 
-        view.findViewById<TextView>(R.id.menu_gps).setOnClickListener {
-            // Logica per GPS
-            if (viewModel.isRecording) stopGPS() else avviaLogicaRegistrazione()
-            bottomSheet.dismiss()
-        }
+        navigationView.setNavigationItemSelectedListener { menuItem ->
+            // Feedback visivo automatico gestito da NavigationItem
+            menuItem.isChecked = true
 
-        view.findViewById<TextView>(R.id.menu_poi).setOnClickListener {
-            if (viewModel.isRecording) {
-                if (!viewModel.isFixed) {
-                    Toast.makeText(
-                        requireActivity(),
-                        "Fix Gps non ancora disponbile",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    creaWayPoint()
+            when (menuItem.itemId) {
+                R.id.menu_lista -> {
+                    val directions = MappaFragmentDirections.actionMappaFragmentToSentieriFragment()
+                    findNavController().navigate(directions)
                 }
-            } else {
-                Toast.makeText(
-                    requireActivity(),
-                    "Waypoint solo in modalita' registrazione traccia",
-                    Toast.LENGTH_LONG
-                ).show()
+                R.id.menu_gps -> {
+                    if (viewModel.isRecording) stopGPS() else avviaLogicaRegistrazione()
+                }
+                R.id.menu_poi -> {
+                    if (viewModel.isRecording && viewModel.isFixed) creaWayPoint()
+                    else Toast.makeText(requireContext(), "Waypoint non disponibili", Toast.LENGTH_SHORT).show()
+                }
             }
+
+            bottomSheetDialog.dismiss()
+            true
         }
-        // Aggiungi gli altri listener...
 
-        bottomSheet.show()
-    }
-
-    // Extension function per convertire DP in PX
-    private fun Int.dpToPx(): Int {
-        return (this * resources.displayMetrics.density).toInt()
+        bottomSheetDialog.show()
     }
 
     private fun exitDestinationSelectionMode() {
@@ -3091,10 +3069,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         Log.i(TAG, "onTrimMemory called with level: $level")
         // Pulisci la cache della mappa se la pressione sulla memoria è moderata o superiore.
         if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
-            _binding?.let {
-                //Log.d(TAG, "Clearing map tile cache due to memory pressure (level: $level)")
-                it.Mapview.tileProvider.clearTileCache() // Accedi tramite 'it' per sicurezza
-            }
+            _binding?.Mapview?.tileProvider?.clearTileCache()
         }
         // Se la situazione è critica (livello RUNNING_CRITICAL o superiore), libera anche altre risorse.
         // TRIM_MEMORY_RUNNING_CRITICAL è il sostituto moderno di TRIM_MEMORY_COMPLETE.

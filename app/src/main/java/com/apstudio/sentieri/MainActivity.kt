@@ -14,7 +14,6 @@ import android.widget.TextView
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -23,7 +22,6 @@ import androidx.activity.viewModels
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import androidx.core.view.WindowCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
@@ -35,7 +33,6 @@ import androidx.navigation.ui.setupWithNavController
 import androidx.preference.PreferenceManager.getDefaultSharedPreferences
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
-import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.navigation.NavigationView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -82,10 +79,6 @@ class MainActivity :
         add(Manifest.permission.INTERNET)
         add(Manifest.permission.ACCESS_NETWORK_STATE)
         add(Manifest.permission.CAMERA)
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {  // S_V2 è API level 32
-            add(Manifest.permission.READ_EXTERNAL_STORAGE)
-            add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-        }
         // permesso da Android 13
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.POST_NOTIFICATIONS)
@@ -437,10 +430,6 @@ class MainActivity :
             // In caso di errore, ritorna un valore che non innescherà l'aggiornamento
             -1L
         }
-    }
-
-    fun showAppBar(show: Boolean) {
-        findViewById<AppBarLayout>(R.id.app_bar_layout).visibility = if (show) View.VISIBLE else View.INVISIBLE
     }
 
     /*fun isBatteryOptimizationEnabled(context: Context): Boolean {
