@@ -27,6 +27,17 @@
         app:tint="@color/black" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabStopRec"
+        android:layout_width="81dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:clickable="true"
+        app:fabCustomSize="40dp"
+        android:layout_marginTop="50dp"
+        android:src="@drawable/color_circle"
+        app:backgroundTint="#EB0C0C" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabBlocMappa"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
