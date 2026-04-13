@@ -47,9 +47,9 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     companion object {
         private const val MOVING_AVERAGE_WINDOW_SIZE =
-            10 // Numero di valori da tenere in memoria per la media
+            9 // Numero di valori da tenere in memoria per la media
         private const val GPS_ALTITUDE_SPIKE_THRESHOLD =
-            20.0// Soglia massima di variazione di altitudine in metri tra due letture
+            30.0// Soglia massima di variazione di altitudine in metri tra due letture
     }
 
     private var discardedGpsPointsCount: Int = 0
@@ -220,7 +220,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             altitudineOriginale
         }
         val currentNewPunto = GeoPoint(loc.latitude, loc.longitude, altitudineCalcolata)
-        Log.d("SentieriViewModel", "currentNewPunto: $currentNewPunto")
+        //Log.d("SentieriViewModel", "currentNewPunto: $currentNewPunto")
 
         // 1. LOGICA DI WARM-UP e INIZIALIZZAZIONE (se isFixed è ancora falso)
         if (!isFixed) {
@@ -251,7 +251,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                     return // ESCI: Non fare calcoli di distanza/dislivello/pendenza
                 } else {
                     // Se abbiamo raggiunto la dimensione della finestra, possiamo considerare il warm-up finito
-                    discardedGpsPointsCount == WARMUP_READINGS_TO_DISCARD
+                    discardedGpsPointsCount >= WARMUP_READINGS_TO_DISCARD
                     isFixed = true
                     Log.i("Warmup", "GPS Warmup Finito. Inizio calcoli.")
                 }
