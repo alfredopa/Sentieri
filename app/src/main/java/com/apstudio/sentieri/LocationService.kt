@@ -152,18 +152,18 @@ class LocationService : LifecycleService() {
         when (activityType) {
             "mtb" -> {
                 LOCATION_UPDATE_INTERVAL_MS = 3000L // 4 secondi
-                MIN_DISTANCE_CHANGE_METERS = 6f// 6 metri
+                MIN_DISTANCE_CHANGE_METERS = 7f// 6 metri
             }
 
             "trekking" -> {
-                LOCATION_UPDATE_INTERVAL_MS = 2000L // 2 secondi
-                MIN_DISTANCE_CHANGE_METERS = 3f       //3 metri
+                LOCATION_UPDATE_INTERVAL_MS = 5000L // 2 secondi
+                MIN_DISTANCE_CHANGE_METERS = 6f       //3 metri
             }
             // Puoi aggiungere altri casi qui, es. "corsa"
             else -> {
                 // Default di sicurezza
                 LOCATION_UPDATE_INTERVAL_MS = 3000L
-                MIN_DISTANCE_CHANGE_METERS = 6f
+                MIN_DISTANCE_CHANGE_METERS = 7f
             }
         }
         return START_STICKY
