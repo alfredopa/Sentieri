@@ -36,6 +36,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
+import android.view.View.VISIBLE
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
@@ -55,6 +56,7 @@ import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
@@ -640,6 +642,15 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             showMenuBottomSheet()
         }
 
+        binding.fabStopRec.setOnClickListener {
+            stopGPS()
+            /*if (viewModel.isRecording) {
+                stopGPS()
+            } else {
+                avviaLogicaRegistrazione()
+            }*/
+        }
+
         binding.fabBlocMappa.setOnClickListener {
             viewModel.bloccaMappa = !viewModel.bloccaMappa
             aggiornaUIFabBlocMappa()
@@ -1199,6 +1210,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
     // FINE REGISTRAZIONE TRACCIA
     private fun stopGPS() {
+        binding.fabStopRec.isVisible = false
         // se non ha fixato non chiede di salvare
         if (!viewModel.isFixed) {
             stopObserver() // Arresta gli observer
@@ -1368,6 +1380,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         bottomSheetBehavior.halfExpandedRatio = 0.5f
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
         LocationRepository.updateGpsStatus("started")
+        binding.fabStopRec.isVisible = true
     }
 
     private fun caricaGPX(uri: Uri) {

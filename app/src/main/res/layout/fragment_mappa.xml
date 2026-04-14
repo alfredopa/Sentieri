@@ -21,9 +21,10 @@
         android:layout_gravity="top|end"
         android:layout_marginTop="50dp"
         android:contentDescription="Menu"
-        android:src="@drawable/ic_launcher_background"
-        app:fabCustomSize="45dp"
+        android:src="@drawable/hamburger"
         app:backgroundTint="@color/white"
+        app:fabCustomSize="45dp"
+        app:maxImageSize="40dp"
         app:tint="@color/black" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -32,9 +33,10 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
         android:clickable="true"
-        app:fabCustomSize="40dp"
+        app:fabCustomSize="45dp"
         android:layout_marginTop="50dp"
         android:src="@drawable/color_circle"
+        android:visibility="invisible"
         app:backgroundTint="#EB0C0C" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
