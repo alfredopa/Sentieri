@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.navigation.NavigationView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/mappa_navigation"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:backgroundTint="#09155A"
+    app:itemShapeInsetStart="12dp"
+    app:itemShapeInsetEnd="12dp"
+    app:itemShapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium"
+    app:menu="@menu/mappa_bottom_menu"
+    />
