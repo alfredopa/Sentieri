@@ -32,11 +32,8 @@ import android.view.KeyEvent.KEYCODE_VOLUME_DOWN
 import android.view.KeyEvent.KEYCODE_VOLUME_UP
 import android.view.LayoutInflater
 import android.view.Menu
-import android.view.MenuInflater
-import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
-import android.view.View.VISIBLE
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
@@ -54,8 +51,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
-import androidx.core.view.MenuHost
-import androidx.core.view.MenuProvider
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -140,7 +135,7 @@ import java.util.Locale
 
 private const val TAG = "MappaFragment"
 
-class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPreferenceChangeListener,
+class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeListener,
     View.OnKeyListener, ComponentCallbacks2 {
 
     companion object {
@@ -589,6 +584,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         mapView.setOnKeyListener(this)
         mapView.setDestroyMode(false)
 
+        //creaMappaMenu()
 // 1. Extract values with sensible defaults
         val savedMenuMap = preferenze.getInt("MenuMap", 1)
         val uriString = preferenze.getString("URIMappa", "") ?: ""
@@ -624,10 +620,6 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         } else {
             coloreDefault
         }*/
-
-        val menuHost: MenuHost = requireActivity()
-        menuHost.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
-
         mapView.zoomController?.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
         mapView.setMultiTouchControls(true)
         mapView.minZoomLevel = 7.0
@@ -1020,10 +1012,7 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
             }
         }
 
-// ... (codice precedente: gestione GPX caricato, POI, Toponimi, ecc.) ...
-
         val hasRecordedPoints = LocationRepository.trackPointsList.isNotEmpty()
-
         if (hasRecordedPoints) {
             // --- RIPRISTINO STATO TRACCIA REGISTRATA ---
             // 1. ASSICURATI CHE GLI OVERLAY DI STATO SIANO PRESENTI NELLA MAP VIEW
@@ -1105,13 +1094,13 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
 
-    override fun onPrepareMenu(menu: Menu) {
+    /*override fun onPrepareMenu(menu: Menu) {
         super.onPrepareMenu(menu)
         // soluzione per aggiornare icona gps dopo cambio fragment in quanto observer non aggiorna
         if (viewModel.isRecording) {
             LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
         }
-    }
+    }*/
 
     override fun onPause() {
         super.onPause()
@@ -1532,26 +1521,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
     }
 
     private fun updateGpsIcon(status: String?) {
-        val menuItem = menu?.findItem(R.id.gps) ?: run { // Usa l'ID corretto qui
-            Log.w(
-                TAG,
-                "updateGpsIcon: Tentativo di aggiornare l'icona ma il MENU o L'ITEM (R.id.gps) E' NULL."
-            )
-            return
-        }
-
-        val iconRes = when (status) {
+        when (status) {
             "started" -> R.drawable.gps_started // O l'icona che usi per "ricerca GPS"
             "fixed" -> R.drawable.gps_on     // Icona per GPS fixato
             "stopped" -> R.drawable.gps_off   // Icona per GPS spento/non attivo
             else -> R.drawable.gps_off      // Default a spento se lo stato è null o non riconosciuto
-        }
-
-        try {
-            // menuItem qui non dovrebbe essere nullo grazie al check precedente
-            menuItem.icon = ContextCompat.getDrawable(requireContext(), iconRes)
-        } catch (e: Exception) {
-            Log.e(TAG, "Errore durante l'aggiornamento dell'icona GPS", e)
         }
     }
 
@@ -1827,12 +1801,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
     }
 
-    override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
-        menuInflater.inflate(R.menu.main_menu, menu)
+    private fun creaMappaMenu() {
+        layoutInflater.inflate(R.layout.mappa_bottom_sheet, null)
 // viene richiamata alla creazione del menu, quindi  anche quando si cambia il fragment
-        this.menu = menu
         // 1. Determina quale voce di menu deve essere selezionata in base allo stato del ViewModel
-        val checkedMenuItemId = when {
+        when {
             // Se c'è una mappa offline caricata (viewModel.menuMap è 0)
             viewModel.menuMap == 0 && viewModel.uriMappa != Uri.EMPTY -> R.id.Offline
 
@@ -1851,113 +1824,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         }
 
         // 2. Trova la voce di menu usando il suo ID e imposta lo stato 'checked'
-        val itemToCheck = menu.findItem(checkedMenuItemId)
-        itemToCheck?.isChecked = true
+        //val itemToCheck = menu.findItem(checkedMenuItemId)
+        //itemToCheck?.isChecked = true
         // Aggiorna l'icona con lo stato corrente del GPS ViewModel
         // Questo gestisce il caso in cui l'observer iniziale è scattato prima che il menu fosse pronto
         updateGpsIcon(LocationRepository.gpsStatus.value)
-    }
-
-    override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
-        // Fai in modo che l'intero blocco 'when' restituisca il valore booleano.
-        // La keyword 'return' ora è all'inizio.
-        return when (menuItem.itemId) {
-            R.id.Offline -> {
-                menuItem.isChecked = !menuItem.isChecked
-                offline()
-                true // Ora questo 'true' viene restituito dal 'when'
-            }
-
-            R.id.Online, R.id.Mapquest, R.id.MapBox -> {
-                menuItem.isChecked = !menuItem.isChecked
-                when (menuItem.itemId) {
-                    R.id.Online -> online(requireContext(), mapView, viewModel, 1)
-                    R.id.Mapquest -> online(requireContext(), mapView, viewModel, 2)
-                    R.id.MapBox -> online(requireContext(), mapView, viewModel, 3)
-                }
-                true // Restituisce true per tutti e tre i casi
-            }
-
-            R.id.lista -> {
-                val directions = MappaFragmentDirections.actionMappaFragmentToSentieriFragment()
-                this@MappaFragment.findNavController().navigate(directions)
-                true
-            }
-
-            R.id.gps -> {
-                if (viewModel.isRecording) {
-                    stopGPS()
-                } else {
-                    // Controlla se il GPS è attivo prima di procedere con i permessi
-                    val locationManager =
-                        requireContext().getSystemService(Context.LOCATION_SERVICE) as LocationManager
-                    if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                        Toast.makeText(
-                            requireContext(),
-                            "Attiva il GPS per la registrazione.",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    } else {
-                        // Il GPS è attivo, procedi con la logica di avvio
-                        avviaLogicaRegistrazione()
-                    }
-                }
-                true
-            }
-
-            R.id.poi -> {
-                if (viewModel.isRecording) {
-                    if (!viewModel.isFixed) {
-                        Toast.makeText(
-                            requireActivity(),
-                            "Fix Gps non ancora disponbile",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } else {
-                        creaWayPoint()
-                    }
-                } else {
-                    Toast.makeText(
-                        requireActivity(),
-                        "Waypoint solo in modalita' registrazione traccia",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-                true
-            }
-
-            R.id.gpx -> {
-                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                    type = "application/octet-stream"
-                    //val mimeTypes = arrayOf("application/gpx+xml", "application/xml", "text/xml")
-                    //putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                }
-                gpxFileSelectorLauncher.launch(intent)
-                true
-            }
-
-            R.id.Geopackage -> {
-                val intent = Intent().apply {
-                    component = ComponentName(BROUTER_PACKAGE, BROUTER_SERVICE_CLASS)
-                }
-                try {
-                    requireContext().bindService(intent, connection, Context.BIND_AUTO_CREATE)
-                    //Log.d(TAG, "Tentativo di connessione a BRouterService...")
-                } catch (e: SecurityException) {
-                    Log.e(
-                        TAG,
-                        "Impossibile connettersi al servizio. L'app BRouter è installata? ${e.message}"
-                    )
-                }
-                true
-            }
-
-            else -> {
-                // Se nessun caso corrisponde, restituisci 'false' per indicare che non hai gestito l'evento.
-                false
-            }
-        }
     }
 
     private fun avviaLogicaRegistrazione() {
@@ -3040,26 +2911,28 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
 
         val navigationView = view.findViewById<NavigationView>(R.id.navigation_view)
         navigationView.itemIconTintList = null
-
-        // USA QUESTA (se non l'hai già fatto nell'XML):
-        /*navigationView.itemIconTintList = ContextCompat.getColorStateList(requireContext(), R.color.menu_selector_color)
-        navigationView.itemTextColor = ContextCompat.getColorStateList(requireContext(), R.color.menu_selector_color)
-        if (viewModel.isRecording) {
-            navigationView.menu.findItem(R.id.menu_gps).isChecked = true
-        } else {
-            // Altrimenti potresti voler evidenziare la lista o nulla
-            navigationView.menu.findItem(R.id.menu_lista).isChecked = true
-        }*/
         navigationView.setNavigationItemSelectedListener { menuItem ->
 
             when (menuItem.itemId) {
                 R.id.menu_lista -> {
                     val directions = MappaFragmentDirections.actionMappaFragmentToSentieriFragment()
                     findNavController().navigate(directions)
+                    bottomSheetDialog.dismiss()
                 }
 
                 R.id.menu_gps -> {
                     if (viewModel.isRecording) stopGPS() else avviaLogicaRegistrazione()
+                    bottomSheetDialog.dismiss()
+                }
+
+                R.id.menu_gpx -> {
+                    val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                        type = "application/octet-stream"
+                        //val mimeTypes = arrayOf("application/gpx+xml", "application/xml", "text/xml")
+                        //putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                    }
+                    gpxFileSelectorLauncher.launch(intent)
                 }
 
                 R.id.menu_poi -> {
@@ -3069,21 +2942,52 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         "Waypoint non disponibili",
                         Toast.LENGTH_SHORT
                     ).show()
+                    bottomSheetDialog.dismiss()
+                }
+
+                R.id.menu_mappa -> {
+                    // Chiudiamo prima il BottomSheet per liberare l'interfaccia
+                    bottomSheetDialog.dismiss()
+                    selezionaMappa()
                 }
             }
-            bottomSheetDialog.dismiss()
             true
         }
-
         bottomSheetDialog.show()
     }
+
+    private fun selezionaMappa() {
+        val bottomSheetDialog = BottomSheetDialog(requireContext())
+        val view = layoutInflater.inflate(R.layout.mappa_bottom_sheet, null)
+        bottomSheetDialog.setContentView(view)
+        val navigationView = view.findViewById<NavigationView>(R.id.mappa_navigation)
+        navigationView.setNavigationItemSelectedListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.Offline -> {
+                    menuItem.isChecked = !menuItem.isChecked
+                    offline()
+                }
+
+                R.id.Online, R.id.Mapquest, R.id.MapBox -> {
+                    menuItem.isChecked = !menuItem.isChecked
+                    when (menuItem.itemId) {
+                        R.id.Online -> online(requireContext(), mapView, viewModel, 1)
+                        R.id.Mapquest -> online(requireContext(), mapView, viewModel, 2)
+                        R.id.MapBox -> online(requireContext(), mapView, viewModel, 3)
+                    }
+                }
+            }
+            true
+        }
+        bottomSheetDialog.show()
+    }
+
 
     private fun exitDestinationSelectionMode() {
         isSelectingDestination = false
         // Nascondi il pulsante di conferma e ripristina l'icona del FAB
         binding.buttonConfirmDestination.visibility = View.GONE
         binding.fabSelectDestination.setImageResource(R.drawable.ic_distance) // Icona originale
-
         // Nascondi il marker (non rimuoverlo, così lo possiamo riutilizzare)
         destinationMarker?.isEnabled = false
         mapView.invalidate()
@@ -3172,7 +3076,8 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
         // Override per vedere quando MapView chiama questo specifico marker per un long press
         override fun onLongPress(event: MotionEvent?, mapView: MapView?): Boolean {
             if (mapView == null || event == null) return false
-            val wasHit = hitTest(event, mapView) // Controlla se l'evento è DENTRO questo marker
+            val wasHit =
+                hitTest(event, mapView) // Controlla se l'evento è DENTRO questo marker
             if (wasHit && this.isEnabled) {
                 return onMarkerLongClick?.invoke(this) ?: super.onLongPress(event, mapView)
             }
@@ -3214,7 +3119,11 @@ class MappaFragment : Fragment(), MenuProvider, SharedPreferences.OnSharedPrefer
                         // Usa il contesto del fragment per avviare l'activity
                         context?.startActivity(intent)
                     } catch (e: Exception) {
-                        Toast.makeText(context, "Impossibile aprire il link", Toast.LENGTH_SHORT)
+                        Toast.makeText(
+                            context,
+                            "Impossibile aprire il link",
+                            Toast.LENGTH_SHORT
+                        )
                             .show()
                         Log.e(TAG, "Errore nell'aprire il link dall'InfoWindow", e)
                     }
