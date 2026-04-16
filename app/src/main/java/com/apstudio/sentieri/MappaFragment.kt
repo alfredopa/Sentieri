@@ -144,6 +144,19 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // Il nome del package dell'app BRouter e il nome del servizio (dal manifest di BRouter)
         private const val BROUTER_PACKAGE = "btools.routingapp"
         private const val BROUTER_SERVICE_CLASS = "btools.routingapp.BRouterService"
+
+        /**
+         * Verifica se il servizio BRouter è installato sul dispositivo.
+         */
+        fun isBRouterInstalled(context: Context): Boolean {
+            return try {
+                val packageManager = context.packageManager
+                packageManager.getPackageInfo(BROUTER_PACKAGE, 0)
+                true
+            } catch (e: PackageManager.NameNotFoundException) {
+                false
+            }
+        }
     }
 
     // Flag per tracciare se la vista è stata appena ricreata (onViewCreated).
@@ -630,6 +643,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         aggiornaUIFabBlocMappa()
 
+        // Mostra o nascondi il bottone del menu BRouter in base all'installazione
+        binding.fabSelectDestination.isVisible = isBRouterInstalled(requireContext())
+
         binding.btnMenu.setOnClickListener { _ ->
             showMenuBottomSheet()
         }
@@ -1047,6 +1063,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
             viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
             gpsMarker.setVisible(true)
+            binding.fabBlocMappa.isVisible = true
 
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = 120
@@ -1092,15 +1109,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mapView.invalidate()
         //Log.d(TAG, "onResume invalidate")
     }
-
-
-    /*override fun onPrepareMenu(menu: Menu) {
-        super.onPrepareMenu(menu)
-        // soluzione per aggiornare icona gps dopo cambio fragment in quanto observer non aggiorna
-        if (viewModel.isRecording) {
-            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
-        }
-    }*/
 
     override fun onPause() {
         super.onPause()
@@ -1239,6 +1247,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         requireActivity().stopService(Intent(context, LocationService::class.java))
         viewModel.stopUpdates()
         viewModel.isRecording = false
+        binding.fabBlocMappa.isVisible = false
         gpsMarker.setVisible(false)
         LocationRepository.updateGpsStatus("stopped")
 // rimuove impostazione schermo sempre acceso
@@ -1342,6 +1351,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         //    Questo garantisce che venga disegnato sopra a tutto il resto.
         gpsMarker.setVisible(true)
         mapView.overlays.add(gpsMarker)
+        binding.fabBlocMappa.isVisible = true
         // 4. Invalida la mappa per forzare un ridisegno immediato.
         mapView.invalidate()
 
@@ -1522,10 +1532,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     private fun updateGpsIcon(status: String?) {
         when (status) {
-            "started" -> R.drawable.gps_started // O l'icona che usi per "ricerca GPS"
-            "fixed" -> R.drawable.gps_on     // Icona per GPS fixato
-            "stopped" -> R.drawable.gps_off   // Icona per GPS spento/non attivo
-            else -> R.drawable.gps_off      // Default a spento se lo stato è null o non riconosciuto
+            "started" -> binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.orange) // O l'icona che usi per "ricerca GPS"
+            "fixed" -> binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.red)     // Icona per GPS fixato
+            "stopped" -> binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.white)   // Icona per GPS spento/non attivo
+            else -> binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.white)      // Default a spento se lo stato è null o non riconosciuto
         }
     }
 
@@ -1823,10 +1833,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             else -> R.id.Offline
         }
 
-        // 2. Trova la voce di menu usando il suo ID e imposta lo stato 'checked'
-        //val itemToCheck = menu.findItem(checkedMenuItemId)
-        //itemToCheck?.isChecked = true
-        // Aggiorna l'icona con lo stato corrente del GPS ViewModel
+        // Aggiorna il pulsante con lo stato corrente del GPS ViewModel
         // Questo gestisce il caso in cui l'observer iniziale è scattato prima che il menu fosse pronto
         updateGpsIcon(LocationRepository.gpsStatus.value)
     }

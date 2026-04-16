@@ -9,6 +9,7 @@
     <color name="white">#FFFFFFFF</color>
     <color name="red">#FF0000</color>
     <color name="blurred_white">#EEE</color>
+    <color name="orange">#FF9800</color>
     <!-- ... i tuoi altri colori ... -->
     <color name="grafico_text_color">#FF424242</color>
 </resources>
