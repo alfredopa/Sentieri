@@ -35,34 +35,35 @@
         android:clickable="true"
         app:fabCustomSize="45dp"
         android:layout_marginTop="50dp"
-        android:src="@drawable/color_circle"
+        android:src="@drawable/gps_off"
         android:visibility="invisible"
         app:backgroundTint="#EB0C0C" />
-
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fabBlocMappa"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="end|top"
-        android:layout_marginTop="140dp"
-        android:layout_marginEnd="4dp"
-        android:contentDescription="@string/app_name"
-        android:outlineProvider="none"
-        android:src="@drawable/pin_rosso"
-        app:fabCustomSize="36dp"
-        app:tint="@null" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/camera"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="end|top"
-        android:layout_marginTop="190dp"
+        android:layout_marginTop="140dp"
         android:layout_marginEnd="4dp"
         android:contentDescription="waypoint"
         android:outlineProvider="none"
         android:src="@drawable/camera"
         app:fabCustomSize="36dp" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabBlocMappa"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|top"
+        android:layout_marginTop="190dp"
+        android:layout_marginEnd="4dp"
+        android:contentDescription="@string/app_name"
+        android:outlineProvider="none"
+        android:src="@drawable/pin_rosso"
+        app:fabCustomSize="36dp"
+        android:visibility="invisible"
+        app:tint="@null" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_select_destination"
@@ -73,6 +74,7 @@
         android:layout_marginEnd="4dp"
         android:contentDescription="Seleziona destinazione"
         android:src="@drawable/ic_distance"
+        android:visibility="invisible"
         app:fabCustomSize="36dp" />
 
     <Button

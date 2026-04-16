@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <group android:checkableBehavior="single">
-    <item
-        android:id="@+id/menu_lista"
-        android:icon="@drawable/round_navigation_white_48"
-        android:title="Lista Sentieri" />
-    <item
-        android:id="@+id/menu_gps"
-        android:icon="@drawable/gps_off"
-        android:title="AVVIA/FERMA Registrazione GPS" />
-    <item
-        android:id="@+id/menu_poi"
-        android:icon="@drawable/pin_rosso"
-        android:title="Waypoint" />
-    <item
-        android:id="@+id/menu_gpx"
-        android:icon="@drawable/ic_distance"
-        android:title="Carica Gpx" />
-    <item
-        android:id="@+id/menu_mappa"
-        android:icon="@android:drawable/ic_dialog_map"
-        android:title="Cambia Mappa" />
+        <item
+            android:id="@+id/menu_gps"
+            android:icon="@drawable/gps_off"
+            android:title="AVVIA/FERMA Registrazione GPS" />
+        <item
+            android:id="@+id/menu_lista"
+            android:icon="@drawable/round_navigation_white_48"
+            android:title="Lista Sentieri" />
+        <item
+            android:id="@+id/menu_poi"
+            android:icon="@drawable/pin_rosso"
+            android:title="Waypoint" />
+        <item
+            android:id="@+id/menu_gpx"
+            android:icon="@drawable/ic_distance"
+            android:title="Carica Gpx" />
+        <item
+            android:id="@+id/menu_mappa"
+            android:icon="@android:drawable/ic_dialog_map"
+            android:title="Cambia Mappa" />
     </group>
 
 </menu>
