@@ -45,6 +45,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.appcompat.widget.TooltipCompat
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -463,6 +464,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        TooltipCompat.setTooltipText(binding.btnMenu, "Apre il menu")
+        TooltipCompat.setTooltipText(binding.camera, "Scatta una foto")
+        TooltipCompat.setTooltipText(binding.fabBlocMappa,"Abilita riposizionamento della mappa automatico")
+        TooltipCompat.setTooltipText(binding.fabSelectDestination, "Calcola percorso")
+
         isViewRecreated = true
         //Log.d(TAG, "Ripristino degli overlay dal ViewModel sulla nuova MapView.")
         // 1. Pulisci la mappa per sicurezza (anche se dovrebbe essere già vuota)
@@ -641,10 +647,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mapController.setCenter(viewModel.ultPosizione)
         mapController.setZoom(viewModel.ultZoom.toDouble())
 
-        aggiornaUIFabBlocMappa()
-
-        // Mostra o nascondi il bottone del menu BRouter in base all'installazione
-        binding.fabSelectDestination.isVisible = isBRouterInstalled(requireContext())
+        //aggiornaUIFabBlocMappa()
 
         binding.btnMenu.setOnClickListener { _ ->
             showMenuBottomSheet()
@@ -1249,6 +1252,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.isRecording = false
         binding.fabBlocMappa.isVisible = false
         gpsMarker.setVisible(false)
+        binding.fabSelectDestination.isVisible = false
         LocationRepository.updateGpsStatus("stopped")
 // rimuove impostazione schermo sempre acceso
         requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -1352,6 +1356,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         gpsMarker.setVisible(true)
         mapView.overlays.add(gpsMarker)
         binding.fabBlocMappa.isVisible = true
+        // Mostra o nascondi il bottone del menu BRouter in base all'installazione
+        binding.fabSelectDestination.isVisible = isBRouterInstalled(requireContext())
+
         // 4. Invalida la mappa per forzare un ridisegno immediato.
         mapView.invalidate()
 
@@ -2032,9 +2039,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         if (viewModel.bloccaMappa) {
             // Se la mappa è bloccata, mostra l'icona "bloccata" (es. PIN_RED)
             binding.fabBlocMappa.setImageResource(PIN_RED)
+            Toast.makeText(requireContext(), "Mappa ancorata punto GPS", Toast.LENGTH_SHORT).show()
         } else {
             // Se la mappa è sbloccata, mostra l'icona "sbloccata" (es. PIN_BLACK)
             binding.fabBlocMappa.setImageResource(PIN_BLACK)
+            Toast.makeText(requireContext(), "Mappa libera", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -2946,7 +2955,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     if (viewModel.isRecording && viewModel.isFixed) creaWayPoint()
                     else Toast.makeText(
                         requireContext(),
-                        "Waypoint non disponibili",
+                        "Waypoint solo in registrazione traccia",
                         Toast.LENGTH_SHORT
                     ).show()
                     bottomSheetDialog.dismiss()
