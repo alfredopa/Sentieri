@@ -202,8 +202,8 @@ class SchedaFragment : Fragment(), MenuProvider {
         // configurazione eventi switch e pulsanti
         val swcSegui: MaterialSwitch = binding.swtchSegui
         // switch per visualizzazione percorso con quota o pendenza
-        binding.swtchFrecce.isChecked = viewModel.mostraPendenza
-        binding.swtchFrecce.setOnCheckedChangeListener { _, isChecked ->
+        binding.swtchQuota.isChecked = viewModel.mostraPendenza
+        binding.swtchQuota.setOnCheckedChangeListener { _, isChecked ->
             viewModel.mostraPendenza = isChecked
             //Log.d("SchedaFragment", "checked aggiornaMappaPercorso")
             aggiornaMappaPercorso()
@@ -214,7 +214,7 @@ class SchedaFragment : Fragment(), MenuProvider {
             // scrive i punti su polilinea d'appoggio in viewmodel
             viewModel.puntiDaSeguire = puntiOriginali.toMutableList()
             viewModel.titoloTracciaDaSeguire = binding.txNome.text.toString()
-            viewModel.mostraPendenza = binding.swtchFrecce.isChecked
+            viewModel.mostraPendenza = binding.swtchQuota.isChecked
             
             // Se NON è attiva la pendenza, azzeriamo la lista colori affinché la MappaFragment usi l'altitudine
             if (!viewModel.mostraPendenza) {
@@ -336,13 +336,20 @@ class SchedaFragment : Fragment(), MenuProvider {
             val percorsoCaricato = viewModel.leggiTrack(idSentiero, poiDBList)
             // Usiamo una nuova variabile locale per chiarezza e sicurezza.
             percorso = percorsoCaricato
-            puntiOriginali = percorsoCaricato.actualPoints.map { GeoPoint(it.latitude, it.longitude, it.altitude) }
+            puntiOriginali = percorsoCaricato.actualPoints.map {
+                GeoPoint(
+                    it.latitude,
+                    it.longitude,
+                    it.altitude
+                )
+            }
 
             percorso.bounds?.let { bounds ->
-                    mapView.zoomToBoundingBox(bounds.increaseByScale(1.2f), false)
+                mapView.zoomToBoundingBox(bounds.increaseByScale(1.2f), false)
             }
             aggiornaMappaPercorso()
             //Log.d("SchedaFragment", "chiamato aggiornaMappaPercorso, ${percorso.actualPoints.size}")
+
         }
     }
 
@@ -409,7 +416,11 @@ class SchedaFragment : Fragment(), MenuProvider {
         }
         // 3. Riaggiungi i Marker (altrimenti spariscono col clear)
         aggiungiMarkerInizioFine()
-        mapView.invalidate()
+        mapView.post {
+            mapView.visibility = View.VISIBLE
+            mapView.invalidate()
+        }
+        //mapView.invalidate()
     }
 
     private fun aggiungiMarkerInizioFine() {
