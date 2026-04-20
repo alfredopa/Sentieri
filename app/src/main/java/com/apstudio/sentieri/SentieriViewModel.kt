@@ -89,7 +89,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     val locationData: LiveData<LocationData> = _locationData
 
     private var oldPunto = GeoPoint(0.0, 0.0, 0.0)
-    var ultZoom = (9)
+    var ultZoom = (11)
 
     // LiveData per osservare i dati dal Repository
     val locationFromRepo: LiveData<Location> = LocationRepository.location

@@ -12,7 +12,7 @@
         android:id="@+id/Mapview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:backgroundTint="@color/design_default_color_background" />
+    />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/btnMenu"
@@ -20,7 +20,6 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
         android:layout_marginTop="50dp"
-        android:contentDescription="Menu"
         android:src="@drawable/hamburger"
         app:backgroundTint="@color/white"
         app:fabCustomSize="45dp"
@@ -46,7 +45,6 @@
         android:layout_gravity="end|top"
         android:layout_marginTop="140dp"
         android:layout_marginEnd="4dp"
-        android:contentDescription="waypoint"
         android:outlineProvider="none"
         android:src="@drawable/camera"
         app:fabCustomSize="36dp" />
@@ -58,7 +56,6 @@
         android:layout_gravity="end|top"
         android:layout_marginTop="190dp"
         android:layout_marginEnd="4dp"
-        android:contentDescription="@string/app_name"
         android:outlineProvider="none"
         android:src="@drawable/pin_rosso"
         app:fabCustomSize="36dp"
@@ -72,7 +69,6 @@
         android:layout_gravity="end|top"
         android:layout_marginTop="240dp"
         android:layout_marginEnd="4dp"
-        android:contentDescription="Seleziona destinazione"
         android:src="@drawable/ic_distance"
         android:visibility="invisible"
         app:fabCustomSize="36dp" />
