@@ -8,15 +8,15 @@
         <item
             android:id="@+id/menu_lista"
             android:icon="@drawable/round_navigation_white_48"
-            android:title="Lista Sentieri" />
+            android:title="Lista percorsi registrati" />
         <item
             android:id="@+id/menu_poi"
             android:icon="@drawable/pin_rosso"
-            android:title="Waypoint" />
+            android:title="Crea Waypoint" />
         <item
             android:id="@+id/menu_gpx"
             android:icon="@drawable/ic_distance"
-            android:title="Carica Gpx" />
+            android:title="Carica Gpx da dispositivo" />
         <item
             android:id="@+id/menu_mappa"
             android:icon="@android:drawable/ic_dialog_map"

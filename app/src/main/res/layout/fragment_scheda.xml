@@ -17,6 +17,7 @@
             android:layout_height="300dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
+            android:visibility="invisible"
             app:layout_constraintTop_toTopOf="parent" />
 
         <View
@@ -337,10 +338,10 @@
             android:layout_marginStart="16dp"
             android:text="Segui traccia"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/swtchFrecce" />
+            app:layout_constraintTop_toBottomOf="@+id/swtchQuota" />
 
         <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/swtchFrecce"
+            android:id="@+id/swtchQuota"
             android:layout_width="195dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
