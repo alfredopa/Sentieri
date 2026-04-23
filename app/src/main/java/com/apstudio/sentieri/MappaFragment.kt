@@ -579,10 +579,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             compassOverlay.setCompassCenter(36f, 80f)
             mapView.overlays.add(compassOverlay)
         }
-        // Allinea la barra in basso al centro dello schermo.
+        // Allinea la barra in alto a sinistra dello schermo.
         val scaleBarOverlay = ScaleBarOverlay(mapView)
-        scaleBarOverlay.setAlignRight(true) // setAlignBottom(true)
-        //scaleBarOverlay.setCentred(true)
+        scaleBarOverlay.setScaleBarOffset(70, 20)
         // Aggiungi la barra della scala alla lista degli overlay della mappa.
         mapView.overlays.add(scaleBarOverlay)
 
