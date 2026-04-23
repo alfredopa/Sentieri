@@ -1,6 +1,7 @@
 package com.apstudio.sentieri
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ComponentCallbacks2
 import android.content.ComponentName
@@ -462,6 +463,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         return binding.root
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         TooltipCompat.setTooltipText(binding.btnMenu, "Apre il menu")
@@ -479,7 +481,31 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mapView.overlays.add(mRotationGestureOverlay)
         view.isFocusableInTouchMode = true
         view.requestFocus()
-        view.setOnKeyListener(this)// --- INIZIO NUOVA GESTIONE EVENTI ---
+        view.setOnKeyListener(this)
+
+        mapView.setOnTouchListener { v, event ->
+            if (event.action == MotionEvent.ACTION_UP) {
+                val density = resources.displayMetrics.density
+                val compassX = 36f * density
+                val compassY = 80f * density
+                val dx = event.x - compassX
+                val dy = event.y - compassY
+                val radius = 50f * density
+
+                if (dx * dx + dy * dy <= radius * radius) {
+                    // 1. Chiamiamo performClick() per soddisfare i requisiti di accessibilità
+                    v.performClick()
+
+                    // 2. Eseguiamo la nostra logica
+                    mapView.controller.animateTo(mapView.mapCenter, mapView.zoomLevelDouble, 500L, 0f)
+                    return@setOnTouchListener true
+                }
+            }
+            // Restituiamo false negli altri casi per non interferire con il drag della mappa
+            false
+        }
+        // Imposta l'orientamento salvato nel ViewModel
+        mapView.mapOrientation = viewModel.mapRotation
         // 1. Osserva le richieste di aggiornamento dei layer (da GpkgLayer).
         layerModel.layerUpdateRequest.observe(viewLifecycleOwner, Observer { event ->
             event.getContentIfNotHandled()?.let {
@@ -545,17 +571,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
         }
 
-// Assicurati che gli overlay di stato siano presenti
-        if (!mapView.overlays.contains(viewModel.listaTracce)) {
-            mapView.overlays.add(viewModel.listaTracce)
-        }
-        if (!mapView.overlays.contains(viewModel.recTraccia)) {
-            mapView.overlays.add(viewModel.recTraccia) // Assicura che sia qui
-        }
-        if (!mapView.overlays.contains(viewModel.topoLayer)) {
-            mapView.overlays.add(viewModel.topoLayer)
-        }
-
         // Aggiungi l'overlay della bussola solo se il dispositivo ha i sensori necessari.
         if (hasCompass()) {
             val compassOverlay =
@@ -570,6 +585,17 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         //scaleBarOverlay.setCentred(true)
         // Aggiungi la barra della scala alla lista degli overlay della mappa.
         mapView.overlays.add(scaleBarOverlay)
+
+        // Assicurati che gli overlay di stato siano presenti
+        if (!mapView.overlays.contains(viewModel.listaTracce)) {
+            mapView.overlays.add(viewModel.listaTracce)
+        }
+        if (!mapView.overlays.contains(viewModel.recTraccia)) {
+            mapView.overlays.add(viewModel.recTraccia) // Assicura che sia qui
+        }
+        if (!mapView.overlays.contains(viewModel.topoLayer)) {
+            mapView.overlays.add(viewModel.topoLayer)
+        }
 
         for (overlay in viewModel.listaTracce.items) {
             if (overlay is Polyline) {
@@ -1539,10 +1565,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     private fun updateGpsIcon(status: String?) {
         when (status) {
-            "started" -> binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.orange) // O l'icona che usi per "ricerca GPS"
-            "fixed" -> binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.red)     // Icona per GPS fixato
-            "stopped" -> binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.white)   // Icona per GPS spento/non attivo
-            else -> binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.white)      // Default a spento se lo stato è null o non riconosciuto
+            "started" -> {binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.orange) // O l'icona che usi per "ricerca GPS"
+                        binding.fabStopRec.isVisible = true}
+            "fixed" -> {binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.red)// Icona per GPS fixato
+                        binding.fabStopRec.isVisible = true}
+            "stopped" -> {binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.white)   // Icona per GPS spento/non attivo
+                        binding.fabStopRec.isVisible = false}
+            else -> {binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.white)      // Default a spento se lo stato è null o non riconosciuto
+                        binding.fabStopRec.isVisible = false}
         }
     }
 
@@ -1799,6 +1829,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     override fun onDestroyView() {
+        viewModel.mapRotation = mapView.mapOrientation
         alertDialog?.dismiss()
         alertDialog = null
         if (_binding != null) {
@@ -3086,6 +3117,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             .show()
     }
 
+
     inner class RemovableMarker(mapView: MapView) : Marker(mapView) {
         var onMarkerLongClick: ((RemovableMarker) -> Boolean)? = null
 
@@ -3147,14 +3179,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             } else {
                 websiteButton.visibility = View.GONE
             }
-
-            // --- CORREZIONE: Aggiungi il listener per chiudere la finestra ---
             // Imposta un OnClickListener sulla vista principale dell'infowindow
             // per chiuderla quando viene toccata.
             mView.setOnClickListener {
                 close() // Chiude questa InfoWindow
             }
-            // --- FINE CORREZIONE ---
         }
 
         override fun onClose() {
