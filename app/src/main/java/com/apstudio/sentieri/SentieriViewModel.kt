@@ -74,6 +74,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     var alertFuoriTraccia: Boolean = true
     var tracciaDaSeguire: String = ""
     var poi = GeoPoint(0.0, 0.0, 0.0)
+    var mapRotation: Float = 0f
     var bloccaMappa = true
     var connessione = false
     var menuMap = 0             // indice della mappa utilizzata secondo le voci del menu mappa
