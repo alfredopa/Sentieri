@@ -49,5 +49,11 @@
             android:text="Mappe fornite da OpenStreetMap\nUtilizza librerie OSMdroid, Mapsforge\nLayer dati: \nRegione Autonoma della Sardegna\nNurnet\nringrazio Federico Matera per libreria GPX"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body2" />
 
+        <TextView
+            android:id="@+id/tv_VersionCode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="30" />
+
     </LinearLayout>
 </ScrollView>
