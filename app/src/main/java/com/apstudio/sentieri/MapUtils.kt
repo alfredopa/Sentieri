@@ -227,6 +227,7 @@ object MapUtils {
         }
         mapView.setUseDataConnection(true)
         mapView.tileProvider = tileProvider
+        mapView.setTileSource(tileProvider.tileSource)
         mapView.invalidate()
     }
 
