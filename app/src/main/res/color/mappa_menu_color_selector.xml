@@ -1,0 +1,8 @@
+<!-- C:/AndroidStudioProjects/Sentieri/app/src/main/res/color/mappa_menu_color_selector.xml -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Testo NERO quando selezionato per massimo contrasto su sfondo chiaro -->
+    <item android:state_checked="true" android:color="#000000" />
+    <!-- Testo BIANCO di default su fondo blu scuro -->
+    <item android:color="#FFFFFF" />
+</selector>
+

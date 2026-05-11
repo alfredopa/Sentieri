@@ -551,15 +551,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             arguments?.remove("gpx_file_uri")
         }
 
-        arguments?.let { bundle ->
-            val latitude = bundle.getDouble("latitude", Double.NaN)
-            val longitude = bundle.getDouble("longitude", Double.NaN)
-            if (!latitude.isNaN() && !longitude.isNaN()) {
-                initialCenterPoint = GeoPoint(latitude, longitude)
-            }
-            arguments?.clear()
-        }
-
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
         bottomSheetBehavior.isHideable = true
         bottomSheetBehavior.skipCollapsed = false
@@ -1188,33 +1179,41 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mapView.addOnFirstLayoutListener { _, _, _, _, _ ->
             //Log.d(TAG, "OnFirstLayoutListener eseguito. La mappa è pronta.")
 
-            // --- MODIFICA FONDAMENTALE ---
-            // Controlla se c'è una richiesta di navigazione in sospeso.
-            if (initialCenterPoint != null) {
-                // Se c'è, ha la PRIORITÀ. Centra la mappa su quel punto.
-                //Log.d(TAG, "Centro mappa sulla nuova destinazione: $initialCenterPoint")
+            // --- GESTIONE RITORNO DA TOPONIMIFRAGMENT ---
+            // Recupera eventuali coordinate passate tramite bundle (Navigation Component)
+            val bundleLat = arguments?.getDouble("latitude", Double.NaN) ?: Double.NaN
+            val bundleLon = arguments?.getDouble("longitude", Double.NaN) ?: Double.NaN
+
+            if (!bundleLat.isNaN() && !bundleLon.isNaN()) {
+                // Se sono presenti nel bundle, hanno la priorità assoluta
+                val targetPoint = GeoPoint(bundleLat, bundleLon)
+                //Log.d(TAG, "Navigazione da bundle: $targetPoint")
+                mapView.controller.setZoom(17.0) // Zoom ravvicinato per il toponimo
+                mapView.controller.setCenter(targetPoint)
+                mapView.controller.animateTo(targetPoint)
+                // Opzionale: pulisci i parametri per evitare ri-centramgi indesiderati al prossimo layout
+                arguments?.remove("latitude")
+                arguments?.remove("longitude")
+                initialCenterPoint = null 
+            } else if (initialCenterPoint != null) {
+                // Gestione vecchia variabile di supporto
                 mapView.controller.setZoom(14.0)
                 mapView.controller.setCenter(initialCenterPoint)
-                initialCenterPoint =
-                    null // Consuma la richiesta per evitare che venga riutilizzata.
+                initialCenterPoint = null
             } else {
-                // Altrimenti, ripristina la posizione e lo zoom precedenti.
-                //Log.d(TAG, "Nessuna nuova destinazione. Ripristino stato precedente.")
+                // Ripristino posizione precedente salvata nel ViewModel
                 mapView.controller.setZoom(viewModel.ultZoom.toDouble())
                 mapView.controller.setCenter(viewModel.ultPosizione)
             }
 
-            // La logica per caricare la mappa corretta (online o offline) rimane invariata.
+            // Caricamento layer mappa
             if (menuMap == 0 && uriString != null) {
-                //Log.d(TAG, "Ripristino mappa offline dall'URI: $uriString")
                 apreMappa(requireContext(), mapView, viewModel, uriString.toUri())
             } else {
-                //Log.d(TAG, "Ripristino mappa online, indice: $menuMap")
                 online(requireContext(), mapView, viewModel, menuMap)
             }
 
             mapView.postInvalidate()
-            //Log.d(TAG, "Ripristino stato mappa Invalidate")
         }
     }
 
