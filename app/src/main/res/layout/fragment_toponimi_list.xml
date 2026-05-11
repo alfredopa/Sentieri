@@ -7,17 +7,27 @@
     android:orientation="vertical"
     tools:context=".layer.ToponimiFragment">
 
-    <!-- Campo di Ricerca con SearchView -->
-    <androidx.appcompat.widget.SearchView
-        android:id="@+id/search_view"
+    <!-- Campo di Ricerca con SearchView in una Card per contrasto -->
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
         android:layout_marginTop="8dp"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="8dp"
-        app:iconifiedByDefault="false"
-        app:queryHint="Cerca toponimo..." />
+        app:cardCornerRadius="8dp"
+        app:cardElevation="2dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="?attr/colorOutline">
+
+        <androidx.appcompat.widget.SearchView
+            android:id="@+id/search_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:iconifiedByDefault="false"
+            app:queryHint="Cerca toponimo..."
+            app:queryBackground="@android:color/transparent" />
+    </com.google.android.material.card.MaterialCardView>
     <!-- iconifiedByDefault="false" lo mostra espanso di default -->
 
     <!-- RecyclerView -->

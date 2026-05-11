@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Colore lilla solo quando la voce è selezionata -->
+    <item android:state_checked="true" android:color="#D1D9FF" />
+    <!-- Sfondo trasparente per le voci non selezionate -->
+    <item android:color="@android:color/transparent" />
+</selector>
