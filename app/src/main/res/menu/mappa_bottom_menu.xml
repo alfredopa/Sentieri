@@ -3,7 +3,7 @@
     xmlns:android="http://schemas.android.com/apk/res/android">
     <group android:checkableBehavior="single">
         <item android:id="@+id/Offline"
-            android:title="Mappa offline"
+            android:title="Seleziona mappa offline da dispositivo"
             android:checked="true"/>
         <item android:id="@+id/Online"
             android:title="Mappa OpenStreetmap" />
