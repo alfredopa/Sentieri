@@ -45,6 +45,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import kotlin.getValue
+import androidx.core.view.WindowInsetsControllerCompat
 
 private const val LAST_VERSION_CODE = "last_version_code"
 
@@ -97,6 +98,7 @@ class MainActivity :
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         applicationContext as AppSentieri
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
         // inizializza le preferenze
         initPreferenze()
         // Controlla se è necessario l'aggiornamento

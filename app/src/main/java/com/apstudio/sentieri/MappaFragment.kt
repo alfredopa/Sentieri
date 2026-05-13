@@ -572,7 +572,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
         // Allinea la barra in alto a sinistra dello schermo.
         val scaleBarOverlay = ScaleBarOverlay(mapView)
-        scaleBarOverlay.setScaleBarOffset(70, 20)
+        scaleBarOverlay.setScaleBarOffset(20, 60)
         // Aggiungi la barra della scala alla lista degli overlay della mappa.
         mapView.overlays.add(scaleBarOverlay)
 
@@ -1847,33 +1847,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
-    private fun creaMappaMenu() {
-        layoutInflater.inflate(R.layout.mappa_bottom_sheet, null)
-// viene richiamata alla creazione del menu, quindi  anche quando si cambia il fragment
-        // 1. Determina quale voce di menu deve essere selezionata in base allo stato del ViewModel
-        when {
-            // Se c'è una mappa offline caricata (viewModel.menuMap è 0)
-            viewModel.menuMap == 0 && viewModel.uriMappa != Uri.EMPTY -> R.id.Offline
-
-            // Se è selezionata OpenStreetMap (indice 1)
-            viewModel.menuMap == 1 -> R.id.Online
-
-            // Se è selezionata OpenTopo (indice 2)
-            viewModel.menuMap == 2 -> R.id.Mapquest
-
-            // Se è selezionata la mappa satellitare (indice 3)
-            viewModel.menuMap == 3 -> R.id.MapBox
-
-            // Caso di default: se nessuna delle precedenti, seleziona la mappa offline
-            // per evitare che non ci sia nessuna selezione.
-            else -> R.id.Offline
-        }
-
-        // Aggiorna il pulsante con lo stato corrente del GPS ViewModel
-        // Questo gestisce il caso in cui l'observer iniziale è scattato prima che il menu fosse pronto
-        updateGpsIcon(LocationRepository.gpsStatus.value)
-    }
-
     private fun avviaLogicaRegistrazione() {
         // FASE 1: Controlla se hai i permessi in PRIMO PIANO.
         if (!isFineLocationPermissionGranted()) {
@@ -3011,6 +2984,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 R.id.Offline -> {
                     menuItem.isChecked = !menuItem.isChecked
                     offline()
+                    bottomSheetDialog.dismiss()
                 }
 
                 R.id.Online, R.id.Mapquest, R.id.MapBox -> {
@@ -3020,6 +2994,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         R.id.Mapquest -> online(requireContext(), mapView, viewModel, 2)
                         R.id.MapBox -> online(requireContext(), mapView, viewModel, 3)
                     }
+                    bottomSheetDialog.dismiss()
                 }
             }
             true
