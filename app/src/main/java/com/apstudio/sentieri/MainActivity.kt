@@ -1,7 +1,10 @@
 package com.apstudio.sentieri
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.hardware.Sensor
@@ -227,7 +230,7 @@ class MainActivity :
                     }
                     .setCancelable(false) // Impedisce all'utente di chiudere il dialogo senza premere OK
                     .show()
-                return // Esce dalla funzione verificaCartelleDB se un file cruciale manca
+                return // Esce dalla funzione verificaCartelleDB si un file cruciale manca
             }
         }
         // Tutti i file sono stati verificati e copiati con successo.
@@ -425,6 +428,52 @@ class MainActivity :
         }
     }
 
+    private val downloadReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            Log.d("MainActivity", "Ricevuto broadcast: ${intent.action}")
+            when (intent.action) {
+                DownloadService.ACTION_DOWNLOAD_STARTED -> {
+                    viewModel.setDownloading(true)
+                    viewModel.setDownloadProgress(0)
+                }
+                DownloadService.ACTION_PROGRESS_UPDATE -> {
+                    val progress = intent.getIntExtra(DownloadService.EXTRA_PROGRESS, -1)
+                    Log.d("MainActivity", "Update progresso: $progress")
+                    viewModel.setDownloadProgress(progress)
+                }
+                DownloadService.ACTION_DOWNLOAD_COMPLETE -> {
+                    val message = intent.getStringExtra(DownloadService.EXTRA_MESSAGE) ?: ""
+                    Log.d("MainActivity", "Download completato: $message")
+                    viewModel.setDownloading(false)
+                    viewModel.postFtpStatus(message)
+                }
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter().apply {
+            addAction(DownloadService.ACTION_DOWNLOAD_STARTED)
+            addAction(DownloadService.ACTION_PROGRESS_UPDATE)
+            addAction(DownloadService.ACTION_DOWNLOAD_COMPLETE)
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(downloadReceiver, filter)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        try {
+            unregisterReceiver(downloadReceiver)
+        } catch (e: Exception) {
+            Log.w("MainActivity", "Errore unregisterReceiver", e)
+        }
+    }
 
     private fun getCurrentVersionCode(): Long {
         return try {
@@ -434,38 +483,5 @@ class MainActivity :
             -1L
         }
     }
-
-    /*fun isBatteryOptimizationEnabled(context: Context): Boolean {
-        val packageName = context.packageName
-        val pm = context.getSystemService(POWER_SERVICE) as PowerManager
-        return !pm.isIgnoringBatteryOptimizations(packageName)
-    }
-
-    fun requestIgnoreBatteryOptimizations(activity: AppCompatActivity) {
-        val intent = Intent()
-        val packageName = activity.packageName
-        val pm = activity.getSystemService(POWER_SERVICE) as PowerManager
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-            intent.data = "package:$packageName".toUri()
-            // È buona norma controllare se l'intent può essere gestito
-            if (intent.resolveActivity(activity.packageManager) != null) {
-                activity.startActivity(intent)
-            } else {
-                // Potrebbe non esserci un'activity per gestire questa azione
-                // su alcuni dispositivi molto customizzati.
-                // In questo caso, potresti guidare l'utente manualmente.
-                // Log.w("BatteryOpt", "Nessuna activity per ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS")
-                // Prova ad aprire le impostazioni generali di ottimizzazione batteria:
-                val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                if (fallbackIntent.resolveActivity(activity.packageManager) != null) {
-                    activity.startActivity(fallbackIntent)
-                } else {
-                    // Log.w("BatteryOpt", "Nessuna activity per ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS")
-                    // Mostra un messaggio all'utente per farlo manualmente
-                }
-            }
-        }
-    }*/
 
 }

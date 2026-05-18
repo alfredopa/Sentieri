@@ -173,16 +173,28 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     val ftpDownloadStatus: LiveData<Event<String>> = _ftpDownloadStatus
 
     // Potresti anche usare un LiveData per lo stato di caricamento
-    private val _isDownloading = MutableLiveData<Boolean>()
+    private val _isDownloading = MutableLiveData<Boolean>(false)
     val isDownloading: LiveData<Boolean> = _isDownloading
 
     // LiveData per il progresso ---
-    private val _downloadProgress = MutableLiveData(0)
+    private val _downloadProgress = MutableLiveData<Int>(-1)
     val downloadProgress: LiveData<Int> = _downloadProgress
 
     // NUOVO: LiveData per l'elenco dei file FTP
     private val _ftpFileList = MutableLiveData<List<String>>()
     val ftpFileList: LiveData<List<String>> = _ftpFileList
+
+    fun setDownloading(downloading: Boolean) {
+        _isDownloading.postValue(downloading)
+    }
+
+    fun setDownloadProgress(progress: Int) {
+        _downloadProgress.postValue(progress)
+    }
+
+    fun postFtpStatus(message: String) {
+        _ftpDownloadStatus.postValue(Event(message))
+    }
 
     init {
         // L'UNICO trigger per l'aggiornamento dei dati ora è una nuova posizione.
@@ -666,10 +678,12 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     /**
      * Elenca i file presenti nella directory remota del server FTP.
      */
+// Rimuovo la doppia dichiarazione e sistemo il finally
     fun listDirectory(remotePath: String = "") {
         viewModelScope.launch(Dispatchers.IO) {
             _ftpDownloadStatus.postValue(Event("Richiesta lista file..."))
-            _ftpFileList.postValue(emptyList()) // Pulisce la lista precedente
+            // Non azzerare qui con una lista vuota se vuoi che l'observer scatti solo al cambio reale
+            // _ftpFileList.postValue(emptyList()) 
 
             val ftpClient = FTPClient()
             try {
@@ -677,35 +691,28 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 val utente = BuildConfig.FTP_USER
                 val password = BuildConfig.FTP_PASS
                 val portaFtp = BuildConfig.FTP_PORT
-                val ftpClient = FTPClient()
 
                 ftpClient.connect(server, portaFtp)
                 ftpClient.login(utente, password)
                 ftpClient.enterLocalPassiveMode()
 
-                // Uso di listNames per ottenere solo i nomi dei file/directory
                 val files = ftpClient.listNames(remotePath)
-                if (files != null && files.isNotEmpty()) {
-                    // Filtra i file per escludere directory se possibile,
-                    // altrimenti lascia tutti gli elementi. Per semplicità qui usiamo tutti i nomi.
+                if (files != null) {
+                    // Usiamo un piccolo trick per forzare l'aggiornamento del LiveData 
+                    // anche se la lista è identica alla precedente
                     _ftpFileList.postValue(files.toList())
-                    //_ftpDownloadStatus.postValue(Event("File listati con successo. Seleziona un file da scaricare."))
-                } else {
-                    _ftpFileList.postValue(emptyList())
-                    //_ftpDownloadStatus.postValue(Event("Nessun file trovato nella directory specificata."))
                 }
-
             } catch (e: IOException) {
-                Log.e("FTP_LIST", "Errore nel listare i file FTP", e)
-                _ftpDownloadStatus.postValue(Event("Errore nella connessione/lettura lista FTP: ${e.message}"))
+                Log.e("FTP_LIST", "Errore FTP", e)
+                _ftpDownloadStatus.postValue(Event("Errore FTP: ${e.message}"))
             } finally {
                 try {
                     if (ftpClient.isConnected) {
-                        ftpClient.logout()
+                        try { ftpClient.logout() } catch (_: Exception) {}
                         ftpClient.disconnect()
                     }
                 } catch (e: Exception) {
-                    Log.e("FTP_LIST", "Errore in logout/disconnect", e)
+                    Log.e("FTP_LIST", "Errore chiusura", e)
                 }
             }
         }
@@ -717,14 +724,15 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
      */
     fun downloadFileFromFtp(percorsoFileRemoto: String) {
         val context = getApplication<Application>()
-        val intent = Intent(context, DownloadService::class.java).apply {
-            action = DownloadService.ACTION_START_DOWNLOAD
-            putExtra(DownloadService.EXTRA_FILE_PATH, percorsoFileRemoto)
-        }
         
         // Imposta lo stato di download per mostrare il dialogo se necessario
         _isDownloading.value = true
         _downloadProgress.value = 0
+        
+        val intent = Intent(context, DownloadService::class.java).apply {
+            action = DownloadService.ACTION_START_DOWNLOAD
+            putExtra(DownloadService.EXTRA_FILE_PATH, percorsoFileRemoto)
+        }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent)
