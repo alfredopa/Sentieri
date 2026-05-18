@@ -49,9 +49,11 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     companion object {
         private const val MOVING_AVERAGE_WINDOW_SIZE =
-            10 // Numero di valori da tenere in memoria per la media
+            15 // Aumentato da 10 per maggiore stabilità GPS
         private const val GPS_ALTITUDE_SPIKE_THRESHOLD =
             25.0// Soglia massima di variazione di altitudine in metri tra due letture
+        private const val MIN_VARIATION_THRESHOLD = 
+            1.0 // Soglia minima in metri per accumulare dislivello (Hysteresis)
     }
 
     private var discardedGpsPointsCount: Int = 0
@@ -148,11 +150,16 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     var haBaro = false
     var setBaro = false
     private var oldQuota: Double? = null
+    private var accumuloDistanzaMetri: Int = 0
+    private var accumuloDislivPiu: Double = 0.0
+    private var accumuloDislivMeno: Double = 0.0
 
     // coefficiente per filtro passa basso quota barometro da 0 ad 1
     // 0 massimo smooth 1 minore smooth
-    // con 0.1 da valori troppo bassi (-200 dislivello)
-    private val alfa: Double = 0.21
+    private val alfa: Double = 0.21 // Ridotto da 0.21 per eliminare più rumore
+
+    // Variabile per tenere traccia dell'ultima quota che ha generato un incremento nel dislivello
+    private var lastRecordedAltitudeForSum: Double? = null
 
     //private val alfaGPS: Double = 0.225  //0.21 prec
     var NORMAL_PRESSURE = 1013.25F
@@ -206,6 +213,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     }
 
     fun processNewLocationData(loc: Location, altitudine: Double, baroPress: Float) {
+        if (!isRecording) return // Non processare se non stiamo registrando
+        
         viewModelScope.launch(Dispatchers.IO) { // Esegui su un thread in background
             _performDataUpdate(loc, altitudine, baroPress)
         }
@@ -283,8 +292,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
         // 3. Calcolo DISTANZA
         val distanzaSegmento = MapUtils.getDistanceInMeters(oldPunto, currentNewPunto)
-        val nuovaDistanzaTotale = (distanzaMetri.value ?: 0) + distanzaSegmento
-        _distanzaMetri.postValue(nuovaDistanzaTotale)
+        accumuloDistanzaMetri += distanzaSegmento
+        _distanzaMetri.postValue(accumuloDistanzaMetri)
 
         // 4. Calcolo DISLIVELLO
         if (usaAltitudineBaro) {
@@ -321,20 +330,33 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     }
 
     private fun dislivelloBaro(altitudineBaro: Double) {
-        // Sicurezza: se per qualche motivo oldQuota è ancora nullo, non fare nulla.
         if (oldQuota == null) return
 
-        // Applica il filtro e calcola il dislivello rispetto al valore PRECEDENTE
+        // 1. Applica il filtro passa-basso per stabilizzare la lettura istantanea
         val quotaFiltrata = (alfa * altitudineBaro) + ((1 - alfa) * oldQuota!!)
-        val dislivello = quotaFiltrata - oldQuota!!
-
-        if (dislivello > 0) {
-            _dislivPiu.postValue((_dislivPiu.value ?: 0.0) + dislivello)
-        } else if (dislivello < 0) {
-            _dislivMeno.postValue((_dislivMeno.value ?: 0.0) - dislivello)
+        
+        // 2. Se è il primo punto della sessione, inizializza il riferimento di accumulo
+        if (lastRecordedAltitudeForSum == null) {
+            lastRecordedAltitudeForSum = quotaFiltrata
         }
-        //Log.d("DislivelloBaro", "QuotaFiltrata: $quotaFiltrata, OldQuota: $oldQuota, Dislivello: $dislivello")
-        // Aggiorna oldQuota per il PROSSIMO calcolo
+
+        // 3. Calcola la differenza rispetto all'ultima volta che abbiamo effettivamente AGGIORNATO il totale
+        val deltaDallaUltimaSomma = quotaFiltrata - lastRecordedAltitudeForSum!!
+
+        // 4. Applica la soglia di isteresi: accumula solo se la variazione è significativa (> 1 metro)
+        if (kotlin.math.abs(deltaDallaUltimaSomma) >= MIN_VARIATION_THRESHOLD) {
+            if (deltaDallaUltimaSomma > 0) {
+                accumuloDislivPiu += deltaDallaUltimaSomma
+                _dislivPiu.postValue(accumuloDislivPiu)
+            } else {
+                accumuloDislivMeno -= deltaDallaUltimaSomma
+                _dislivMeno.postValue(accumuloDislivMeno)
+            }
+            // Aggiorna il punto di riferimento per il prossimo calcolo
+            lastRecordedAltitudeForSum = quotaFiltrata
+        }
+
+        // Aggiorna oldQuota per il prossimo ciclo del filtro EMA
         oldQuota = quotaFiltrata
     }
 
@@ -380,47 +402,59 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private fun updateAltitudeChanges(currentFilteredAltitude: Double, currentPoint: GeoPoint) {
         if (previousFilteredAltitude == null) {
             previousFilteredAltitude = currentFilteredAltitude
-            previousPointForGpsSlope = currentPoint // Inizializza
+            previousPointForGpsSlope = currentPoint
+            lastRecordedAltitudeForSum = currentFilteredAltitude
             return
         }
 
-        previousFilteredAltitude?.let { prevAlt ->
-            val altitudeDifference = currentFilteredAltitude - prevAlt
-            if (altitudeDifference > 0) {
-                _dislivPiu.postValue((_dislivPiu.value ?: 0.0) + altitudeDifference)
-            } else if (altitudeDifference < 0) {
-                _dislivMeno.postValue(
-                    (_dislivMeno.value ?: 0.0) - altitudeDifference
-                ) // -altitudeDifference per renderlo positivo
-            }
+        // Inizializza il riferimento se mancante
+        if (lastRecordedAltitudeForSum == null) {
+            lastRecordedAltitudeForSum = currentFilteredAltitude
         }
-        //SimpleFileLogger.log("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
-        //Log.d("updateAltitudeChanges", "filteredAltitude $currentFilteredAltitude previousFilteredAltitude $previousFilteredAltitude dislivPiu ${dislivPiu.value} dislivMeno ${dislivMeno.value}")
+
+        val deltaDallaUltimaSomma = currentFilteredAltitude - lastRecordedAltitudeForSum!!
+
+        // Applica la soglia di isteresi anche al GPS (che è più rumoroso del barometro)
+        if (kotlin.math.abs(deltaDallaUltimaSomma) >= MIN_VARIATION_THRESHOLD) {
+            if (deltaDallaUltimaSomma > 0) {
+                accumuloDislivPiu += deltaDallaUltimaSomma
+                _dislivPiu.postValue(accumuloDislivPiu)
+            } else {
+                accumuloDislivMeno -= deltaDallaUltimaSomma
+                _dislivMeno.postValue(accumuloDislivMeno)
+            }
+            lastRecordedAltitudeForSum = currentFilteredAltitude
+        }
     }
 
     // Assicurati che resetCruscotto sia completo
     fun resetCruscotto() {
-        _quota.value = 0
-        _dislivPiu.value = 0.0
-        _dislivMeno.value = 0.0
-        _velocita.value = 0
-        _distanzaMetri.value = 0
-        _pendenza.value = 0
-        _tempoTrascorso.value = ""
-        _secondiMovimento.value = 0
+        accumuloDistanzaMetri = 0
+        accumuloDislivPiu = 0.0
+        accumuloDislivMeno = 0.0
+
+        _quota.postValue(0)
+        _dislivPiu.postValue(0.0)
+        _dislivMeno.postValue(0.0)
+        _velocita.postValue(0)
+        _distanzaMetri.postValue(0)
+        _pendenza.postValue(0)
+        _tempoTrascorso.postValue("")
+        _secondiMovimento.postValue(0)
         alertFuoriTraccia = false
 
         // --- AZZERAMENTO DELLO STATO CRITICO ---
         isFixed = false
         oldPunto = GeoPoint(0.0, 0.0, 0.0)
         oldQuota = null
+        lastRecordedAltitudeForSum = null
         previousFilteredAltitude = null
         discardedGpsPointsCount = 0
         referencePointForSlope = null
         gpsAltitudeHistory.clear()
         // -----------------------------------------
 
-        _locationData.value = LocationData(GeoPoint(0.0, 0.0, 0.0), 0f)
+        _locationData.postValue(LocationData(GeoPoint(0.0, 0.0, 0.0), 0f))
         //Log.d("ViewModelLifecycle", "resetCruscotto ESEGUITO. isFixed=${isFixed}, oldQuota=${oldQuota}")
     }
 

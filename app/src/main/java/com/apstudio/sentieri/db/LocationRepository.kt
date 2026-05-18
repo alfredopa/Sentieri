@@ -42,8 +42,12 @@ object LocationRepository {
 
     fun clearTrack() {
         trackPointsList.clear()
-        // Quando puliamo, notifichiamo che la lista completa è ora vuota.
         _trackPoints.postValue(emptyList())
+        _mslAltitude.postValue(0.0)
+        _velocita.postValue(0)
+        _baroPressure.postValue(0.0f)
+        // Non resettiamo _location con null se non è definita come nullable, 
+        // ma i nuovi punti sovrascriveranno quella vecchia.
     }
 
     // Metodo per richiedere la traccia completa quando necessario (es. rotazione schermo)
