@@ -1,8 +1,10 @@
 package com.apstudio.sentieri
 
 import android.app.Application
+import android.content.Intent
 import android.location.Location
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -47,9 +49,9 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     companion object {
         private const val MOVING_AVERAGE_WINDOW_SIZE =
-            9 // Numero di valori da tenere in memoria per la media
+            10 // Numero di valori da tenere in memoria per la media
         private const val GPS_ALTITUDE_SPIKE_THRESHOLD =
-            30.0// Soglia massima di variazione di altitudine in metri tra due letture
+            25.0// Soglia massima di variazione di altitudine in metri tra due letture
     }
 
     private var discardedGpsPointsCount: Int = 0
@@ -145,7 +147,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     // valori per barometro
     var haBaro = false
     var setBaro = false
-    private var oldQuota: Int? = 0
+    private var oldQuota: Double? = null
 
     // coefficiente per filtro passa basso quota barometro da 0 ad 1
     // 0 massimo smooth 1 minore smooth
@@ -234,7 +236,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 referencePointForSlope = currentNewPunto
 
                 if (usaAltitudineBaro) {
-                    oldQuota = altitudineCalcolata.toInt()
+                    oldQuota = altitudineCalcolata
                     isFixed = true // Barometro procede subito
                     Log.i("Warmup", "Barometro: isFixed=true. oldQuota=${oldQuota}")
                 } else {
@@ -287,7 +289,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         // 4. Calcolo DISLIVELLO
         if (usaAltitudineBaro) {
             // Passa l'altitudine corrente. La funzione userà 'oldQuota' memorizzato.
-            dislivelloBaro(altitudineCalcolata.toInt())
+            dislivelloBaro(altitudineCalcolata)
         } else {
             processGpsAltitude(altitudineOriginale, currentNewPunto)
         }
@@ -318,12 +320,12 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         oldPunto = currentNewPunto
     }
 
-    private fun dislivelloBaro(altitudineBaro: Int) {
-        // Sicurezza: se per qualche motivo oldQuota è ancora 0, non fare nulla.
-        if (oldQuota == 0) return
+    private fun dislivelloBaro(altitudineBaro: Double) {
+        // Sicurezza: se per qualche motivo oldQuota è ancora nullo, non fare nulla.
+        if (oldQuota == null) return
 
         // Applica il filtro e calcola il dislivello rispetto al valore PRECEDENTE
-        val quotaFiltrata = ((alfa * altitudineBaro) + ((1 - alfa) * oldQuota!!)).toInt()
+        val quotaFiltrata = (alfa * altitudineBaro) + ((1 - alfa) * oldQuota!!)
         val dislivello = quotaFiltrata - oldQuota!!
 
         if (dislivello > 0) {
@@ -411,7 +413,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         // --- AZZERAMENTO DELLO STATO CRITICO ---
         isFixed = false
         oldPunto = GeoPoint(0.0, 0.0, 0.0)
-        oldQuota = 0
+        oldQuota = null
         previousFilteredAltitude = null
         discardedGpsPointsCount = 0
         referencePointForSlope = null
@@ -664,8 +666,10 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 _ftpDownloadStatus.postValue(Event("Errore nella connessione/lettura lista FTP: ${e.message}"))
             } finally {
                 try {
-                    ftpClient.logout()
-                    ftpClient.disconnect()
+                    if (ftpClient.isConnected) {
+                        ftpClient.logout()
+                        ftpClient.disconnect()
+                    }
                 } catch (e: Exception) {
                     Log.e("FTP_LIST", "Errore in logout/disconnect", e)
                 }
@@ -678,195 +682,20 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
      * Avvia il download di un file specifico da un server FTP.
      */
     fun downloadFileFromFtp(percorsoFileRemoto: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            // Resetta il progresso all'inizio
-            _isDownloading.postValue(true)
-            _downloadProgress.postValue(0) // <-- AZZERA IL PROGRESSO
-            _ftpDownloadStatus.postValue(Event("Download in corso: $percorsoFileRemoto..."))
-
-            val server = BuildConfig.FTP_SERVER
-            val utente = BuildConfig.FTP_USER
-            val password = BuildConfig.FTP_PASS
-            val portaFtp = BuildConfig.FTP_PORT
-            val ftpClient = FTPClient()
-            var downloadSuccess = false
-            val fileScaricato: File?
-            val nomeFileDaSalvare = percorsoFileRemoto.substringAfterLast("/")
-
-            // Determina la destinazione e se scompattare
-            val deveScompattare = nomeFileDaSalvare.contains(".zip", ignoreCase = true)
-            val outputStream: OutputStream
-
-            try {
-                // Logica di connessione e setup (omessa per brevità)
-                ftpClient.connect(server, portaFtp)
-                ftpClient.login(utente, password)
-                ftpClient.enterLocalPassiveMode()
-                ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
-
-                // --- 2. Ottieni la dimensione del file per calcolare la percentuale ---
-                var fileSize = -1L
-                val reply = ftpClient.sendCommand("SIZE", percorsoFileRemoto)
-                if (FTPReply.isPositiveCompletion(reply)) {
-                    try {
-                        fileSize = ftpClient.replyStrings[0].split(" ")[1].toLong()
-                        Log.d("FTP", "Dimensione del file: $fileSize")
-                    } catch (e: Exception) {
-                        Log.w("FTP", "Impossibile parsare la dimensione del file dalla risposta del server.", e)
-                    }
-                } else {
-                    Log.w("FTP", "Il server non supporta il comando SIZE o il file non è stato trovato.")
-                }
-
-                // --- 3. Crea e imposta il Listener per il progresso ---
-                if (fileSize > 0) {
-                    // Implementa correttamente il CopyStreamListener usando un 'object expression'
-                    val streamListener = object : org.apache.commons.net.io.CopyStreamListener {
-                        override fun bytesTransferred(event: org.apache.commons.net.io.CopyStreamEvent?) {
-                            event ?: return
-                            val totalBytesTransferred = event.totalBytesTransferred
-                            val progress = ((totalBytesTransferred * 100) / fileSize).toInt()
-                            if (progress > (_downloadProgress.value ?: 0)) {
-                                _downloadProgress.postValue(progress)
-                                Log.d("FTP_Progress", "Progresso: $progress%")
-                            }
-                        }
-                        override fun bytesTransferred(totalBytesTransferred: Long, bytesTransferred: Int, streamSize: Long) {}
-                    }
-                    ftpClient.copyStreamListener = streamListener
-                }
-
-                // --- LOGICA DI SCELTA DELLA DESTINAZIONE ---
-                if (deveScompattare) {
-                    // 1. ZIP: Destinazione Cartella Download Pubblica
-                    outputStream = MapUtils.getOutputStreamForPublicDownload(getApplication(), nomeFileDaSalvare)
-                        ?: throw IOException("Impossibile creare il file di output per il download nella cartella pubblica.")
-                    Log.d("FTP_DL", "File ZIP destinato a Cartella Pubblica Download.")
-                } else {
-                    // 2. NON ZIP: Destinazione Cartella Mappe App
-                    val appMediaDir = getApplication<Application>().getExternalMediaDirs().getOrNull(0)
-                        ?: throw IOException("Impossibile trovare la directory media esterna dell'app.")
-
-                    val mappeDir = File(appMediaDir, "Mappe")
-                    if (!mappeDir.exists() && !mappeDir.mkdirs()) {
-                        throw IOException("Impossibile creare la directory di destinazione: ${mappeDir.absolutePath}")
-                    }
-
-                    val fileDestinazione = File(mappeDir, nomeFileDaSalvare)
-                    outputStream = java.io.FileOutputStream(fileDestinazione)
-                    Log.d("FTP_DL", "File non-ZIP destinato a: ${fileDestinazione.absolutePath}")
-                }
-                // --- FINE LOGICA DI SCELTA DELLA DESTINAZIONE ---
-
-
-                // 1. Inizia il recupero e ottieni l'input stream dal server FTP (NON bloccante).
-                val inputStream: InputStream = ftpClient.retrieveFileStream(percorsoFileRemoto)
-                    ?: throw IOException("Il server FTP ha rifiutato il trasferimento del file. Risposta: ${ftpClient.replyString}")
-
-                Log.d("FTP", "Stream di input ottenuto. Inizio trasferimento dati manuale...")
-
-                // 4. Ciclo di copia manuale
-                var totalBytesTransferred = 0L
-                val buffer = ByteArray(4096) // Buffer di 4KB
-                var bytesRead: Int
-
-                outputStream.use { output ->
-                    inputStream.use { input ->
-                        while (input.read(buffer).also { bytesRead = it } != -1) {
-                            output.write(buffer, 0, bytesRead)
-                            totalBytesTransferred += bytesRead
-
-                            // 5. Invochiamo MANUALMENTE la logica del nostro listener
-                            if (fileSize > 0) {
-                                val progress = ((totalBytesTransferred * 100) / fileSize).toInt()
-                                if (progress > (_downloadProgress.value ?: 0)) {
-                                    _downloadProgress.postValue(progress)
-                                    Log.d("FTP_Progress", "Progresso manuale: $progress%")
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 6. Chiudi l'input stream dopo aver finito di leggere
-                inputStream.close()
-
-                Log.d(
-                    "FTP",
-                    "Trasferimento dati manuale completato. In attesa di completePendingCommand..."
-                )
-
-                // 7. Ora che gli stream sono chiusi e i dati scritti, finalizza la transazione FTP.
-                if (!ftpClient.completePendingCommand()) {
-                    Log.e(
-                        "FTP",
-                        "completePendingCommand ha fallito dopo la copia. Il trasferimento potrebbe essere incompleto."
-                    )
-                    downloadSuccess = false // Marca come fallito se il server non conferma.
-                } else {
-                    Log.i(
-                        "FTP",
-                        "completePendingCommand riuscito. Trasferimento confermato dal server."
-                    )
-                    downloadSuccess = true // Il successo è confermato QUI!
-                }
-
-                // --- Controllo Integrità e Post-Processamento ---
-                if (downloadSuccess && fileSize > 0) {
-                    // Controllo integrità solo se il file è destinato alla cartella pubblica (dove è più facile verificare la dimensione)
-                    if (deveScompattare) {
-                        @Suppress("DEPRECATION")
-                        val cartellaDownloadPubblica = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                        fileScaricato = File(cartellaDownloadPubblica, nomeFileDaSalvare)
-
-                        if (fileScaricato.exists()) {
-                            val dimensioneReale = fileScaricato.length()
-                            Log.d(
-                                "FTP",
-                                "Controllo integrità: Dimensione attesa=$fileSize, Dimensione reale=$dimensioneReale"
-                            )
-                            if (dimensioneReale != fileSize) {
-                                Log.e(
-                                    "FTP",
-                                    "Il file è incompleto! Il download verrà considerato fallito."
-                                )
-                                downloadSuccess = false // <-- CRUCIALE: Marca il download come fallito
-                            }
-                        } else {
-                            Log.w("FTP", "Impossibile trovare il file scaricato per il controllo di integrità.")
-                            downloadSuccess = false
-                        }
-                    } else {
-                        // Per i file non-zip salvati nella cartella app, consideriamo il successo alla chiusura dello stream.
-                        downloadSuccess = true
-                    }
-                }
-
-            } catch (e: IOException) {
-                Log.e("FTP", "Errore durante l'operazione FTP", e)
-                downloadSuccess = false
-            } finally {
-                // Aggiorna la UI sul thread principale
-                withContext(Dispatchers.Main) {
-                    _isDownloading.postValue(false)
-                    _downloadProgress.postValue(if (downloadSuccess) 100 else 0)
-
-                    if (downloadSuccess) {
-                        _ftpDownloadStatus.postValue(Event("Download completato!"))
-                        if (deveScompattare) {
-                            scompattaZip(nomeFileDaSalvare)
-                        }
-                    } else {
-                        _ftpDownloadStatus.postValue(Event("Download fallito. Controlla i log."))
-                    }
-                }
-                try {
-                    ftpClient.logout()
-                    ftpClient.disconnect()
-                } catch (e: Exception) {
-                    Log.e("FTP_DL", "Errore in logout/disconnect", e)
-                }
-            }
+        val context = getApplication<Application>()
+        val intent = Intent(context, DownloadService::class.java).apply {
+            action = DownloadService.ACTION_START_DOWNLOAD
+            putExtra(DownloadService.EXTRA_FILE_PATH, percorsoFileRemoto)
+        }
+        
+        // Imposta lo stato di download per mostrare il dialogo se necessario
+        _isDownloading.value = true
+        _downloadProgress.value = 0
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
         }
     }
 

@@ -98,6 +98,7 @@ class MainActivity :
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         applicationContext as AppSentieri
+        // status bar caratteri neri
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
         // inizializza le preferenze
         initPreferenze()
