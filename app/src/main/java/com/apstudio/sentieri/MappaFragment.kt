@@ -53,6 +53,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -907,6 +908,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     override fun onResume() {
         super.onResume()
+        WindowInsetsControllerCompat(requireActivity().window, requireActivity().window.decorView).isAppearanceLightStatusBars = true
         mapView.onResume()
         preferenze.registerOnSharedPreferenceChangeListener(this)
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
@@ -1131,6 +1133,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     override fun onPause() {
         super.onPause()
+        WindowInsetsControllerCompat(requireActivity().window, requireActivity().window.decorView).isAppearanceLightStatusBars = false
         preferenze.unregisterOnSharedPreferenceChangeListener(this)
         // memorizza valori per ripristinare la mappa
         viewModel.ultZoom = mapView.zoomLevelDouble.toInt()

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.hardware.Sensor
 import android.hardware.SensorManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -11,6 +12,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.fragment.app.activityViewModels
 import androidx.preference.ListPreference
@@ -82,6 +84,15 @@ class Preferenze : PreferenceFragmentCompat() {
         observeFtpFileList()
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        downloadReceiver?.let {
+            try { requireContext().unregisterReceiver(it) } catch (e: Exception) {}
+        }
+    }
+
+    private var downloadReceiver: android.content.BroadcastReceiver? = null
+
     private fun populateThemePreference(preference: ListPreference) {
         val entries = mutableListOf<CharSequence>()
         val entryValues = mutableListOf<CharSequence>()
@@ -122,22 +133,45 @@ class Preferenze : PreferenceFragmentCompat() {
     }
 
     private fun observeDownloadStatus() {
-        viewModel.isDownloading.observe(this) { isDownloading ->
-            if (isDownloading) {
-                // Mostra il dialogo di download
-                showDownloadDialog()
-            } else {
-                // Nascondi il dialogo
-                downloadDialog?.dismiss()
-                downloadDialog = null
+        // Registra il BroadcastReceiver per aggiornamenti dal DownloadService
+        val filter = android.content.IntentFilter().apply {
+            addAction(DownloadService.ACTION_DOWNLOAD_STARTED)
+            addAction(DownloadService.ACTION_PROGRESS_UPDATE)
+            addAction(DownloadService.ACTION_DOWNLOAD_COMPLETE)
+        }
+        
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: android.content.Intent?) {
+                when (intent?.action) {
+                    DownloadService.ACTION_DOWNLOAD_STARTED -> {
+                        if (downloadDialog == null) showDownloadDialog()
+                    }
+                    DownloadService.ACTION_PROGRESS_UPDATE -> {
+                        val progress = intent.getIntExtra(DownloadService.EXTRA_PROGRESS, 0)
+                        if (downloadDialog == null) showDownloadDialog()
+                        downloadDialog?.findViewById<ProgressBar>(R.id.download_progress_bar)?.progress = progress
+                        downloadDialog?.findViewById<TextView>(R.id.download_progress_text)?.text = "$progress%"
+                    }
+                    DownloadService.ACTION_DOWNLOAD_COMPLETE -> {
+                        val message = intent.getStringExtra(DownloadService.EXTRA_MESSAGE) ?: ""
+                        downloadDialog?.dismiss()
+                        downloadDialog = null
+                        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
         }
-
-        viewModel.downloadProgress.observe(this) { progress ->
-            // Aggiorna la progress bar all'interno del dialogo
-            downloadDialog?.findViewById<ProgressBar>(R.id.download_progress_bar)?.progress = progress
-            downloadDialog?.findViewById<TextView>(R.id.download_progress_text)?.text = "$progress%"
+        this.downloadReceiver = receiver
+        
+        // In Android 13+ è richiesto RECEIVER_NOT_EXPORTED per receiver interni
+        if (Build.VERSION.SDK_INT >= 33) {
+            requireContext().registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            requireContext().registerReceiver(receiver, filter)
         }
+        
+        Log.d("Preferenze", "Download BroadcastReceiver registrato correttamente")
 
         viewModel.ftpDownloadStatus.observe(this) { event ->
             event.getContentIfNotHandled()?.let { message ->
