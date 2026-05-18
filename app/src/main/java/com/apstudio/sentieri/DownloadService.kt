@@ -37,6 +37,8 @@ class DownloadService : Service() {
         const val ACTION_DOWNLOAD_COMPLETE = "com.apstudio.sentieri.DOWNLOAD_COMPLETE"
         const val EXTRA_PROGRESS = "EXTRA_PROGRESS"
         const val EXTRA_MESSAGE = "EXTRA_MESSAGE"
+
+        const val PROGRESS_DECOMPRESSING = -2
     }
 
     override fun onCreate() {
@@ -46,7 +48,6 @@ class DownloadService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand action: ${intent?.action}")
-        // Obbligatorio: Chiama startForeground immediatamente per evitare crash su Android 12+
         val initialNotification = createNotification("Preparazione download...", 0)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, initialNotification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
@@ -69,7 +70,6 @@ class DownloadService : Service() {
         downloadJob = serviceScope.launch {
             val ftpClient = FTPClient()
             var downloadSuccess = false
-            val fileScaricato: File?
             var errorMessage = ""
 
             try {
@@ -81,41 +81,44 @@ class DownloadService : Service() {
                 ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
 
                 var fileSize = -1L
-                val reply = ftpClient.sendCommand("SIZE", percorsoFileRemoto)
-                if (FTPReply.isPositiveCompletion(reply)) {
-                    val parts = ftpClient.replyStrings[0].split(" ")
-                    if (parts.size >= 2) fileSize = parts[1].toLong()
+                try {
+                    val file = ftpClient.mlistFile(percorsoFileRemoto)
+                    if (file != null) {
+                        fileSize = file.size
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "MLST non supportato, provo con SIZE")
+                    val reply = ftpClient.sendCommand("SIZE", percorsoFileRemoto)
+                    if (FTPReply.isPositiveCompletion(reply)) {
+                        val replyString = ftpClient.replyStrings[0]
+                        fileSize = replyString.split(" ").getOrNull(1)?.toLongOrNull() ?: -1L
+                    }
                 }
                 
                 val nomeFile = percorsoFileRemoto.substringAfterLast("/")
-                
-                // Determina la destinazione
-                val nomeFileDaSalvare = percorsoFileRemoto.substringAfterLast("/")
-                val deveScompattare = nomeFileDaSalvare.contains(".zip", ignoreCase = true)
-                
-                val outputStream: FileOutputStream
+                val deveScompattare = nomeFile.contains(".zip", ignoreCase = true)
                 val localFile: File
 
                 if (deveScompattare) {
-                    // Se è uno ZIP, usiamo la cartella pubblica Downloads (come previsto in MapUtils)
                     val cartellaDownloadPubblica = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                    localFile = File(cartellaDownloadPubblica, nomeFileDaSalvare)
+                    localFile = File(cartellaDownloadPubblica, nomeFile)
                 } else {
-                    // Altrimenti cartella privata dell'app (Android/media/com.apstudio.sentieri)
                     val appMediaDir = externalMediaDirs.getOrNull(0)
                     val mappeDir = File(appMediaDir, "Mappe")
                     if (!mappeDir.exists()) mappeDir.mkdirs()
                     localFile = File(mappeDir, nomeFile)
                 }
                 
-                outputStream = FileOutputStream(localFile)
-                sendBroadcast(Intent(ACTION_DOWNLOAD_STARTED))
+                val outputStream = FileOutputStream(localFile)
+                sendProgressBroadcast(0) 
 
                 val inputStream = ftpClient.retrieveFileStream(percorsoFileRemoto)
                 if (inputStream != null) {
                     val buffer = ByteArray(8192)
                     var bytesRead: Int
                     var totalBytesRead = 0L
+                    var lastReportedProgress = -1
+                    var lastUpdateTime = 0L
 
                     outputStream.use { output ->
                         inputStream.use { input ->
@@ -123,48 +126,52 @@ class DownloadService : Service() {
                                 if (!serviceScope.isActive) break
                                 output.write(buffer, 0, bytesRead)
                                 totalBytesRead += bytesRead
-                                if (fileSize > 0) {
-                                    val progress = ((totalBytesRead * 100) / fileSize).toInt()
-                                    Log.d("FTP_Progress", "Progresso manuale: $progress%")
+                                
+                                val progress = if (fileSize > 0) {
+                                    ((totalBytesRead * 100) / fileSize).toInt()
+                                } else {
+                                    -1 
+                                }
+
+                                val currentTime = System.currentTimeMillis()
+                                if (progress != lastReportedProgress && (currentTime - lastUpdateTime > 400 || progress == 100)) {
                                     updateNotification(nomeFile, progress)
                                     sendProgressBroadcast(progress)
+                                    lastReportedProgress = progress
+                                    lastUpdateTime = currentTime
                                 }
                             }
                         }
                     }
+                    try { inputStream.close() } catch (_: Exception) {}
                     downloadSuccess = ftpClient.completePendingCommand()
                 }
-                // 6. Chiudi l'input stream dopo aver finito di leggere
-                inputStream.close()
 
-                // --- Controllo Integrità e Post-Processamento ---
                 if (downloadSuccess && fileSize > 0) {
-                    // Controllo integrità solo se il file è destinato alla cartella pubblica (dove è più facile verificare la dimensione)
                     if (deveScompattare) {
-                        @Suppress("DEPRECATION")
-                        val cartellaDownloadPubblica = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                        fileScaricato = File(cartellaDownloadPubblica, nomeFileDaSalvare)
-
-                        if (fileScaricato.exists()) {
-                            val dimensioneReale = fileScaricato.length()
-                            Log.d(
-                                "FTP",
-                                "Controllo integrità: Dimensione attesa=$fileSize, Dimensione reale=$dimensioneReale"
-                            )
-                            if (dimensioneReale != fileSize) {
-                                Log.e(
-                                    "FTP",
-                                    "Il file è incompleto! Il download verrà considerato fallito."
-                                )
-                                downloadSuccess = false // <-- CRUCIALE: Marca il download come fallito
+                        if (localFile.exists() && localFile.length() == fileSize) {
+                            // File scaricato correttamente, ora decomprimiamo
+                            updateNotification(nomeFile, PROGRESS_DECOMPRESSING)
+                            sendProgressBroadcast(PROGRESS_DECOMPRESSING)
+                            val scompattato = MapUtils.decomprimiZipInCartellaMappe(this@DownloadService, nomeFile)
+                            if (scompattato) {
+                                errorMessage = "Download e scompattamento completati: $nomeFile"
+                                try { localFile.delete() } catch (_: Exception) {}
+                            } else {
+                                errorMessage = "Errore durante lo scompattamento"
+                                downloadSuccess = false
                             }
                         } else {
-                            Log.w("FTP", "Impossibile trovare il file scaricato per il controllo di integrità.")
                             downloadSuccess = false
                         }
+                    }
+                }
+
+                if (errorMessage.isEmpty()) {
+                    errorMessage = if (downloadSuccess) {
+                        "Download completato: $nomeFile"
                     } else {
-                        // Per i file non-zip salvati nella cartella app, consideriamo il successo alla chiusura dello stream.
-                        downloadSuccess = true
+                        "Errore durante il download del file"
                     }
                 }
 
@@ -197,14 +204,20 @@ class DownloadService : Service() {
     }
 
     private fun updateNotification(fileName: String, progress: Int) {
-        val notification = createNotification("Scaricando $fileName: $progress%", progress)
+        val content = when (progress) {
+            PROGRESS_DECOMPRESSING -> "Decompressione $fileName..."
+            in 0..100 -> "Scaricando $fileName: $progress%"
+            else -> "Scaricando $fileName..."
+        }
+        val notification = createNotification(content, if (progress in 0..100) progress else 0)
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
     private fun sendProgressBroadcast(progress: Int) {
-        val intent = Intent(ACTION_PROGRESS_UPDATE).apply {
+        val intent = Intent(if (progress == 0) ACTION_DOWNLOAD_STARTED else ACTION_PROGRESS_UPDATE).apply {
             putExtra(EXTRA_PROGRESS, progress)
+            setPackage(packageName)
         }
         sendBroadcast(intent)
     }
@@ -212,6 +225,7 @@ class DownloadService : Service() {
     private fun sendResultBroadcast(message: String) {
         val intent = Intent(ACTION_DOWNLOAD_COMPLETE).apply {
             putExtra(EXTRA_MESSAGE, message)
+            setPackage(packageName)
         }
         sendBroadcast(intent)
     }
