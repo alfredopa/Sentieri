@@ -760,7 +760,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.distanzaMetri.observe(viewLifecycleOwner) { distanzaMetri ->
             binding.cruscotto.tvDist.text = MapUtils.formattastring(distanzaMetri)
         }
-        LocationRepository.velocita.observe(viewLifecycleOwner) { velocita ->
+        viewModel.velocita.observe(viewLifecycleOwner) { velocita ->
             binding.cruscotto.tvVelo.text = getString(R.string.kmh, velocita.toInt())
         }
         viewModel.quota.observe(viewLifecycleOwner) { quota ->
@@ -1237,10 +1237,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     // FINE REGISTRAZIONE TRACCIA
     private fun stopGPS() {
-        binding.fabStopRec.isVisible = false
         // se non ha fixato non chiede di salvare
         if (!viewModel.isFixed) {
-            stopObserver() // Arresta gli observer
             fermaRecording(false)
             azzeraCruscotto()
             return
@@ -1257,7 +1255,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 "Ok"
             ) { _, _ ->
                 fermaRecording(true)
-                stopObserver() // Arresta gli observer
                 salvaTraccia(inputEditTextField.text.toString())
                 azzeraCruscotto()
             }
@@ -1280,6 +1277,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         binding.fabBlocMappa.isVisible = false
         gpsMarker.setVisible(false)
         binding.fabSelectDestination.isVisible = false
+        binding.fabStopRec.isVisible = false
         LocationRepository.updateGpsStatus("stopped")
 // rimuove impostazione schermo sempre acceso
         requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -1352,7 +1350,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 return
             }
         }
-        // pulizia eventuali registrazione precedente
+        // pulizia totale prima di iniziare
+        viewModel.isRecording = false 
         viewModel.resetCruscotto()
         LocationRepository.clearTrack()
         viewModel.recTraccia.items.clear()
