@@ -8,15 +8,6 @@
 		<field name="AREA_HA" description="Area ha" visible="true"/>
 		<field name="PROVVEDIME" description="Provvedimento" visible="true"/>
 	</table>
-	<table name="areetutelate__aree_di_rilevante_interesse_naturalistico">
-		<field name="fid" description="fid" visible="false"/>
-		<field name="geom" description="geom" visible="false"/>
-		<field name="OBJECTID" description="objectid" visible="false"/>
-		<field name="TOPONIMO" description="Toponimo" visible="true"/>
-		<field name="AREA_MQ" description="Area mq" visible="true"/>
-		<field name="PERIM_M" description="Perim m" visible="true"/>
-		<field name="PROVVED" description="Provvedimento" visible="true"/>
-	</table>
 	<table name="areetutelate__iba">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
@@ -226,11 +217,11 @@
 	<table name="Atlante toponomastico Comuni">
 		<field name="fid" description="fid" visible="false"/>
 		<field name="geom" description="geom" visible="false"/>
-		<field name="nome_itali" description="Nome" visible="true"/>
+		<field name="nome_italiano" description="Nome" visible="true"/>
 		<field name="nome_sardo" description="Sardo" visible="true"/>
-		<field name="nome_etnic" description="Etnia" visible="true"/>
+		<field name="nome_etnico" description="Etnia" visible="true"/>
 		<field name="subregione" description="Subregione" visible="true"/>
 		<field name="etimologia" description="Etimologia" visible="true"/>
-		<field name="prime_atte" description="Origine" visible="true"/>
+		<field name="prime_attestazioni" description="Origine" visible="true"/>
 	</table>
 </databaseSchema>

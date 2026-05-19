@@ -3128,7 +3128,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             val titleView: TextView = mView.findViewById(R.id.bubble_title)
             val descriptionView: TextView = mView.findViewById(R.id.bubble_description)
             val websiteButton: Button = mView.findViewById(R.id.bubble_website_button)
-
+            val chiduButton: Button = mView.findViewById(R.id.dialog_close_button)
             // Popola i dati
             titleView.text = lineFeature.title
             descriptionView.text = lineFeature.description
@@ -3156,7 +3156,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
             // Imposta un OnClickListener sulla vista principale dell'infowindow
             // per chiuderla quando viene toccata.
-            mView.setOnClickListener {
+            chiduButton.setOnClickListener {
                 close() // Chiude questa InfoWindow
             }
         }
