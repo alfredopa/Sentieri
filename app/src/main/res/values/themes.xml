@@ -6,9 +6,14 @@
         <item name="colorPrimaryVariant">@color/purple_700</item>
         <item name="colorOnPrimary">@color/white</item>
         <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_200</item>
+        <item name="colorSecondary">@color/teal_700</item> <!-- Cambiato da teal_200 per più contrasto in chiaro -->
         <item name="colorSecondaryVariant">@color/teal_700</item>
-        <item name="colorOnSecondary">@color/black</item>
+        <item name="colorOnSecondary">@color/white</item>
+
+        <!-- Collegamento dei temi per i dialoghi -->
+        <item name="android:alertDialogTheme">@style/AlertDialogCustom</item>
+        <item name="alertDialogTheme">@style/AlertDialogCustom</item>
+
         <!-- Colore hamburger menu e contestuale. -->
         <item name="colorControlNormal">@color/white</item>
         <item name="android:windowTranslucentStatus">false</item>
@@ -19,10 +24,15 @@
 
     <!-- AlertDialog personalizzato per temi Chiaro e Scuro -->
     <style name="AlertDialogCustom" parent="Theme.Material3.DayNight.Dialog.Alert">
-        <item name="android:windowTitleStyle">@style/AlertDialogTitleStyle</item><item name="android:textColor">?android:attr/textColorPrimary</item>
-        <!-- Stile pulsanti: usiamo stili Material 3 specifici -->
+        <item name="android:windowTitleStyle">@style/AlertDialogTitleStyle</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textColorPrimary">?attr/colorOnSurface</item>
+        <!-- Forza il colore dei testi della lista -->
+        <item name="android:textColorSecondary">?attr/colorOnSurfaceVariant</item>
+        <!-- Stile pulsanti -->
         <item name="buttonBarPositiveButtonStyle">@style/AlertDialogButtonStyle.Positive</item>
         <item name="buttonBarNegativeButtonStyle">@style/AlertDialogButtonStyle</item>
+        <item name="buttonBarNeutralButtonStyle">@style/AlertDialogButtonStyle</item>
     </style>
 
     <style name="AlertDialogButtonStyle" parent="Widget.Material3.Button.TextButton.Dialog">

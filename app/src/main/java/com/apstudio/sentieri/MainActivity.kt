@@ -135,8 +135,21 @@ class MainActivity :
 
         // gestione evento indietro
         setupBackPressHandling()
+
+        // Registrazione del receiver per il download
+        val filter = IntentFilter().apply {
+            addAction(DownloadService.ACTION_DOWNLOAD_STARTED)
+            addAction(DownloadService.ACTION_PROGRESS_UPDATE)
+            addAction(DownloadService.ACTION_DOWNLOAD_COMPLETE)
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(downloadReceiver, filter)
+        }
+
         Log.d("Mappa", "MainActivity onCreate: $intent")
-        // RIMOSSO: handleIntent(intent) // Gestisci anche l'intent iniziale che ha creato l'Activity
     }
 
     private fun initAppAndPermissions() {
@@ -453,21 +466,14 @@ class MainActivity :
 
     override fun onStart() {
         super.onStart()
-        val filter = IntentFilter().apply {
-            addAction(DownloadService.ACTION_DOWNLOAD_STARTED)
-            addAction(DownloadService.ACTION_PROGRESS_UPDATE)
-            addAction(DownloadService.ACTION_DOWNLOAD_COMPLETE)
-        }
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(downloadReceiver, filter)
-        }
     }
 
     override fun onStop() {
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
         try {
             unregisterReceiver(downloadReceiver)
         } catch (e: Exception) {
