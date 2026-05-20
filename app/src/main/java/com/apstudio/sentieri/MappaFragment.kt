@@ -573,7 +573,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
         // Allinea la barra in alto a sinistra dello schermo.
         val scaleBarOverlay = ScaleBarOverlay(mapView)
-        scaleBarOverlay.setScaleBarOffset(20, 115)
+        scaleBarOverlay.setScaleBarOffset(160, 115)
         // Aggiungi la barra della scala alla lista degli overlay della mappa.
         mapView.overlays.add(scaleBarOverlay)
 
