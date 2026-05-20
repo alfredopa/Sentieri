@@ -181,8 +181,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     val downloadProgress: LiveData<Int> = _downloadProgress
 
     // NUOVO: LiveData per l'elenco dei file FTP
-    private val _ftpFileList = MutableLiveData<List<String>>()
-    val ftpFileList: LiveData<List<String>> = _ftpFileList
+    private val _ftpFileList = MutableLiveData<Event<List<String>>>()
+    val ftpFileList: LiveData<Event<List<String>>> = _ftpFileList
 
     fun setDownloading(downloading: Boolean) {
         _isDownloading.postValue(downloading)
@@ -700,7 +700,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 if (files != null) {
                     // Usiamo un piccolo trick per forzare l'aggiornamento del LiveData 
                     // anche se la lista è identica alla precedente
-                    _ftpFileList.postValue(files.toList())
+                    _ftpFileList.postValue(Event(files.toList()))
                 }
             } catch (e: IOException) {
                 Log.e("FTP_LIST", "Errore FTP", e)

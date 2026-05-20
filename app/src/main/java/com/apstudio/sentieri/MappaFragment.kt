@@ -224,7 +224,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     private var coloreTraccia: Int = 0
 
     // Variabile per memorizzare una richiesta di centraggio mappa in sospeso.
-    private var initialCenterPoint: GeoPoint? = null
+    private var initialCenterPoint: GeoPoint? = GeoPoint(40.0587, 9.1122)
 
     // Variabili per la registrazione audio
     private var audioFileName: String? = null

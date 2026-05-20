@@ -71,6 +71,18 @@ class Preferenze : PreferenceFragmentCompat() {
         observeFtpFileList()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Controllo di sicurezza al risveglio: se il download è finito nel frattempo, chiudi il dialogo
+        if (viewModel.isDownloading.value == false && downloadDialog != null) {
+            Log.d("Preferenze", "Chiusura dialogo residuo in onResume")
+            downloadDialog?.dismiss()
+            downloadDialog = null
+            progressBar = null
+            progressText = null
+        }
+    }
+
     private fun populateThemePreference(preference: ListPreference) {
         val entries = mutableListOf<CharSequence>()
         val entryValues = mutableListOf<CharSequence>()
@@ -146,9 +158,11 @@ class Preferenze : PreferenceFragmentCompat() {
     }
 
     private fun observeFtpFileList() {
-        viewModel.ftpFileList.observe(viewLifecycleOwner) { fileList ->
-            if (!fileList.isNullOrEmpty()) {
-                mostraDialogoLista(requireContext())
+        viewModel.ftpFileList.observe(viewLifecycleOwner) { event ->
+            event.getContentIfNotHandled()?.let { fileList ->
+                if (fileList.isNotEmpty()) {
+                    mostraDialogoLista(requireContext(), fileList)
+                }
             }
         }
     }
@@ -167,8 +181,7 @@ class Preferenze : PreferenceFragmentCompat() {
         downloadDialog?.show()
     }
 
-    fun mostraDialogoLista(context: Context) {
-        val elementi = viewModel.ftpFileList.value ?: return
+    fun mostraDialogoLista(context: Context, elementi: List<String>) {
         val builder = AlertDialog.Builder(context)
         builder.setTitle("Seleziona file")
         builder.setItems(elementi.toTypedArray()) { dialog, quale ->
