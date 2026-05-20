@@ -269,6 +269,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             }
             // B. Logica di scarto delle letture iniziali (solo per GPS)
             if (!usaAltitudineBaro) {
+                isFixed = true
                 if (discardedGpsPointsCount < WARMUP_READINGS_TO_DISCARD) {
                     Log.d("Warmup", "GPS Warmup: $discardedGpsPointsCount/${WARMUP_READINGS_TO_DISCARD} ignorati.")
                     discardedGpsPointsCount++
@@ -276,7 +277,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 } else {
                     // Se abbiamo raggiunto la dimensione della finestra, possiamo considerare il warm-up finito
                     discardedGpsPointsCount >= WARMUP_READINGS_TO_DISCARD
-                    isFixed = true
+
                     Log.i("Warmup", "GPS Warmup Finito. Inizio calcoli.")
                 }
                 // Aggiorna la history e previousFilteredAltitude per costruire la base di media mobile,
