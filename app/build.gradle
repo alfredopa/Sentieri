@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace 'com.apstudio.sentieri'
-    compileSdk 36
+    compileSdk 35
 
     buildFeatures {
         buildConfig true
@@ -23,9 +23,9 @@ android {
     defaultConfig {
         applicationId "com.apstudio.sentieri"
         minSdk 31
-        targetSdk 36
-        versionCode 35
-        versionName '2.0.5'
+        targetSdk 35
+        versionCode 36
+        versionName '2.0.6'
         // Definisci le variabili FTP leggendole dal file properties
         // Access properties using .get() or bracket notation
         def ftpServer = findProperty("ftp.server")
@@ -36,15 +36,6 @@ android {
         buildConfigField("String", "FTP_USER", ftpUser)
         buildConfigField("String", "FTP_PASS", ftpPass)
         buildConfigField("Integer", "FTP_PORT", ftpPort)
-    }
-
-    buildFeatures {
-        buildConfig true
-        // DataBinding è complesso e può causare problemi.
-        // Usa ViewBinding che è più moderno e leggero.
-        dataBinding true
-        viewBinding true
-        aidl true
     }
 
     buildTypes {
@@ -82,14 +73,13 @@ dependencies {
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.preference:preference-ktx:1.2.1'
-    implementation 'androidx.appcompat:appcompat:1.7.1'
     // Navigation STABILE
     def nav_version = "2.7.7"
     implementation "androidx.navigation:navigation-fragment-ktx:$nav_version"
     implementation "androidx.navigation:navigation-ui-ktx:$nav_version"
     // Fragment & Activity STABILI
     implementation "androidx.fragment:fragment-ktx:1.8.1"
-    implementation 'androidx.activity:activity-ktx:1.9.0'
+    implementation 'androidx.activity:activity-ktx:1.9.1'
     // Room STABILE
     def room_version = "2.6.1"
     implementation "androidx.room:room-runtime:$room_version"
@@ -99,6 +89,8 @@ dependencies {
     def lifecycle_version = "2.8.3"
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-livedata-ktx:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-savedstate:$lifecycle_version"
     // Coroutines STABILI
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
     // osmdroid & mapsforge

@@ -172,20 +172,19 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         val lineStrings: MutableList<LineStringFeature>?
     )
 
-    private val viewModel: SentieriViewModel by activityViewModels {
-        val application = requireActivity().application
-        // 1. Ottieni una singola istanza del database
-        val database = SentieriDB.getInstance(application)
-        // 2. Crea il repository passando TUTTI i DAO richiesti
-        val repository = SentieriRepo(
-            sentieriDao = database.sentieriDao(),
-            trackDao = database.trackDao(),
-            poiDao = database.poiDao(),
-            fotoPoiDao = database.fotoPoiDao()
-        )
-        // 3. Crea la factory con il repository e l'applicazione
-        SentieriFactory(repository, application)
-    }
+    private val viewModel: SentieriViewModel by activityViewModels(
+        factoryProducer = {
+            val application = requireActivity().application
+            val database = SentieriDB.getInstance(application)
+            val repository = SentieriRepo(
+                sentieriDao = database.sentieriDao(),
+                trackDao = database.trackDao(),
+                poiDao = database.poiDao(),
+                fotoPoiDao = database.fotoPoiDao()
+            )
+            SentieriFactory(repository, application)
+        }
+    )
 
     private val METERS_IN_A_KILOMETER = 1000.0 // Changed from Int to Double for precision
     private val SECONDS_IN_AN_HOUR = 3600.0 // Changed from Int to Double for precision
@@ -563,18 +562,21 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
         }
 
-        // Aggiungi l'overlay della bussola solo se il dispositivo ha i sensori necessari.
+        // Aggiungi gli overlay della bussola (solo se il dispositivo ha i sensori necessari) e scala.
+        val dm = resources.displayMetrics
         if (hasCompass()) {
             val compassOverlay =
                 CompassOverlay(context, InternalCompassOrientationProvider(context), mapView)
             compassOverlay.enableCompass()
-            compassOverlay.setCompassCenter(36f, 80f)
+            compassOverlay.setCompassCenter(35F, 85F)
             mapView.overlays.add(compassOverlay)
         }
-        // Allinea la barra in alto a sinistra dello schermo.
+// Calcola l'offset basato sulla densità per evitare la bussola
         val scaleBarOverlay = ScaleBarOverlay(mapView)
-        scaleBarOverlay.setScaleBarOffset(160, 115)
-        // Aggiungi la barra della scala alla lista degli overlay della mappa.
+// Spostiamo di 100dp a destra (per saltare la bussola) e 90dp in basso
+        scaleBarOverlay.setScaleBarOffset((120 * dm.density).toInt(), (50 * dm.density).toInt())
+// Centra il testo sopra la barra per un look più pulito
+        scaleBarOverlay.setCentred(true)
         mapView.overlays.add(scaleBarOverlay)
 
         // Assicurati che gli overlay di stato siano presenti
@@ -664,7 +666,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mapController.setCenter(viewModel.ultPosizione)
         mapController.setZoom(viewModel.ultZoom.toDouble())
 
-        //aggiornaUIFabBlocMappa()
+        aggiornaUIFabBlocMappa(showToast = false)
 
         binding.btnMenu.setOnClickListener { _ ->
             showMenuBottomSheet()
@@ -785,10 +787,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.isAllarmeAttivo.observe(viewLifecycleOwner) { isAttivo ->
             updateBtnAllarmeUI(isAttivo)
         }
-        viewModel.isCalibrato.observe(viewLifecycleOwner) {
-            if (it) {
+        viewModel.isCalibrato.observe(viewLifecycleOwner) { isCalibrated ->
+            if (isCalibrated) {
                 binding.cruscotto.tvCalcQuota.text = "BARO"
                 LocationRepository.usaBaro = true
+                // Forza un ricaricamento se il sensore è già attivo nel service
             } else {
                 binding.cruscotto.tvCalcQuota.text = "GPS"
                 LocationRepository.usaBaro = false
@@ -1351,11 +1354,16 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
         }
         // pulizia totale prima di iniziare
-        viewModel.isRecording = false 
-        viewModel.resetCruscotto()
-        LocationRepository.clearTrack()
+        viewModel.isRecording = false
+        viewModel.resetCruscotto() // Questo chiama internamente LocationRepository.clearTrack()
+        LocationRepository.clearTrack() // Chiamata esplicita per sicurezza
         viewModel.recTraccia.items.clear()
         viewModel.isFixed = false
+
+// Svuota esplicitamente la polilinea grafica
+        if (::currentTrackPolyline.isInitialized) {
+            currentTrackPolyline.setPoints(mutableListOf()) // USA setPoints invece di actualPoints.clear()
+        }
 
 // imposta schermo sempre acceso
         accendiSchermo()
@@ -2039,15 +2047,15 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
-    private fun aggiornaUIFabBlocMappa() {
+    private fun aggiornaUIFabBlocMappa(showToast: Boolean = true) {
         if (viewModel.bloccaMappa) {
             // Se la mappa è bloccata, mostra l'icona "bloccata" (es. PIN_RED)
             binding.fabBlocMappa.setImageResource(PIN_RED)
-            Toast.makeText(requireContext(), "Mappa ancorata punto GPS", Toast.LENGTH_SHORT).show()
+            if (showToast) Toast.makeText(requireContext(), "Mappa ancorata punto GPS", Toast.LENGTH_SHORT).show()
         } else {
             // Se la mappa è sbloccata, mostra l'icona "sbloccata" (es. PIN_BLACK)
             binding.fabBlocMappa.setImageResource(PIN_BLACK)
-            Toast.makeText(requireContext(), "Mappa libera", Toast.LENGTH_SHORT).show()
+            if (showToast) Toast.makeText(requireContext(), "Mappa libera", Toast.LENGTH_SHORT).show()
         }
     }
 

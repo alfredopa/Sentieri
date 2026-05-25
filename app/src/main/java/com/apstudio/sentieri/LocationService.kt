@@ -171,35 +171,15 @@ class LocationService : LifecycleService() {
 
     private fun initializeLocationListener() {
         locationListener = LocationListener { newLocation ->
-            // 1. Filtro sull'accuratezza
-            if (newLocation.accuracy > MIN_ACCURACY_METERS) {
-                Log.w(TAG, "LocationService: Accuratezza troppo bassa: ${newLocation.accuracy}. Location ignorata.")
-                return@LocationListener
-            }
-            // 2. Filtro sulla velocità (per evitare il "GPS drift" da fermo)
-            // Se la velocità è zero (o quasi), significa che siamo fermi. Ignoriamo il punto.
-            if (newLocation.speed <= 0.1f) {
-                Log.d(TAG, "Velocità nulla (${newLocation.speed} m/s). Punto ignorato per evitare drift.")
-                // Opzionale ma consigliato: aggiorna comunque la velocità e pendenza a 0 nel repository,
-                // così l'UI mostra 0 km/h anche se non stiamo processando il punto.
-                LocationRepository.updateVelocita(0)
-                return@LocationListener // Scarta il punto
-            }
-            // Aggiorna lo stato del GPS (solo se non è già 'fixed')
-            if (LocationRepository.gpsStatus.value != "fixed") {
-                LocationRepository.updateGpsStatus("fixed")
-            }
-            // Aggiorna la velocità come fallback, anche se NMEA è preferito
-            val speedKmh = (newLocation.speed * 3.6).toInt()
-            LocationRepository.updateVelocita(speedKmh)
-            // AGGIORNA LA PRESSIONE SE DISPONIBILE
-            if (LocationRepository.usaBaro) {
-                baroRepo.getLatestPressure()?.let { currentPressure ->
-                    LocationRepository.updateBaroPressure(currentPressure)
-                }
-            }
-            // Aggiorna la traccia
-            LocationRepository.addTrackPoint(newLocation)
+            // Filtro accuratezza
+            if (newLocation.accuracy > MIN_ACCURACY_METERS) return@LocationListener
+
+            // Recupera i valori attuali necessari per il calcolo
+            val mslAltitude = LocationRepository.mslAltitude.value ?: newLocation.altitude
+            val baroPress = baroRepo.getLatestPressure() ?: 0.0f
+
+            // Avvia l'elaborazione nel Repository (avviene nel Foreground Service)
+            LocationRepository.processNewLocation(newLocation, mslAltitude, baroPress)
         }
     }
 
@@ -240,10 +220,8 @@ class LocationService : LifecycleService() {
     }
 
     private fun initializeBarometer() {
-        if (LocationRepository.usaBaro) {
-            //Log.d(TAG, "Starting barometer sensor updates")
-            baroRepo.startSensorUpdates()
-        }
+        // Avvia il sensore sempre se disponibile, il repository deciderà se usarlo
+        baroRepo.startSensorUpdates()
     }
 
     private fun parseNmeaMessage(message: String) {
@@ -304,10 +282,7 @@ class LocationService : LifecycleService() {
     }
 
     private fun stopBarometer() {
-        if (LocationRepository.usaBaro) {
-            //Log.d(TAG, "Stopping barometer sensor updates")
-            baroRepo.stopSensorUpdates()
-        }
+        baroRepo.stopSensorUpdates()
     }
 
     private fun removeLocationUpdates() {

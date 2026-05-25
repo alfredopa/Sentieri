@@ -7,6 +7,10 @@
         android:icon="@android:drawable/ic_menu_save"
         android:title="Salva gpx" />
     <item
+        android:id="@+id/rinominaSentiero"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:title="Rinomina sentiero" />
+    <item
         android:id="@+id/eliminaSentiero"
         android:icon="@android:drawable/ic_delete"
         android:title="Elimina sentiero" />

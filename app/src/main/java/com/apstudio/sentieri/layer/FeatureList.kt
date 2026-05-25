@@ -33,7 +33,11 @@ import mil.nga.sf.Point
 
 class FeatureList : Fragment(), MenuProvider {
     private val layerModel: LayerViewModel by lazy {
-        ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[LayerViewModel::class.java]
+        val application = requireActivity().application
+        ViewModelProvider(
+            application as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+        )[LayerViewModel::class.java]
     }
     private lateinit var recyclerView: RecyclerView
     private var featureCursor: FeatureCursor? = null
