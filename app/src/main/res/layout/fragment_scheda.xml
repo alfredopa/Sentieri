@@ -17,7 +17,6 @@
             android:layout_height="300dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            android:visibility="invisible"
             app:layout_constraintTop_toTopOf="parent" />
 
         <View

@@ -54,20 +54,19 @@ private const val LAST_VERSION_CODE = "last_version_code"
 
 class MainActivity :
     AppCompatActivity() {
-    private val viewModel: SentieriViewModel by viewModels {
-        val application = application
-        // 1. Ottieni una singola istanza del database
-        val database = SentieriDB.getInstance(application)
-        // 2. Crea il repository passando TUTTI i DAO richiesti
-        val repository = SentieriRepo(
-            sentieriDao = database.sentieriDao(),
-            trackDao = database.trackDao(),
-            poiDao = database.poiDao(),
-            fotoPoiDao = database.fotoPoiDao()
-        )
-        // 3. Crea la factory con il repository e l'applicazione
-        SentieriFactory(repository, application)
-    }
+    private val viewModel: SentieriViewModel by viewModels(
+        factoryProducer = {
+            val application = application
+            val database = SentieriDB.getInstance(application)
+            val repository = SentieriRepo(
+                sentieriDao = database.sentieriDao(),
+                trackDao = database.trackDao(),
+                poiDao = database.poiDao(),
+                fotoPoiDao = database.fotoPoiDao()
+            )
+            SentieriFactory(repository, application)
+        }
+    )
     private lateinit var navController: NavController
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var appBarConfiguration: AppBarConfiguration // For handling the Up button and drawer

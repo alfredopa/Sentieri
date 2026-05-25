@@ -174,7 +174,23 @@ class SchedaFragment : Fragment(), MenuProvider {
                 }
                 snackbar.show()
             }
-
+            R.id.rinominaSentiero -> {
+                val inputEditTextField = android.widget.EditText(requireActivity())
+                inputEditTextField.setText(binding.txNome.text)
+                
+                MaterialAlertDialogBuilder(requireContext(), R.style.AlertDialogCustom)
+                    .setTitle("Rinomina percorso")
+                    .setMessage("Inserisci il nuovo nome:")
+                    .setView(inputEditTextField)
+                    .setPositiveButton("Rinomina") { _, _ ->
+                        val nuovoNome = inputEditTextField.text.toString()
+                        if (nuovoNome.isNotBlank()) {
+                            viewModel.rinominaSentiero(args.idSentiero, nuovoNome)
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
             R.id.eliminaSentiero -> {
                 MaterialAlertDialogBuilder(requireContext(), R.style.AlertDialogCustom)
                     .setTitle("Eliminazione percorso")
@@ -336,20 +352,24 @@ class SchedaFragment : Fragment(), MenuProvider {
             val percorsoCaricato = viewModel.leggiTrack(idSentiero, poiDBList)
             // Usiamo una nuova variabile locale per chiarezza e sicurezza.
             percorso = percorsoCaricato
-            puntiOriginali = percorsoCaricato.actualPoints.map {
-                GeoPoint(
-                    it.latitude,
-                    it.longitude,
-                    it.altitude
-                )
-            }
+            
+            // Verifichiamo se ci sono punti, altrimenti la mappa non ha senso
+            if (percorsoCaricato.actualPoints.isNotEmpty()) {
+                puntiOriginali = percorsoCaricato.actualPoints.map {
+                    GeoPoint(
+                        it.latitude,
+                        it.longitude,
+                        it.altitude
+                    )
+                }
 
-            percorso.bounds?.let { bounds ->
-                mapView.zoomToBoundingBox(bounds.increaseByScale(1.2f), false)
+                // Assicuriamoci che la mappa sia pronta prima di zoomare
+                percorso.bounds?.let { bounds ->
+                    mapView.zoomToBoundingBox(bounds.increaseByScale(1.4f), false)
+                }
+                aggiornaMappaPercorso()
             }
-            aggiornaMappaPercorso()
             //Log.d("SchedaFragment", "chiamato aggiornaMappaPercorso, ${percorso.actualPoints.size}")
-
         }
     }
 
@@ -379,11 +399,12 @@ class SchedaFragment : Fragment(), MenuProvider {
         if (viewModel.menuMap == 0)
             apreMappa(requireContext(), mapView, viewModel, viewModel.uriMappa)
         else
-            online(requireContext(), mapView, viewModel,viewModel.menuMap)
+            online(requireContext(), mapView, viewModel, viewModel.menuMap)
+        
         mapView.setMultiTouchControls(true)
-        mapView.minZoomLevel = 9.0
-        mapView.maxZoomLevel = 19.0
-        mapController?.setZoom(19.0)
+        mapView.minZoomLevel = 4.0 // Ridotto per essere sicuri di vedere qualcosa
+        mapView.maxZoomLevel = 22.0
+        mapController?.setZoom(15.0) // Valore iniziale sensato
     }
 
     private fun aggiornaMappaPercorso() {
@@ -416,11 +437,7 @@ class SchedaFragment : Fragment(), MenuProvider {
         }
         // 3. Riaggiungi i Marker (altrimenti spariscono col clear)
         aggiungiMarkerInizioFine()
-        mapView.post {
-            mapView.visibility = View.VISIBLE
-            mapView.invalidate()
-        }
-        //mapView.invalidate()
+        mapView.invalidate()
     }
 
     private fun aggiungiMarkerInizioFine() {

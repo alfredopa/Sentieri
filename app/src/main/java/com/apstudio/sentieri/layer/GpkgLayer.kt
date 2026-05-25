@@ -19,7 +19,11 @@ import com.apstudio.sentieri.R
 
 class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
     private val layerModel: LayerViewModel by lazy {
-         ViewModelProvider(requireActivity().application as ViewModelStoreOwner)[LayerViewModel::class.java]
+        val application = requireActivity().application
+        ViewModelProvider(
+            application as ViewModelStoreOwner,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+        )[LayerViewModel::class.java]
     }
 
     private lateinit var recyclerView: RecyclerView

@@ -38,6 +38,14 @@ class SentieriRepo(
         return sentieriDao.ultimoId()
     }
 
+    suspend fun rinominaSentiero(idSentiero: Int, nuovoNome: String) {
+        val sentiero = sentieriDao.getItemSync(idSentiero)
+        sentiero?.let {
+            it.nome = nuovoNome
+            sentieriDao.updateDB(it)
+        }
+    }
+
     // --- METODI PER I PUNTI DELLA TRACCIA (TRACK) ---
 
     fun getPuntiTraccia(idTraccia: Int): List<Track> {

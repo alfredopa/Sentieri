@@ -16,6 +16,9 @@ interface SentieriDao {
     @Query("SELECT * from sentieri WHERE id = :id")
     fun getItem(id: Int): Flow<Sentieri?>
 
+    @Query("SELECT * from sentieri WHERE id = :id")
+    suspend fun getItemSync(id: Int): Sentieri?
+
     // Specify the conflict strategy as IGNORE, when the user tries to add an
     // existing Item into the database Room ignores the conflict.
     //(onConflict = OnConflictStrategy.IGNORE)
