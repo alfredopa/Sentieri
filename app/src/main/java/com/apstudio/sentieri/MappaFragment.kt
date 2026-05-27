@@ -2960,6 +2960,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         //putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
                         addCategory(Intent.CATEGORY_OPENABLE)
                     }
+                    bottomSheetDialog.dismiss()
                     gpxFileSelectorLauncher.launch(intent)
                 }
 
