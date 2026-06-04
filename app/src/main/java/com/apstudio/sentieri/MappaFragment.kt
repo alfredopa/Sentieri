@@ -836,14 +836,26 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 mapView.controller?.setCenter(newGeoPoint)
             }
 
+            // segue traccia con una coroutine
             if (viewModel.alertFuoriTraccia && viewModel.tracciaDaSeguire.isNotEmpty()) {
                 if (!isAlertDialogShowing()) {
-                    val tracciaDaSeguire = viewModel.listaTracce.items.find {
-                        it is Polyline && it.title == viewModel.tracciaDaSeguire
-                    } as? Polyline
+                    // Avviamo una coroutine per non bloccare la UI
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        val fuoriTraccia = withContext(Dispatchers.Default) {
+                            // 1. Cerchiamo la traccia (operazione veloce)
+                            val traccia = viewModel.listaTracce.items.find {
+                                it is Polyline && it.title == viewModel.tracciaDaSeguire
+                            } as? Polyline
 
-                    tracciaDaSeguire?.let {
-                        if (!it.isCloseTo(newGeoPoint, 30.0, mapView)) {
+                            // 2. Calcoliamo la distanza (operazione pesante, ora in background)
+                            // Nota: usiamo i punti già caricati per evitare di toccare la UI troppo spesso
+                            traccia?.let {
+                                !it.isCloseTo(newGeoPoint, 30.0, mapView)
+                            } ?: false
+                        }
+
+                        // 3. Torniamo sul Main Thread per mostrare il dialogo
+                        if (fuoriTraccia && isAdded) {
                             mostraAllarmeFuoriTraccia()
                         }
                     }
