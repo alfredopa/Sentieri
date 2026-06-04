@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.GnssStatus
@@ -12,6 +13,7 @@ import android.location.LocationManager
 import android.location.OnNmeaMessageListener
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -95,9 +97,14 @@ class LocationService : LifecycleService() {
     private var hasMslAltitude = false
     private var speedKnots: Double = 0.0
     private var speedKmh: Int = 0
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        // PARTIAL_WAKE_LOCK mantiene la CPU attiva anche a schermo spento
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Sentieri::RecordingWakeLock")
+        wakeLock?.acquire()
         //Log.d(TAG, "Service created")
         locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
         hasMslAltitude = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE // Android 14
@@ -274,11 +281,11 @@ class LocationService : LifecycleService() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
-        //Log.d(TAG, "Service destroyed")
         stopBarometer()
         LocationRepository.updateGpsStatus("stopped")
         removeLocationUpdates()
+        wakeLock?.release()
+        super.onDestroy()
     }
 
     private fun stopBarometer() {

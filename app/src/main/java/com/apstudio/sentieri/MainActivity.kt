@@ -9,8 +9,11 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.widget.TextView
@@ -25,6 +28,7 @@ import androidx.activity.viewModels
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import androidx.core.content.getSystemService
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
@@ -141,6 +145,18 @@ class MainActivity :
             addAction(DownloadService.ACTION_PROGRESS_UPDATE)
             addAction(DownloadService.ACTION_DOWNLOAD_COMPLETE)
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val intent = Intent()
+            val packageName = this.packageName
+            val pm = this.getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                intent.data = Uri.parse("package:$packageName")
+                startActivity(intent)
+            }// else {
+            //    Toast.makeText(this, "L'app è già esclusa dalle ottimizzazioni", Toast.LENGTH_SHORT).show()
+            //}
+        }
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -148,7 +164,7 @@ class MainActivity :
             registerReceiver(downloadReceiver, filter)
         }
 
-        Log.d("Mappa", "MainActivity onCreate: $intent")
+        //Log.d("Mappa", "MainActivity onCreate: $intent")
     }
 
     private fun initAppAndPermissions() {
