@@ -53,6 +53,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import kotlin.getValue
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.net.toUri
 
 private const val LAST_VERSION_CODE = "last_version_code"
 
@@ -145,18 +146,7 @@ class MainActivity :
             addAction(DownloadService.ACTION_PROGRESS_UPDATE)
             addAction(DownloadService.ACTION_DOWNLOAD_COMPLETE)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val intent = Intent()
-            val packageName = this.packageName
-            val pm = this.getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                intent.action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-                intent.data = Uri.parse("package:$packageName")
-                startActivity(intent)
-            }// else {
-            //    Toast.makeText(this, "L'app è già esclusa dalle ottimizzazioni", Toast.LENGTH_SHORT).show()
-            //}
-        }
+
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -414,6 +404,8 @@ class MainActivity :
             if (grantResults.contains(PackageManager.PERMISSION_DENIED)) {
                 Toast.makeText(this, "Alcune funzionalità potrebbero non essere disponibili senza i permessi richiesti.", Toast.LENGTH_LONG).show()
             }
+            // Una volta chiuso il dialogo dei permessi, controlla la batteria
+            checkBatteryOptimization()
         }
     }
 
@@ -452,7 +444,25 @@ class MainActivity :
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
         if (list.isNotEmpty()) {
+            // Chiedi i permessi standard. Questo è asincrono.
             ActivityCompat.requestPermissions(this, list.toTypedArray(), PERMISSION_ALL)
+        } else {
+            // Se tutti i permessi sono già ok, controlla la batteria
+            checkBatteryOptimization()
+        }
+    }
+
+    private fun checkBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val packageName = this.packageName
+            val pm = this.getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                val intent = Intent().apply {
+                    action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                    data = "package:$packageName".toUri()
+                }
+                startActivity(intent)
+            }
         }
     }
 
