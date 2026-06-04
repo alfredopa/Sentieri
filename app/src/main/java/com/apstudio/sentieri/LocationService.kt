@@ -101,6 +101,7 @@ class LocationService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
+        createNotificationChannel()
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         // PARTIAL_WAKE_LOCK mantiene la CPU attiva anche a schermo spento
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Sentieri::RecordingWakeLock")
@@ -114,7 +115,6 @@ class LocationService : LifecycleService() {
         initializeNmeaListener()
         requestLocationUpdates()
         initializeBarometer()
-        createNotificationChannel()
     }
 
     private fun initializeGnssCallback() {
