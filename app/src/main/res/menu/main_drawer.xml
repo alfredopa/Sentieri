@@ -10,15 +10,15 @@
     <item
         android:id="@+id/sentieriFragment"
         android:icon="@android:drawable/ic_dialog_map"
-        android:title="Elenco percorsi" />
-    <item
-        android:id="@id/poiFragment"
-        android:icon="@drawable/ic_start"
-        android:title="Visualizza Waypoints" />
+        android:title="Elenco percorsi salvati" />
     <item
         android:id="@+id/layerDialog"
         android:icon="@android:drawable/ic_dialog_dialer"
-        android:title="Elenco percorsi caricati" />
+        android:title="Elenco percorsi caricati su mappa" />
+    <item
+            android:id="@id/poiFragment"
+            android:icon="@drawable/ic_start"
+            android:title="Visualizza Waypoints" />
     <item
         android:id="@+id/gpkgLayer"
         android:icon="@drawable/ic_baseline_photo_24"
