@@ -117,7 +117,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private var previousFilteredAltitude: Double? = null
 
     // in Scheda per visualizzare pendenza oppure quota
-    var mostraPendenza = false
+    var mostraPendenza = true
     var coloriPuntiDaSeguire: List<Float>? = null
 
     // valori di riferimento della traccia da seguire
