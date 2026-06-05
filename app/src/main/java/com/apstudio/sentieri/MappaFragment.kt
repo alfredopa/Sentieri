@@ -156,7 +156,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 val packageManager = context.packageManager
                 packageManager.getPackageInfo(BROUTER_PACKAGE, 0)
                 true
-            } catch (e: PackageManager.NameNotFoundException) {
+            } catch (_: PackageManager.NameNotFoundException) {
                 false
             }
         }
@@ -416,10 +416,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         if (!label.isNullOrEmpty()) {
                             mostraAlertDialogSemplice(label)
                         }
-                    } else if (clickedPoint is GeoPoint) {
+                    } //else if (clickedPoint is GeoPoint) {
                         // Se non c'è una label, mostriamo almeno le coordinate o un messaggio generico
                         //Log.d("ListenerDebug","Punto cliccato: ${clickedPoint.latitude}, ${clickedPoint.longitude}")
-                    }
+                    //}
                 }
             }
 
@@ -1318,7 +1318,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mapView.invalidate()
     }
 
-    private fun stopObserver() {
+    /*private fun stopObserver() {
         viewModel.distanzaMetri.removeObservers(viewLifecycleOwner)
         viewModel.velocita.removeObservers(viewLifecycleOwner)
         viewModel.quota.removeObservers(viewLifecycleOwner)
@@ -1326,7 +1326,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.dislivMeno.removeObservers(viewLifecycleOwner)
         viewModel.secondiMovimento.removeObservers(viewLifecycleOwner)
         //gpsViewModel.gpsStatus.removeObservers(viewLifecycleOwner)
-    }
+    }*/
 
     private fun attivaGps() {
         val locationManager =

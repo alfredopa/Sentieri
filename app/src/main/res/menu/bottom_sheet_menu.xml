@@ -6,13 +6,13 @@
             android:icon="@drawable/gps_off"
             android:title="AVVIA/FERMA Registrazione GPS" />
         <item
-            android:id="@+id/menu_lista"
-            android:icon="@drawable/round_navigation_white_48"
-            android:title="Lista percorsi registrati" />
-        <item
             android:id="@+id/menu_poi"
             android:icon="@drawable/pin_rosso"
             android:title="Crea Waypoint" />
+        <item
+            android:id="@+id/menu_lista"
+            android:icon="@drawable/round_navigation_white_48"
+            android:title="Lista percorsi registrati" />
         <item
             android:id="@+id/menu_gpx"
             android:icon="@drawable/ic_distance"
