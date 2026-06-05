@@ -8,4 +8,5 @@ data class LayerItem(
     val distanza: Float,
     val ascesa: Int,
     val discesa: Int,
+    var mostraPendenza: Boolean = true
 )

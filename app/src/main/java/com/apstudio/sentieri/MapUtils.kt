@@ -109,6 +109,8 @@ object MapUtils {
             strokeCap = Paint.Cap.ROUND
         }
 
+        // Pulisce eventuali colorazioni precedenti per evitare accumuli
+        line.outlinePaintLists.clear()
         line.outlinePaintLists.add(PolychromaticPaintList(paint, mMapping, true))
     }
 

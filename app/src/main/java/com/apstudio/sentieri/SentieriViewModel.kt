@@ -154,6 +154,14 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _ftpFileList = MutableLiveData<Event<List<String>>>()
     val ftpFileList: LiveData<Event<List<String>>> = _ftpFileList
 
+    // LiveData per richiedere il ridisegno della mappa
+    private val _mapInvalidateRequest = MutableLiveData<Event<Unit>>()
+    val mapInvalidateRequest: LiveData<Event<Unit>> = _mapInvalidateRequest
+
+    fun requestMapInvalidate() {
+        _mapInvalidateRequest.postValue(Event(Unit))
+    }
+
     fun setDownloading(downloading: Boolean) {
         _isDownloading.postValue(downloading)
     }

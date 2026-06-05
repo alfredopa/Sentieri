@@ -36,6 +36,9 @@ class LayerDialog : Fragment() {
         // 3. Crea la factory con il repository e l'applicazione
         SentieriFactory(repository, application)
     }
+
+    private var rcvLayer: RecyclerView? = null
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -45,97 +48,100 @@ class LayerDialog : Fragment() {
         return view
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-    }
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val recyclerView = view.findViewById<RecyclerView>(R.id.rcvLayer)
+        rcvLayer = recyclerView
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         val layerAdapter = LayerAdapter(viewModel.layerItems)
         recyclerView.adapter = layerAdapter
+        
         layerAdapter.setOnItemClickListener(object : OnLayerClickListener {
 
-            override fun onswcVisibileClick(position: Int) {
-                viewModel.layerItems[position].abilitato = !viewModel.layerItems[position].abilitato
-                val nome = viewModel.layerItems[position].nome
-                viewModel.listaTracce.items.forEach {
-                    if (it is Polyline && it.title == nome) {
-                        it.isEnabled = !it.isEnabled
-                        // attenzione il valore di isEnabled è appena cambiato
-                        //Log.d("LayerDialog", "swcVisibileClick isEnabled: ${it.isEnabled}  $nome")
+            override fun onswcVisibileClick(position: Int, isChecked: Boolean) {
+                val item = viewModel.layerItems[position]
+                item.abilitato = isChecked
+                val targetName = item.nome.trim().lowercase()
+                
+                viewModel.listaTracce.items.forEach { overlay ->
+                    if (overlay is Polyline && (overlay.title ?: "").trim().lowercase() == targetName) {
+                        overlay.isEnabled = isChecked
                     }
                 }
+                viewModel.requestMapInvalidate()
             }
 
-            override fun onswcDirezioneClick(position: Int) {
-                viewModel.layerItems[position].direzione = !viewModel.layerItems[position].direzione
-                val viewHolder =
-                    recyclerView.findViewHolderForAdapterPosition(position) as LayerAdapter.LayerViewHolder
-                val swcDirezione = viewHolder.binding.swcDirezione.isChecked
-                viewModel.listaTracce.items.forEach {
-                    if (it is Polyline && it.title == viewModel.layerItems[position].nome) {
-                        //assegna il valore della direzione alla traccia direttamente
-                        if (swcDirezione) {
-                            MapUtils.applicaFrecceDirezione(it)
-                            Log.d("LayerDialog", "swcDirezioneClick applica freccia direzione")
+            override fun onswcDirezioneClick(position: Int, isChecked: Boolean) {
+                val item = viewModel.layerItems[position]
+                item.direzione = isChecked
+                val targetName = item.nome.trim().lowercase()
+
+                viewModel.listaTracce.items.forEach { overlay ->
+                    if (overlay is Polyline && (overlay.title ?: "").trim().lowercase() == targetName) {
+                        if (isChecked) {
+                            MapUtils.applicaFrecceDirezione(overlay)
                         } else {
-                            val listaNumeri: MutableList<MilestoneManager> = mutableListOf()
-                            it.setMilestoneManagers(listaNumeri)
+                            overlay.setMilestoneManagers(ArrayList())
                         }
                     }
                 }
+                viewModel.requestMapInvalidate()
+            }
+
+            override fun onswcQuotaPendenzaClick(position: Int, isChecked: Boolean) {
+                val item = viewModel.layerItems[position]
+                item.mostraPendenza = isChecked
+                val targetName = item.nome.trim().lowercase()
+                
+                viewModel.listaTracce.items.forEach { overlay ->
+                    if (overlay is Polyline && (overlay.title ?: "").trim().lowercase() == targetName) {
+                        if (isChecked) {
+                            val pendenze = MapUtils.calcolaPendenzeSmussate(overlay, 8)
+                            MapUtils.disegnaPercorsoColorato(overlay, pendenze)
+                        } else {
+                            MapUtils.disegnaPercorsoColorato(overlay)
+                        }
+                    }
+                }
+                viewModel.requestMapInvalidate()
             }
 
             override fun onbtnSeguiClick(position: Int) {
                 val clickedItem = viewModel.layerItems[position]
-                val isTurningOn = !clickedItem.segui // The new state it will have
+                val isTurningOn = !clickedItem.segui
 
-                // If we are turning this item ON
                 if (isTurningOn) {
-                    // Set it as the track to follow
                     viewModel.tracciaDaSeguire = clickedItem.nome
                     clickedItem.segui = true
-
-                    // Unselect all other items
                     for (i in 0 until viewModel.layerItems.size) {
-                        if (i != position) {
-                            viewModel.layerItems[i].segui = false
-                        }
+                        if (i != position) viewModel.layerItems[i].segui = false
                     }
-                } else { // If we are turning this item OFF
-                    // Clear the track to follow
+                } else {
                     viewModel.tracciaDaSeguire = ""
                     clickedItem.segui = false
                 }
-
-                // Refresh the adapter to show the changes
                 recyclerView.adapter?.notifyDataSetChanged()
             }
 
             override fun onItemLongClick(position: Int) {
-                // alertdialog per mostrare i dati della traccia
-                val allarme = EditText(requireContext())
-                val builder =
-                    AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
-                with(builder)
-                {
-                    setTitle("Dati traccia\n${viewModel.layerItems[position].nome}")
-                    val layout = LinearLayout(context)
-                    layout.orientation = LinearLayout.VERTICAL
-                    val distanza = String.format("%,d", viewModel.layerItems[position].distanza.toInt())
-                    val ascesa = String.format("%,d", viewModel.layerItems[position].ascesa)
-                    val discesa = String.format("%,d", viewModel.layerItems[position].discesa)
-                    allarme.setText("\nDistanza: $distanza\nAscesa: $ascesa\nDiscesa: $discesa")
-                    allarme.setPadding(20, 10, 20, 30) // Aggiungi padding per una migliore leggibilità
-                    layout.addView(allarme)
-                    // Set the LinearLayout as the view for the dialog
-                    builder.setView(layout)
-
-                    setPositiveButton(
-                        "Chiudi"
-                    ) { _, _ ->}
+                val item = viewModel.layerItems[position]
+                val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+                with(builder) {
+                    setTitle("Dati traccia\n${item.nome}")
+                    val layout = LinearLayout(context).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(40, 20, 40, 20)
+                    }
+                    
+                    val infoText = android.widget.TextView(context).apply {
+                        text = "\nDistanza: ${String.format("%,d", item.distanza.toInt())} m" +
+                               "\nAscesa: ${String.format("%,d", item.ascesa)} m" +
+                               "\nDiscesa: ${String.format("%,d", item.discesa)} m"
+                        textSize = 16f
+                    }
+                    layout.addView(infoText)
+                    setView(layout)
+                    setPositiveButton("Chiudi", null)
                     show()
                 }
             }
@@ -143,8 +149,9 @@ class LayerDialog : Fragment() {
 
         val closeButton = view.findViewById<Button>(R.id.btnOk)
         closeButton.setOnClickListener {
-            val directions = LayerDialogDirections.actionLayerDialogToMappaFragment()
-            findNavController().navigate(directions)
+            // Segnaliamo al MappaFragment che deve ridisegnare tutto
+            // Se hai un LiveData per questo, usalo. Altrimenti il NavController farà il pop.
+            findNavController().popBackStack()
         }
     }
 }
