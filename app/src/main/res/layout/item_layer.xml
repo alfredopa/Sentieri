@@ -5,75 +5,89 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginVertical="4dp"
-    android:longClickable="true"
-    app:cardCornerRadius="20dp"
-    app:cardElevation="10dp"
-    app:contentPadding="4dp">
-
+    android:layout_marginHorizontal="8dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="4dp">
 
     <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/linearLayout"
         android:layout_width="match_parent"
-        android:layout_height="82dp"
-        android:orientation="horizontal">
+        android:layout_height="wrap_content"
+        android:padding="8dp">
 
         <TextView
             android:id="@+id/txTraccia"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:layout_marginTop="4dp"
-            android:layout_marginEnd="4dp"
-            android:gravity="start"
-            android:paddingLeft="8dp"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Nome Percorso"
+            android:textColor="?android:attr/textColorPrimary"
             android:textSize="16sp"
             android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0.494"
+            app:layout_constraintEnd_toStartOf="@+id/btnSegui"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="Sentiero degli Dei" />
 
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/swcDirezione"
+        <RadioButton
+            android:id="@+id/btnSegui"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:layout_marginEnd="8dp"
-            android:layout_marginBottom="4dp"
-            android:checked="true"
-            android:text="Direzione"
+            android:layoutDirection="rtl"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:text="Segui"
             android:textSize="14sp"
-            android:visibility="visible"
-            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintBottom_toBottomOf="@+id/txTraccia"
             app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/txTraccia" />
+
+        <View
+            android:id="@+id/viewDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="8dp"
+            android:background="#1A000000"
             app:layout_constraintTop_toBottomOf="@+id/txTraccia" />
 
         <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/swcVisibile"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="4dp"
+            android:layout_marginTop="8dp"
             android:text="Visibile"
-            android:textSize="14sp"
+            android:textSize="12sp"
             app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/swcQuota"
+            app:layout_constraintHorizontal_bias="0.5"
+            app:layout_constraintHorizontal_chainStyle="spread_inside"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/txTraccia"
-            tools:checked="true" />
+            app:layout_constraintTop_toBottomOf="@+id/viewDivider" />
 
-        <RadioButton
-            android:id="@+id/btnSegui"
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/swcQuota"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:layoutDirection="rtl"
-            android:text="Segui"
-            app:layout_constraintBottom_toBottomOf="parent"
+            android:text="Pendenza"
+            android:textSize="12sp"
+            app:layout_constraintBottom_toBottomOf="@+id/swcVisibile"
+            app:layout_constraintEnd_toStartOf="@+id/swcDirezione"
+            app:layout_constraintHorizontal_bias="0.5"
+            app:layout_constraintStart_toEndOf="@+id/swcVisibile"
+            app:layout_constraintTop_toTopOf="@+id/swcVisibile" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/swcDirezione"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Direzione"
+            android:textSize="12sp"
+            app:layout_constraintBottom_toBottomOf="@+id/swcVisibile"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="@+id/swcVisibile"
-            app:layout_constraintVertical_bias="0.0" />
+            app:layout_constraintHorizontal_bias="0.5"
+            app:layout_constraintStart_toEndOf="@+id/swcQuota"
+            app:layout_constraintTop_toTopOf="@+id/swcVisibile" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

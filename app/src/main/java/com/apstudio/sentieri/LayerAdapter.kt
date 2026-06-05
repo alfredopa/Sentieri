@@ -29,10 +29,16 @@ class LayerAdapter(private val layerItems: MutableList<LayerItem>) :
 
     override fun onBindViewHolder(holder: LayerViewHolder, position: Int) {
         val item = layerItems[position]
+        // Disabilita temporaneamente i listener per evitare trigger ciclici durante il bind
+        holder.setOnItemClickListener(null)
+        
         holder.binding.txTraccia.text = item.nome
         holder.binding.swcVisibile.isChecked = item.abilitato
         holder.binding.swcDirezione.isChecked = item.direzione
+        holder.binding.swcQuota.isChecked = item.mostraPendenza
         holder.binding.btnSegui.isChecked = item.segui
+        
+        // Riattiva il listener
         holder.setOnItemClickListener(onItemClickListener)
     }
 
@@ -49,27 +55,24 @@ class LayerAdapter(private val layerItems: MutableList<LayerItem>) :
                 true
             }
             // Imposta il listener di click sullo switch
-            binding.swcVisibile.setOnCheckedChangeListener { _, _ ->
+            binding.swcVisibile.setOnCheckedChangeListener { _, isChecked ->
                 val position = adapterPosition
                 if (position != RecyclerView.NO_POSITION) {
-                    onItemClickListener?.onswcVisibileClick(position)
-                    // Gestisci il cambio di stato dello switch alla posizione 'position'
-                    // Ad esempio, puoi aggiornare lo stato del layer corrispondente
-                    //Log.d(
-                    //    "LayerAdapter",
-                    //    "Switch at position $position is now ${if (isChecked) "ON" else "OFF"}"
-                    //)
+                    onItemClickListener?.onswcVisibileClick(position, isChecked)
                 }
             }
 
-            binding.swcDirezione.setOnCheckedChangeListener { _, _ ->
+            binding.swcQuota.setOnCheckedChangeListener { _, isChecked ->
                 val position = adapterPosition
                 if (position != RecyclerView.NO_POSITION) {
-                    onItemClickListener?.onswcDirezioneClick(position) // Nuovo listener
-                    //Log.d(
-                    //    "LayerAdapter",
-                    //    "Blocca switch at position $position is now ${if (isChecked) "ON" else "OFF"}"
-                    //)
+                    onItemClickListener?.onswcQuotaPendenzaClick(position, isChecked)
+                }
+            }
+
+            binding.swcDirezione.setOnCheckedChangeListener { _, isChecked ->
+                val position = adapterPosition
+                if (position != RecyclerView.NO_POSITION) {
+                    onItemClickListener?.onswcDirezioneClick(position, isChecked)
                 }
             }
 

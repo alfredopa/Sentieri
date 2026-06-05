@@ -78,6 +78,7 @@ import com.apstudio.sentieri.MapUtils.showCustomSnackbar
 import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
+import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.LocationRepository
 import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.PoiDao
@@ -506,6 +507,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
         // Imposta l'orientamento salvato nel ViewModel
         mapView.mapOrientation = viewModel.mapRotation
+        
+        // Osserva le richieste di ridisegno forzato della mappa
+        viewModel.mapInvalidateRequest.observe(viewLifecycleOwner, Observer { event ->
+            event.getContentIfNotHandled()?.let {
+                mapView.invalidate()
+            }
+        })
+
         // 1. Osserva le richieste di aggiornamento dei layer (da GpkgLayer).
         layerModel.layerUpdateRequest.observe(viewLifecycleOwner, Observer { event ->
             event.getContentIfNotHandled()?.let {
@@ -584,7 +593,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             mapView.overlays.add(viewModel.listaTracce)
         }
         if (!mapView.overlays.contains(viewModel.recTraccia)) {
-            mapView.overlays.add(viewModel.recTraccia) // Assicura che sia qui
+            mapView.overlays.add(viewModel.recTraccia)
         }
         if (!mapView.overlays.contains(viewModel.topoLayer)) {
             mapView.overlays.add(viewModel.topoLayer)
@@ -941,8 +950,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             nuovaTraccia.setPoints(viewModel.puntiDaSeguire)
             val mbounds = nuovaTraccia.bounds
             disegnaLineaSfondo(nuovaTraccia)
-            mapView.overlays.add(nuovaTraccia)
+            // Aggiungi solo alla listaTracce, dato che listaTracce è già in mapView.overlays
             viewModel.listaTracce.add(nuovaTraccia)
+            
             val percorsoColorato = Polyline(mapView).apply {
                 setPoints(viewModel.puntiDaSeguire)
                 isVisible = true
@@ -954,8 +964,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             } else {
                 disegnaPercorsoColorato(percorsoColorato)
             }
-            mapView.overlays.add(percorsoColorato)
+            // Aggiungi solo alla listaTracce
             viewModel.listaTracce.add(percorsoColorato)
+
+            // Se la direzione era attiva nel ViewModel (anche se non dovrebbe esserlo qui, per sicurezza)
+            // o se vogliamo applicarla subito se il layer item corrispondente la ha attiva
+            // Al momento SchedaFragment aggiunge un nuovo LayerItem con direzione = false
 
             //applicaFrecceDirezione(percorsoColorato)
             viewModel.puntiDaSeguire = mutableListOf()
@@ -1435,6 +1449,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         binding.fabStopRec.isVisible = true
     }
 
+    fun forceMapInvalidate() {
+        mapView.postInvalidate()
+    }
+
     private fun caricaGPX(uri: Uri) {
         val trackPointsOriginali: MutableList<GeoPoint> = mutableListOf()
         var oldPunto: GeoPoint? = null
@@ -1509,12 +1527,27 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // 3. Applica gli stili specifici, PASSANDO la lista delle pendenze
         disegnaLineaSfondo(polylineColore)
         disegnaPercorsoColorato(polylineFrecce, pendenze)
-        // 4. Aggiungi le  Polyline all'overlay della mappa NELL'ORDINE CORRETTO
-        mapView.overlays.add(polylineColore)   // Livello 1: Gradiente (sotto)
-        mapView.overlays.add(polylineFrecce)   // Livello 3: Frecce (sopra)
-        // 5. Aggiungi le tracce alla lista nel ViewModel per la gestione dei layer
+
+        // Aggiungi SOLO alla listaTracce del ViewModel. 
+        // listaTracce è già in mapView.overlays.
         viewModel.listaTracce.add(polylineColore)
         viewModel.listaTracce.add(polylineFrecce)
+        
+        // Aggiungiamo anche il LayerItem se non presente
+        if (viewModel.layerItems.none { it.nome == nome }) {
+            viewModel.layerItems.add(
+                LayerItem(
+                    nome = nome,
+                    abilitato = true,
+                    direzione = false,
+                    segui = false,
+                    distanza = viewModel.trackDistanza,
+                    ascesa = viewModel.trackAscesa,
+                    discesa = viewModel.trackDiscesa
+                )
+            )
+        }
+
         // 6. Aggiungi i marker di inizio/fine (associandoli alla polilinea di sfondo)
         addMarker(polylineColore)
         //------------------------------------------------------------------------------------------
