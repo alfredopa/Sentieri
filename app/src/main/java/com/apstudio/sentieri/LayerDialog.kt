@@ -54,6 +54,7 @@ class LayerDialog : Fragment() {
         rcvLayer = recyclerView
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         val layerAdapter = LayerAdapter(viewModel.layerItems)
+        Log.d("listaTracce", "LayerDialog onViewCreated ${viewModel.listaTracce.items.size}")
         recyclerView.adapter = layerAdapter
         
         layerAdapter.setOnItemClickListener(object : OnLayerClickListener {

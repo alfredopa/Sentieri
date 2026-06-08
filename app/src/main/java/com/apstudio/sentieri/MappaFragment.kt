@@ -952,7 +952,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             disegnaLineaSfondo(nuovaTraccia)
             // Aggiungi solo alla listaTracce, dato che listaTracce è già in mapView.overlays
             viewModel.listaTracce.add(nuovaTraccia)
-            
+            Log.d("layerItems", "onresume ${viewModel.layerItems.size}")
             val percorsoColorato = Polyline(mapView).apply {
                 setPoints(viewModel.puntiDaSeguire)
                 isVisible = true
@@ -966,6 +966,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
             // Aggiungi solo alla listaTracce
             viewModel.listaTracce.add(percorsoColorato)
+            Log.d("layerItems", "onresume ${viewModel.layerItems.size}")
 
             // Se la direzione era attiva nel ViewModel (anche se non dovrebbe esserlo qui, per sicurezza)
             // o se vogliamo applicarla subito se il layer item corrispondente la ha attiva
@@ -1449,11 +1450,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         binding.fabStopRec.isVisible = true
     }
 
-    fun forceMapInvalidate() {
-        mapView.postInvalidate()
-    }
-
     private fun caricaGPX(uri: Uri) {
+        if (!isAdded) return // Esci se il fragment non è collegato
         val trackPointsOriginali: MutableList<GeoPoint> = mutableListOf()
         var oldPunto: GeoPoint? = null
         val stream = requireActivity().contentResolver.openInputStream(uri)
@@ -1534,7 +1532,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.listaTracce.add(polylineFrecce)
         
         // Aggiungiamo anche il LayerItem se non presente
-        if (viewModel.layerItems.none { it.nome == nome }) {
+        /*if (viewModel.layerItems.none { it.nome == nome }) {
             viewModel.layerItems.add(
                 LayerItem(
                     nome = nome,
@@ -1546,7 +1544,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     discesa = viewModel.trackDiscesa
                 )
             )
-        }
+        }*/
 
         // 6. Aggiungi i marker di inizio/fine (associandoli alla polilinea di sfondo)
         addMarker(polylineColore)
@@ -1612,6 +1610,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             gpsMarker.setVisible(true)
             //Log.d("caricagpx", "gpsMarker visibile")
         }
+        //Log.d("layerItems", "caricagpx ${viewModel.layerItems.size}")
         // Infine, ridisegna la mappa
         mapView.invalidate()
     }
