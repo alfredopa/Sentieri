@@ -265,6 +265,7 @@ object MapUtils {
                                 ascesa = viewModel.trackAscesa,
                                 discesa = viewModel.trackDiscesa
                             ))
+                            //Log.d("layerItems", "alertSegui ${viewModel.layerItems.size}")
                         } else {
                             viewModel.layerItems.add(LayerItem(line.title, line.isEnabled,
                                 direzione = false,
@@ -273,6 +274,7 @@ object MapUtils {
                                 ascesa = viewModel.trackAscesa,
                                 discesa = viewModel.trackDiscesa
                             ))
+                            //Log.d("layerItems", "alertSegui ${viewModel.layerItems.size}")
                         }
                     }
                 } else {
@@ -283,6 +285,7 @@ object MapUtils {
                         ascesa = viewModel.trackAscesa,
                         discesa = viewModel.trackDiscesa
                     ))
+                    //Log.d("layerItems", "alertSegui ${viewModel.layerItems.size}")
                 }
                 viewModel.tracciaDaSeguire = line.title
                 viewModel.alertFuoriTraccia = true
@@ -295,9 +298,11 @@ object MapUtils {
                     ascesa = viewModel.trackAscesa,
                     discesa = viewModel.trackDiscesa
                 ))
+                //Log.d("layerItems", "alertSegui ${viewModel.layerItems.size}")
             }
             show()
         }
+
     }
 
     fun alertVerificaSegui(context: Context, callback: (Boolean) -> Unit) {
