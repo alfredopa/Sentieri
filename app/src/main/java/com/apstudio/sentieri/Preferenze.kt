@@ -42,6 +42,7 @@ class Preferenze : PreferenceFragmentCompat() {
     private var downloadDialog: AlertDialog? = null
     private var progressBar: ProgressBar? = null
     private var progressText: TextView? = null
+    private var progressMessage: TextView? = null
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         preferenze = PreferenceManager.getDefaultSharedPreferences(requireContext())
@@ -119,6 +120,17 @@ class Preferenze : PreferenceFragmentCompat() {
                 downloadDialog = null
                 progressBar = null
                 progressText = null
+                progressMessage = null
+            }
+        }
+
+        // Osserva il nome del file
+        viewModel.downloadFileName.observe(viewLifecycleOwner) { fileName ->
+            if (downloadDialog?.isShowing == true) {
+                if (progressMessage == null) {
+                    progressMessage = downloadDialog?.findViewById(R.id.download_message)
+                }
+                progressMessage?.text = "Download in corso: $fileName"
             }
         }
 
@@ -142,6 +154,7 @@ class Preferenze : PreferenceFragmentCompat() {
                 } else if (progress == -2) {
                     progressBar?.isIndeterminate = true
                     progressText?.text = "Decompressione files..."
+                    progressMessage?.text = "Attendere: scompattamento in corso..."
                 } else {
                     progressBar?.isIndeterminate = true
                     progressText?.text = "Download..."
@@ -171,6 +184,7 @@ class Preferenze : PreferenceFragmentCompat() {
         val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_download_progress, null)
         progressBar = dialogView.findViewById(R.id.download_progress_bar)
         progressText = dialogView.findViewById(R.id.download_progress_text)
+        progressMessage = dialogView.findViewById(R.id.download_message)
 
         downloadDialog = AlertDialog.Builder(requireContext())
             .setTitle("Download Mappa")
