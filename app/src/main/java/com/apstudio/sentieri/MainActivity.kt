@@ -471,17 +471,21 @@ class MainActivity :
             Log.d("MainActivity", "Ricevuto broadcast: ${intent.action}")
             when (intent.action) {
                 DownloadService.ACTION_DOWNLOAD_STARTED -> {
+                    val fileName = intent.getStringExtra(DownloadService.EXTRA_FILE_PATH)
                     viewModel.setDownloading(true)
                     viewModel.setDownloadProgress(0)
+                    fileName?.let { viewModel.setDownloadFileName(it) }
                 }
                 DownloadService.ACTION_PROGRESS_UPDATE -> {
                     val progress = intent.getIntExtra(DownloadService.EXTRA_PROGRESS, -1)
-                    Log.d("MainActivity", "Update progresso: $progress")
+                    val fileName = intent.getStringExtra(DownloadService.EXTRA_FILE_PATH)
+                    //Log.d("MainActivity", "Update progresso: $progress")
                     viewModel.setDownloadProgress(progress)
+                    fileName?.let { viewModel.setDownloadFileName(it) }
                 }
                 DownloadService.ACTION_DOWNLOAD_COMPLETE -> {
                     val message = intent.getStringExtra(DownloadService.EXTRA_MESSAGE) ?: ""
-                    Log.d("MainActivity", "Download completato: $message")
+                    //Log.d("MainActivity", "Download completato: $message")
                     viewModel.setDownloading(false)
                     viewModel.postFtpStatus(message)
                 }

@@ -4,7 +4,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -12,7 +11,12 @@ import android.os.Environment
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPReply
@@ -58,7 +62,8 @@ class DownloadService : Service() {
         if (intent?.action == ACTION_START_DOWNLOAD) {
             val filePath = intent.getStringExtra(EXTRA_FILE_PATH)
             if (filePath != null) {
-                startDownload(filePath)
+                startDownload(filePath)  // NOME DEL FILE da scaricare
+                Log.d("DownloadonStartCommand", "filePath $filePath EXTRA $EXTRA_FILE_PATH")
             } else {
                 stopSelf()
             }
@@ -76,7 +81,7 @@ class DownloadService : Service() {
                 ftpClient.defaultTimeout = 10000
                 ftpClient.connect(BuildConfig.FTP_SERVER, BuildConfig.FTP_PORT)
                 ftpClient.login(BuildConfig.FTP_USER, BuildConfig.FTP_PASS)
-                ftpClient.setSoTimeout(10000)
+                ftpClient.soTimeout = 10000
                 ftpClient.enterLocalPassiveMode()
                 ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
 
@@ -86,7 +91,7 @@ class DownloadService : Service() {
                     if (file != null) {
                         fileSize = file.size
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     Log.w(TAG, "MLST non supportato, provo con SIZE")
                     val reply = ftpClient.sendCommand("SIZE", percorsoFileRemoto)
                     if (FTPReply.isPositiveCompletion(reply)) {
@@ -110,7 +115,7 @@ class DownloadService : Service() {
                 }
                 
                 val outputStream = FileOutputStream(localFile)
-                sendProgressBroadcast(0) 
+                sendProgressBroadcast(0, nomeFile) 
 
                 val inputStream = ftpClient.retrieveFileStream(percorsoFileRemoto)
                 if (inputStream != null) {
@@ -136,7 +141,7 @@ class DownloadService : Service() {
                                 val currentTime = System.currentTimeMillis()
                                 if (progress != lastReportedProgress && (currentTime - lastUpdateTime > 400 || progress == 100)) {
                                     updateNotification(nomeFile, progress)
-                                    sendProgressBroadcast(progress)
+                                    sendProgressBroadcast(progress, nomeFile)
                                     lastReportedProgress = progress
                                     lastUpdateTime = currentTime
                                 }
@@ -152,7 +157,7 @@ class DownloadService : Service() {
                         if (localFile.exists() && localFile.length() == fileSize) {
                             // File scaricato correttamente, ora decomprimiamo
                             updateNotification(nomeFile, PROGRESS_DECOMPRESSING)
-                            sendProgressBroadcast(PROGRESS_DECOMPRESSING)
+                            sendProgressBroadcast(PROGRESS_DECOMPRESSING, nomeFile)
                             val scompattato = MapUtils.decomprimiZipInCartellaMappe(this@DownloadService, nomeFile)
                             if (scompattato) {
                                 errorMessage = "Download e scompattamento completati: $nomeFile"
@@ -192,7 +197,7 @@ class DownloadService : Service() {
     private fun createNotification(content: String, progress: Int): android.app.Notification {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-
+        Log.d("Download", "content=$content")
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Download Mappa")
             .setContentText(content)
@@ -209,14 +214,16 @@ class DownloadService : Service() {
             in 0..100 -> "Scaricando $fileName: $progress%"
             else -> "Scaricando $fileName..."
         }
+        Log.d("DownloadupdateNotification", "content=$content filname $fileName" )
         val notification = createNotification(content, if (progress in 0..100) progress else 0)
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
-    private fun sendProgressBroadcast(progress: Int) {
+    private fun sendProgressBroadcast(progress: Int, fileName: String? = null) {
         val intent = Intent(if (progress == 0) ACTION_DOWNLOAD_STARTED else ACTION_PROGRESS_UPDATE).apply {
             putExtra(EXTRA_PROGRESS, progress)
+            fileName?.let { putExtra(EXTRA_FILE_PATH, it) }
             setPackage(packageName)
         }
         sendBroadcast(intent)

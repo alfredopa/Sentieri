@@ -150,6 +150,10 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _downloadProgress = MutableLiveData(-1)
     val downloadProgress: LiveData<Int> = _downloadProgress
 
+    // LiveData per il nome del file in download
+    private val _downloadFileName = MutableLiveData<String>()
+    val downloadFileName: LiveData<String> = _downloadFileName
+
     // NUOVO: LiveData per l'elenco dei file FTP
     private val _ftpFileList = MutableLiveData<Event<List<String>>>()
     val ftpFileList: LiveData<Event<List<String>>> = _ftpFileList
@@ -168,6 +172,10 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     fun setDownloadProgress(progress: Int) {
         _downloadProgress.postValue(progress)
+    }
+
+    fun setDownloadFileName(name: String) {
+        _downloadFileName.postValue(name)
     }
 
     fun postFtpStatus(message: String) {
@@ -435,8 +443,10 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
      */
     fun downloadFileFromFtp(percorsoFileRemoto: String) {
         val context = getApplication<Application>()
+        val nomeFile = percorsoFileRemoto.substringAfterLast("/")
         
-        // Imposta lo stato di download per mostrare il dialogo se necessario
+        // Imposta lo stato iniziale
+        _downloadFileName.value = nomeFile
         _isDownloading.value = true
         _downloadProgress.value = 0
         
@@ -447,105 +457,4 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
         context.startForegroundService(intent)
     }
-
-    fun scaricaFileDaDrive() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _isDownloading.postValue(true)
-            _downloadProgress.postValue(0)
-            _ftpDownloadStatus.postValue(Event("Download da Remoto in corso..."))
-            // URL di download diretto (uc = user content)
-            //val urlString = "https://drive.usercontent.google.com/download?id=1sZl43O4aVJHYTO0anl8e5sq3j9XHgnKS&export=download&authuser=0&confirm=t&uuid=ce1c3d68-fe2f-4d4d-b785-c2a23a4758bb&at=ANTm3cy87PrdFq80FCYNG8I8rOVI%3A1768214837093"
-            val urlString =
-                "https://github.com/alfredopa/Sentieri/releases/download/risorse/Sardegna.zip"
-            val nomeFile = "Sardegna.zip"
-            var downloadSuccess = false
-
-            try {
-                val url = java.net.URL(urlString)
-                val connection = url.openConnection() as java.net.HttpURLConnection
-
-                // Fondamentale: Google Drive spesso usa redirect (302)
-                connection.instanceFollowRedirects = true
-                connection.requestMethod = "GET"
-                // Opzionale: aggiungi un User-Agent per sembrare un browser
-                connection.setRequestProperty("User-Agent", "Mozilla/5.0")
-
-                connection.connect()
-
-                // Se il file è grande, Google potrebbe rispondere con un codice diverso o
-                // richiedere una conferma. Se il contentLength è piccolo (es < 1000 byte)
-                // probabilmente stiamo scaricando la pagina di errore HTML invece del file.
-
-                val fileSize = connection.contentLength.toLong()
-
-                // Se il server non restituisce la dimensione o è troppo piccola,
-                // potrebbe esserci l'avviso virus di Google.
-                if (fileSize < 10000) {
-                    Log.e(
-                        "DRIVE",
-                        "Il file sembra troppo piccolo. Probabile avviso virus di Google."
-                    )
-                    // Nota: gestire l'avviso virus via codice è molto complesso (richiede cookie)
-                }
-
-                val outputStream =
-                    MapUtils.getOutputStreamForPublicDownload(getApplication(), nomeFile)
-                        ?: throw IOException("Impossibile creare il file locale")
-
-                val inputStream = connection.inputStream
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                var totalBytesRead = 0L
-
-                outputStream.use { output ->
-                    inputStream.use { input ->
-                        while (input.read(buffer).also { bytesRead = it } != -1) {
-                            output.write(buffer, 0, bytesRead)
-                            totalBytesRead += bytesRead
-
-                            if (fileSize > 0) {
-                                val progress = ((totalBytesRead * 100) / fileSize).toInt()
-                                if (progress > (_downloadProgress.value ?: 0)) {
-                                    _downloadProgress.postValue(progress)
-                                }
-                            }
-                        }
-                    }
-                }
-                downloadSuccess = true
-            } catch (e: Exception) {
-                Log.e("HTTP_DOWNLOAD", "Errore: ${e.message}")
-                _ftpDownloadStatus.postValue(Event("Errore: ${e.message}"))
-            } finally {
-                withContext(Dispatchers.Main) {
-                    _isDownloading.postValue(false)
-                    if (downloadSuccess) {
-                        _ftpDownloadStatus.postValue(Event("Download file completato!"))
-                        scompattaZip(nomeFile)
-                    } else {
-                        _ftpDownloadStatus.postValue(Event("Download fallito (controlla dimensione file)"))
-                    }
-                }
-            }
-        }
-    }
-
-    fun scompattaZip(fileScaricato: String) {
-        _ftpDownloadStatus.postValue(Event("Download completato! Inizio decompressione..."))
-
-        // --- CHIAMA LA FUNZIONE DI UNZIP QUI ---
-        viewModelScope.launch(Dispatchers.IO) {
-            val unzipSuccess =
-                MapUtils.decomprimiZipInCartellaMappe(getApplication(), fileScaricato)
-            // Comunica il risultato finale
-            withContext(Dispatchers.Main) {
-                if (unzipSuccess) {
-                    _ftpDownloadStatus.postValue(Event("Mappa installata con successo!"))
-                } else {
-                    _ftpDownloadStatus.postValue(Event("Errore durante l'installazione della mappa."))
-                }
-            }
-        }
-    }
-
 }
