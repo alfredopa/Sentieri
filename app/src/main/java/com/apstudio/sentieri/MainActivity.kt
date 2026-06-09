@@ -56,6 +56,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.net.toUri
 
 private const val LAST_VERSION_CODE = "last_version_code"
+private const val PROMINENT_DISCLOSURE_SHOWN = "prominent_disclosure_shown"
 
 class MainActivity :
     AppCompatActivity() {
@@ -159,7 +160,27 @@ class MainActivity :
 
     private fun initAppAndPermissions() {
         initApp()
-        checkAndRequestPermissions()
+        // Ritarda l'esecuzione per assicurarsi che l'UI sia caricata e visibile
+        window.decorView.post {
+            if (!preferenze.getBoolean(PROMINENT_DISCLOSURE_SHOWN, false)) {
+                showProminentDisclosure()
+            } else {
+                checkAndRequestPermissions()
+            }
+        }
+    }
+
+    private fun showProminentDisclosure() {
+        AlertDialog.Builder(this, R.style.AlertDialogCustom)
+            .setTitle(getString(R.string.app_name))
+            .setIcon(R.drawable.quattromori)
+            .setMessage("Sentieri utilizza la tua posizione per mostrarti la mappa e registrare i tuoi percorsi. Per funzionare correttamente a schermo spento, l'app richiede l'accesso alla posizione in background e l'esclusione dalle ottimizzazioni batteria.")
+            .setPositiveButton("Ho capito / Continua") { _, _ ->
+                preferenze.edit { putBoolean(PROMINENT_DISCLOSURE_SHOWN, true) }
+                checkAndRequestPermissions()
+            }
+            .setCancelable(false)
+            .show()
     }
 
     private fun initApp() {
