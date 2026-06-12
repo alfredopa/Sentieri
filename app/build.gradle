@@ -24,7 +24,7 @@ android {
         applicationId "com.apstudio.sentieri"
         minSdk 31
         targetSdk 35
-        versionCode 37
+        versionCode 38
         versionName '2.0.7'
         // Definisci le variabili FTP leggendole dal file properties
         // Access properties using .get() or bracket notation

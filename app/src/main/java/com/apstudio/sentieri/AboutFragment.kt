@@ -10,15 +10,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.fragment.app.Fragment
-import com.apstudio.sentieri.BuildConfig.VERSION_NAME
-import com.apstudio.sentieri.databinding.FragmentAboutBinding
 import androidx.core.content.FileProvider
+import androidx.fragment.app.Fragment
+import com.apstudio.sentieri.databinding.FragmentAboutBinding
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import kotlin.io.path.copyTo
-import kotlin.io.path.exists
 
 class AboutFragment : Fragment() {
 
@@ -39,7 +36,7 @@ class AboutFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         // Ottieni la versione dell'app dinamicamente dal file build.gradle
-        binding.tvAppNameVersion.text = "Sentieri ${VERSION_NAME}"
+        binding.tvAppNameVersion.text = "Sentieri ${BuildConfig.VERSION_NAME}"
         binding.tvVersionCode.text = "Versione codice ${BuildConfig.VERSION_CODE}"
         binding.btnManuale.setOnClickListener {
             apriGuidaPdf()
