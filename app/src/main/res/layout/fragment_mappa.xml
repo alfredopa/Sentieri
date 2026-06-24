@@ -73,6 +73,19 @@
         android:visibility="invisible"
         app:fabCustomSize="36dp" />
 
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btnOpenDrawer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_marginTop="70dp"
+        android:layout_marginStart="12dp"
+        android:src="@drawable/hamburger"
+        app:backgroundTint="@color/white"
+        app:fabCustomSize="40dp"
+        app:maxImageSize="24dp"
+        app:tint="@color/black" />
+
     <Button
         android:id="@+id/button_confirm_destination"
         android:layout_width="wrap_content"

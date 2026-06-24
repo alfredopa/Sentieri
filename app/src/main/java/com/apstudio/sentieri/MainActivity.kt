@@ -29,6 +29,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.content.getSystemService
+import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
@@ -537,6 +538,12 @@ class MainActivity :
         } catch (_: Exception) {
             // In caso di errore, ritorna un valore che non innescherà l'aggiornamento
             -1L
+        }
+    }
+
+    fun openDrawer() {
+        if (::drawerLayout.isInitialized) {
+            drawerLayout.openDrawer(GravityCompat.START)
         }
     }
 
