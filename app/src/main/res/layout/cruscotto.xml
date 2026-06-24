@@ -264,4 +264,86 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="@id/icon_tempo_mov" />
 
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/barrier_row4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:barrierDirection="bottom"
+        app:constraint_referenced_ids="tvTempoMov, btnAllarme" />
+
+    <!-- RIGA 5: Rimanenti (Distanza, D+, D-) - Colore Giallo per distinguerli -->
+    <ImageView
+        android:id="@+id/icon_rem_dist"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/barrier_row4"
+        app:srcCompat="@drawable/ic_distance"
+        app:tint="#FFEB3B" />
+
+    <TextView
+        android:id="@+id/tvRemainingDist"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textColor="#FFEB3B"
+        android:textSize="18sp"
+        app:layout_constraintBottom_toBottomOf="@id/icon_rem_dist"
+        app:layout_constraintEnd_toStartOf="@id/guideline_col1_end"
+        app:layout_constraintStart_toEndOf="@id/icon_rem_dist"
+        app:layout_constraintTop_toTopOf="@id/icon_rem_dist"
+        tools:text="5.2 km" />
+
+    <ImageView
+        android:id="@+id/icon_rem_dpiu"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="@id/guideline_col1_end"
+        app:layout_constraintTop_toTopOf="@id/icon_rem_dist"
+        app:srcCompat="@drawable/ic_trending_up"
+        app:tint="#FFEB3B" />
+
+    <TextView
+        android:id="@+id/tvRemainingDPiu"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textColor="#FFEB3B"
+        android:textSize="18sp"
+        app:layout_constraintBottom_toBottomOf="@id/icon_rem_dpiu"
+        app:layout_constraintEnd_toStartOf="@id/guideline_col2_end"
+        app:layout_constraintStart_toEndOf="@id/icon_rem_dpiu"
+        app:layout_constraintTop_toTopOf="@id/icon_rem_dpiu"
+        tools:text="450" />
+
+    <ImageView
+        android:id="@+id/icon_rem_dmeno"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="@id/guideline_col2_end"
+        app:layout_constraintTop_toTopOf="@id/icon_rem_dist"
+        app:srcCompat="@drawable/ic_trending_down"
+        app:tint="#FFEB3B" />
+
+    <TextView
+        android:id="@+id/tvRemainingDMeno"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textColor="#FFEB3B"
+        android:textSize="18sp"
+        app:layout_constraintBottom_toBottomOf="@id/icon_rem_dmeno"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/icon_rem_dmeno"
+        app:layout_constraintTop_toTopOf="@id/icon_rem_dmeno"
+        tools:text="-200" />
+
+    <androidx.constraintlayout.widget.Group
+        android:id="@+id/groupRemaining"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:constraint_referenced_ids="icon_rem_dist,tvRemainingDist,icon_rem_dpiu,tvRemainingDPiu,icon_rem_dmeno,tvRemainingDMeno" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

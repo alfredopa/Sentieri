@@ -64,7 +64,13 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     val geoPuntiPercorso = mutableListOf<GeoPoint>()
     val toponimiSelezionati = mutableListOf<TopoMarkerData>() // New list
     var alertFuoriTraccia: Boolean = true
-    var tracciaDaSeguire: String = ""
+    //var tracciaDaSeguire: String = ""
+    private val _tracciaDaSeguire = MutableLiveData("")
+    var tracciaDaSeguire: String
+        get() = _tracciaDaSeguire.value ?: ""
+        set(value) { _tracciaDaSeguire.value = value }
+
+    val tracciaDaSeguireLiveData: LiveData<String> = _tracciaDaSeguire
     var poi = GeoPoint(0.0, 0.0, 0.0)
     var mapRotation: Float = 0f
     var bloccaMappa = true
@@ -161,6 +167,21 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     // LiveData per richiedere il ridisegno della mappa
     private val _mapInvalidateRequest = MutableLiveData<Event<Unit>>()
     val mapInvalidateRequest: LiveData<Event<Unit>> = _mapInvalidateRequest
+
+    // Calcoli per i valori rimanenti (distanza in metri, dislivelli in metri)
+    val remainingDist = distanzaMetri.map { currentDist ->
+        if (tracciaDaSeguire.isNotEmpty()) (trackDistanza - currentDist).toInt().coerceAtLeast(0) else 0
+    }
+
+    val remainingDPiu = dislivPiu.map { currentDPiu ->
+        if (tracciaDaSeguire.isNotEmpty()) (trackAscesa.toDouble() - currentDPiu).coerceAtLeast(0.0) else 0.0
+    }
+
+    val remainingDMeno = dislivMeno.map { currentDMeno ->
+        // Nota: trackDiscesa è salvato come valore negativo o positivo nel tuo DB?
+        // Assumiamo di voler visualizzare quanto manca in valore assoluto.
+        if (tracciaDaSeguire.isNotEmpty()) (kotlin.math.abs(trackDiscesa.toDouble()) - currentDMeno).coerceAtLeast(0.0) else 0.0
+    }
 
     fun requestMapInvalidate() {
         _mapInvalidateRequest.postValue(Event(Unit))
