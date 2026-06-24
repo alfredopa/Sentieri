@@ -554,6 +554,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
         })
 
+        // Osserva il cambiamento della traccia da seguire
+        viewModel.tracciaDaSeguireLiveData.observe(viewLifecycleOwner) {
+            updateRemainingVisibility()
+        }
+
         arguments?.getString("gpx_file_uri")?.let { uriString ->
             val gpxUri = uriString.toUri()
             caricaGPX(gpxUri)
@@ -834,6 +839,17 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         0
                     )
                 }
+            }
+
+            // Osserva i valori rimanenti se segue traccia
+            viewModel.remainingDist.observe(viewLifecycleOwner) { remDist ->
+                binding.cruscotto.tvRemainingDist.text = MapUtils.formattastring(remDist)
+            }
+            viewModel.remainingDPiu.observe(viewLifecycleOwner) { remDPiu ->
+                binding.cruscotto.tvRemainingDPiu.text = numberFormat.format(remDPiu.toInt())
+            }
+            viewModel.remainingDMeno.observe(viewLifecycleOwner) { remDMeno ->
+                binding.cruscotto.tvRemainingDMeno.text = numberFormat.format(remDMeno.toInt())
             }
 
             // MODIFICA PRINCIPALE: Gestione della rotazione e del centraggio
@@ -3087,6 +3103,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
+    // Gestione visibilità in base alla traccia da seguire
+// Puoi aggiungere un observer su tracciaDaSeguire se lo rendi LiveData,
+// oppure aggiornarlo quando carichi/scarichi una traccia.
+// Se tracciaDaSeguire non è LiveData, puoi aggiungere questo controllo dove necessario:
+    fun updateRemainingVisibility() {
+        val isFollowing = viewModel.tracciaDaSeguire.isNotEmpty()
+        binding.cruscotto.groupRemaining.visibility = if (isFollowing) View.VISIBLE else View.GONE
+    }
 
     override fun onLowMemory() {
         super.onLowMemory()
