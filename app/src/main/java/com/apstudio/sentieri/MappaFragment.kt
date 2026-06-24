@@ -571,13 +571,17 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
         }
 
+        binding.btnOpenDrawer.setOnClickListener {
+            (requireActivity() as? MainActivity)?.openDrawer()
+        }
+
         // Aggiungi gli overlay della bussola (solo se il dispositivo ha i sensori necessari) e scala.
         val dm = resources.displayMetrics
         if (hasCompass()) {
             val compassOverlay =
                 CompassOverlay(context, InternalCompassOrientationProvider(context), mapView)
             compassOverlay.enableCompass()
-            compassOverlay.setCompassCenter(35F, 85F)
+            compassOverlay.setCompassCenter(35F, 165F)
             mapView.overlays.add(compassOverlay)
         }
 // Calcola l'offset basato sulla densità per evitare la bussola

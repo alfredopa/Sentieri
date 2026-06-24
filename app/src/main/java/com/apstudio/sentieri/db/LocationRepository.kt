@@ -12,7 +12,8 @@ import java.util.concurrent.CopyOnWriteArrayList
 object LocationRepository {
     private const val MOVING_AVERAGE_WINDOW_SIZE = 15
     private const val GPS_ALTITUDE_SPIKE_THRESHOLD = 25.0
-    private const val MIN_VARIATION_THRESHOLD = 1.0
+    private const val MIN_VARIATION_THRESHOLD_GPS = 1.0
+    private const val MIN_VARIATION_THRESHOLD_BARO = 0.5 // Più sensibile per il barometro
     private const val SLOPE_CALCULATION_DISTANCE_THRESHOLD = 25.0
     private const val WARMUP_READINGS_TO_DISCARD = 8
     private const val EMA_ALFA = 0.21
@@ -38,6 +39,7 @@ object LocationRepository {
     private var discardedGpsPointsCount = 0
     private val gpsAltitudeHistory = ArrayDeque<Double>(MOVING_AVERAGE_WINDOW_SIZE)
     private var previousFilteredAltitude: Double? = null
+    private var rejectedGpsPointsCount = 0 // Per il recupero dello spike filter
 
     // LiveData per UI
     private val _location = MutableLiveData<Location>()
@@ -90,8 +92,11 @@ object LocationRepository {
     fun processNewLocation(loc: Location, msl: Double, baroPress: Float) {
         _location.postValue(loc)
 
-        // Se MSL è 0 (appena avviato), usa l'altitudine GPS standard come backup
-        val mslValida = if (msl == 0.0) loc.altitude else msl
+        // LOGICA MSL PIÙ ROBUSTA:
+        // Se msl è uguale al valore precedente del repository, potrebbe essere un dato NMEA "congelato".
+        // In tal caso, usiamo l'altitudine GPS standard per rilevare i cambiamenti.
+        val currentGpsAlt = loc.altitude
+        val mslValida = if (msl == 0.0 || msl == _mslAltitude.value) currentGpsAlt else msl
         updateMslAltitude(mslValida)
 
         // Calcola altitudine barometrica se possibile, anche se non stiamo registrando,
@@ -161,12 +166,16 @@ object LocationRepository {
         }
 
         // 3. Calcoli statistici (vengono eseguiti solo se isFixed == true)
-        accumuloDistanzaMetri += MapUtils.getDistanceInMeters(oldPunto, currentPoint).toInt()
-        _distanzaMetri.postValue(accumuloDistanzaMetri)
+        if (isFixed) {
+            accumuloDistanzaMetri += MapUtils.getDistanceInMeters(oldPunto, currentPoint).toInt()
+            _distanzaMetri.postValue(accumuloDistanzaMetri)
 
-        if (usaBaro && isCalibrato.value == true) updateGainLossBaro(quotaPunto)
-        else updateGainLossGps(mslValida, currentPoint)
-
+            if (usaBaro && isCalibrato.value == true) {
+                updateGainLossBaro(quotaPunto)
+            } else {
+                updateGainLossGps(mslValida) // Passiamo solo la quota msl
+            }
+        }
         if (speedKmh > 2) { // Calcola pendenza solo in movimento
             referencePointForSlope?.let { ref ->
                 val dist = ref.distanceToAsDouble(currentPoint)
@@ -180,27 +189,28 @@ object LocationRepository {
         oldPunto = currentPoint
     }
 
-    fun updateGainLossBaro(alt: Double) {
-        // L'altitudine passata è già quella calcolata, ma usiamo oldQuotaEMA che è già filtrato nel blocco precedente
-        val filtered = oldQuotaEMA ?: alt
-        if (lastRecordedAltitudeForSum == null) lastRecordedAltitudeForSum = filtered
-        val delta = filtered - lastRecordedAltitudeForSum!!
-        if (kotlin.math.abs(delta) >= MIN_VARIATION_THRESHOLD) {
-            if (delta > 0) accumuloDislivPiu += delta else accumuloDislivMeno -= delta
-            _dislivPiu.postValue(accumuloDislivPiu)
-            _dislivMeno.postValue(accumuloDislivMeno)
-            lastRecordedAltitudeForSum = filtered
+    private fun updateGainLossGps(alt: Double) {
+        // RECUPERO DA SPIKE: se scartiamo troppi punti, resettiamo il riferimento
+        if (previousFilteredAltitude != null && kotlin.math.abs(alt - previousFilteredAltitude!!) > GPS_ALTITUDE_SPIKE_THRESHOLD) {
+            rejectedGpsPointsCount++
+            if (rejectedGpsPointsCount < 4) return // Scarta il punto
+            else {
+                // Dopo 4 rifiuti, forziamo il reset sulla nuova quota per sbloccare il calcolo
+                gpsAltitudeHistory.clear()
+                rejectedGpsPointsCount = 0
+            }
+        } else {
+            rejectedGpsPointsCount = 0
         }
-    }
 
-    private fun updateGainLossGps(alt: Double, point: GeoPoint) {
-        if (previousFilteredAltitude != null && kotlin.math.abs(alt - previousFilteredAltitude!!) > GPS_ALTITUDE_SPIKE_THRESHOLD) return
         gpsAltitudeHistory.addLast(alt)
         if (gpsAltitudeHistory.size > MOVING_AVERAGE_WINDOW_SIZE) gpsAltitudeHistory.removeFirst()
         val currentFiltered = gpsAltitudeHistory.average()
+
         if (lastRecordedAltitudeForSum == null) lastRecordedAltitudeForSum = currentFiltered
         val delta = currentFiltered - lastRecordedAltitudeForSum!!
-        if (kotlin.math.abs(delta) >= MIN_VARIATION_THRESHOLD) {
+
+        if (kotlin.math.abs(delta) >= MIN_VARIATION_THRESHOLD_GPS) {
             if (delta > 0) accumuloDislivPiu += delta else accumuloDislivMeno -= delta
             _dislivPiu.postValue(accumuloDislivPiu)
             _dislivMeno.postValue(accumuloDislivMeno)
@@ -208,6 +218,21 @@ object LocationRepository {
         }
         previousFilteredAltitude = currentFiltered
     }
+
+    fun updateGainLossBaro(alt: Double) {
+        val filtered = oldQuotaEMA ?: alt
+        if (lastRecordedAltitudeForSum == null) lastRecordedAltitudeForSum = filtered
+        val delta = filtered - lastRecordedAltitudeForSum!!
+
+        // Soglia più bassa per maggiore precisione barometrica
+        if (kotlin.math.abs(delta) >= MIN_VARIATION_THRESHOLD_BARO) {
+            if (delta > 0) accumuloDislivPiu += delta else accumuloDislivMeno -= delta
+            _dislivPiu.postValue(accumuloDislivPiu)
+            _dislivMeno.postValue(accumuloDislivMeno)
+            lastRecordedAltitudeForSum = filtered
+        }
+    }
+
 
     fun updateVelocita(v: Int) { _velocitaKmh.postValue(v) }
     fun updateMslAltitude(a: Double) { _mslAltitude.postValue(a) }
