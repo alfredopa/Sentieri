@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.liveData
@@ -168,19 +169,38 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _mapInvalidateRequest = MutableLiveData<Event<Unit>>()
     val mapInvalidateRequest: LiveData<Event<Unit>> = _mapInvalidateRequest
 
-    // Calcoli per i valori rimanenti (distanza in metri, dislivelli in metri)
-    val remainingDist = distanzaMetri.map { currentDist ->
-        if (tracciaDaSeguire.isNotEmpty()) (trackDistanza - currentDist).toInt().coerceAtLeast(0) else 0
+    // Valori rimanenti calcolati come MediatorLiveData per reagire sia ai progressi che al cambio traccia
+    val remainingDist = MediatorLiveData<Int>().apply {
+        val update = {
+            val currentDist = distanzaMetri.value ?: 0
+            if (tracciaDaSeguire.isNotEmpty()) {
+                value = (trackDistanza - currentDist).toInt().coerceAtLeast(0)
+            } else value = 0
+        }
+        addSource(distanzaMetri) { update() }
+        addSource(tracciaDaSeguireLiveData) { update() }
     }
 
-    val remainingDPiu = dislivPiu.map { currentDPiu ->
-        if (tracciaDaSeguire.isNotEmpty()) (trackAscesa.toDouble() - currentDPiu).coerceAtLeast(0.0) else 0.0
+    val remainingDPiu = MediatorLiveData<Double>().apply {
+        val update = {
+            val currentDPiu = dislivPiu.value ?: 0.0
+            if (tracciaDaSeguire.isNotEmpty()) {
+                value = (trackAscesa.toDouble() - currentDPiu).coerceAtLeast(0.0)
+            } else value = 0.0
+        }
+        addSource(dislivPiu) { update() }
+        addSource(tracciaDaSeguireLiveData) { update() }
     }
 
-    val remainingDMeno = dislivMeno.map { currentDMeno ->
-        // Nota: trackDiscesa è salvato come valore negativo o positivo nel tuo DB?
-        // Assumiamo di voler visualizzare quanto manca in valore assoluto.
-        if (tracciaDaSeguire.isNotEmpty()) (kotlin.math.abs(trackDiscesa.toDouble()) - currentDMeno).coerceAtLeast(0.0) else 0.0
+    val remainingDMeno = MediatorLiveData<Double>().apply {
+        val update = {
+            val currentDMeno = dislivMeno.value ?: 0.0
+            if (tracciaDaSeguire.isNotEmpty()) {
+                value = (kotlin.math.abs(trackDiscesa.toDouble()) - currentDMeno).coerceAtLeast(0.0)
+            } else value = 0.0
+        }
+        addSource(dislivMeno) { update() }
+        addSource(tracciaDaSeguireLiveData) { update() }
     }
 
     fun requestMapInvalidate() {
