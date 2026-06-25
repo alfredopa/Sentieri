@@ -245,26 +245,27 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     // legge i punti della traccia dal DB Track
     suspend fun leggiTrack(id: Int, poiList: MutableList<PoiDB>): Polyline {
         return withContext(Dispatchers.IO) {
-            val percorso = Polyline()
-            geoPuntiPercorso.clear()
-            poiList.clear()
-
-            // --- CHIAMATE PULITE AL REPOSITORY ---
             val puntiTracciaDalDb = repository.getPuntiTraccia(id)
-            val puntiPoiDalDb = repository.getPuntiPoi(id)
+            val percorso = Polyline()
+            val nuoviPunti = mutableListOf<GeoPoint>()
 
             puntiTracciaDalDb.forEach {
                 val punto = GeoPoint(it.Latit.toDouble(), it.Longit.toDouble(), it.Ele.toDouble())
                 percorso.addPoint(punto)
-                geoPuntiPercorso.add(punto)
+                nuoviPunti.add(punto)
             }
 
-            poiList.addAll(puntiPoiDalDb)
-            percorso // valore di polyline restituita
-            //  Crea la Polyline usando la funzione di MapUtils che la colora
-            //    Passa la lista di punti che abbiamo appena caricato.
-            //val percorsoColorato = MapUtils.disegnaLine(percorso)
-            //percorsoColorato
+            // AGGIORNAMENTO: Usiamo withContext(Dispatchers.Main.immediate)
+            // per assicurarci che la lista sia pronta prima che il frammento la richieda
+            withContext(Dispatchers.Main.immediate) {
+                geoPuntiPercorso.clear()
+                geoPuntiPercorso.addAll(nuoviPunti)
+                //Log.d("Grafo", "Lista geoPuntiPercorso aggiornata: ${geoPuntiPercorso.size} punti")
+            }
+
+            poiList.clear()
+            poiList.addAll(repository.getPuntiPoi(id))
+            percorso
         }
     }
 
@@ -362,25 +363,18 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         }
     }
 
-    /**
-     * Prepara i dati per il grafico UNA SOLA VOLTA.
-     * Controlla se i dati sono già stati generati.
-     */
     suspend fun preparaDatiGrafico(idTracciaNuova: Int): List<com.github.mikephil.charting.data.Entry> {
-        // La logica di controllo per evitare ricalcoli può rimanere
-        // if (idTracciaNuova == idTracciaGraficoCorrente && ...) { return ... }
-
-        idTracciaGraficoCorrente = idTracciaNuova
-        //Log.d("GRAF_VM", "Preparazione dati grafico per la traccia $idTracciaNuova...")
+        // Rimuovi o commenta eventuali controlli "idTracciaNuova == idTracciaGraficoCorrente"
+        // per forzare il ricalcolo basato sulla lista geoPuntiPercorso aggiornata.
 
         return withContext(Dispatchers.IO) {
-            repository.getPuntiTraccia(idTracciaNuova)
-            // Chiama la funzione di calcolo che ora restituisce una lista di Entry
+            // Se geoPuntiPercorso è vuoto (es. dopo rotazione), ricarichiamolo
+            if (geoPuntiPercorso.isEmpty()) {
+                // Chiama una funzione di recupero punti se necessario
+            }
             getPuntiInterpolati(geoPuntiPercorso)
         }
     }
-
-
 
     private fun getPuntiInterpolati(puntiOriginali: List<GeoPoint>): List<com.github.mikephil.charting.data.Entry> {
         val listPunti = mutableListOf<com.github.mikephil.charting.data.Entry>()
@@ -429,6 +423,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
         // Aggiungi l'ultimo punto
         val distanzaFinaleKm = (distanzaProgressivaMetri / 1000.0).toFloat()
+        //Log.d("Grafo", "dist grafo $distanzaFinaleKm")
         val quotaFinale = puntiOriginali.last().altitude.toFloat()
         listPunti.add(com.github.mikephil.charting.data.Entry(distanzaFinaleKm, quotaFinale))
         //Log.d("GRAF_VM", "Calcolo completato per MPAndroidChart. Punti: ${listPunti.size}")
