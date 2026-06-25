@@ -592,7 +592,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 // Calcola l'offset basato sulla densità per evitare la bussola
         val scaleBarOverlay = ScaleBarOverlay(mapView)
 // Spostiamo di 100dp a destra (per saltare la bussola) e 90dp in basso
-        scaleBarOverlay.setScaleBarOffset((120 * dm.density).toInt(), (50 * dm.density).toInt())
+        scaleBarOverlay.setScaleBarOffset((90 * dm.density).toInt(), (50 * dm.density).toInt())
 // Centra il testo sopra la barra per un look più pulito
         scaleBarOverlay.setCentred(true)
         mapView.overlays.add(scaleBarOverlay)

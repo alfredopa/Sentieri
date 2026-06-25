@@ -113,6 +113,11 @@ class LayerDialog : Fragment() {
 
                 if (isTurningOn) {
                     viewModel.tracciaDaSeguire = clickedItem.nome
+                    // Aggiorna i valori di riferimento per il calcolo dei valori rimanenti
+                    viewModel.trackDistanza = clickedItem.distanza
+                    viewModel.trackAscesa = clickedItem.ascesa
+                    viewModel.trackDiscesa = clickedItem.discesa
+
                     clickedItem.segui = true
                     for (i in 0 until viewModel.layerItems.size) {
                         if (i != position) viewModel.layerItems[i].segui = false
