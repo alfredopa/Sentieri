@@ -487,8 +487,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mapView.setOnTouchListener { v, event ->
             if (event.action == MotionEvent.ACTION_UP) {
                 val density = resources.displayMetrics.density
+                // le coordinate devono corrispondere a quelle del posizionamento dell'overlay bussola
                 val compassX = 36f * density
-                val compassY = 80f * density
+                val compassY = 164f * density
                 val dx = event.x - compassX
                 val dy = event.y - compassY
                 val radius = 50f * density
