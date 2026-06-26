@@ -1,14 +1,15 @@
 package com.apstudio.sentieri
 
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
@@ -17,8 +18,12 @@ import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.db.OnLayerClickListener
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
+import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.XAxis
+import com.github.mikephil.charting.data.LineData
+import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.formatter.ValueFormatter
 import org.osmdroid.views.overlay.Polyline
-import org.osmdroid.views.overlay.milestones.MilestoneManager
 
 // visualizza le tracce caricate nella mappa
 class LayerDialog : Fragment() {
@@ -146,6 +151,66 @@ class LayerDialog : Fragment() {
                         textSize = 16f
                     }
                     layout.addView(infoText)
+
+                    // CERCA LA POLYLINE PER I PUNTI DEL GRAFICO
+                    val targetName = item.nome.trim().lowercase()
+                    var polyline: Polyline? = null
+                    viewModel.listaTracce.items.forEach { overlay ->
+                        if (overlay is Polyline && (overlay.title ?: "").trim().lowercase() == targetName) {
+                            polyline = overlay
+                        }
+                    }
+
+                    polyline?.let { line ->
+                        val chartEntries = MapUtils.getPuntiInterpolati(line.actualPoints)
+                        if (chartEntries.isNotEmpty()) {
+                            val lineChart = LineChart(context).apply {
+                                layoutParams = LinearLayout.LayoutParams(
+                                    LinearLayout.LayoutParams.MATCH_PARENT,
+                                    450 // Altezza per il grafico nel dialogo
+                                ).apply {
+                                    topMargin = 20
+                                }
+                                description.isEnabled = false
+                                legend.isEnabled = false
+                                isDragEnabled = false
+                                setScaleEnabled(false)
+
+                                val textColor = ContextCompat.getColor(context, R.color.grafico_text_color)
+                                
+                                xAxis.apply {
+                                    granularity = 1f
+                                    this.position = XAxis.XAxisPosition.BOTTOM
+                                    this.textColor = textColor
+                                    valueFormatter = object : ValueFormatter() {
+                                        override fun getFormattedValue(value: Float): String = "${value.toInt()} km"
+                                    }
+                                }
+
+                                axisLeft.apply {
+                                    this.textColor = textColor
+                                    valueFormatter = object : ValueFormatter() {
+                                        override fun getFormattedValue(value: Float): String = "${value.toInt()} m"
+                                    }
+                                }
+                                axisRight.isEnabled = false
+
+                                val dataSet = LineDataSet(chartEntries, "Profilo Altimetrico").apply {
+                                    color = Color.RED
+                                    setDrawFilled(true)
+                                    fillColor = Color.CYAN
+                                    mode = LineDataSet.Mode.CUBIC_BEZIER
+                                    setDrawCircles(false)
+                                    setDrawValues(false)
+                                    lineWidth = 2f
+                                }
+                                data = LineData(dataSet)
+                                invalidate()
+                            }
+                            layout.addView(lineChart)
+                        }
+                    }
+
                     setView(layout)
                     setPositiveButton("Chiudi", null)
                     show()

@@ -23,6 +23,7 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.db.LayerItem
+import com.github.mikephil.charting.data.Entry
 import com.google.android.material.snackbar.Snackbar
 import org.mapsforge.map.rendertheme.ExternalRenderTheme
 import org.mapsforge.map.rendertheme.InternalRenderTheme
@@ -391,6 +392,58 @@ object MapUtils {
     }
 
     fun formatSeconds(totalSeconds: Long): String = String.format(Locale.ITALY, "%02d:%02d:%02d", totalSeconds / 3600, (totalSeconds % 3600) / 60, totalSeconds % 60)
+
+    fun getPuntiInterpolati(puntiOriginali: List<GeoPoint>): List<Entry> {
+        val listPunti = mutableListOf<Entry>()
+        if (puntiOriginali.size < 2) {
+            return listPunti
+        }
+        // La logica di interpolazione rimane la stessa, cambia solo l'oggetto creato alla fine
+        var distanzaProgressivaMetri = 0.0
+        var puntoPrecedente = puntiOriginali.first()
+        var prossimoTraguardoKm = 1
+
+        // Aggiungi il punto di partenza
+        listPunti.add(
+            Entry(
+                0f,
+                puntiOriginali.first().altitude.toFloat()
+            )
+        )
+
+        for (i in 1 until puntiOriginali.size) {
+            val puntoCorrente = puntiOriginali[i]
+            val distanzaSegmento = puntoPrecedente.distanceToAsDouble(puntoCorrente)
+            val distanzaPrecedenteMetri = distanzaProgressivaMetri
+            distanzaProgressivaMetri += distanzaSegmento
+
+            while (distanzaProgressivaMetri >= prossimoTraguardoKm * 1000) {
+                val distanzaTraguardoMetri = (prossimoTraguardoKm * 1000).toDouble()
+                if (distanzaSegmento == 0.0) break // Evita divisione per zero
+                val frazioneSegmento =
+                    (distanzaTraguardoMetri - distanzaPrecedenteMetri) / distanzaSegmento
+                // Ecco la formula di interpolazione completa
+                val altitudineInterpolata =
+                    puntoPrecedente.altitude + ((puntoCorrente.altitude - puntoPrecedente.altitude) * frazioneSegmento)
+                // L'asse X è la distanza reale in KM
+                val kmTraguardo = prossimoTraguardoKm.toFloat()
+                listPunti.add(
+                    Entry(
+                        kmTraguardo,
+                        altitudineInterpolata.toFloat()
+                    )
+                )
+                prossimoTraguardoKm++
+            }
+            puntoPrecedente = puntoCorrente
+        }
+
+        // Aggiungi l'ultimo punto
+        val distanzaFinaleKm = (distanzaProgressivaMetri / 1000.0).toFloat()
+        val quotaFinale = puntiOriginali.last().altitude.toFloat()
+        listPunti.add(Entry(distanzaFinaleKm, quotaFinale))
+        return listPunti
+    }
 
     fun formatElapsedTime(elapsedTime: Long): String = formatSeconds(elapsedTime / 1000)
 
