@@ -372,62 +372,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             if (geoPuntiPercorso.isEmpty()) {
                 // Chiama una funzione di recupero punti se necessario
             }
-            getPuntiInterpolati(geoPuntiPercorso)
+            MapUtils.getPuntiInterpolati(geoPuntiPercorso)
         }
-    }
-
-    private fun getPuntiInterpolati(puntiOriginali: List<GeoPoint>): List<com.github.mikephil.charting.data.Entry> {
-        val listPunti = mutableListOf<com.github.mikephil.charting.data.Entry>()
-        if (puntiOriginali.size < 2) {
-            return listPunti
-        }
-        // La logica di interpolazione rimane la stessa, cambia solo l'oggetto creato alla fine
-        var distanzaProgressivaMetri = 0.0
-        var puntoPrecedente = puntiOriginali.first()
-        var prossimoTraguardoKm = 1
-
-        // Aggiungi il punto di partenza
-        listPunti.add(
-            com.github.mikephil.charting.data.Entry(
-                0f,
-                puntiOriginali.first().altitude.toFloat()
-            )
-        )
-
-        for (i in 1 until puntiOriginali.size) {
-            val puntoCorrente = puntiOriginali[i]
-            val distanzaSegmento = puntoPrecedente.distanceToAsDouble(puntoCorrente)
-            val distanzaPrecedenteMetri = distanzaProgressivaMetri
-            distanzaProgressivaMetri += distanzaSegmento
-
-            while (distanzaProgressivaMetri >= prossimoTraguardoKm * 1000) {
-                val distanzaTraguardoMetri = (prossimoTraguardoKm * 1000).toDouble()
-                if (distanzaSegmento == 0.0) break // Evita divisione per zero
-                val frazioneSegmento =
-                    (distanzaTraguardoMetri - distanzaPrecedenteMetri) / distanzaSegmento
-                // Ecco la formula di interpolazione completa
-                val altitudineInterpolata =
-                    puntoPrecedente.altitude + ((puntoCorrente.altitude - puntoPrecedente.altitude) * frazioneSegmento)
-                // L'asse X è la distanza reale in KM
-                val kmTraguardo = prossimoTraguardoKm.toFloat()
-                listPunti.add(
-                    com.github.mikephil.charting.data.Entry(
-                        kmTraguardo,
-                        altitudineInterpolata.toFloat()
-                    )
-                )
-                prossimoTraguardoKm++
-            }
-            puntoPrecedente = puntoCorrente
-        }
-
-        // Aggiungi l'ultimo punto
-        val distanzaFinaleKm = (distanzaProgressivaMetri / 1000.0).toFloat()
-        //Log.d("Grafo", "dist grafo $distanzaFinaleKm")
-        val quotaFinale = puntiOriginali.last().altitude.toFloat()
-        listPunti.add(com.github.mikephil.charting.data.Entry(distanzaFinaleKm, quotaFinale))
-        //Log.d("GRAF_VM", "Calcolo completato per MPAndroidChart. Punti: ${listPunti.size}")
-        return listPunti
     }
 
     /**

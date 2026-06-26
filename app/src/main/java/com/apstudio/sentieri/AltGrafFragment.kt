@@ -65,9 +65,6 @@ class AltGrafFragment : Fragment() {
 
         // Forza l'orientamento orizzontale
         requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-
-        // --- INIZIO DELLA SOLUZIONE FINALE ---
-
         // Avvia una coroutine per caricare i dati e configurare il grafico
         viewLifecycleOwner.lifecycleScope.launch {
             // 1. Carica i dati dal ViewModel
