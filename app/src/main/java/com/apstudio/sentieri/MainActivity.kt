@@ -433,13 +433,14 @@ class MainActivity :
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // Se stiamo registrando, evitiamo di ricreare o resettare lo stato dell'activity
         Log.d("Mappa", "MainActivity onNewIntent: $intent")
-        setIntent(intent) // Aggiorna l'intent che verrà restituito da getIntent()
-        // Processa l'intent, ad esempio per aprire il file GPX
-        handleIntent(intent)
-        // Lascia che la Navigation Component gestisca il nuovo intent per il deep linking
-        // Se l'intent è stato creato da NavDeepLinkBuilder, NavController lo gestirà.
-        //navController.handleDeepLink(intent)
+        setIntent(intent)
+        
+        // Se l'intent è un'apertura GPX, gestiscilo
+        if (intent.action == Intent.ACTION_VIEW) {
+            handleIntent(intent)
+        }
     }
 
     private fun handleIntent(intent: Intent?) {
@@ -451,12 +452,16 @@ class MainActivity :
                 val bundle = Bundle().apply {
                     putString("gpx_file_uri", gpxUri.toString())
                 }
-                // Assumendo che tu abbia un NavController chiamato 'navController'
-                // e che MappaFragment sia la destinazione corrente o raggiungibile
+                
+                // Usa launchSingleTop per evitare duplicati del Fragment
                 navController.navigate(
                     R.id.mappaFragment,
-                    bundle
-                ) // O un'azione specifica che porta a MappaFragment
+                    bundle,
+                    androidx.navigation.navOptions {
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                )
             }
         }
     }

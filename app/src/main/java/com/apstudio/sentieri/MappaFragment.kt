@@ -599,11 +599,16 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mapView.overlays.add(scaleBarOverlay)
 
         // Assicurati che gli overlay di stato siano presenti
-        if (!mapView.overlays.contains(viewModel.listaTracce)) {
-            mapView.overlays.add(viewModel.listaTracce)
+        // NOTA: Se l'activity è stata ricreata, questi overlay potrebbero essere ancora legati alla vecchia MapView.
+        // Li stacchiamo esplicitamente prima di riaggiungerli.
+        
+        viewModel.listaTracce.let { 
+            mapView.overlays.remove(it)
+            mapView.overlays.add(it) 
         }
-        if (!mapView.overlays.contains(viewModel.recTraccia)) {
-            mapView.overlays.add(viewModel.recTraccia)
+        viewModel.recTraccia.let { 
+            mapView.overlays.remove(it)
+            mapView.overlays.add(it) 
         }
         if (!mapView.overlays.contains(viewModel.topoLayer)) {
             mapView.overlays.add(viewModel.topoLayer)
@@ -820,7 +825,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             updateGpsIcon(status)
         }
         viewModel.locationData.observe(viewLifecycleOwner) { locationData ->
-            if (!isFragmentVisibleAndActive()) return@observe
+            if (!isAdded) return@observe
 
             val newGeoPoint = locationData.geoPoint
             if (newGeoPoint.latitude == 0.0 && newGeoPoint.longitude == 0.0) {
@@ -1103,34 +1108,25 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         val hasRecordedPoints = LocationRepository.trackPointsList.isNotEmpty()
         if (hasRecordedPoints) {
             // --- RIPRISTINO STATO TRACCIA REGISTRATA ---
-            // 1. ASSICURATI CHE GLI OVERLAY DI STATO SIANO PRESENTI NELLA MAP VIEW
-            // Aggiungi/Assicurati che currentTrackPolyline sia nella lista
             if (!mapView.overlays.contains(currentTrackPolyline)) {
-                mapView.overlays.add(currentTrackPolyline) // Aggiungi la traccia temporanea
+                mapView.overlays.add(currentTrackPolyline) 
             }
-            // Aggiungi/Assicurati che gpsMarker sia nella lista
             if (!mapView.overlays.contains(gpsMarker)) {
                 mapView.overlays.add(gpsMarker)
             }
-            // Aggiungi/Assicurati che il FolderOverlay per Inizio/Fine sia presente
-            if (!mapView.overlays.contains(viewModel.recTraccia)) {
-                //Log.d(TAG, "Ripristino viewModel.recTraccia in onResume.")
-                mapView.overlays.add(viewModel.recTraccia)
-            }
-
-            // 2. SINCRONIZZAZIONE DEI DATI DI TRACCIA E UI
-
-            // Sincronizza i punti della traccia (necessario se il DB è stato letto o per sicurezza)
+            
             val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
-            currentTrackPolyline.outlinePaint.color = coloreTraccia
-            currentTrackPolyline.outlinePaint.strokeWidth = 10f
-            // *** AZIONE CRUCIALE: Forza il set dei punti ***
             currentTrackPolyline.setPoints(fullTrackSnapshot)
 
-            gpsMarker.setVisible(viewModel.isRecording) // Mostra solo se stiamo attivamente registrando
+            gpsMarker.setVisible(viewModel.isRecording) 
+            
+            // Invalida per essere sicuro che la traccia appaia subito
+            mapView.invalidate()
         }
+        
         if (viewModel.isRecording) {
-            LocationRepository.updateGpsStatus(LocationRepository.gpsStatus.value!!)
+            // Se stiamo registrando, forziamo l'aggiornamento dell'icona GPS e la visibilità
+            LocationRepository.gpsStatus.value?.let { updateGpsIcon(it) }
             accendiSchermo()
 
             viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }

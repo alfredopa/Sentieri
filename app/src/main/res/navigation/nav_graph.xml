@@ -60,7 +60,10 @@
             android:defaultValue="1" />
         <action
             android:id="@+id/action_schedaFragment_to_mappaFragment"
-            app:destination="@id/mappaFragment" />
+            app:destination="@id/mappaFragment"
+            app:launchSingleTop="true"
+            app:popUpTo="@id/mappaFragment"
+            app:popUpToInclusive="true" />
         <action
             android:id="@+id/action_schedaFragment_to_altGrafFragment"
             app:destination="@id/altGrafFragment"
@@ -113,7 +116,10 @@
         tools:layout="@layout/fragment_poi" >
         <action
             android:id="@+id/action_poiFragment_to_mappaFragment"
-            app:destination="@id/mappaFragment" />
+            app:destination="@id/mappaFragment"
+            app:launchSingleTop="true"
+            app:popUpTo="@id/mappaFragment"
+            app:popUpToInclusive="true" />
         <action
             android:id="@+id/action_poiFragment_to_cameraFragment"
             app:destination="@id/cameraFragment"
@@ -134,7 +140,10 @@
             app:nullable="true" />
         <action
             android:id="@+id/action_layerDialog_to_mappaFragment"
-            app:destination="@id/mappaFragment" />
+            app:destination="@id/mappaFragment"
+            app:launchSingleTop="true"
+            app:popUpTo="@id/mappaFragment"
+            app:popUpToInclusive="true" />
     </fragment>
     <dialog
         android:id="@+id/gpkgLayer"
@@ -156,7 +165,10 @@
         tools:layout="@layout/fragment_toponimi_list" >
         <action
             android:id="@+id/action_toponimiFragment_to_mappaFragment"
-            app:destination="@id/mappaFragment" />
+            app:destination="@id/mappaFragment"
+            app:launchSingleTop="true"
+            app:popUpTo="@id/mappaFragment"
+            app:popUpToInclusive="true" />
     </fragment>
     <fragment
         android:id="@+id/aboutFragment"
