@@ -12,6 +12,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
+import com.apstudio.sentieri.BuildConfig
 import com.apstudio.sentieri.databinding.FragmentAboutBinding
 import java.io.File
 import java.io.FileOutputStream
@@ -35,9 +36,17 @@ class AboutFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Ottieni la versione dell'app dinamicamente dal file build.gradle
-        binding.tvAppNameVersion.text = "Sentieri ${BuildConfig.VERSION_NAME}"
-        binding.tvVersionCode.text = "Versione codice ${BuildConfig.VERSION_CODE}"
+        // Ottieni la versione dell'app in modo affidabile dal packageManager
+        try {
+            val packageInfo = requireContext().packageManager.getPackageInfo(requireContext().packageName, 0)
+            binding.tvAppNameVersion.text = "Sentieri ${packageInfo.versionName}"
+            binding.tvVersionCode.text = "Versione codice ${packageInfo.longVersionCode}"
+        } catch (e: Exception) {
+            // Fallback su BuildConfig se il packageManager fallisce
+            binding.tvAppNameVersion.text = "Sentieri ${BuildConfig.VERSION_NAME}"
+            binding.tvVersionCode.text = "Versione codice ${BuildConfig.VERSION_CODE}"
+        }
+
         binding.btnManuale.setOnClickListener {
             apriGuidaPdf()
         }
