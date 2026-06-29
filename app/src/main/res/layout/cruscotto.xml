@@ -8,6 +8,7 @@
     android:background="@drawable/border_segment_round"
     android:backgroundTint="#09155A"
     android:padding="8dp"
+    app:behavior_fitToContents="true"
     app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
     <androidx.constraintlayout.widget.Guideline
