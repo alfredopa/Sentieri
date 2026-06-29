@@ -569,10 +569,17 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
         bottomSheetBehavior.isHideable = true
         bottomSheetBehavior.skipCollapsed = false
-        bottomSheetBehavior.peekHeight = 120
+        
+        // Imposta lo stato iniziale in base alla registrazione
+        if (viewModel.isRecording) {
+            bottomSheetBehavior.peekHeight = 120
+        } else {
+            bottomSheetBehavior.peekHeight = 0
+            bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+        }
 
         binding.cruscotto.root.post {
-            if (isAdded) {
+            if (isAdded && !viewModel.isRecording) {
                 bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
             }
         }
@@ -964,6 +971,64 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
         //Log.d("onResume", "${viewModel.recTraccia})")
 
+        if (viewModel.isRecording) {
+            // Se stiamo registrando, forziamo l'aggiornamento dell'icona GPS e la visibilità
+            LocationRepository.gpsStatus.value?.let { updateGpsIcon(it) }
+            accendiSchermo()
+
+            viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
+            gpsMarker.setVisible(true)
+            binding.fabBlocMappa.isVisible = true
+
+            bottomSheetBehavior.isHideable = false
+            bottomSheetBehavior.peekHeight = 120
+
+            val stateToRestore = viewModel.bottomState
+            if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
+                stateToRestore == BottomSheetBehavior.STATE_EXPANDED ||
+                stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED
+            ) {
+                bottomSheetBehavior.state = stateToRestore
+                if (stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED || stateToRestore == BottomSheetBehavior.STATE_EXPANDED) {
+                    //Log.d(TAG, "Ripristinato su HALF_EXPANDED. Ricarico i dati visivi.")
+                    // Forza l'aggiornamento di TUTTI gli elementi del cruscotto forzando
+                    // un nuovo emission sul LiveData (se possibile) o un aggiornamento manuale.
+                    val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
+                    // Aggiornamento manuale forzato dei valori noti al ViewModel:
+                    viewModel.quota.value?.let {
+                        binding.cruscotto.tvQuota.text = numberFormat.format(it)
+                    }
+                    viewModel.dislivPiu.value?.let {
+                        binding.cruscotto.tvDPiu.text = numberFormat.format(it.toInt())
+                    }
+                    viewModel.dislivMeno.value?.let {
+                        binding.cruscotto.tvDMeno.text = numberFormat.format(it.toInt())
+                    }
+                    // Ridisegna la view per essere sicuro
+                    //binding.cruscotto.root.invalidate()
+                    binding.cruscotto.root.post {
+                        if (isAdded) {
+                            // Ripristina lo stato qui dentro
+                            bottomSheetBehavior.state = viewModel.bottomState
+                            // Forza il ricalcolo dei margini
+                            binding.cruscotto.root.requestLayout()
+                        }
+                    }
+                }
+            } else {
+                Log.w(
+                    TAG,
+                    "Stato BottomSheet non valido ($stateToRestore). Imposto collassato di default."
+                )
+                bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+            }
+        } else {
+            // Se la registrazione è finita ma c'erano punti, assicurati che il BottomSheet sia nascosto
+            bottomSheetBehavior.isHideable = true
+            bottomSheetBehavior.peekHeight = 0
+            bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+        }
+
         // la traccia è stata selezionata da schedafragment
         if (viewModel.puntiDaSeguire.isNotEmpty()) {
             if (viewModel.titoloTracciaDaSeguire.isNotEmpty()) {
@@ -1119,59 +1184,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             currentTrackPolyline.setPoints(fullTrackSnapshot)
 
             gpsMarker.setVisible(viewModel.isRecording) 
-            
             // Invalida per essere sicuro che la traccia appaia subito
-            mapView.invalidate()
-        }
-        
-        if (viewModel.isRecording) {
-            // Se stiamo registrando, forziamo l'aggiornamento dell'icona GPS e la visibilità
-            LocationRepository.gpsStatus.value?.let { updateGpsIcon(it) }
-            accendiSchermo()
-
-            viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
-            gpsMarker.setVisible(true)
-            binding.fabBlocMappa.isVisible = true
-
-            bottomSheetBehavior.isHideable = false
-            bottomSheetBehavior.peekHeight = 120
-
-            val stateToRestore = viewModel.bottomState
-            if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
-                stateToRestore == BottomSheetBehavior.STATE_EXPANDED ||
-                stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED
-            ) {
-                bottomSheetBehavior.state = stateToRestore
-                if (stateToRestore == BottomSheetBehavior.STATE_HALF_EXPANDED || stateToRestore == BottomSheetBehavior.STATE_EXPANDED) {
-                    //Log.d(TAG, "Ripristinato su HALF_EXPANDED. Ricarico i dati visivi.")
-                    // Forza l'aggiornamento di TUTTI gli elementi del cruscotto forzando
-                    // un nuovo emission sul LiveData (se possibile) o un aggiornamento manuale.
-                    val numberFormat = NumberFormat.getNumberInstance(Locale.getDefault())
-                    // Aggiornamento manuale forzato dei valori noti al ViewModel:
-                    viewModel.quota.value?.let {
-                        binding.cruscotto.tvQuota.text = numberFormat.format(it)
-                    }
-                    viewModel.dislivPiu.value?.let {
-                        binding.cruscotto.tvDPiu.text = numberFormat.format(it.toInt())
-                    }
-                    viewModel.dislivMeno.value?.let {
-                        binding.cruscotto.tvDMeno.text = numberFormat.format(it.toInt())
-                    }
-                    // Ridisegna la view per essere sicuro
-                    binding.cruscotto.root.invalidate()
-                }
-            } else {
-                Log.w(
-                    TAG,
-                    "Stato BottomSheet non valido ($stateToRestore). Imposto collassato di default."
-                )
-                bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
-            }
-            showCustomSnackbar(binding.root, "Registrazione in corso")
-        } else {
-            // Se la registrazione è finita ma c'erano punti, assicurati che il BottomSheet sia nascosto
-            bottomSheetBehavior.isHideable = true
-            bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+            //mapView.invalidate()
         }
 
         mapView.invalidate()
@@ -1465,6 +1479,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
         LocationRepository.updateGpsStatus("started")
         binding.fabStopRec.isVisible = true
+        showCustomSnackbar(binding.root, "Registrazione in corso")
     }
 
     private fun caricaGPX(uri: Uri) {
