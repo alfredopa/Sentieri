@@ -136,6 +136,12 @@ import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.telephony.TelephonyManager
 
 private const val TAG = "MappaFragment"
 
@@ -3015,6 +3021,26 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         val navigationView = view.findViewById<NavigationView>(R.id.navigation_view)
         navigationView.itemIconTintList = null
+        val menu = navigationView.menu
+        val sosItem = menu.findItem(R.id.menu_sos)
+
+        // 1. Colora il Testo di Rosso usando SpannableString
+        val spanString = android.text.SpannableString(sosItem.title.toString())
+        spanString.setSpan(
+            android.text.style.ForegroundColorSpan(android.graphics.Color.RED),
+            0,
+            spanString.length,
+            0
+        )
+        sosItem.title = spanString
+
+        // 2. Colora l'Icona di Rosso tramite Tint
+        sosItem.icon?.let { icon ->
+            val wrappedDrawable = androidx.core.graphics.drawable.DrawableCompat.wrap(icon)
+            androidx.core.graphics.drawable.DrawableCompat.setTint(wrappedDrawable, android.graphics.Color.RED)
+            sosItem.icon = wrappedDrawable
+        }
+
         navigationView.setNavigationItemSelectedListener { menuItem ->
 
             when (menuItem.itemId) {
@@ -3055,6 +3081,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     bottomSheetDialog.dismiss()
                     selezionaMappa()
                 }
+
+                R.id.menu_sos -> {
+                    handleSosClick()
+                    bottomSheetDialog.dismiss()
+                }
             }
             true
         }
@@ -3087,6 +3118,89 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             true
         }
         bottomSheetDialog.show()
+    }
+
+
+    private fun isCellularCoverageAvailable(): Boolean {
+        val telephonyManager = requireContext().getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+
+        // Controlla se il modem è pronto o se c'è un operatore registrato
+        val hasOperator = telephonyManager.networkOperatorName.isNotEmpty()
+        val isPhoneReady = telephonyManager.phoneType != TelephonyManager.PHONE_TYPE_NONE
+
+        // Verifica se c'è connettività dati cellulare
+        val cm = requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val activeNet = cm.activeNetwork
+        val caps = cm.getNetworkCapabilities(activeNet)
+        val hasCellularData = caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ?: false
+
+        return hasOperator || isPhoneReady || hasCellularData
+    }
+
+    private fun isSatelliteModeAvailable(): Boolean {
+        // TRANSPORT_SATELLITE (9) è disponibile da API 35 (Android 15)
+        val TRANSPORT_SATELLITE = 9
+        val cm = requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val activeNet = cm.activeNetwork
+        val caps = cm.getNetworkCapabilities(activeNet) ?: return false
+
+        return if (Build.VERSION.SDK_INT >= 35) {
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_SATELLITE)
+        } else {
+            caps.hasTransport(TRANSPORT_SATELLITE)
+        }
+    }
+
+    private fun handleSosClick() {
+        val currentLoc = viewModel.locationData.value?.geoPoint
+        if (currentLoc == null || (currentLoc.latitude == 0.0 && currentLoc.longitude == 0.0)) {
+            Toast.makeText(requireContext(), "Posizione GPS non ancora disponibile", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        // Formattazione coordinate
+        val latStr = String.format("%.6f", currentLoc.latitude)
+        val lonStr = String.format("%.6f", currentLoc.longitude)
+        val coordsString = "LAT: $latStr\nLON: $lonStr"
+
+        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_sos_info, null)
+        val tvCoords = dialogView.findViewById<TextView>(R.id.sos_coordinates)
+        val btnCopy = dialogView.findViewById<Button>(R.id.btn_copy_coords)
+        val btnCall = dialogView.findViewById<Button>(R.id.btn_call_emergency)
+
+        tvCoords.text = coordsString
+
+        // Verifica stato rete
+        val hasCellular = isCellularCoverageAvailable()
+        val hasSatellite = isSatelliteModeAvailable()
+
+        if (!hasCellular && hasSatellite) {
+            btnCall.text = "MOSTRA DATI PER SOS SATELLITARE"
+            btnCall.setBackgroundColor(Color.BLUE)
+        } else if (!hasCellular) {
+            btnCall.text = "EMERGENZA (NO SEGNALE)"
+        }
+
+        val alertDialog = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+            .setView(dialogView)
+            .create()
+
+        btnCopy.setOnClickListener {
+            val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("Coordinate SOS", "SOS Sentieri: $latStr, $lonStr")
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(requireContext(), "Coordinate copiate! Incolla nell'SMS di emergenza", Toast.LENGTH_LONG).show()
+        }
+
+        btnCall.setOnClickListener {
+            val dialIntent = Intent(Intent.ACTION_DIAL).apply {
+                data = Uri.parse("tel:112")
+            }
+            startActivity(dialIntent)
+            alertDialog.dismiss()
+        }
+
+        alertDialog.show()
     }
 
 
