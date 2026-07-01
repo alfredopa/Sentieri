@@ -22,5 +22,11 @@
             android:icon="@android:drawable/ic_dialog_map"
             android:title="Cambia Mappa" />
     </group>
+    <group android:id="@+id/group_settings" android:checkableBehavior="single">
+        <item
+            android:id="@+id/menu_sos"
+            android:icon="@android:drawable/ic_menu_call"
+            android:title="Chiama SOS" />
+    </group>
 
 </menu>
