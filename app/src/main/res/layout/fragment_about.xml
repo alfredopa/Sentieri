@@ -25,7 +25,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="Sentieri è gratuita, senza pubblicità, rispetta la privacy.\n L'app ha lo scopo di ausilio nelle attività escursionistiche, con la visualizzazione di mappe offline ed online, tracciamento tramite gps dei percorsi, memorizzazione degli stessi, visualizzazione di strati informativi del territorio.\n"            android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
+            android:text="Sentieri è gratuita, senza pubblicità, rispetta la privacy.\n L'app ha lo scopo di ausilio nelle attività escursionistiche, con la visualizzazione di mappe offline ed online, tracciamento tramite gps dei percorsi, memorizzazione degli stessi, visualizzazione di strati informativi del territorio.\n"
+            android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
             android:lineSpacingExtra="4dp"/>
 
         <Button
@@ -48,6 +49,12 @@
             android:layout_marginTop="8dp"
             android:text="Mappe fornite da OpenStreetMap\nUtilizza librerie OSMdroid, Mapsforge\nLayer dati: \nRegione Autonoma della Sardegna\nNurnet\nringrazio Federico Matera per libreria GPX"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Body2" />
+
+        <View
+            android:id="@+id/divider3"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:background="?android:attr/listDivider" />
 
         <TextView
             android:id="@+id/tv_VersionCode"

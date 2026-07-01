@@ -197,9 +197,12 @@ class MainActivity :
         // Trova la TextView nell'header
         // Sostituisci con l'ID corretto della tua TextView in nav_header.xml
         val textViewInHeader: TextView? = headerView.findViewById(R.id.textView1)
-        // Oppure se usi l'ID che ho suggerito:
-        // val textViewInHeader: TextView? = headerView.findViewById<TextView>(R.id.textViewNameToUpdate)
-        textViewInHeader?.text = ("Sentieri ${BuildConfig.VERSION_NAME}")
+        try {
+            val packageInfo = packageManager.getPackageInfo(packageName, 0)
+            textViewInHeader?.text = "Sentieri ${packageInfo.versionName}"
+        } catch (e: Exception) {
+            textViewInHeader?.text = "Sentieri ${BuildConfig.VERSION_NAME}"
+        }
         val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         navController = navHostFragment.navController
         // Make sure actions in the ActionBar get propagated to the NavController
