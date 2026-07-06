@@ -12,7 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 object LocationRepository {
     private const val MOVING_AVERAGE_WINDOW_SIZE = 15
     private const val GPS_ALTITUDE_SPIKE_THRESHOLD = 25.0
-    private const val MIN_VARIATION_THRESHOLD_GPS = 1.0
+    private const val MIN_VARIATION_THRESHOLD_GPS = 2.0
     private const val MIN_VARIATION_THRESHOLD_BARO = 0.5 // Più sensibile per il barometro
     private const val SLOPE_CALCULATION_DISTANCE_THRESHOLD = 25.0
     private const val WARMUP_READINGS_TO_DISCARD = 8
