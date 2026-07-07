@@ -224,4 +224,17 @@
 		<field name="etimologia" description="Etimologia" visible="true"/>
 		<field name="prime_attestazioni" description="Origine" visible="true"/>
 	</table>
+	<table name="area_geologica">
+		<field name="fid" description="fid" visible="false"/>
+		<field name="geom" description="geom" visible="false"/>
+		<field name="IDFEATURE" description="IDFEATURE" visible="false"/>
+		<field name="TIPOUNITAC" description="TIPOUNITAC" visible="false"/>
+		<field name="TIPOUNIT_1" description="Tipo unità" visible="true"/>
+		<field name="UNITAGERAR" description="Gerarchia" visible="true"/>
+		<field name="UNITAGER_1" description="Gerarchia 1" visible="true"/>
+		<field name="SIGLAUNITA" description="SIGLAUNITA" visible="false"/>
+		<field name="ETA" description="ETA" visible="false"/>
+		<field name="POLIGONO_A" description="POLIGONO_A" visible="false"/>
+		<field name="POLIGONO_L" description="POLIGONO_L" visible="false"/>
+	</table>
 </databaseSchema>
