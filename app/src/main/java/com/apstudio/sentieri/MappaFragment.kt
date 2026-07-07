@@ -390,8 +390,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
 
                 // Se il layer deve essere visibile...
-                if (featureInfo.listOverlay.isNullOrEmpty()) {
-                    // ...e non abbiamo gli overlay in memoria, caricali da capo.
+                if (featureInfo.listOverlay.isNullOrEmpty() || featureInfo.name == "area_geologica") {
+                    // ...e non abbiamo gli overlay in memoria (o è il layer geologico che ha context leaks), caricali.
                     //Log.d(TAG,"Il layer ${featureInfo.name} è visibile e non caricato. Avvio caricamento.")
                     puntiSuMappa(featureInfo.name, featureInfo)
                 } else {
@@ -457,18 +457,17 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 //Log.d("ListenerDebug", "Ri-attacco InfoWindow per Polyline")
                 // Recuperiamo i dati e verifichiamo se è il layer CAI
                 val lineFeature = overlay.relatedObject as? LineStringFeature
-                val isCai = overlay.id?.contains("Sentieri CAI")
-                if (isCai == true) {
-                    WebsiteInfoWindow(lineFeature!!, mapView)
-                } else {
-                    overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
-                    overlay.setOnClickListener { clickedPolyline, map, eventPosition ->
-                        clickedPolyline.infoWindowLocation = eventPosition
-                        clickedPolyline.showInfoWindow()
-                        map.controller.animateTo(eventPosition)
-                        true
+                overlay.setOnClickListener { clickedPolyline, map, eventPosition ->
+                    val iw = if (clickedPolyline.id?.contains("Sentieri CAI") == true) {
+                        WebsiteInfoWindow(lineFeature!!, map)
+                    } else {
+                        BasicInfoWindow(R.layout.bonuspack_bubble, map)
                     }
-
+                    clickedPolyline.infoWindow = iw
+                    clickedPolyline.infoWindowLocation = eventPosition
+                    clickedPolyline.showInfoWindow()
+                    map.controller.animateTo(eventPosition)
+                    true
                 }
             }
         }
