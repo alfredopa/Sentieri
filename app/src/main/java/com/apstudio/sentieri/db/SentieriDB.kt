@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [Sentieri::class, Track::class, PoiDB::class, FotoPoi::class], version = 1)
+@Database(entities = [Sentieri::class, Track::class, PoiDB::class, FotoPoi::class], version = 1, exportSchema = false)
 abstract class SentieriDB : RoomDatabase() {
     abstract fun sentieriDao(): SentieriDao
     abstract fun trackDao(): TrackDao
