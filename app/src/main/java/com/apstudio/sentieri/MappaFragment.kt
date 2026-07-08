@@ -2767,23 +2767,24 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     private fun interrogaGeologia(punto: GeoPoint, geoPackage: GeoPackage, tableName: String) {
         val featureDao = geoPackage.getFeatureDao(tableName)
         val indexManager = FeatureIndexManager(requireContext(), geoPackage, featureDao)
-
-        if (!indexManager.isIndexed) {
-            Toast.makeText(context, "Indice spaziale non trovato.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        // 1. Crea una bounding box minuscola intorno al punto
-        val tolerance = 0.00001 // Ridotta per maggiore precisione (circa 1 metro)
-        val queryBox = mil.nga.geopackage.BoundingBox(
-            punto.longitude - tolerance, punto.longitude + tolerance,
-            punto.latitude - tolerance, punto.latitude + tolerance
-        )
-
-        // 2. Esegui la query sull'indice
-        val results = indexManager.query(queryBox)
+        var results: mil.nga.geopackage.features.index.FeatureIndexResults? = null
 
         try {
+            if (!indexManager.isIndexed) {
+                Toast.makeText(context, "Indice spaziale non trovato.", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            // 1. Crea una bounding box minuscola intorno al punto
+            val tolerance = 0.00001 // Ridotta per maggiore precisione (circa 1 metro)
+            val queryBox = mil.nga.geopackage.BoundingBox(
+                punto.longitude - tolerance, punto.longitude + tolerance,
+                punto.latitude - tolerance, punto.latitude + tolerance
+            )
+
+            // 2. Esegui la query sull'indice
+            results = indexManager.query(queryBox)
+
             var foundRow: FeatureRow? = null
 
             // Trasformiamo il GeoPoint di osmdroid in un punto della libreria SF
@@ -2824,14 +2825,15 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 mostraDettagliGeologia(tipoUnit, unitaGer)
             } else {
                 // Se non trovi nulla con precisione chirurgica, prova a mostrare il primo risultato della box
-                results.firstOrNull()?.let {
+                results?.firstOrNull()?.let {
                     mostraDettagliGeologia(it.getValueString("TIPOUNIT_1") ?: "N/D", it.getValueString("UNITAGER_1") ?: "N/D")
                 }
             }
         } catch (e: Exception) {
             Log.e("GEO", "Errore interrogazione", e)
         } finally {
-            results.close()
+            results?.close()
+            indexManager.close() // Chiudi l'indexManager per rilasciare la connessione al DB metadata
         }
     }
     private fun mostraDettagliGeologia(tipo: String, unita: String) {

@@ -82,6 +82,7 @@ class DatabaseSchemaConfigurator(
             return false
         } finally {
             db.close()
+            dbHelper.close() // Chiudi l'helper per rilasciare completamente le risorse
         }
 
         if (schemaData.isEmpty()) {

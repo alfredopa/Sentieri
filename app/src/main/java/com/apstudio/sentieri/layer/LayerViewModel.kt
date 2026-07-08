@@ -139,7 +139,7 @@ private suspend fun actuallyOpenAndConfigGeoPackage(): Boolean = withContext(Dis
         Log.e(TAG, "File GeoPackage non esiste: ${geoPackageFile.absolutePath}")
         return@withContext false
     }
-    val geoPackageManager: GeoPackageManager = GeoPackageFactory.getManager(context)
+    val geoPackageManager: GeoPackageManager = com.apstudio.sentieri.GeoPackageUtils.getManager(context)
     try {
         val openedGeoPackage = geoPackageManager.openExternal(geoPackageFile)
         if (openedGeoPackage == null) {
