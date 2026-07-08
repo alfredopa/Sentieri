@@ -135,7 +135,7 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
             return
         }
 
-        val geoPackageManager: GeoPackageManager = GeoPackageFactory.getManager(context)
+        val geoPackageManager: GeoPackageManager = com.apstudio.sentieri.GeoPackageUtils.getManager(context)
         try {
             openedGeoPackage = geoPackageManager.openExternal(geoPackageFile)
             if (openedGeoPackage == null) {
