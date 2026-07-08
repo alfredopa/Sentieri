@@ -1,7 +1,5 @@
 package com.apstudio.sentieri
 
-import android.content.ContentUris
-import android.content.ContentValues
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Paint
@@ -10,7 +8,6 @@ import android.icu.text.DecimalFormat
 import android.location.Location
 import android.net.Uri
 import android.os.Environment
-import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Log
 import android.view.LayoutInflater
@@ -53,7 +50,6 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.OutputStream
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -498,7 +494,7 @@ object MapUtils {
         }.toMutableList()
     }
 
-    fun getOutputStreamForPublicDownload(context: Context, fileName: String): OutputStream? {
+    /*fun getOutputStreamForPublicDownload(context: Context, fileName: String): OutputStream? {
         // Ottieni l'URI per la directory di download pubblica
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         var fileUriToDelete: Uri? = null
@@ -571,7 +567,7 @@ object MapUtils {
             Log.e("MapUtils", "Impossibile inserire un nuovo file con nome '$fileName' nel MediaStore.")
             null
         }
-    }
+    }*/
 
     fun decomprimiZipInCartellaMappe(context: Context, nomeZip: String): Boolean { // <-- Modifica la firma qui
         Log.d("MapUtils", "Inizio decompressione zip: $nomeZip") // Aggiungi un log per capire se questa funzione viene chiamata

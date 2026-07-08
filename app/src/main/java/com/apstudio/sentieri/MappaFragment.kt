@@ -63,7 +63,6 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
@@ -92,6 +91,7 @@ import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TrackDao
 import com.apstudio.sentieri.layer.FeatureTableInfo
+import com.apstudio.sentieri.layer.GeologiaFeatureTiles
 import com.apstudio.sentieri.layer.LayerViewModel
 import com.apstudio.sentieri.layer.LineStringFeature
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -101,14 +101,12 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.apstudio.sentieri.layer.GeologiaFeatureTiles
 import mil.nga.geopackage.GeoPackage
 import mil.nga.geopackage.features.index.FeatureIndexManager
 import mil.nga.geopackage.features.user.FeatureCursor
 import mil.nga.geopackage.features.user.FeatureDao
 import mil.nga.geopackage.features.user.FeatureRow
 import mil.nga.geopackage.geom.GeoPackageGeometryData
-import mil.nga.proj.Projection
 import mil.nga.sf.GeometryType
 import mil.nga.sf.LineString
 import mil.nga.sf.MultiPolygon
@@ -1861,10 +1859,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         return alertDialog?.isShowing == true
     }
 
-    fun isFragmentVisibleAndActive(): Boolean {
-        return isAdded && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
-    }
-
     // i Wp sono caricati nelle liste wayPoint per quelli che sono caricati da dB e Gpx
 // e in poiDBList per quelli ripresi durante registrazione traccia e devono essere salvati nel db PoiDB
 // In MappaFragment.kt
@@ -2397,7 +2391,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             val mapEventsOverlay = MapEventsOverlay(eventsReceiver)
 
             // IMPORTANTE: Salviamo gli overlay in listOverlay per poterli rimuovere col checkbox
-            val overlays = mutableListOf<org.osmdroid.views.overlay.Overlay>(tilesOverlay, mapEventsOverlay)
+            val overlays = mutableListOf(tilesOverlay, mapEventsOverlay)
             featureInfo.listOverlay = overlays
             mapView.overlays.addAll(overlays)
 
@@ -2785,15 +2779,13 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             for (featureRow in results) {
                 val geometryData = featureRow.geometry
                 if (geometryData != null && !geometryData.isEmpty) {
-                    val geometry = geometryData.geometry
-
                     // Test di inclusione preciso (Point-in-Polygon)
-                    val isInside = when (geometry) {
+                    val isInside = when (val geometry = geometryData.geometry) {
                         is mil.nga.sf.Polygon -> {
                             mil.nga.sf.util.GeometryUtils.pointInPolygon(clickPoint, geometry)
                         }
 
-                        is mil.nga.sf.MultiPolygon -> {
+                        is MultiPolygon -> {
                             // Per i MultiPolygon, controlliamo se il punto è in almeno uno dei poligoni componenti
                             geometry.polygons.any { poly ->
                                 mil.nga.sf.util.GeometryUtils.pointInPolygon(clickPoint, poly)
@@ -3171,7 +3163,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // 1. Colora il Testo di Rosso usando SpannableString
         val spanString = android.text.SpannableString(sosItem.title.toString())
         spanString.setSpan(
-            android.text.style.ForegroundColorSpan(android.graphics.Color.RED),
+            android.text.style.ForegroundColorSpan(Color.RED),
             0,
             spanString.length,
             0
@@ -3181,7 +3173,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // 2. Colora l'Icona di Rosso tramite Tint
         sosItem.icon?.let { icon ->
             val wrappedDrawable = androidx.core.graphics.drawable.DrawableCompat.wrap(icon)
-            androidx.core.graphics.drawable.DrawableCompat.setTint(wrappedDrawable, android.graphics.Color.RED)
+            androidx.core.graphics.drawable.DrawableCompat.setTint(wrappedDrawable, Color.RED)
             sosItem.icon = wrappedDrawable
         }
 
@@ -3338,7 +3330,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         btnCall.setOnClickListener {
             val dialIntent = Intent(Intent.ACTION_DIAL).apply {
-                data = Uri.parse("tel:112")
+                data = "tel:112".toUri()
             }
             startActivity(dialIntent)
             alertDialog.dismiss()

@@ -19,12 +19,12 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.navArgs
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import com.bumptech.glide.Glide
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import androidx.core.net.toUri
 
 class CameraFragment : Fragment() {
     // se richiamato da poiFragment riceve l'URI della foto da visualizzare
@@ -53,9 +53,6 @@ class CameraFragment : Fragment() {
         return inflater.inflate(R.layout.fragment_camera, container, false)
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-    }
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         fabCamera = view.findViewById(R.id.fabCamera)
@@ -64,7 +61,7 @@ class CameraFragment : Fragment() {
         // altrimenti apre la fotocamera
         if (args.uriFoto != "") {
             fabCamera.visibility = View.GONE
-            currentImageUri = Uri.parse(args.uriFoto)
+            currentImageUri = args.uriFoto.toUri()
             openFoto(ivPhoto, currentImageUri!!)
         }
         else {
@@ -100,7 +97,7 @@ class CameraFragment : Fragment() {
         Glide.with(imageView.context)
             .load(uri)
             .into(imageView)
-        val nomeFoto = MapUtils.getFileNameFromUri(requireContext(), uri)
+        MapUtils.getFileNameFromUri(requireContext(), uri)
         //Log.d("camera", "nome foto $nomeFoto")
     }
 

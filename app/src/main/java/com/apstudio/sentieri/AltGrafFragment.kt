@@ -12,9 +12,7 @@ import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
-import androidx.navigation.fragment.navArgs
 import com.apstudio.sentieri.databinding.FragmentAltGrafBinding
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
@@ -40,7 +38,6 @@ class AltGrafFragment : Fragment() {
         SentieriFactory(repository, application)
     }
     private lateinit var binding: FragmentAltGrafBinding
-    private val args: AltGrafFragmentArgs by navArgs()
     private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,7 +65,7 @@ class AltGrafFragment : Fragment() {
         // Avvia una coroutine per caricare i dati e configurare il grafico
         viewLifecycleOwner.lifecycleScope.launch {
             // 1. Carica i dati dal ViewModel
-            val chartEntries = viewModel.preparaDatiGrafico(args.idTrack)
+            val chartEntries = viewModel.preparaDatiGrafico()
 
             // Se non ci sono dati, non fare nulla
             if (chartEntries.isEmpty()) {

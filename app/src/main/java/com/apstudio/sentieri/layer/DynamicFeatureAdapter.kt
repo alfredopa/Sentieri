@@ -131,6 +131,5 @@ class DynamicFeatureAdapter(
     companion object {
         const val KEY_INTERNAL_LATITUDE = "__INTERNAL_LATITUDE__"
         const val KEY_INTERNAL_LONGITUDE = "__INTERNAL_LONGITUDE__"
-        const val KEY_INTERNAL_ELEVATION = "__INTERNAL_ELEVATION__"
     }
 }

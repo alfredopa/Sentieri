@@ -1,6 +1,5 @@
 package com.apstudio.sentieri
 
-import android.app.Application
 import android.content.Context
 import java.io.File
 import java.io.FileWriter

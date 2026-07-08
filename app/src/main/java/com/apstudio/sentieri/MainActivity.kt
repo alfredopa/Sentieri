@@ -9,7 +9,6 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -21,15 +20,16 @@ import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
-import androidx.activity.viewModels
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import androidx.core.content.getSystemService
+import androidx.core.net.toUri
 import androidx.core.view.GravityCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
@@ -52,9 +52,6 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import kotlin.getValue
-import androidx.core.view.WindowInsetsControllerCompat
-import androidx.core.net.toUri
 
 private const val LAST_VERSION_CODE = "last_version_code"
 private const val PROMINENT_DISCLOSURE_SHOWN = "prominent_disclosure_shown"
@@ -150,7 +147,7 @@ class MainActivity :
         }
 
         if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(downloadReceiver, filter, RECEIVER_NOT_EXPORTED)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
             registerReceiver(downloadReceiver, filter)
@@ -200,7 +197,7 @@ class MainActivity :
         try {
             val packageInfo = packageManager.getPackageInfo(packageName, 0)
             textViewInHeader?.text = "Sentieri ${packageInfo.versionName}"
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             textViewInHeader?.text = "Sentieri ${BuildConfig.VERSION_NAME}"
         }
         val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
@@ -483,16 +480,14 @@ class MainActivity :
     }
 
     private fun checkBatteryOptimization() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val packageName = this.packageName
-            val pm = this.getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                val intent = Intent().apply {
-                    action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-                    data = "package:$packageName".toUri()
-                }
-                startActivity(intent)
+        val packageName = this.packageName
+        val pm = this.getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            val intent = Intent().apply {
+                action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                data = "package:$packageName".toUri()
             }
+            startActivity(intent)
         }
     }
 

@@ -7,7 +7,6 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.databinding.FragmentToponimiBinding
 import com.apstudio.sentieri.layer.placeholder.PlaceholderContent
-import com.apstudio.sentieri.layer.placeholder.PlaceholderContent.PlaceholderItem
 
 class ToponimiRecyclerViewAdapter(
     private val listener: OnItemClickListener,

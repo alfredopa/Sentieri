@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.hardware.Sensor
 import android.hardware.SensorManager
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -145,11 +144,7 @@ class Preferenze : PreferenceFragmentCompat() {
                 
                 if (progress != null && progress >= 0) {
                     progressBar?.isIndeterminate = false
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        progressBar?.setProgress(progress, true)
-                    } else {
-                        progressBar?.progress = progress
-                    }
+                    progressBar?.setProgress(progress, true)
                     progressText?.text = "$progress%"
                 } else if (progress == -2) {
                     progressBar?.isIndeterminate = true

@@ -33,7 +33,7 @@ class GeoPackageFeatureTileModule(
             // Questa operazione è molto veloce grazie all'indice spaziale del database.
             val bitmap = try {
                 featureTiles.drawTile(x, y, zoom)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 null
             } ?: return null
 
