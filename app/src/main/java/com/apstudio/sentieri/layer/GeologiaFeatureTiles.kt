@@ -3,14 +3,13 @@ package com.apstudio.sentieri.layer
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Paint
-import android.util.Log
+import androidx.core.graphics.toColorInt
 import mil.nga.geopackage.GeoPackage
 import mil.nga.geopackage.extension.nga.style.FeatureStyle
 import mil.nga.geopackage.features.user.FeatureDao
 import mil.nga.geopackage.features.user.FeatureRow
 import mil.nga.geopackage.tiles.features.DefaultFeatureTiles
 import mil.nga.sf.GeometryType
-import androidx.core.graphics.toColorInt
 
 // IMPORTANTE: Aggiungi GeoPackage al costruttore
 class GeologiaFeatureTiles(context: Context, geoPackage: GeoPackage, featureDao: FeatureDao)

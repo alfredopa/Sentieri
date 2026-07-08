@@ -7,21 +7,15 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.getColor
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.db.OnItemClickListener
-import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
-import net.federicomatera.agpxp.models.WayPoint
 import org.osmdroid.util.GeoPoint
-import java.util.Date
-import kotlin.Double
 
 
 class PoiFragment : Fragment() {
@@ -41,9 +35,6 @@ class PoiFragment : Fragment() {
     }
     private lateinit var recyclerPoi: RecyclerView
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-    }
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?,
@@ -106,9 +97,9 @@ class PoiFragment : Fragment() {
             // Converti l'oggetto PoiDB in un oggetto net.federicomatera.agpxp.models.WayPoint
             // Assicurati che il mapping dei campi sia corretto!
             val newWayPointEntry = net.federicomatera.agpxp.models.WayPoint(
-                latitude = poiFromDb.Latit.toDouble(),
-                longitude = poiFromDb.Longit.toDouble(),
-                elevation = poiFromDb.Ele.toDouble(), // o poiFromDb.Ele?.toDouble() se Ele è nullable
+                latitude = poiFromDb.Latit,
+                longitude = poiFromDb.Longit,
+                elevation = poiFromDb.Ele, // o poiFromDb.Ele?.toDouble() se Ele è nullable
                 name = poiFromDb.NomePOI,
                 description = poiFromDb.DescrPOI, // o comment = poiFromDb.DescrPOI
                 src = poiFromDb.UriPath // Mappa UriPath al campo corretto in WayPoint (es. source)

@@ -73,9 +73,6 @@ object LocationRepository {
     private val _mslAltitude = MutableLiveData(0.0)
     val mslAltitude: LiveData<Double> = _mslAltitude
 
-    private val _baroPressure = MutableLiveData(0F)
-    val baroPressure: LiveData<Float> = _baroPressure
-
     private val _isCalibrato = MutableLiveData(false)
     val isCalibrato: LiveData<Boolean> = _isCalibrato
     private var calibratoInterno: Boolean = false // Variabile per i calcoli
@@ -167,7 +164,7 @@ object LocationRepository {
 
         // 3. Calcoli statistici (vengono eseguiti solo se isFixed == true)
         if (isFixed) {
-            accumuloDistanzaMetri += MapUtils.getDistanceInMeters(oldPunto, currentPoint).toInt()
+            accumuloDistanzaMetri += MapUtils.getDistanceInMeters(oldPunto, currentPoint)
             _distanzaMetri.postValue(accumuloDistanzaMetri)
 
             if (usaBaro && isCalibrato.value == true) {
@@ -237,7 +234,6 @@ object LocationRepository {
     fun updateVelocita(v: Int) { _velocitaKmh.postValue(v) }
     fun updateMslAltitude(a: Double) { _mslAltitude.postValue(a) }
     fun updateGpsStatus(s: String) { _gpsStatus.postValue(s) }
-    fun updateBaroPressure(p: Float) { /* usata indirettamente via processNewLocation */ }
 
     fun baroCalibrato(valore: Boolean) {
         calibratoInterno = valore // Aggiorna per i calcoli interni

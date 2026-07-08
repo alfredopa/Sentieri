@@ -1,6 +1,5 @@
 package com.apstudio.sentieri
 
-import android.content.Context
 import android.content.res.ColorStateList
 import android.media.MediaPlayer
 import android.util.Log
@@ -24,7 +23,7 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
         onItemClickListener = listener
     }
 
-    private fun playAudio(filePath: String, context: Context) {
+    private fun playAudio(filePath: String) {
         if (currentlyPlayingPath == filePath && mediaPlayer?.isPlaying == true) {
             // Se lo stesso file è già in riproduzione, fermalo (o mettilo in pausa, a tua scelta)
             stopCurrentPlayback()
@@ -44,7 +43,7 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
                     stopCurrentPlayback()
                     // Qui potresti voler aggiornare l'UI del pulsante allo stato normale
                 }
-                setOnErrorListener { mp, what, extra ->
+                setOnErrorListener { _, what, extra ->
                     Log.e("PoiAdapter", "MediaPlayer Error: what: $what, extra: $extra for path $filePath")
                     stopCurrentPlayback()
                     // Gestisci l'errore, ad esempio mostrando un Toast
@@ -144,7 +143,7 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
             false
         )
         return PoiViewHolder(binding) { filePath ->
-            playAudio(filePath, parent.context)
+            playAudio(filePath)
         }
     }
 

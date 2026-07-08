@@ -9,11 +9,9 @@ import android.view.ViewGroup
 import androidx.appcompat.widget.SearchView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.apstudio.sentieri.AppSentieri
 import com.apstudio.sentieri.R
 import com.apstudio.sentieri.SentieriFactory
 import com.apstudio.sentieri.SentieriViewModel
@@ -28,7 +26,6 @@ import mil.nga.geopackage.GeoPackageManager
 import mil.nga.geopackage.features.user.FeatureDao
 import mil.nga.sf.Point
 import java.io.File
-import kotlin.getValue
 
 /**
  * A fragment representing a list of Items.

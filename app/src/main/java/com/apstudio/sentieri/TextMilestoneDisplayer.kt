@@ -73,7 +73,7 @@ class TextMilestoneDisplayer(
             val parts = stepString.split(", ")
             val distancePart = parts.find { it.startsWith("distance=") }
             distancePart?.substringAfter("distance=")?.toDouble()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null // In caso di errore nel parsing, non disegniamo nulla
         }
     }

@@ -8,7 +8,6 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.location.OnNmeaMessageListener
@@ -17,7 +16,6 @@ import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -104,7 +102,7 @@ class Barometro : Fragment(), SensorEventListener {
             }
         }
 
-        locationListener = LocationListener { p0 -> datiGPS(p0) }
+        locationListener = LocationListener { _ -> datiGPS() }
 
         nmeaListener = OnNmeaMessageListener { message, _ ->
             loggaNMEA(message)
@@ -149,7 +147,7 @@ class Barometro : Fragment(), SensorEventListener {
         locationManager?.removeUpdates(locationListener)
     }
 
-    fun datiGPS(p0: Location) {
+    fun datiGPS() {
         // Implementation if needed
     }
 
@@ -169,14 +167,5 @@ class Barometro : Fragment(), SensorEventListener {
     companion object {
         private const val MIN_DIST = 0
         private const val MIN_PERIOD = 10000
-
-        @JvmStatic
-        fun newInstance(param1: String, param2: String) =
-            Barometro().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_PARAM1, param1)
-                    putString(ARG_PARAM2, param2)
-                }
-            }
     }
 }

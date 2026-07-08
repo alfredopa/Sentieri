@@ -67,7 +67,7 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
         // progressBar.visibility = View.VISIBLE
 
         recyclerView.layoutManager = GridLayoutManager(requireContext(), 1)
-        recyclerView.adapter = FeatureAdapter(mutableListOf<FeatureTableInfo>(), this) // Inizia con un adapter vuoto
+        recyclerView.adapter = FeatureAdapter(mutableListOf(), this) // Inizia con un adapter vuoto
 
         // Osserva lo stato di preparazione del ViewModel
         layerModel.isReady.observe(viewLifecycleOwner, Observer { isReady ->
@@ -108,12 +108,6 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
         // Notifica al ViewModel che il dialogo è stato chiuso.
         layerModel.requestLayerUpdate()
         //Log.d("GpkgLayer", "Dialogo chiuso. Inviata richiesta via ViewModel.")
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        //Log.d(TAG, "GpkgLayer onDestroy called.")
-        // Nessuna chiusura esplicita del GeoPackage qui.
     }
 
     // onItemClick e onSwitchCheckedChanged dovrebbero già usare layerModel.featureList,

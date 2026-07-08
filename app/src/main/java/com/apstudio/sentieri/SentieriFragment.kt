@@ -11,13 +11,9 @@ import android.widget.SearchView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -26,7 +22,6 @@ import com.apstudio.sentieri.databinding.FragmentSentieriBinding
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
-import kotlin.getValue
 
 class SentieriFragment : Fragment() {
     private val viewModel: SentieriViewModel by activityViewModels {
@@ -46,10 +41,6 @@ class SentieriFragment : Fragment() {
     private lateinit var binding: FragmentSentieriBinding
     private lateinit var adapter: MyRecyclerViewAdapter
     //private lateinit var searchView: SearchView
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,

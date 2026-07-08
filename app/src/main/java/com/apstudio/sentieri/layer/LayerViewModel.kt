@@ -97,38 +97,6 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Controlla se lo stato di visibilità attuale è diverso dall'ultima "fotografia" salvata.
-     *
-     * QUANDO USARLO:
-     * Chiama questo metodo dal metodo `onResume()` di `MappaFragment` per decidere
-     * se è necessario eseguire il costoso aggiornamento degli overlay.
-     *
-     * @return `true` se la visibilità è cambiata (o se è la prima volta che viene controllata),
-     *         `false` se nulla è cambiato.
-     */
-    fun haveLayerVisibilitiesChanged(): Boolean {
-        // Caso 1: Se non abbiamo mai salvato uno stato (es. al primo avvio),
-        // dobbiamo considerare che ci sia una modifica per forzare il disegno iniziale.
-        if (lastKnownVisibilityState == null) {
-            //Log.d("LayerViewModel", "Nessuno stato precedente salvato. Si assume una modifica.")
-            return true
-        }
-
-        // Caso 2: Confronta lo stato attuale con quello salvato.
-        val currentState = featureList.associate { it.name to it.isVisible }
-
-        // Il confronto tra due mappe in Kotlin è molto efficiente e controlla
-        // che entrambe le mappe abbiano le stesse chiavi con gli stessi valori.
-        val hasChanged = currentState != lastKnownVisibilityState
-
-        if (hasChanged) {
-            //Log.d("LayerViewModel", "Rilevato cambiamento nella visibilità dei layer.")
-        }
-
-        return hasChanged
-    }
-
-    /**
      * Avvia l'apertura asincrona del GeoPackage e il caricamento della configurazione.
      * Non blocca più il thread chiamante.
      */
@@ -254,27 +222,6 @@ private suspend fun actuallyOpenAndConfigGeoPackage(): Boolean = withContext(Dis
         }
     }
 
-    // Questo metodo è stato rinominato da `loadConfigIfNeeded` per evitare confusione,
-    // dato che ora la configurazione viene caricata insieme alle feature.
-    // Se hai bisogno di ricaricare SOLO la configurazione per un GeoPackage già aperto,
-    // puoi creare un metodo separato.
-    private fun loadConfigIfNeeded(geoPackage: GeoPackage) {
-        val context = getApplication<Application>()
-        val pathGeoPackage = geoPackage.path ?: run {
-            Log.e(TAG, "GeoPackage path is null, cannot load config.")
-            return
-        }
-        val configurator = DatabaseSchemaConfigurator(context, pathGeoPackage)
-        val configFile = File(context.filesDir, CONFIG_FILE_NAME)
-        if (!configFile.exists()) {
-            configurator.generateAndWriteConfigFile()
-        }
-        (configurator.loadConfigFromFile() as? MutableMap<String, List<FieldSchemaInfo>>)?.also {
-            labelConfig = it
-            //Log.d(TAG, "LabelConfig (re)loaded successfully.")
-        } ?: Log.e(TAG, "Failed to (re)load or cast labelConfig.")
-    }
-
     fun creaLabel(featureRow: FeatureRow, tableName: String): String {
         val campiLabel = labelConfig[tableName]
         val labelBuilder = StringBuilder()
@@ -288,7 +235,7 @@ private suspend fun actuallyOpenAndConfigGeoPackage(): Boolean = withContext(Dis
             labelBuilder.append(tableDescription)
         }
 
-        campiLabel?.forEachIndexed { index, (fieldName, description,  isVisible) ->
+        campiLabel?.forEachIndexed { index, (_, description,  isVisible) ->
             if (isVisible) {
                 // Ottieni il valore del campo direttamente da featureRow.values
                 val fieldValue = featureRow.values[index]?.toString()

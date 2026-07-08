@@ -33,7 +33,6 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.io.IOException
-import java.util.concurrent.CopyOnWriteArrayList
 
 data class LocationData(val geoPoint: GeoPoint, val bearing: Float)
 
@@ -46,7 +45,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     }
 
     private var discardedGpsPointsCount: Int = 0
-    private val WARMUP_READINGS_TO_DISCARD = 8
 
     var listaTracce: FolderOverlay = FolderOverlay() // overlay per aggiungere le tracce da gpx e db
     val recTraccia = FolderOverlay() // overlay per traccia in registrazione e marker inizio e fine
@@ -143,7 +141,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     //private val alfaGPS: Double = 0.225  //0.21 prec
     var NORMAL_PRESSURE = 1013.25F
     var bottomState = 0
-    var idTracciaGraficoCorrente: Int = -1
 
     // LiveData per comunicare messaggi alla UI (sostituisce i Toast diretti)
     private val _ftpDownloadStatus = MutableLiveData<Event<String>>()
@@ -173,9 +170,9 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     val remainingDist = MediatorLiveData<Int>().apply {
         val update = {
             val currentDist = distanzaMetri.value ?: 0
-            if (tracciaDaSeguire.isNotEmpty()) {
-                value = (trackDistanza - currentDist).toInt().coerceAtLeast(0)
-            } else value = 0
+            value = if (tracciaDaSeguire.isNotEmpty()) {
+                (trackDistanza - currentDist).toInt().coerceAtLeast(0)
+            } else 0
         }
         addSource(distanzaMetri) { update() }
         addSource(tracciaDaSeguireLiveData) { update() }
@@ -184,9 +181,9 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     val remainingDPiu = MediatorLiveData<Double>().apply {
         val update = {
             val currentDPiu = dislivPiu.value ?: 0.0
-            if (tracciaDaSeguire.isNotEmpty()) {
-                value = (trackAscesa.toDouble() - currentDPiu).coerceAtLeast(0.0)
-            } else value = 0.0
+            value = if (tracciaDaSeguire.isNotEmpty()) {
+                (trackAscesa.toDouble() - currentDPiu).coerceAtLeast(0.0)
+            } else 0.0
         }
         addSource(dislivPiu) { update() }
         addSource(tracciaDaSeguireLiveData) { update() }
@@ -195,9 +192,9 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     val remainingDMeno = MediatorLiveData<Double>().apply {
         val update = {
             val currentDMeno = dislivMeno.value ?: 0.0
-            if (tracciaDaSeguire.isNotEmpty()) {
-                value = (kotlin.math.abs(trackDiscesa.toDouble()) - currentDMeno).coerceAtLeast(0.0)
-            } else value = 0.0
+            value = if (tracciaDaSeguire.isNotEmpty()) {
+                (kotlin.math.abs(trackDiscesa.toDouble()) - currentDMeno).coerceAtLeast(0.0)
+            } else 0.0
         }
         addSource(dislivMeno) { update() }
         addSource(tracciaDaSeguireLiveData) { update() }
@@ -363,7 +360,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         }
     }
 
-    suspend fun preparaDatiGrafico(idTracciaNuova: Int): List<com.github.mikephil.charting.data.Entry> {
+    suspend fun preparaDatiGrafico(): List<com.github.mikephil.charting.data.Entry> {
         // Rimuovi o commenta eventuali controlli "idTracciaNuova == idTracciaGraficoCorrente"
         // per forzare il ricalcolo basato sulla lista geoPuntiPercorso aggiornata.
 

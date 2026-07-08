@@ -1,7 +1,6 @@
 package com.apstudio.sentieri
 
 import android.app.Application
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import com.apstudio.sentieri.db.SentieriDao // Supponendo tu abbia un Dao
@@ -31,19 +30,4 @@ class AppSentieri : Application(), ViewModelStoreOwner {
             trackDao) // Passa qui le dipendenze del Repository (es. il DAO)
     }
 
-    // Istanzia la Factory (singleton a livello di app)
-    val sentieriViewModelFactory: SentieriFactory by lazy {
-        SentieriFactory(sentieriRepository, this)
-    }
-
-    // Istanzia il ViewModel (singleton a livello di app)
-    val sentieriViewModel: SentieriViewModel by lazy {
-        ViewModelProvider(this, sentieriViewModelFactory)[SentieriViewModel::class.java]
-    }
-    override fun onCreate() {
-        super.onCreate()
-        // Log su file disabilitato
-        //SimpleFileLogger.initialize(this)
-        //SimpleFileLogger.log("Sentieri", "App avviata, log manuale.")
-    }
 }

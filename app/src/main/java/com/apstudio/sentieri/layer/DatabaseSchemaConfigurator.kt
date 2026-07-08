@@ -161,7 +161,8 @@ class DatabaseSchemaConfigurator(
                                     currentTableName = parser.getAttributeValue(ns, XML_ATTR_TABLE_NAME)
                                     if (currentTableName != null) {
                                         currentFieldsList = mutableListOf() // Crea una lista di FieldSchemaInfo
-                                        schemaConfig[currentTableName!!] = currentFieldsList!! // Ora i tipi corrispondono
+                                        schemaConfig[currentTableName] =
+                                            currentFieldsList // Ora i tipi corrispondono
                                     } else {
                                         Log.w(TAG, "Attributo '$XML_ATTR_TABLE_NAME' mancante per il tag '$XML_TAG_TABLE'")
                                     }
