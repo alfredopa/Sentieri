@@ -59,7 +59,7 @@ class LayerDialog : Fragment() {
         rcvLayer = recyclerView
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         val layerAdapter = LayerAdapter(viewModel.layerItems)
-        Log.d("listaTracce", "LayerDialog onViewCreated ${viewModel.listaTracce.items.size}")
+        Log.d("listaTracce", "LayerDialog onViewCreated ${viewModel.listaTracce.items?.size ?: 0}")
         recyclerView.adapter = layerAdapter
         
         layerAdapter.setOnItemClickListener(object : OnLayerClickListener {
@@ -69,7 +69,7 @@ class LayerDialog : Fragment() {
                 item.abilitato = isChecked
                 val targetName = item.nome.trim().lowercase()
                 
-                viewModel.listaTracce.items.forEach { overlay ->
+                viewModel.listaTracce.items?.forEach { overlay ->
                     if (overlay is Polyline && (overlay.title ?: "").trim().lowercase() == targetName) {
                         overlay.isEnabled = isChecked
                     }
@@ -82,7 +82,7 @@ class LayerDialog : Fragment() {
                 item.direzione = isChecked
                 val targetName = item.nome.trim().lowercase()
 
-                viewModel.listaTracce.items.forEach { overlay ->
+                viewModel.listaTracce.items?.forEach { overlay ->
                     if (overlay is Polyline && (overlay.title ?: "").trim().lowercase() == targetName) {
                         if (isChecked) {
                             MapUtils.applicaFrecceDirezione(overlay)
@@ -99,7 +99,7 @@ class LayerDialog : Fragment() {
                 item.mostraPendenza = isChecked
                 val targetName = item.nome.trim().lowercase()
                 
-                viewModel.listaTracce.items.forEach { overlay ->
+                viewModel.listaTracce.items?.forEach { overlay ->
                     if (overlay is Polyline && (overlay.title ?: "").trim().lowercase() == targetName) {
                         if (isChecked) {
                             val pendenze = MapUtils.calcolaPendenzeSmussate(overlay, 8)
@@ -155,7 +155,7 @@ class LayerDialog : Fragment() {
                     // CERCA LA POLYLINE PER I PUNTI DEL GRAFICO
                     val targetName = item.nome.trim().lowercase()
                     var polyline: Polyline? = null
-                    viewModel.listaTracce.items.forEach { overlay ->
+                    viewModel.listaTracce.items?.forEach { overlay ->
                         if (overlay is Polyline && (overlay.title ?: "").trim().lowercase() == targetName) {
                             polyline = overlay
                         }

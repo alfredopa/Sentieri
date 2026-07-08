@@ -46,9 +46,9 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     private var discardedGpsPointsCount: Int = 0
 
-    var listaTracce: FolderOverlay = FolderOverlay() // overlay per aggiungere le tracce da gpx e db
-    val recTraccia = FolderOverlay() // overlay per traccia in registrazione e marker inizio e fine
-    val topoLayer = FolderOverlay()
+    var listaTracce: SafeFolderOverlay = SafeFolderOverlay() // overlay per aggiungere le tracce da gpx e db
+    var recTraccia = SafeFolderOverlay() // overlay per traccia in registrazione e marker inizio e fine
+    var topoLayer = SafeFolderOverlay()
     var puntiDaSeguire =
         mutableListOf<GeoPoint>() // percorso caricato in MappaFragment da SchedaFragment
     var titoloTracciaDaSeguire = ""

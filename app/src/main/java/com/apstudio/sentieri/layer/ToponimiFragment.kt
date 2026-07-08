@@ -213,7 +213,6 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
                     putDouble("longitude", clickedItem.longitude)
                     putString("toponimo_name", clickedItem.content)
                 }
-
                 findNavController().navigate(R.id.action_toponimiFragment_to_mappaFragment, bundle)
             } else {
                 Log.w("ToponimiFragment", "Coordinate non disponibili per ${clickedItem.content}. Navigazione standard.")

@@ -383,8 +383,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
 
             if (featureInfo.isVisible) {
+                // Se è il layer geologico, lo ricreiamo SEMPRE per evitare il blocco dei thread del TileProvider
+                // che si verifica dopo il detach della MapView precedente (es. quando si torna da un altro Fragment).
+                if (featureInfo.name == "area_geologica") {
+                    featureInfo.listOverlay?.clear()
+                }
+
                 // Se il layer deve essere visibile...
-                if (featureInfo.listOverlay.isNullOrEmpty()|| featureInfo.name == "area_geologica") {
+                if (featureInfo.listOverlay.isNullOrEmpty()) {
                     // ...e non abbiamo gli overlay in memoria, caricali da capo.
                     //Log.d(TAG,"Il layer ${featureInfo.name} è visibile e non caricato. Avvio caricamento.")
                     puntiSuMappa(featureInfo.name, featureInfo)
@@ -412,7 +418,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         when (overlay) {
             is FolderOverlay -> {
                 // Applica ricorsivamente ai figli
-                overlay.items.forEach { reattachListenersToOverlay(it) }
+                overlay.items?.forEach { reattachListenersToOverlay(it) }
             }
 
             is SimpleFastPointOverlay -> {
@@ -584,7 +590,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             if (!latitude.isNaN() && !longitude.isNaN()) {
                 initialCenterPoint = GeoPoint(latitude, longitude)
             }
-            arguments?.clear()
+            //arguments?.clear()
         }
 
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
@@ -626,30 +632,38 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         scaleBarOverlay.setCentred(true)
         mapView.overlays.add(scaleBarOverlay)
 
+        // Assicurati che gli overlay di stato siano sani. Se l'activity è stata ricreata 
+        // dopo un onDetach() accidentale, l'OverlayManager interno di FolderOverlay 
+        // potrebbe essere nullo, causando NPE. In tal caso li reinizializziamo.
+        try { viewModel.listaTracce.items } catch (_: Exception) { viewModel.listaTracce = SafeFolderOverlay() }
+        try { viewModel.recTraccia.items } catch (_: Exception) { viewModel.recTraccia = SafeFolderOverlay() }
+        try { viewModel.topoLayer.items } catch (_: Exception) { viewModel.topoLayer = SafeFolderOverlay() }
+
         // Assicurati che gli overlay di stato siano presenti
-        // NOTA: Se l'activity è stata ricreata, questi overlay potrebbero essere ancora legati alla vecchia MapView.
-        // Li stacchiamo esplicitamente prima di riaggiungerli.
+        // NOTA: Se l'activity è stata ricreata, questi overlay sono conservati nel ViewModel.
+        // Verifichiamo se sono già presenti nella nuova MapView prima di aggiungerli.
         
         viewModel.listaTracce.let { 
-            mapView.overlays.remove(it)
-            mapView.overlays.add(it) 
+            if (!mapView.overlays.contains(it)) {
+                mapView.overlays.add(it)
+            }
         }
         viewModel.recTraccia.let { 
-            mapView.overlays.remove(it)
-            mapView.overlays.add(it) 
+            if (!mapView.overlays.contains(it)) {
+                mapView.overlays.add(it)
+            }
         }
         if (!mapView.overlays.contains(viewModel.topoLayer)) {
             mapView.overlays.add(viewModel.topoLayer)
         }
 
-        for (overlay in viewModel.listaTracce.items) {
+        viewModel.listaTracce.items?.forEach { overlay ->
             if (overlay is Polyline) {
                 setPolylineClickListener(overlay)
             }
             if (overlay is Marker) {
                 setMarkerClickListener(overlay)
             }
-
         }
 
         // 2. Inizializza la Polyline di registrazione traccia, una sola volta.
@@ -672,34 +686,22 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mapView.isFocusableInTouchMode = true
         mapView.requestFocus()
         mapView.setOnKeyListener(this)
-        mapView.setDestroyMode(false)
+        // mapView.setDestroyMode(false) // Lasciamo che osmdroid gestisca il cleanup se possibile, o gestiamolo noi in onDestroyView
 
-        //creaMappaMenu()
-// 1. Extract values with sensible defaults
+        // Inizializza lo stato del ViewModel basato sulle preferenze.
+        // Il caricamento effettivo avverrà in ripristinaStatoMappa() tramite onFirstLayoutListener.
         val savedMenuMap = preferenze.getInt("MenuMap", 1)
         val uriString = preferenze.getString("URIMappa", "") ?: ""
         val uriMappa = uriString.toUri()
 
-// 2. Determine if we should actually use the offline map
-        val canLoadOfflineMap = savedMenuMap == 0 &&
-                uriString.isNotEmpty() &&
-                apreMappa(requireContext(), mapView, viewModel, uriMappa)
-
-// 3. Update ViewModel and State
-        if (canLoadOfflineMap) {
-            viewModel.menuMap = 0
+        viewModel.menuMap = savedMenuMap
+        if (savedMenuMap == 0 && uriString.isNotEmpty()) {
             viewModel.uriMappa = uriMappa
-            menu?.findItem(0)?.isChecked = true
-        } else {
-            // Fallback to online mode
-            viewModel.menuMap = if (savedMenuMap == 0) 1 else savedMenuMap
-            online(requireContext(), mapView, viewModel, viewModel.menuMap)
         }
 
-// 4. Apply UI settings once based on the final state
         mapView.apply {
-            isTilesScaledToDpi = !canLoadOfflineMap
-            setUseDataConnection(!canLoadOfflineMap)
+            isTilesScaledToDpi = (viewModel.menuMap != 0)
+            setUseDataConnection(viewModel.menuMap != 0)
         }
 
         val defaultColorArgb = ContextCompat.getColor(requireContext(), R.color.red)
@@ -906,7 +908,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     viewLifecycleOwner.lifecycleScope.launch {
                         val fuoriTraccia = withContext(Dispatchers.Default) {
                             // 1. Cerchiamo la traccia (operazione veloce)
-                            val traccia = viewModel.listaTracce.items.find {
+                            val traccia = viewModel.listaTracce.items?.find {
                                 it is Polyline && it.title == viewModel.tracciaDaSeguire
                             } as? Polyline
 
@@ -1126,19 +1128,15 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
 
         if (viewModel.poi != GeoPoint(0.0, 0.0, 0.0)) {
-            for (overlay in viewModel.listaTracce.items) {
-                if (overlay is Marker && overlay.position == viewModel.poi) {
-                    val alMarker: Marker = overlay
-                    alMarker.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
-                    alMarker.showInfoWindow()
-                    mapView.controller.animateTo(
-                        alMarker.position,
-                        viewModel.ultZoom.toDouble(),
-                        0
-                    )
-                    GeoPoint(alMarker.position)
-                    break
-                }
+            viewModel.listaTracce.items?.find { it is Marker && it.position == viewModel.poi }?.let { overlay ->
+                val alMarker = overlay as Marker
+                alMarker.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
+                alMarker.showInfoWindow()
+                mapView.controller.animateTo(
+                    alMarker.position,
+                    viewModel.ultZoom.toDouble(),
+                    0
+                )
             }
             viewModel.poi = GeoPoint(0.0, 0.0, 0.0)
         }
@@ -1268,7 +1266,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             // Recupera eventuali coordinate passate tramite bundle (Navigation Component)
             val bundleLat = arguments?.getDouble("latitude", Double.NaN) ?: Double.NaN
             val bundleLon = arguments?.getDouble("longitude", Double.NaN) ?: Double.NaN
-
             if (!bundleLat.isNaN() && !bundleLon.isNaN()) {
                 // Se sono presenti nel bundle, hanno la priorità assoluta
                 val targetPoint = GeoPoint(bundleLat, bundleLon)
@@ -1436,7 +1433,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.isRecording = false
         viewModel.resetCruscotto() // Questo chiama internamente LocationRepository.clearTrack()
         LocationRepository.clearTrack() // Chiamata esplicita per sicurezza
-        viewModel.recTraccia.items.clear()
+        viewModel.recTraccia.items?.clear()
         viewModel.isFixed = false
 
 // Svuota esplicitamente la polilinea grafica
@@ -1934,8 +1931,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         alertDialog?.dismiss()
         alertDialog = null
         if (_binding != null) {
-            mapView.overlayManager.clear() // Rimuove tutti gli overlay dalla mappa
-            mapView.onDetach()             // Importante per OSMDroid per un corretto cleanup
+            mapView.onPause() // Per sicurezza, assicuriamoci che sia in pausa
+            
+            // Per evitare il crash NPE in FolderOverlay.onTouchEvent, NON chiamiamo 
+            // mapView.onDetach() perché questo causerebbe il detach ricorsivo di tutti 
+            // gli overlay. In osmdroid, FolderOverlay.onDetach() distrugge il suo 
+            // OverlayManager interno (null), rendendolo inutilizzabile per il ViewModel.
+            // Detacciamo invece solo il tileProvider per fermare i thread di caricamento.
+            mapView.tileProvider.detach()
         }
         super.onDestroyView() // Chiamare super prima di nullificare _binding
         _binding = null
@@ -2341,6 +2344,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     // Attorno alla riga 2297
     private fun puntiSuMappa(tableName: String, featureInfo: FeatureTableInfo) {
+        // Controllo di blocco anti-concorrenza
+        if (layerModel.loadingStatus[tableName] == true) {
+            Log.w(TAG, "Caricamento per il layer $tableName già in corso. Chiamata ignorata.")
+            return
+        }
+
         if (featureInfo.listOverlay != null && featureInfo.listOverlay!!.isNotEmpty()) {
             //Log.d(TAG,"Pulizia di ${featureInfo.listOverlay!!.size} overlay esistenti per il layer: $tableName")
             // 2. Rimuovi tutti gli overlay precedentemente associati a questo layer dalla mappa.
@@ -2371,6 +2380,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 override fun draw(c: Canvas, pProjection: org.osmdroid.views.Projection) {
                     if (pProjection.zoomLevel < 12.0) return
                     super.draw(c, pProjection)
+                }
+
+                override fun onDetach(mapView: MapView?) {
+                    super.onDetach(mapView)
+                    tileProvider.detach()
                 }
             }.apply {
                 // Rendi trasparente lo sfondo di caricamento per non nascondere la mappa sottostante
@@ -2468,12 +2482,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         osmdroidPolygonsToAdd: MutableList<Polygon>, featureInfo: FeatureTableInfo
     ): List<org.osmdroid.views.overlay.Overlay> {
         // Creiamo un singolo FolderOverlay per contenere tutti i poligoni.
-        val folder = FolderOverlay()
+        val folder = SafeFolderOverlay()
         // Assegnare un nome è utile per il debug.
         folder.name = featureInfo.name
 
         // Aggiungiamo tutti i poligoni al folder in un'unica operazione.
-        folder.items.addAll(osmdroidPolygonsToAdd)
+        folder.items?.addAll(osmdroidPolygonsToAdd)
 
         // Restituiamo una lista che contiene SOLO il FolderOverlay.
         // L'aggiornamento della mappa diventerà un'operazione atomica (aggiungi/rimuovi un solo oggetto).
@@ -2531,7 +2545,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         lineStringToAdd: MutableList<LineStringFeature>,
         featureInfo: FeatureTableInfo
     ): List<org.osmdroid.views.overlay.Overlay> { // <-- MODIFICA CHIAVE
-        val lineOverlayFolder = FolderOverlay()
+        val lineOverlayFolder = SafeFolderOverlay()
         lineOverlayFolder.name = featureInfo.name //
 
         lineStringToAdd.forEachIndexed { index, lineFeature ->
