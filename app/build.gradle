@@ -101,6 +101,9 @@ dependencies {
         exclude module: 'ormlite-core'
         exclude group: 'mil.nga', module: 'sqlite-android'
     }
+    // geopackage
+    implementation 'mil.nga.geopackage:geopackage-android:6.7.3'
+    implementation 'mil.nga:sqlite-android:3500400'
     // scarico da FTP
     implementation("commons-net:commons-net:3.11.1")
     // MPAndroidChart
