@@ -74,7 +74,8 @@ class SchedaFragment : Fragment(), MenuProvider {
         // 3. Crea la factory con il repository e l'applicazione
         SentieriFactory(repository, application)
     }
-    private lateinit var binding: FragmentSchedaBinding
+    private var _binding: FragmentSchedaBinding? = null
+    private val binding get() = _binding!!
     private lateinit var mapView: MapView
     private var mapController: MapController? = null
     private val poiDBList = mutableListOf<PoiDB>()
@@ -86,7 +87,7 @@ class SchedaFragment : Fragment(), MenuProvider {
         savedInstanceState: Bundle?
     ): View {
         // Inflate the layout for this fragment
-        binding = FragmentSchedaBinding.inflate(inflater, container, false)
+        _binding = FragmentSchedaBinding.inflate(inflater, container, false)
         return binding.root
     }
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
@@ -393,6 +394,22 @@ class SchedaFragment : Fragment(), MenuProvider {
         viewModel.trackDistanza = sentiero.lunghezza.toFloat()
         viewModel.trackAscesa = sentiero.dislivello
         viewModel.trackDiscesa = sentiero.discesa
+    }
+
+    override fun onResume() {
+        super.onResume()
+        mapView.onResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        mapView.onPause()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        mapView.onDetach()
+        _binding = null
     }
 
     private fun setupMappaIniziale() {

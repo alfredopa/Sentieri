@@ -124,6 +124,14 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
             featureInfo.isVisible = isChecked
             //Log.d("SwitchDebug", "Stato 'isVisible' per ${featureInfo.name} aggiornato a: $isChecked nel modello.")
         }
+        // Se l'utente ha attivato il layer "area_geologica", mostra l'avviso
+        if (featureInfo.name == "area_geologica" && isChecked) {
+            androidx.appcompat.app.AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+                .setTitle("Info Layer")
+                .setMessage("Il layer è visibile solo con zoom superiori al 12, ingrandire la mappa per vederlo")
+                .setPositiveButton("OK", null)
+                .show()
+        }
     }
 
 
