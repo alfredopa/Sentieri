@@ -3,6 +3,8 @@ package com.apstudio.sentieri
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ComponentCallbacks2
 import android.content.ComponentName
 import android.content.ContentValues
@@ -12,6 +14,7 @@ import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.hardware.Sensor
@@ -19,6 +22,8 @@ import android.hardware.SensorManager
 import android.icu.text.SimpleDateFormat
 import android.location.LocationManager
 import android.media.MediaRecorder
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -27,6 +32,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.MediaStore
+import android.telephony.TelephonyManager
 import android.util.Log
 import android.view.KeyEvent
 import android.view.KeyEvent.KEYCODE_VOLUME_DOWN
@@ -78,7 +84,6 @@ import com.apstudio.sentieri.MapUtils.showCustomSnackbar
 import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
-import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.LocationRepository
 import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.PoiDao
@@ -96,10 +101,14 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.apstudio.sentieri.layer.GeologiaFeatureTiles
+import mil.nga.geopackage.GeoPackage
+import mil.nga.geopackage.features.index.FeatureIndexManager
 import mil.nga.geopackage.features.user.FeatureCursor
 import mil.nga.geopackage.features.user.FeatureDao
 import mil.nga.geopackage.features.user.FeatureRow
 import mil.nga.geopackage.geom.GeoPackageGeometryData
+import mil.nga.proj.Projection
 import mil.nga.sf.GeometryType
 import mil.nga.sf.LineString
 import mil.nga.sf.MultiPolygon
@@ -112,15 +121,20 @@ import net.federicomatera.agpxp.models.Track
 import net.federicomatera.agpxp.models.WayPoint
 import org.osmdroid.api.IGeoPoint
 import org.osmdroid.api.IMapController
+import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.tileprovider.MapTileProviderArray
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.FolderOverlay
+import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.ScaleBarOverlay
+import org.osmdroid.views.overlay.TilesOverlay
 import org.osmdroid.views.overlay.compass.CompassOverlay
 import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider
 import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
@@ -136,12 +150,6 @@ import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
-import android.telephony.TelephonyManager
 
 private const val TAG = "MappaFragment"
 
@@ -378,7 +386,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
             if (featureInfo.isVisible) {
                 // Se il layer deve essere visibile...
-                if (featureInfo.listOverlay.isNullOrEmpty()) {
+                if (featureInfo.listOverlay.isNullOrEmpty()|| featureInfo.name == "area_geologica") {
                     // ...e non abbiamo gli overlay in memoria, caricali da capo.
                     //Log.d(TAG,"Il layer ${featureInfo.name} è visibile e non caricato. Avvio caricamento.")
                     puntiSuMappa(featureInfo.name, featureInfo)
@@ -570,6 +578,15 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             val gpxUri = uriString.toUri()
             caricaGPX(gpxUri)
             arguments?.remove("gpx_file_uri")
+        }
+
+        arguments?.let { bundle ->
+            val latitude = bundle.getDouble("latitude", Double.NaN)
+            val longitude = bundle.getDouble("longitude", Double.NaN)
+            if (!latitude.isNaN() && !longitude.isNaN()) {
+                initialCenterPoint = GeoPoint(latitude, longitude)
+            }
+            arguments?.clear()
         }
 
         bottomSheetBehavior = BottomSheetBehavior.from(binding.cruscotto.root)
@@ -2337,8 +2354,56 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             // 3. Svuota la lista di overlay salvata nel modello dati.
             featureInfo.listOverlay!!.clear()
         }
-        // 4. Forza un ridisegno per assicurarsi che la mappa sia pulita.
-        //mapView.invalidate()
+        // 2. CASO SPECIALE: Layer Geologico (Raster/Tiles)
+        if (tableName == "area_geologica") {
+            val geoPackage = layerModel.geoPackageInstance ?: return
+            val featureDao = geoPackage.getFeatureDao(tableName)
+
+            // Creiamo la nostra classe custom con i colori Sardegna
+            val featureTiles = GeologiaFeatureTiles(requireContext(), geoPackage, featureDao)
+            featureTiles.isFillPolygon = true
+            featureTiles.setStylePaintCacheSize(1)
+
+            val tileProvider = object : MapTileProviderArray(TileSourceFactory.DEFAULT_TILE_SOURCE, null) {
+                init {
+                    // Svuota i moduli di default per evitare di scaricare mattonelle online duplicando la mappa
+                    mTileProviderList.clear()
+                    mTileProviderList.add(GeoPackageFeatureTileModule(featureTiles))
+                }
+                override fun getMinimumZoomLevel(): Int = 12
+            }
+
+            val tilesOverlay = object : TilesOverlay(tileProvider, requireContext()) {
+                override fun draw(c: Canvas, pProjection: org.osmdroid.views.Projection) {
+                    if (pProjection.zoomLevel < 12.0) return
+                    super.draw(c, pProjection)
+                }
+            }.apply {
+                // Rendi trasparente lo sfondo di caricamento per non nascondere la mappa sottostante
+                loadingBackgroundColor = Color.TRANSPARENT
+                loadingLineColor = Color.TRANSPARENT
+            }
+
+            // Interrogazione (onClick)
+            val eventsReceiver = object : MapEventsReceiver {
+                override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
+                    val mBinding = _binding ?: return false
+                    if (mBinding.Mapview.zoomLevelDouble < 12.0) return false
+                    interrogaGeologia(p, geoPackage, "area_geologica")
+                    return true
+                }
+                override fun longPressHelper(p: GeoPoint): Boolean = false
+            }
+            val mapEventsOverlay = MapEventsOverlay(eventsReceiver)
+
+            // IMPORTANTE: Salviamo gli overlay in listOverlay per poterli rimuovere col checkbox
+            val overlays = mutableListOf<org.osmdroid.views.overlay.Overlay>(tilesOverlay, mapEventsOverlay)
+            featureInfo.listOverlay = overlays
+            mapView.overlays.addAll(overlays)
+
+            mapView.invalidate()
+            return // Usciamo, non serve procedere col caricamento vettoriale
+        }
 
         // Controllo di blocco anti-concorrenza
         if (layerModel.loadingStatus[tableName] == true) {
@@ -2689,6 +2754,85 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
             ProcessedFeatureData(points, osmdroidPolygonsToAdd, lineStringToAdd)
         }
+    }
+
+    private fun interrogaGeologia(punto: GeoPoint, geoPackage: GeoPackage, tableName: String) {
+        val featureDao = geoPackage.getFeatureDao(tableName)
+        val indexManager = FeatureIndexManager(requireContext(), geoPackage, featureDao)
+
+        if (!indexManager.isIndexed) {
+            Toast.makeText(context, "Indice spaziale non trovato.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // 1. Crea una bounding box minuscola intorno al punto
+        val tolerance = 0.00001 // Ridotta per maggiore precisione (circa 1 metro)
+        val queryBox = mil.nga.geopackage.BoundingBox(
+            punto.longitude - tolerance, punto.longitude + tolerance,
+            punto.latitude - tolerance, punto.latitude + tolerance
+        )
+
+        // 2. Esegui la query sull'indice
+        val results = indexManager.query(queryBox)
+
+        try {
+            var foundRow: FeatureRow? = null
+
+            // Trasformiamo il GeoPoint di osmdroid in un punto della libreria SF
+            val clickPoint = mil.nga.sf.Point(punto.longitude, punto.latitude)
+
+            // 3. Iteriamo su tutti i poligoni trovati per trovare quello che CONTIENE il punto
+            for (featureRow in results) {
+                val geometryData = featureRow.geometry
+                if (geometryData != null && !geometryData.isEmpty) {
+                    val geometry = geometryData.geometry
+
+                    // Test di inclusione preciso (Point-in-Polygon)
+                    val isInside = when (geometry) {
+                        is mil.nga.sf.Polygon -> {
+                            mil.nga.sf.util.GeometryUtils.pointInPolygon(clickPoint, geometry)
+                        }
+
+                        is mil.nga.sf.MultiPolygon -> {
+                            // Per i MultiPolygon, controlliamo se il punto è in almeno uno dei poligoni componenti
+                            geometry.polygons.any { poly ->
+                                mil.nga.sf.util.GeometryUtils.pointInPolygon(clickPoint, poly)
+                            }
+                        }
+
+                        else -> false
+                    }
+
+                    if (isInside) {
+                        // Trovato! Poiché potrebbero esserci sovrapposizioni, l'ultimo trovato
+                        // nel ciclo (solitamente il più "giovane" o specifico) sarà quello salvato.
+                        foundRow = featureRow
+                    }
+                }
+            }
+
+
+            if (foundRow != null) {
+                val tipoUnit = foundRow.getValueString("TIPOUNIT_1") ?: "N/D"
+                val unitaGer = foundRow.getValueString("UNITAGER_1") ?: "N/D"
+                mostraDettagliGeologia(tipoUnit, unitaGer)
+            } else {
+                // Se non trovi nulla con precisione chirurgica, prova a mostrare il primo risultato della box
+                results.firstOrNull()?.let {
+                    mostraDettagliGeologia(it.getValueString("TIPOUNIT_1") ?: "N/D", it.getValueString("UNITAGER_1") ?: "N/D")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("GEO", "Errore interrogazione", e)
+        } finally {
+            results.close()
+        }
+    }
+    private fun mostraDettagliGeologia(tipo: String, unita: String) {
+        val messaggio = "TIPO UNITÀ: $tipo\n\nUNITÀ GERARCHICA: $unita"
+
+        // Se hai già mostraAlertDialogSemplice implementata nel fragment, usala:
+        mostraAlertDialogSemplice(messaggio)
     }
 
 
