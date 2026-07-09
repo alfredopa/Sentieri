@@ -99,6 +99,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mil.nga.geopackage.GeoPackage
@@ -237,6 +238,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     // Variabile per memorizzare una richiesta di centraggio mappa in sospeso.
     private var initialCenterPoint: GeoPoint? = GeoPoint(40.0587, 9.1122)
+
+    // Ottimizzazioni per evitare ricaricamenti ridondanti
+    private var lastSyncedToponimi: List<com.apstudio.sentieri.db.TopoMarkerData> = emptyList()
+    private var layersSyncedThisResume = false
 
     // Variabili per la registrazione audio
     private var audioFileName: String? = null
@@ -408,8 +413,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
         }
 
-        mapView.invalidate()      // Forza un singolo ridisegno alla fine di tutte le operazioni.
+        //mapView.invalidate()      // Forza un singolo ridisegno alla fine di tutte le operazioni.
         //Log.d(TAG, "invalidate onReturnFromLayerDialog.")
+        layersSyncedThisResume = true
     }
 
     // Helper function to re-attach listeners
@@ -544,18 +550,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // 2. Osserva le richieste di navigazione (da FeatureList).
         layerModel.navigateToPointRequest.observe(viewLifecycleOwner, Observer { event ->
             event.getContentIfNotHandled()?.let { clickedPoint ->
-                //Log.d(TAG, "Ricevuta richiesta di navigazione a: $clickedPoint")
                 val animationDuration = 1000L
-                Toast.makeText(requireContext(), "Spostamento in corso...", Toast.LENGTH_SHORT)
-                    .show()
+                Toast.makeText(requireContext(), "Spostamento in corso...", Toast.LENGTH_SHORT).show()
 
                 mapView.controller.animateTo(clickedPoint, 12.5, animationDuration)
 
-                Handler(Looper.getMainLooper()).postDelayed({
-                    if (_binding != null) mapView.invalidate()
-                }, animationDuration + 200)
-
-                // Logica per l'highlight marker
                 val highlightMarker = Marker(mapView).apply {
                     position = clickedPoint
                     icon = ContextCompat.getDrawable(requireContext(), R.drawable.gps_on)
@@ -563,12 +562,18 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
                 mapView.overlays.add(highlightMarker)
                 mapView.invalidate()
-                Handler(Looper.getMainLooper()).postDelayed({
-                    if (_binding != null) {
-                        mapView.overlays.remove(highlightMarker)
-                        mapView.invalidate()
-                    }
-                }, 6000)
+
+                // Una sola coroutine gestisce entrambi i "delayed" in sequenza,
+                // niente più controlli manuali su _binding: se la view viene distrutta,
+                // viewLifecycleOwner.lifecycleScope cancella automaticamente la coroutine.
+                viewLifecycleOwner.lifecycleScope.launch {
+                    delay(animationDuration + 200)
+                    mapView.invalidate()
+
+                    delay(6000 - (animationDuration + 200)) // completa il totale di 6s dall'inizio
+                    mapView.overlays.remove(highlightMarker)
+                    mapView.invalidate()
+                }
             }
         })
 
@@ -665,12 +670,13 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
         }
 
-        // 2. Inizializza la Polyline di registrazione traccia, una sola volta.
-        currentTrackPolyline = Polyline() // Crea l'oggetto
-        currentTrackPolyline.outlinePaint.color = coloreTraccia // Imposta il colore iniziale
+        // 2. Inizializza la Polyline e il Marker GPS per la NUOVA MapView.
+        // Re-creiamo gli oggetti UI ogni volta che la vista viene creata per evitare
+        // problemi di stato interno legati alla MapView precedente.
+        currentTrackPolyline = Polyline() 
+        currentTrackPolyline.outlinePaint.color = coloreTraccia
         currentTrackPolyline.outlinePaint.strokeWidth = 10f
-        mapView.overlays.add(currentTrackPolyline) // Aggiungila subito agli overlay della mappa
-        // puntatore GPS
+        
         gpsMarker = Marker(mapView)
         gpsMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
         gpsMarker.title = "Gps"
@@ -680,6 +686,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             requireContext().theme
         )
         gpsMarker.setVisible(false)
+
+        // Aggiungi alla mappa
+        mapView.overlays.add(currentTrackPolyline)
         mapView.overlays.add(gpsMarker)
 
         mapView.isFocusableInTouchMode = true
@@ -929,13 +938,19 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         LocationRepository.trackPoints.observe(viewLifecycleOwner) { fullTrack ->
             currentTrackPolyline.setPoints(fullTrack)
-            mapView.invalidate()
-            //Log.d(TAG, "LocationRepository trackPoints invalidate")
+            //bringRecordingToFront()
+            // Usiamo post per garantire che il ridisegno avvenga dopo 
+            // che tutti i layer (es. GeoPackage) hanno finito di aggiungersi
+            //mapView.post {
+            //    if (_binding != null) mapView.invalidate()
+            //}
         }
         LocationRepository.newTrackPoint.observe(viewLifecycleOwner) { newPoint ->
             currentTrackPolyline.addPoint(newPoint)
-            mapView.invalidate()
-            //Log.d(TAG, "LocationRepository newTrackPoint invalidate")
+            //bringRecordingToFront()
+            //mapView.post {
+            //    if (_binding != null) mapView.invalidate()
+            //}
         }
         ripristinaStatoMappa()
         mapView.invalidate()
@@ -1139,74 +1154,67 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
             viewModel.poi = GeoPoint(0.0, 0.0, 0.0)
         }
-        onReturnFromLayerDialog()
 
-        displayedTopoMarkers.forEach { mapView.overlays.remove(it) }
-        displayedTopoMarkers.clear()
-        if (viewModel.toponimiSelezionati.isNotEmpty()) {
-            viewModel.toponimiSelezionati.forEach { topoData ->
-                val newMarker = RemovableMarker(mapView)
-                newMarker.id = topoData.id
-                newMarker.position = GeoPoint(topoData.latitude, topoData.longitude)
-                newMarker.title = topoData.name
-                newMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                newMarker.icon = ResourcesCompat.getDrawable(
-                    requireContext().resources,
-                    R.drawable.pin_rosso, requireContext().theme
-                )
-                newMarker.setOnMarkerClickListener { marker, mv ->
-                    if (marker.isInfoWindowShown) {
-                        marker.closeInfoWindow()
-                    } else {
-                        if (marker.infoWindow == null) {
-                            marker.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mv)
-                        }
-                        marker.showInfoWindow()
-                        mv.controller.animateTo(marker.position)
-                    }
-                    true
-                }
-                newMarker.onMarkerLongClick = { markerInstance ->
-                    val toponimoDataToRemove = viewModel.toponimiSelezionati.find {
-                        it.id == markerInstance.id
-                    }
-                    if (toponimoDataToRemove != null) {
-                        viewModel.toponimiSelezionati.remove(toponimoDataToRemove)
-                        mapView.overlays.remove(markerInstance)
-                        displayedTopoMarkers.remove(markerInstance)
-                        mapView.invalidate()
-                        Toast.makeText(
-                            requireContext(),
-                            "Rimosso ${markerInstance.title}",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    true
-                }
-                displayedTopoMarkers.add(newMarker)
-                mapView.overlays.add(newMarker)
-            }
+        // 1. Sincronizzazione Toponimi (Ottimizzata)
+        if (viewModel.toponimiSelezionati != lastSyncedToponimi) {
+            syncToponimiMarkers()
+            lastSyncedToponimi = viewModel.toponimiSelezionati.toList()
+        }
+
+        // 2. Sincronizzazione Layer GeoPackage (Ottimizzata)
+        if (!layersSyncedThisResume) {
+            onReturnFromLayerDialog()
         }
 
         val hasRecordedPoints = LocationRepository.trackPointsList.isNotEmpty()
         if (hasRecordedPoints) {
             // --- RIPRISTINO STATO TRACCIA REGISTRATA ---
-            if (!mapView.overlays.contains(currentTrackPolyline)) {
-                mapView.overlays.add(currentTrackPolyline) 
-            }
-            if (!mapView.overlays.contains(gpsMarker)) {
-                mapView.overlays.add(gpsMarker)
-            }
-            
             val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
             currentTrackPolyline.setPoints(fullTrackSnapshot)
-
             gpsMarker.setVisible(viewModel.isRecording) 
-            // Invalida per essere sicuro che la traccia appaia subito
-            //mapView.invalidate()
+            
+            // Se stiamo registrando, assicuriamoci che il marker GPS sia nella posizione corretta
+            viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
+
+            // Se la registrazione era iniziata, ricarichiamo il marker di inizio nel FolderOverlay recTraccia
+            if (viewModel.isRecording && fullTrackSnapshot.isNotEmpty()) {
+                val startPoint = fullTrackSnapshot.first()
+                // Evitiamo duplicati nel FolderOverlay recTraccia
+                viewModel.recTraccia.items?.clear()
+                MapUtils.markInizioFine(
+                    requireContext(),
+                    startPoint,
+                    mapView,
+                    viewModel.recTraccia,
+                    0 // 0 = Inizio
+                )
+            }
+
+            //bringRecordingToFront()
         }
 
-        mapView.invalidate()
+        // Forza un ridisegno posticipato per risolvere eventuali race condition
+        // causate dallo spostamento programmatico della mappa (toponimi/waypoint)
+        /*viewLifecycleOwner.lifecycleScope.launch {
+            delay(500)
+            val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
+            if (fullTrackSnapshot.isNotEmpty()) {
+                currentTrackPolyline.setPoints(fullTrackSnapshot)
+            }
+            bringRecordingToFront()
+            mapView.invalidate()
+        }*/
+        /*mapView.postDelayed({
+            if (_binding != null) {
+                // Ri-sincronizza un'ultima volta per sicurezza
+                val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
+                if (fullTrackSnapshot.isNotEmpty()) {
+                    currentTrackPolyline.setPoints(fullTrackSnapshot)
+                }
+                bringRecordingToFront()
+                mapView.invalidate()
+            }
+        }, 500) // 500ms sono sufficienti per superare le animazioni di spostamento*/
         //Log.d(TAG, "onResume invalidate")
     }
 
@@ -1223,6 +1231,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mapView.onPause() //needed for compass, my location overlays, v6.0.0 and up
         layerModel.recordCurrentLayerVisibility()
         layerModel.loadingStatus.clear()
+        layersSyncedThisResume = false
         //Log.d(TAG, "onPause: Stato di caricamento dei layer resettato.")
     }
 
@@ -1293,7 +1302,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             } else {
                 online(requireContext(), mapView, viewModel, menuMap)
             }
-
+            bringRecordingToFront()
             mapView.postInvalidate()
         }
     }
@@ -2154,6 +2163,32 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
+    /**
+     * Garantisce che gli elementi della registrazione attiva (traccia, marker inizio/fine e GPS)
+     * siano sempre gli ultimi overlay nella lista, venendo così disegnati SOPRA ogni altro layer.
+     */
+    private fun bringRecordingToFront() {
+        if (_binding == null) return
+        
+        // 1. Sposta il FolderOverlay che contiene i marker di inizio/fine
+        if (mapView.overlays.contains(viewModel.recTraccia)) {
+            mapView.overlays.remove(viewModel.recTraccia)
+            mapView.overlays.add(viewModel.recTraccia)
+        }
+        
+        // 2. Sposta la Polyline del percorso corrente
+        if (::currentTrackPolyline.isInitialized && mapView.overlays.contains(currentTrackPolyline)) {
+            mapView.overlays.remove(currentTrackPolyline)
+            mapView.overlays.add(currentTrackPolyline)
+        }
+        
+        // 3. Sposta il marker della posizione GPS (deve essere il più alto in assoluto)
+        if (::gpsMarker.isInitialized && mapView.overlays.contains(gpsMarker)) {
+            mapView.overlays.remove(gpsMarker)
+            mapView.overlays.add(gpsMarker)
+        }
+    }
+
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?) {
         when (key) {
             "setBaro" -> {
@@ -2333,12 +2368,71 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             .create()
         // 5. Rendi trasparente lo sfondo della finestra del dialogo
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        // 6. Imposta il listener per il nostro pulsante personalizzato
+        // 6. Imposta le listener per il nostro pulsante personalizzato
         closeButton.setOnClickListener {
             dialog.dismiss()
         }
         // Mostra il dialogo
         dialog.show()
+    }
+
+    /**
+     * Sincronizza i marker dei toponimi sulla mappa con la lista nel ViewModel.
+     * Rimuove solo quelli necessari o ricrea la lista se cambiata significativamente.
+     */
+    private fun syncToponimiMarkers() {
+        if (!isAdded || _binding == null) return
+
+        // Per semplicità e robustezza, in questo caso svuotiamo e ricostruiamo,
+        // ma la chiamata è protetta dal controllo 'viewModel.toponimiSelezionati != lastSyncedToponimi' in onResume
+        displayedTopoMarkers.forEach { mapView.overlays.remove(it) }
+        displayedTopoMarkers.clear()
+
+        if (viewModel.toponimiSelezionati.isNotEmpty()) {
+            viewModel.toponimiSelezionati.forEach { topoData ->
+                val newMarker = RemovableMarker(mapView).apply {
+                    id = topoData.id
+                    position = GeoPoint(topoData.latitude, topoData.longitude)
+                    title = topoData.name
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                    icon = ResourcesCompat.getDrawable(
+                        requireContext().resources,
+                        R.drawable.pin_rosso, requireContext().theme
+                    )
+                    setOnMarkerClickListener { marker, mv ->
+                        if (marker.isInfoWindowShown) {
+                            marker.closeInfoWindow()
+                        } else {
+                            if (marker.infoWindow == null) {
+                                marker.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mv)
+                            }
+                            marker.showInfoWindow()
+                            mv.controller.animateTo(marker.position)
+                        }
+                        true
+                    }
+                    onMarkerLongClick = { markerInstance ->
+                        val toponimoDataToRemove = viewModel.toponimiSelezionati.find {
+                            it.id == markerInstance.id
+                        }
+                        if (toponimoDataToRemove != null) {
+                            viewModel.toponimiSelezionati.remove(toponimoDataToRemove)
+                            mapView.overlays.remove(markerInstance)
+                            displayedTopoMarkers.remove(markerInstance)
+                            mapView.invalidate()
+                            Toast.makeText(
+                                requireContext(),
+                                "Rimosso ${markerInstance.title}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        true
+                    }
+                }
+                displayedTopoMarkers.add(newMarker)
+                mapView.overlays.add(newMarker)
+            }
+        }
     }
 
     // Attorno alla riga 2297
@@ -2468,6 +2562,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             // Salva e aggiungi i nuovi overlay
             featureInfo.listOverlay = createdOverlays
             mapView.overlays.addAll(createdOverlays)
+            
+            // Riporta la registrazione in primo piano
+            bringRecordingToFront()
+
             mapView.invalidate()
             //Log.d(TAG, "Aggiunti ${createdOverlays.size} nuovi overlay per $tableName")
 
