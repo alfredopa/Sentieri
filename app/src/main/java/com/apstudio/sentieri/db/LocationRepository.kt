@@ -12,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.sql.Timestamp
 import java.util.concurrent.CopyOnWriteArrayList
+import androidx.core.content.edit
 
 object LocationRepository {
     private const val TEMP_TRACK_ID = -100
@@ -94,7 +95,7 @@ object LocationRepository {
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    fun processNewLocation(context: android.content.Context, loc: android.location.Location, msl: Double, baroPress: Float) {
+    fun processNewLocation(context: android.content.Context, loc: Location, msl: Double, baroPress: Float) {
         _location.postValue(loc)
 
         // LOGICA MSL PIÙ ROBUSTA:
@@ -149,6 +150,7 @@ object LocationRepository {
         )
         puntiGPS.add(wayPoint)
         _newTrackPoint.postValue(currentPoint)
+        _trackPoints.postValue(trackPointsList.toList())
 
         // Salva punto nel DB real-time
         repositoryScope.launch {
@@ -312,13 +314,13 @@ object LocationRepository {
                 val wayPoints = points.map {
                     val ts = try {
                         Timestamp.valueOf(it.Ora)
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         Timestamp(System.currentTimeMillis())
                     }
                     WayPoint(it.Latit.toDouble(), it.Longit.toDouble(), it.Ele.toDouble(), ts)
                 }
                 
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
                     trackPointsList.clear()
                     trackPointsList.addAll(geoPoints)
                     puntiGPS.clear()
@@ -357,7 +359,7 @@ object LocationRepository {
         previousFilteredAltitude = null
 
         // Cancella preferenze
-        context.getSharedPreferences("recording_session", android.content.Context.MODE_PRIVATE).edit().clear().apply()
+        context.getSharedPreferences("recording_session", android.content.Context.MODE_PRIVATE).edit { clear() }
         
         // Cancella punti temporanei dal DB
         repositoryScope.launch {

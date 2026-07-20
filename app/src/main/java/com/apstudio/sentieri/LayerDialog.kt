@@ -23,8 +23,6 @@ import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
-import org.osmdroid.views.overlay.Polyline
-import org.osmdroid.views.overlay.Marker
 
 // visualizza le tracce caricate nella mappa
 class LayerDialog : Fragment() {
@@ -92,8 +90,8 @@ class LayerDialog : Fragment() {
                     viewModel.trackDiscesa = clickedItem.discesa
 
                     clickedItem.segui = true
-                    for (i in 0 until viewModel.layerItems.size) {
-                        if (i != position) viewModel.layerItems[i].segui = false
+                    for ((i, element) in viewModel.layerItems.withIndex()) {
+                        if (i != position) element.segui = false
                     }
                 } else {
                     viewModel.tracciaDaSeguire = ""
