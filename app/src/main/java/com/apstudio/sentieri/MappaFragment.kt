@@ -409,6 +409,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         //mapView.invalidate()      // Forza un singolo ridisegno alla fine di tutte le operazioni.
         //Log.d(TAG, "invalidate onReturnFromLayerDialog.")
+        bringRecordingToFront()
         layersSyncedThisResume = true
     }
 
@@ -675,6 +676,13 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // Aggiungi alla mappa
         mapView.overlays.add(currentTrackPolyline)
         mapView.overlays.add(gpsMarker)
+        
+        // Popolamento immediato se stiamo registrando
+        if (viewModel.isRecording) {
+            currentTrackPolyline.setPoints(LocationRepository.getFullTrackSnapshot())
+            gpsMarker.setVisible(true)
+            viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
+        }
 
         // 3. Assicura che il GeoPackage sia aperto e la configurazione caricata.
         // Questo è necessario per recuperare i layer selezionati in precedenza 
@@ -1019,6 +1027,26 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
             }
 
+            // 5. Assicura che la traccia in registrazione sia visibile e in cima
+            if (viewModel.isRecording || LocationRepository.trackPointsList.isNotEmpty()) {
+                if (!mapView.overlays.contains(currentTrackPolyline)) {
+                    mapView.overlays.add(currentTrackPolyline)
+                }
+                if (!mapView.overlays.contains(gpsMarker)) {
+                    mapView.overlays.add(gpsMarker)
+                }
+                
+                // Forza il ripopolamento dei punti se la polilinea è vuota (es. dopo ricreazione vista)
+                if (currentTrackPolyline.actualPoints.isEmpty() && LocationRepository.trackPointsList.isNotEmpty()) {
+                    currentTrackPolyline.setPoints(LocationRepository.getFullTrackSnapshot())
+                }
+                
+                gpsMarker.setVisible(viewModel.isRecording)
+                if (viewModel.isRecording) {
+                    viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
+                }
+            }
+
             bringRecordingToFront()
             mapView.invalidate()
         }
@@ -1237,8 +1265,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         syncLayerVisuals()
 
-        val hasRecordedPoints = LocationRepository.trackPointsList.isNotEmpty()
-        if (hasRecordedPoints) {
+        if (viewModel.isRecording || LocationRepository.trackPointsList.isNotEmpty()) {
             // --- RIPRISTINO STATO TRACCIA REGISTRATA ---
             val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
             currentTrackPolyline.setPoints(fullTrackSnapshot)
@@ -1260,32 +1287,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     0 // 0 = Inizio
                 )
             }
-
-            //bringRecordingToFront()
         }
-
-        // Forza un ridisegno posticipato per risolvere eventuali race condition
-        // causate dallo spostamento programmatico della mappa (toponimi/waypoint)
-        /*viewLifecycleOwner.lifecycleScope.launch {
-            delay(500)
-            val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
-            if (fullTrackSnapshot.isNotEmpty()) {
-                currentTrackPolyline.setPoints(fullTrackSnapshot)
-            }
-            bringRecordingToFront()
-            mapView.invalidate()
-        }*/
-        /*mapView.postDelayed({
-            if (_binding != null) {
-                // Ri-sincronizza un'ultima volta per sicurezza
-                val fullTrackSnapshot = LocationRepository.getFullTrackSnapshot()
-                if (fullTrackSnapshot.isNotEmpty()) {
-                    currentTrackPolyline.setPoints(fullTrackSnapshot)
-                }
-                bringRecordingToFront()
-                mapView.invalidate()
-            }
-        }, 500) // 500ms sono sufficienti per superare le animazioni di spostamento*/
         
         mapView.invalidate()
         //Log.d(TAG, "onResume invalidate")
