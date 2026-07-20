@@ -72,7 +72,8 @@ object MapUtils {
      * @param pendenze Lista opzionale di pendenze. Se null, usa l'altitudine dei punti.
      */
     fun disegnaPercorsoColorato(line: Polyline, pendenze: List<Float>? = null) {
-        val values = pendenze ?: line.actualPoints.map { it.altitude.toFloat() }
+        line.id = "percorso"
+        val values = pendenze ?: try { line.actualPoints.map { it.altitude.toFloat() } } catch (e: Exception) { emptyList() }
         if (values.isEmpty()) return
 
         val minVal: Float
@@ -239,7 +240,7 @@ object MapUtils {
         return MapTileProviderBasic(context, source)
     }
 
-    fun alertSegui(context: Context, viewModel: SentieriViewModel, line: Polyline) {
+    fun alertSegui(context: Context, viewModel: SentieriViewModel, nomeTraccia: String, punti: List<GeoPoint>) {
         val builder = AlertDialog.Builder(context, R.style.AlertDialogCustom)
         with(builder) {
             setTitle("Importa traccia")
@@ -251,51 +252,70 @@ object MapUtils {
 
             setView(dialogView)
             setPositiveButton("Segui") { _, _ ->
+                val targetTitle = nomeTraccia.trim()
+                val existingItem = viewModel.layerItems.find { it.nome.trim().equals(targetTitle, ignoreCase = true) }
+                
                 if (viewModel.tracciaDaSeguire != "") {
                     alertVerificaSegui(context) { segui ->
                         if (segui) {
                             viewModel.layerItems.forEach { it.segui = false }
-                            viewModel.layerItems.add(LayerItem(line.title, line.isEnabled,
-                                direzione = false,
-                                segui = true,
-                                distanza = viewModel.trackDistanza,
-                                ascesa = viewModel.trackAscesa,
-                                discesa = viewModel.trackDiscesa
-                            ))
-                            //Log.d("layerItems", "alertSegui ${viewModel.layerItems.size}")
+                            if (existingItem != null) {
+                                val updated = existingItem.copy(segui = true, abilitato = true, punti = punti)
+                                viewModel.layerItems[viewModel.layerItems.indexOf(existingItem)] = updated
+                            } else {
+                                viewModel.layerItems.add(LayerItem(nomeTraccia, true,
+                                    direzione = false,
+                                    segui = true,
+                                    distanza = viewModel.trackDistanza,
+                                    ascesa = viewModel.trackAscesa,
+                                    discesa = viewModel.trackDiscesa,
+                                    punti = punti
+                                ))
+                            }
                         } else {
-                            viewModel.layerItems.add(LayerItem(line.title, line.isEnabled,
-                                direzione = false,
-                                segui = false,
-                                distanza = viewModel.trackDistanza,
-                                ascesa = viewModel.trackAscesa,
-                                discesa = viewModel.trackDiscesa
-                            ))
-                            //Log.d("layerItems", "alertSegui ${viewModel.layerItems.size}")
+                            if (existingItem == null) {
+                                viewModel.layerItems.add(LayerItem(nomeTraccia, true,
+                                    direzione = false,
+                                    segui = false,
+                                    distanza = viewModel.trackDistanza,
+                                    ascesa = viewModel.trackAscesa,
+                                    discesa = viewModel.trackDiscesa,
+                                    punti = punti
+                                ))
+                            }
                         }
                     }
                 } else {
-                    viewModel.layerItems.add(LayerItem(line.title, line.isEnabled,
-                        direzione = false,
-                        segui = true,
-                        distanza = viewModel.trackDistanza,
-                        ascesa = viewModel.trackAscesa,
-                        discesa = viewModel.trackDiscesa
-                    ))
-                    //Log.d("layerItems", "alertSegui ${viewModel.layerItems.size}")
+                    if (existingItem != null) {
+                        val updated = existingItem.copy(segui = true, abilitato = true, punti = punti)
+                        viewModel.layerItems[viewModel.layerItems.indexOf(existingItem)] = updated
+                    } else {
+                        viewModel.layerItems.add(LayerItem(nomeTraccia, true,
+                            direzione = false,
+                            segui = true,
+                            distanza = viewModel.trackDistanza,
+                            ascesa = viewModel.trackAscesa,
+                            discesa = viewModel.trackDiscesa,
+                            punti = punti
+                        ))
+                    }
                 }
-                viewModel.tracciaDaSeguire = line.title
+                viewModel.tracciaDaSeguire = nomeTraccia
                 viewModel.alertFuoriTraccia = true
+                viewModel.requestMapInvalidate()
             }
             setNegativeButton(android.R.string.cancel) { _, _ ->
-                viewModel.layerItems.add(LayerItem(line.title, line.isEnabled,
-                    direzione = false,
-                    segui = false,
-                    distanza = viewModel.trackDistanza,
-                    ascesa = viewModel.trackAscesa,
-                    discesa = viewModel.trackDiscesa
-                ))
-                //Log.d("layerItems", "alertSegui ${viewModel.layerItems.size}")
+                if (viewModel.layerItems.none { it.nome == nomeTraccia }) {
+                    viewModel.layerItems.add(LayerItem(nomeTraccia, true,
+                        direzione = false,
+                        segui = false,
+                        distanza = viewModel.trackDistanza,
+                        ascesa = viewModel.trackAscesa,
+                        discesa = viewModel.trackDiscesa,
+                        punti = punti
+                    ))
+                }
+                viewModel.requestMapInvalidate()
             }
             show()
         }
@@ -474,6 +494,7 @@ object MapUtils {
     }
 
     fun disegnaLineaSfondo(line: Polyline) {
+        line.id = "sfondo"
         line.outlinePaintLists.clear()
         line.setMilestoneManagers(ArrayList())
         line.outlinePaintLists.add(MonochromaticPaintList(Paint().apply {
@@ -482,8 +503,8 @@ object MapUtils {
     }
 
     fun calcolaPendenzeSmussate(line: Polyline, finestra: Int = 10): MutableList<Float> {
-        val punti = line.actualPoints
-        if (punti.size < 2) return mutableListOf()
+        val punti = try { line.actualPoints } catch (e: Exception) { emptyList() }
+        if (punti.isEmpty() || punti.size < 2) return mutableListOf()
         val nette = mutableListOf<Float>().apply { add(0f) }
         for (i in 1 until punti.size) {
             val dist = punti[i-1].distanceToAsDouble(punti[i])

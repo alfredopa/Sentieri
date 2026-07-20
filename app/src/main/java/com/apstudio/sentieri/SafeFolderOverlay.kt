@@ -13,34 +13,25 @@ import org.osmdroid.views.overlay.FolderOverlay
 class SafeFolderOverlay : FolderOverlay() {
 
     override fun onDetach(mapView: MapView?) {
+        // Log.d("SafeFolderOverlay", "onDetach called for $name")
         // We call onDetach on the internal manager but we DO NOT set it to null.
         // This prevents the NPE in draw() when the overlay is reused.
+        // Note: osmdroid's FolderOverlay.onDetach() normally sets mOverlayManager = null.
+        // By NOT doing that, we keep the items alive for the next MapView.
         mOverlayManager?.onDetach(mapView)
     }
 
-    override fun draw(canvas: Canvas?, osmv: MapView?, shadow: Boolean) {
+    /**
+     * Ensures the internal manager is properly linked to the current MapView before drawing.
+     */
+    override fun draw(canvas: android.graphics.Canvas?, osmv: MapView?, shadow: Boolean) {
         if (shadow) return
-        if (mOverlayManager == null) return
-        super.draw(canvas, osmv, shadow)
-    }
-
-    override fun onSingleTapConfirmed(e: MotionEvent?, mapView: MapView?): Boolean {
-        if (mOverlayManager == null) return false
-        return super.onSingleTapConfirmed(e, mapView)
-    }
-
-    override fun onSingleTapUp(e: MotionEvent?, mapView: MapView?): Boolean {
-        if (mOverlayManager == null) return false
-        return super.onSingleTapUp(e, mapView)
-    }
-
-    override fun onLongPress(e: MotionEvent?, mapView: MapView?): Boolean {
-        if (mOverlayManager == null) return false
-        return super.onLongPress(e, mapView)
-    }
-
-    override fun onTouchEvent(event: MotionEvent?, mapView: MapView?): Boolean {
-        if (mOverlayManager == null) return false
-        return super.onTouchEvent(event, mapView)
+        if (osmv == null) return
+        
+        try {
+            super.draw(canvas, osmv, shadow)
+        } catch (e: Exception) {
+            // Log.e("SafeFolderOverlay", "Error during draw: ${e.message}")
+        }
     }
 }

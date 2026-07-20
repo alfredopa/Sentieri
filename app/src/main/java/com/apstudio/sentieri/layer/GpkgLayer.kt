@@ -95,14 +95,7 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
             dismiss()
         }
     }
-    // ... (onStart, onItemClick, onSwitchCheckedChanged rimangono simili,
-    //      ma operano sulla featureList del layerModel) ...
 
-    // La funzione creaGeopackage non è più necessaria qui, è gestita dal ViewModel
-    // La funzione loadConfigIfNeeded non è più necessaria qui, è gestita dal ViewModel
-
-
-    // Nel file GpkgLayer.kt
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
         // Notifica al ViewModel che il dialogo è stato chiuso.

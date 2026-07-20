@@ -15,30 +15,27 @@
             app:argType="string"
             app:nullable="true"
             android:defaultValue="@null" />
+        <!-- Rimosso popUpTo: quando vai in un'altra schermata, la mappa deve restare sotto nel back stack -->
         <action
             android:id="@+id/action_mappaFragment_to_sentieriFragment"
-            app:destination="@id/sentieriFragment"
-            app:popUpTo="@id/mappaFragment" />
+            app:destination="@id/sentieriFragment" />
         <action
             android:id="@+id/action_mappaFragment_to_salvaGpxFragment"
-            app:destination="@id/salvaGpxFragment"
-            app:popUpTo="@id/mappaFragment" />
+            app:destination="@id/salvaGpxFragment" />
         <action
             android:id="@+id/action_mappaFragment_to_barometro"
             app:destination="@id/barometro" />
         <action
             android:id="@+id/action_mappaFragment_to_cameraFragment"
-            app:destination="@id/cameraFragment"
-            app:popUpTo="@id/mappaFragment" />
+            app:destination="@id/cameraFragment" />
         <action
             android:id="@+id/action_mappaFragment_to_layerDialog"
-            app:destination="@id/layerDialog"
-            app:popUpTo="@id/mappaFragment" />
+            app:destination="@id/layerDialog" />
         <action
             android:id="@+id/action_mappaFragment_to_gpkgLayer"
-            app:destination="@id/gpkgLayer"
-            app:popUpTo="@id/mappaFragment" />
+            app:destination="@id/gpkgLayer" />
     </fragment>
+
     <fragment
         android:id="@+id/sentieriFragment"
         android:name="com.apstudio.sentieri.SentieriFragment"
@@ -47,8 +44,10 @@
         <action
             android:id="@+id/action_sentieriFragment_to_schedaFragment"
             app:destination="@id/schedaFragment"
-            app:popUpTo="@id/sentieriFragment" />
+            app:popUpTo="@id/sentieriFragment"
+            app:popUpToInclusive="true" />
     </fragment>
+
     <fragment
         android:id="@+id/schedaFragment"
         android:name="com.apstudio.sentieri.SchedaFragment"
@@ -58,17 +57,19 @@
             android:name="idSentiero"
             app:argType="integer"
             android:defaultValue="1" />
+        <!-- Modificato: Rimuove la scheda e torna alla mappa originale senza ricrearla -->
         <action
             android:id="@+id/action_schedaFragment_to_mappaFragment"
             app:destination="@id/mappaFragment"
             app:launchSingleTop="true"
             app:popUpTo="@id/mappaFragment"
-            app:popUpToInclusive="true" />
+            app:popUpToInclusive="false" />
         <action
             android:id="@+id/action_schedaFragment_to_altGrafFragment"
             app:destination="@id/altGrafFragment"
             app:popUpTo="@id/schedaFragment" />
     </fragment>
+
     <fragment
         android:id="@+id/altGrafFragment"
         android:name="com.apstudio.sentieri.AltGrafFragment"
@@ -79,18 +80,22 @@
             android:defaultValue="0"
             app:argType="integer" />
     </fragment>
+
     <fragment
         android:id="@+id/salvaGpxFragment"
         android:name="com.apstudio.sentieri.SalvaGpxFragment"
         android:label="SalvaGpxFragment" />
+
     <fragment
         android:id="@+id/preferenze"
         android:name="com.apstudio.sentieri.Preferenze"
         android:label="Impostazioni" />
+
     <fragment
         android:id="@+id/barometro"
         android:name="com.apstudio.sentieri.Barometro"
         android:label="Calibrazione barometro" />
+
     <dialog
         android:id="@+id/dlgFragment"
         android:name="com.apstudio.sentieri.DlgFragment"
@@ -99,6 +104,7 @@
             android:id="@+id/action_dlgFragment_to_barometro"
             app:destination="@id/barometro" />
     </dialog>
+
     <fragment
         android:id="@+id/cameraFragment"
         android:name="com.apstudio.sentieri.CameraFragment"
@@ -109,23 +115,25 @@
             app:argType="string"
             android:defaultValue="" />
     </fragment>
+
     <fragment
         android:id="@+id/poiFragment"
         android:name="com.apstudio.sentieri.PoiFragment"
         android:label="Elenco waypoint"
         tools:layout="@layout/fragment_poi" >
+        <!-- Modificato: popUpToInclusive a false -->
         <action
             android:id="@+id/action_poiFragment_to_mappaFragment"
             app:destination="@id/mappaFragment"
             app:launchSingleTop="true"
             app:popUpTo="@id/mappaFragment"
-            app:popUpToInclusive="true" />
+            app:popUpToInclusive="false" />
         <action
             android:id="@+id/action_poiFragment_to_cameraFragment"
             app:destination="@id/cameraFragment"
-            app:popUpTo="@id/poiFragment" >
-        </action>
+            app:popUpTo="@id/poiFragment" />
     </fragment>
+
     <fragment
         android:id="@+id/layerDialog"
         android:name="com.apstudio.sentieri.LayerDialog"
@@ -138,13 +146,15 @@
             android:name="nomeTraccia"
             app:argType="string"
             app:nullable="true" />
+        <!-- Modificato: popUpToInclusive a false -->
         <action
             android:id="@+id/action_layerDialog_to_mappaFragment"
             app:destination="@id/mappaFragment"
             app:launchSingleTop="true"
             app:popUpTo="@id/mappaFragment"
-            app:popUpToInclusive="true" />
+            app:popUpToInclusive="false" />
     </fragment>
+
     <dialog
         android:id="@+id/gpkgLayer"
         android:name="com.apstudio.sentieri.layer.GpkgLayer"
@@ -153,23 +163,27 @@
             android:id="@+id/action_gpkgLayer_to_featureList"
             app:destination="@id/featureList" />
     </dialog>
+
     <fragment
         android:id="@+id/featureList"
         android:name="com.apstudio.sentieri.layer.FeatureList"
         android:label="Elenco dati del layer"
         tools:layout="@layout/fragment_feature_list_list" />
+
     <fragment
         android:id="@+id/toponimiFragment"
         android:name="com.apstudio.sentieri.layer.ToponimiFragment"
         android:label="Ricerca toponimi"
         tools:layout="@layout/fragment_toponimi_list" >
+        <!-- Modificato: popUpToInclusive a false -->
         <action
             android:id="@+id/action_toponimiFragment_to_mappaFragment"
             app:destination="@id/mappaFragment"
             app:launchSingleTop="true"
             app:popUpTo="@id/mappaFragment"
-            app:popUpToInclusive="true" />
+            app:popUpToInclusive="false" />
     </fragment>
+
     <fragment
         android:id="@+id/aboutFragment"
         android:name="com.apstudio.sentieri.AboutFragment"
