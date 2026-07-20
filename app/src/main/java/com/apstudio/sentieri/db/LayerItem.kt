@@ -8,5 +8,7 @@ data class LayerItem(
     val distanza: Float,
     val ascesa: Int,
     val discesa: Int,
-    var mostraPendenza: Boolean = true
+    var mostraPendenza: Boolean = true,
+    val punti: List<org.osmdroid.util.GeoPoint> = emptyList(),
+    var waypoints: List<net.federicomatera.agpxp.models.WayPoint> = emptyList()
 )

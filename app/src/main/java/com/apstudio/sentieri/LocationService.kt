@@ -17,7 +17,11 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.lifecycleScope
 import com.apstudio.sentieri.db.LocationRepository
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * LocationService is a foreground service responsible for tracking the device's location
@@ -94,6 +98,7 @@ class LocationService : LifecycleService() {
     private var speedKnots: Double = 0.0
     private var speedKmh: Int = 0
     private var wakeLock: PowerManager.WakeLock? = null
+    private var timerJob: kotlinx.coroutines.Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -111,6 +116,26 @@ class LocationService : LifecycleService() {
         initializeNmeaListener()
         requestLocationUpdates()
         initializeBarometer()
+        
+        // Ripristina lo stato della sessione se necessario
+        LocationRepository.restoreSessionState(this)
+        startTimerIfRecording()
+    }
+
+    private fun startTimerIfRecording() {
+        if (LocationRepository.isRecording && timerJob == null) {
+            timerJob = lifecycleScope.launch {
+                while (true) {
+                    LocationRepository.incrementMovementSeconds()
+                    delay(1000)
+                }
+            }
+        }
+    }
+
+    private fun stopTimer() {
+        timerJob?.cancel()
+        timerJob = null
     }
 
     private fun initializeGnssCallback() {
@@ -148,6 +173,7 @@ class LocationService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        startTimerIfRecording()
         val activityType =
             intent?.getStringExtra("ACTIVITY_TYPE") ?: "mtb" // Usa mountain_bike se null
         //Log.d(TAG, "Servizio avviato con tipo attività: $activityType")
@@ -182,7 +208,7 @@ class LocationService : LifecycleService() {
             val baroPress = baroRepo.getLatestPressure() ?: 0.0f
 
             // Avvia l'elaborazione nel Repository (avviene nel Foreground Service)
-            LocationRepository.processNewLocation(newLocation, mslAltitude, baroPress)
+            LocationRepository.processNewLocation(this, newLocation, mslAltitude, baroPress)
         }
     }
 
@@ -277,6 +303,7 @@ class LocationService : LifecycleService() {
     }
 
     override fun onDestroy() {
+        stopTimer()
         stopBarometer()
         LocationRepository.updateGpsStatus("stopped")
         removeLocationUpdates()

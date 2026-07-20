@@ -29,6 +29,7 @@ abstract class SentieriDB : RoomDatabase() {
                         .createFromAsset("sentieri.db")
                         //.addMigrations(MIGRATION_1_2)
                         .build()
+                    INSTANCE = instance
                 }
                 return instance
             }

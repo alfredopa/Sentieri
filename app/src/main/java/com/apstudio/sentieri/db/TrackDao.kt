@@ -24,6 +24,9 @@ interface TrackDao {
     @Insert
     suspend fun insertDB(item: Track) : Long
 
+    @Query("UPDATE Track SET TrackId = :newId WHERE TrackId = :oldId")
+    suspend fun updateTrackId(oldId: Int, newId: Int): Int
+
     @Query("DELETE FROM Track where TrackId = :trackid")
     suspend fun deleteTrack(trackid: Int): Int
 }

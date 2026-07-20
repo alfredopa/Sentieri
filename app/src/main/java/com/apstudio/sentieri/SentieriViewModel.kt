@@ -52,7 +52,9 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         GeoPackageFactory.getManager(getApplication())
     }
 
-    var listaTracce: SafeFolderOverlay = SafeFolderOverlay() // overlay per aggiungere le tracce da gpx e db
+    // Liste di dati persistenti per rigenerare gli overlay
+    var waypointItems = mutableListOf<WayPoint>()
+    
     var recTraccia = SafeFolderOverlay() // overlay per traccia in registrazione e marker inizio e fine
     var topoLayer = SafeFolderOverlay()
     var puntiDaSeguire =
@@ -113,8 +115,14 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             loc.bearing
         )
     }
-    // valori visualizzati nel cruscotto
-    var oraInizio: Long = 0
+    init {
+        LocationRepository.restoreSessionState(application)
+    }
+
+    // values displayed in the dashboard
+    var oraInizio: Long
+        get() = LocationRepository.oraInizio
+        set(value) { LocationRepository.oraInizio = value }
     var elapsedTime: Long = 0
     private val _tempoTrascorso = MutableLiveData<String>()
     val tempoTrascorso: LiveData<String> = _tempoTrascorso
@@ -229,7 +237,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     // Assicurati che resetCruscotto sia completo
     fun resetCruscotto() {
-        clearTrack()
+        clearTrack(getApplication())
         alertFuoriTraccia = false
 
         // --- AZZERAMENTO DELLO STATO CRITICO ---

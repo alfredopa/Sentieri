@@ -6,10 +6,15 @@ import androidx.lifecycle.MutableLiveData
 import com.apstudio.sentieri.MapUtils
 import net.federicomatera.agpxp.models.WayPoint
 import org.osmdroid.util.GeoPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.sql.Timestamp
 import java.util.concurrent.CopyOnWriteArrayList
 
 object LocationRepository {
+    private const val TEMP_TRACK_ID = -100
     private const val MOVING_AVERAGE_WINDOW_SIZE = 15
     private const val GPS_ALTITUDE_SPIKE_THRESHOLD = 25.0
     private const val MIN_VARIATION_THRESHOLD_GPS = 2.0
@@ -20,6 +25,7 @@ object LocationRepository {
 
     // Stato sessione
     var isRecording = false
+    var oraInizio = 0L
     var isFixed = false
     var normalPressure = 1013.25f
     var usaBaro = false
@@ -86,7 +92,9 @@ object LocationRepository {
     private val _trackPoints = MutableLiveData<List<GeoPoint>>()
     val trackPoints: LiveData<List<GeoPoint>> = _trackPoints
 
-    fun processNewLocation(loc: Location, msl: Double, baroPress: Float) {
+    private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    fun processNewLocation(context: android.content.Context, loc: android.location.Location, msl: Double, baroPress: Float) {
         _location.postValue(loc)
 
         // LOGICA MSL PIÙ ROBUSTA:
@@ -132,15 +140,31 @@ object LocationRepository {
         // 1. Aggiungiamo SEMPRE il punto alla traccia visiva sulla mappa,
         // anche durante il warm-up, altrimenti la linea non appare.
         trackPointsList.add(currentPoint)
-        puntiGPS.add(
-            WayPoint(
-                currentPoint.latitude,
-                currentPoint.longitude,
-                currentPoint.altitude,
-                Timestamp(System.currentTimeMillis())
-            )
+        val ts = Timestamp(System.currentTimeMillis())
+        val wayPoint = WayPoint(
+            currentPoint.latitude,
+            currentPoint.longitude,
+            currentPoint.altitude,
+            ts
         )
+        puntiGPS.add(wayPoint)
         _newTrackPoint.postValue(currentPoint)
+
+        // Salva punto nel DB real-time
+        repositoryScope.launch {
+            val db = SentieriDB.getInstance(context)
+            db.trackDao().insertDB(
+                Track(
+                    Id = 0,
+                    Trackid = TEMP_TRACK_ID,
+                    Latit = currentPoint.latitude.toFloat(),
+                    Longit = currentPoint.longitude.toFloat(),
+                    Ele = currentPoint.altitude.toFloat(),
+                    Ora = ts.toString()
+                )
+            )
+        }
+        saveSessionState(context)
 
         // 2. Logica di Warm-up (solo per i calcoli statistici di dislivello e distanza)
         if (!isFixed) {
@@ -249,8 +273,76 @@ object LocationRepository {
 
     fun getFullTrackSnapshot(): List<GeoPoint> = trackPointsList.toList()
 
-    fun clearTrack() {
+    fun saveSessionState(context: android.content.Context) {
+        val prefs = context.getSharedPreferences("recording_session", android.content.Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putBoolean("isRecording", isRecording)
+            putLong("oraInizio", oraInizio)
+            putInt("accumuloDistanzaMetri", accumuloDistanzaMetri)
+            putFloat("accumuloDislivPiu", accumuloDislivPiu.toFloat())
+            putFloat("accumuloDislivMeno", accumuloDislivMeno.toFloat())
+            putLong("secondiMovimento", secondiMovimento)
+            putBoolean("isFixed", isFixed)
+            putBoolean("usaBaro", usaBaro)
+            putFloat("normalPressure", normalPressure)
+            apply()
+        }
+    }
+
+    fun restoreSessionState(context: android.content.Context) {
+        val prefs = context.getSharedPreferences("recording_session", android.content.Context.MODE_PRIVATE)
+        if (prefs.getBoolean("isRecording", false)) {
+            isRecording = true
+            oraInizio = prefs.getLong("oraInizio", 0L)
+            accumuloDistanzaMetri = prefs.getInt("accumuloDistanzaMetri", 0)
+            accumuloDislivPiu = prefs.getFloat("accumuloDislivPiu", 0.0f).toDouble()
+            accumuloDislivMeno = prefs.getFloat("accumuloDislivMeno", 0.0f).toDouble()
+            secondiMovimento = prefs.getLong("secondiMovimento", 0L)
+            isFixed = prefs.getBoolean("isFixed", false)
+            usaBaro = prefs.getBoolean("usaBaro", false)
+            normalPressure = prefs.getFloat("normalPressure", 1013.25f)
+
+            // Ripristina i punti dal DB
+            repositoryScope.launch {
+                val db = SentieriDB.getInstance(context)
+                val points = db.trackDao().getTraccia(TEMP_TRACK_ID)
+                val geoPoints = points.map { 
+                    GeoPoint(it.Latit.toDouble(), it.Longit.toDouble(), it.Ele.toDouble())
+                }
+                val wayPoints = points.map {
+                    val ts = try {
+                        Timestamp.valueOf(it.Ora)
+                    } catch (e: Exception) {
+                        Timestamp(System.currentTimeMillis())
+                    }
+                    WayPoint(it.Latit.toDouble(), it.Longit.toDouble(), it.Ele.toDouble(), ts)
+                }
+                
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    trackPointsList.clear()
+                    trackPointsList.addAll(geoPoints)
+                    puntiGPS.clear()
+                    puntiGPS.addAll(wayPoints)
+                    
+                    _trackPoints.value = geoPoints
+                    _distanzaMetri.value = accumuloDistanzaMetri
+                    _dislivPiu.value = accumuloDislivPiu
+                    _dislivMeno.value = accumuloDislivMeno
+                    _secondiMovimento.value = secondiMovimento
+                }
+            }
+        }
+    }
+
+    suspend fun finalizeSession(context: android.content.Context, realTrackId: Int) {
+        val db = SentieriDB.getInstance(context)
+        db.trackDao().updateTrackId(TEMP_TRACK_ID, realTrackId)
+        clearTrack(context)
+    }
+
+    fun clearTrack(context: android.content.Context) {
         isRecording = false
+        oraInizio = 0L
         isFixed = false
         accumuloDistanzaMetri = 0
         accumuloDislivPiu = 0.0
@@ -264,19 +356,27 @@ object LocationRepository {
         gpsAltitudeHistory.clear()
         previousFilteredAltitude = null
 
-        trackPointsList.clear()
-        puntiGPS.clear()
+        // Cancella preferenze
+        context.getSharedPreferences("recording_session", android.content.Context.MODE_PRIVATE).edit().clear().apply()
+        
+        // Cancella punti temporanei dal DB
+        repositoryScope.launch {
+            val db = SentieriDB.getInstance(context)
+            db.trackDao().deleteTrack(TEMP_TRACK_ID)
+        }
 
-        // NOTIFICA IL RESET ALLA UI
-        _trackPoints.postValue(emptyList())
-
-        _distanzaMetri.postValue(0)
-        _dislivPiu.postValue(0.0)
-        _dislivMeno.postValue(0.0)
-        _quota.postValue(0)
-        _pendenza.postValue(0)
-        _velocitaKmh.postValue(0)
-        _secondiMovimento.postValue(0L)
-        _mslAltitude.postValue(0.0)
+        repositoryScope.launch(Dispatchers.Main) {
+            trackPointsList.clear()
+            puntiGPS.clear()
+            _trackPoints.value = emptyList()
+            _distanzaMetri.value = 0
+            _dislivPiu.value = 0.0
+            _dislivMeno.value = 0.0
+            _quota.value = 0
+            _pendenza.value = 0
+            _velocitaKmh.value = 0
+            _secondiMovimento.value = 0L
+            _mslAltitude.value = 0.0
+        }
     }
 }

@@ -192,8 +192,8 @@ private suspend fun actuallyOpenAndConfigGeoPackage(): Boolean = withContext(Dis
                 val contents = contentsDao?.queryForId(tableName)
                 // se il campo description è vuoto, non aggiungi la tabella alla lista dei layer
                 if (contents?.description != "") {
-                    // Logica per determinare isVisible (es. da preferenze, o default)
-                    val isVisibleInitially = false // O leggi da una configurazione persistente
+                    // Ripristina la visibilità dallo stato salvato in precedenza, se esiste.
+                    val isVisibleInitially = lastKnownVisibilityState?.get(tableName) ?: false
                     // Descrizione - potresti volerla rendere più dinamica o configurabile
                     val description = contents?.identifier ?: "Nessuna descrizione"
                     // Colore - default o da configurazione

@@ -263,74 +263,89 @@ class SchedaFragment : Fragment(), MenuProvider {
                 }
             }
             // verifica se traccia da seguire e se esiste già una traccia da seguire
+            val targetTitle = viewModel.titoloTracciaDaSeguire.trim()
+            val existingItem = viewModel.layerItems.find { it.nome.trim().equals(targetTitle, ignoreCase = true) }
+            
             if (swcSegui.isChecked) {
                 if (viewModel.tracciaDaSeguire != "") {
                     alertVerificaSegui(requireContext()) { segui ->
                         if (segui) {
                             // resetta tracce con flag segui true
-                            viewModel.layerItems.forEach {
-                                it.segui = false
-                            }
-                            // aggiunge traccia con flag segui true alla lista layerItems e imposta alert
-                            viewModel.layerItems.add(
-                                LayerItem(
-                                    viewModel.titoloTracciaDaSeguire,
-                                    true,
-                                    direzione = false,
-                                    segui = true,
-                                    distanza = viewModel.trackDistanza,
-                                    ascesa = viewModel.trackAscesa,
-                                    discesa = viewModel.trackDiscesa
+                            viewModel.layerItems.forEach { it.segui = false }
+                            
+                            if (existingItem != null) {
+                                existingItem.abilitato = true
+                                existingItem.segui = true
+                            } else {
+                                viewModel.layerItems.add(
+                                    LayerItem(
+                                        viewModel.titoloTracciaDaSeguire,
+                                        true,
+                                        direzione = false,
+                                        segui = true,
+                                        distanza = viewModel.trackDistanza,
+                                        ascesa = viewModel.trackAscesa,
+                                        discesa = viewModel.trackDiscesa
+                                    )
                                 )
-                            )
+                            }
                             viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
                             viewModel.alertFuoriTraccia = true
-                            // L'utente ha premuto "Segui"
-                            // Esegui le azioni per seguire la traccia
                         } else {
-                            // aggiunge traccia con flag segui false alla lista layerItems
-                            viewModel.layerItems.add(
-                                LayerItem(
-                                    viewModel.titoloTracciaDaSeguire,
-                                    true,
-                                    direzione = false,
-                                    segui = false,
-                                    distanza = viewModel.trackDistanza,
-                                    ascesa = viewModel.trackAscesa,
-                                    discesa = viewModel.trackDiscesa
+                            if (existingItem != null) {
+                                existingItem.abilitato = true
+                            } else {
+                                viewModel.layerItems.add(
+                                    LayerItem(
+                                        viewModel.titoloTracciaDaSeguire,
+                                        true,
+                                        direzione = false,
+                                        segui = false,
+                                        distanza = viewModel.trackDistanza,
+                                        ascesa = viewModel.trackAscesa,
+                                        discesa = viewModel.trackDiscesa
+                                    )
                                 )
-                            )
-                            // L'utente ha premuto "Annulla"
-                            // Esegui le azioni per annullare l'operazione
+                            }
                         }
                     }
+                } else {
+                    if (existingItem != null) {
+                        existingItem.abilitato = true
+                        existingItem.segui = true
+                    } else {
+                        viewModel.layerItems.add(
+                            LayerItem(
+                                viewModel.titoloTracciaDaSeguire,
+                                true,
+                                direzione = false,
+                                segui = true,
+                                distanza = viewModel.trackDistanza,
+                                ascesa = viewModel.trackAscesa,
+                                discesa = viewModel.trackDiscesa
+                            )
+                        )
+                    }
+                    viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
+                    viewModel.alertFuoriTraccia = true
+                }
+            } else {
+                if (existingItem != null) {
+                    existingItem.abilitato = true
                 } else {
                     viewModel.layerItems.add(
                         LayerItem(
                             viewModel.titoloTracciaDaSeguire,
                             true,
                             direzione = false,
-                            segui = true,
+                            segui = false,
                             distanza = viewModel.trackDistanza,
                             ascesa = viewModel.trackAscesa,
                             discesa = viewModel.trackDiscesa
                         )
                     )
-                    viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
-                    viewModel.alertFuoriTraccia = true
                 }
-            } else
-                viewModel.layerItems.add(
-                    LayerItem(
-                        viewModel.titoloTracciaDaSeguire,
-                        true,
-                        direzione = false,
-                        segui = false,
-                        distanza = viewModel.trackDistanza,
-                        ascesa = viewModel.trackAscesa,
-                        discesa = viewModel.trackDiscesa
-                    )
-                )
+            }
 
             findNavController().navigate(R.id.action_schedaFragment_to_mappaFragment)
         }

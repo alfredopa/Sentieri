@@ -24,6 +24,7 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
 import org.osmdroid.views.overlay.Polyline
+import org.osmdroid.views.overlay.Marker
 
 // visualizza le tracce caricate nella mappa
 class LayerDialog : Fragment() {
@@ -59,56 +60,23 @@ class LayerDialog : Fragment() {
         rcvLayer = recyclerView
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         val layerAdapter = LayerAdapter(viewModel.layerItems)
-        Log.d("listaTracce", "LayerDialog onViewCreated ${viewModel.listaTracce.items?.size ?: 0}")
+        Log.d("listaTracce", "LayerDialog onViewCreated ${viewModel.layerItems.size}")
         recyclerView.adapter = layerAdapter
         
         layerAdapter.setOnItemClickListener(object : OnLayerClickListener {
 
             override fun onswcVisibileClick(position: Int, isChecked: Boolean) {
-                val item = viewModel.layerItems[position]
-                item.abilitato = isChecked
-                val targetName = item.nome.trim().lowercase()
-                
-                viewModel.listaTracce.items?.forEach { overlay ->
-                    if (overlay is Polyline && (overlay.title ?: "").trim().lowercase() == targetName) {
-                        overlay.isEnabled = isChecked
-                    }
-                }
+                viewModel.layerItems[position].abilitato = isChecked
                 viewModel.requestMapInvalidate()
             }
 
             override fun onswcDirezioneClick(position: Int, isChecked: Boolean) {
-                val item = viewModel.layerItems[position]
-                item.direzione = isChecked
-                val targetName = item.nome.trim().lowercase()
-
-                viewModel.listaTracce.items?.forEach { overlay ->
-                    if (overlay is Polyline && (overlay.title ?: "").trim().lowercase() == targetName) {
-                        if (isChecked) {
-                            MapUtils.applicaFrecceDirezione(overlay)
-                        } else {
-                            overlay.setMilestoneManagers(ArrayList())
-                        }
-                    }
-                }
+                viewModel.layerItems[position].direzione = isChecked
                 viewModel.requestMapInvalidate()
             }
 
             override fun onswcQuotaPendenzaClick(position: Int, isChecked: Boolean) {
-                val item = viewModel.layerItems[position]
-                item.mostraPendenza = isChecked
-                val targetName = item.nome.trim().lowercase()
-                
-                viewModel.listaTracce.items?.forEach { overlay ->
-                    if (overlay is Polyline && (overlay.title ?: "").trim().lowercase() == targetName) {
-                        if (isChecked) {
-                            val pendenze = MapUtils.calcolaPendenzeSmussate(overlay, 8)
-                            MapUtils.disegnaPercorsoColorato(overlay, pendenze)
-                        } else {
-                            MapUtils.disegnaPercorsoColorato(overlay)
-                        }
-                    }
-                }
+                viewModel.layerItems[position].mostraPendenza = isChecked
                 viewModel.requestMapInvalidate()
             }
 
@@ -152,62 +120,59 @@ class LayerDialog : Fragment() {
                     }
                     layout.addView(infoText)
 
-                    // CERCA LA POLYLINE PER I PUNTI DEL GRAFICO
+                    // CERCA IL LAYERITEM PER I PUNTI DEL GRAFICO
                     val targetName = item.nome.trim().lowercase()
-                    var polyline: Polyline? = null
-                    viewModel.listaTracce.items?.forEach { overlay ->
-                        if (overlay is Polyline && (overlay.title ?: "").trim().lowercase() == targetName) {
-                            polyline = overlay
-                        }
-                    }
+                    val layerItem = viewModel.layerItems.find { it.nome.trim().lowercase() == targetName }
 
-                    polyline?.let { line ->
-                        val chartEntries = MapUtils.getPuntiInterpolati(line.actualPoints)
-                        if (chartEntries.isNotEmpty()) {
-                            val lineChart = LineChart(context).apply {
-                                layoutParams = LinearLayout.LayoutParams(
-                                    LinearLayout.LayoutParams.MATCH_PARENT,
-                                    450 // Altezza per il grafico nel dialogo
-                                ).apply {
-                                    topMargin = 20
-                                }
-                                description.isEnabled = false
-                                legend.isEnabled = false
-                                isDragEnabled = false
-                                setScaleEnabled(false)
-
-                                val textColor = ContextCompat.getColor(context, R.color.grafico_text_color)
-                                
-                                xAxis.apply {
-                                    granularity = 1f
-                                    this.position = XAxis.XAxisPosition.BOTTOM
-                                    this.textColor = textColor
-                                    valueFormatter = object : ValueFormatter() {
-                                        override fun getFormattedValue(value: Float): String = "${value.toInt()} km"
+                    layerItem?.let { li ->
+                        if (li.punti.isNotEmpty()) {
+                            val chartEntries = MapUtils.getPuntiInterpolati(li.punti)
+                            if (chartEntries.isNotEmpty()) {
+                                val lineChart = LineChart(context).apply {
+                                    layoutParams = LinearLayout.LayoutParams(
+                                        LinearLayout.LayoutParams.MATCH_PARENT,
+                                        450 // Altezza per il grafico nel dialogo
+                                    ).apply {
+                                        topMargin = 20
                                     }
-                                }
+                                    description.isEnabled = false
+                                    legend.isEnabled = false
+                                    isDragEnabled = false
+                                    setScaleEnabled(false)
 
-                                axisLeft.apply {
-                                    this.textColor = textColor
-                                    valueFormatter = object : ValueFormatter() {
-                                        override fun getFormattedValue(value: Float): String = "${value.toInt()} m"
+                                    val textColor = ContextCompat.getColor(context, R.color.grafico_text_color)
+                                    
+                                    xAxis.apply {
+                                        granularity = 1f
+                                        this.position = XAxis.XAxisPosition.BOTTOM
+                                        this.textColor = textColor
+                                        valueFormatter = object : ValueFormatter() {
+                                            override fun getFormattedValue(value: Float): String = "${value.toInt()} km"
+                                        }
                                     }
-                                }
-                                axisRight.isEnabled = false
 
-                                val dataSet = LineDataSet(chartEntries, "Profilo Altimetrico").apply {
-                                    color = Color.RED
-                                    setDrawFilled(true)
-                                    fillColor = Color.CYAN
-                                    mode = LineDataSet.Mode.CUBIC_BEZIER
-                                    setDrawCircles(false)
-                                    setDrawValues(false)
-                                    lineWidth = 2f
+                                    axisLeft.apply {
+                                        this.textColor = textColor
+                                        valueFormatter = object : ValueFormatter() {
+                                            override fun getFormattedValue(value: Float): String = "${value.toInt()} m"
+                                        }
+                                    }
+                                    axisRight.isEnabled = false
+
+                                    val dataSet = LineDataSet(chartEntries, "Profilo Altimetrico").apply {
+                                        color = Color.RED
+                                        setDrawFilled(true)
+                                        fillColor = Color.CYAN
+                                        mode = LineDataSet.Mode.CUBIC_BEZIER
+                                        setDrawCircles(false)
+                                        setDrawValues(false)
+                                        lineWidth = 2f
+                                    }
+                                    data = LineData(dataSet)
+                                    invalidate()
                                 }
-                                data = LineData(dataSet)
-                                invalidate()
+                                layout.addView(lineChart)
                             }
-                            layout.addView(lineChart)
                         }
                     }
 
