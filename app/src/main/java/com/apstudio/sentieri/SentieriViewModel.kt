@@ -189,7 +189,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             } else 0
         }
         addSource(distanzaMetri) { update() }
-        addSource(tracciaDaSeguireLiveData) { update() }
+        addSource( tracciaDaSeguireLiveData) { update() }
     }
 
     val remainingDPiu = MediatorLiveData<Double>().apply {
@@ -238,8 +238,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     // Assicurati che resetCruscotto sia completo
     fun resetCruscotto() {
         clearTrack(getApplication())
-        alertFuoriTraccia = false
-
         // --- AZZERAMENTO DELLO STATO CRITICO ---
         isFixed = false
         oldPunto = GeoPoint(0.0, 0.0, 0.0)
