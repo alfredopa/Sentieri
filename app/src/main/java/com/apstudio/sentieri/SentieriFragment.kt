@@ -7,6 +7,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.SearchView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.MenuHost
@@ -59,6 +60,15 @@ class SentieriFragment : Fragment() {
                 val search = menu.findItem(R.id.menu_search)
                 val searchView = search.actionView as SearchView
                 searchView.isSubmitButtonEnabled = true
+                searchView.setIconifiedByDefault(false)
+                searchView.queryHint = "Ricerca sentiero"
+
+                // Nascondi il pulsante di chiusura (X) per forzare l'uso del tasto indietro
+                val closeButtonId = searchView.context.resources.getIdentifier("android:id/search_close_btn", null, null)
+                val closeButton = searchView.findViewById<ImageView>(closeButtonId)
+                closeButton?.visibility = View.GONE
+                closeButton?.setImageDrawable(null)
+
                 // Imposta la query iniziale se è già presente nel ViewModel
                 if (viewModel.ricerca.isNotEmpty()) {
                     search.expandActionView() // Espandi la search view
@@ -80,28 +90,40 @@ class SentieriFragment : Fragment() {
                         val query = newText.orEmpty()
                         viewModel.ricerca = query
                         cercaNome(query)
-
-                        // --- LOGICA CHIAVE PER L'ANNULLAMENTO ---
-                        // Se la query diventa vuota (perché l'utente ha premuto 'X' o cancellato tutto)
+                        
+                        // Se la query è vuota, mostriamo comunque tutti i sentieri
                         if (query.isEmpty()) {
-                            // Forziamo la chiusura della SearchView e ripristiniamo la lista completa
-                            searchView.isIconified = true // Collassa la SearchView (la "iconifica")
-                            search.collapseActionView()   // Assicura che l'action view si chiuda
-                            displaySentieriList()         // Ricarica la lista originale
+                            displaySentieriList()
                             (activity as? AppCompatActivity)?.supportActionBar?.title = "Elenco sentieri"
+                        } else {
+                            (activity as? AppCompatActivity)?.supportActionBar?.title = "Filtro: $query"
                         }
+
+                        // Forza la scomparsa del pulsante X che SearchView tenta di mostrare
+                        closeButton?.visibility = View.GONE
+                        
+                        return true
+                    }
+                })
+
+                search.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+                    override fun onMenuItemActionExpand(item: MenuItem): Boolean {
+                        return true
+                    }
+
+                    override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                        // Reset totale quando si chiude la barra di ricerca
+                        viewModel.ricerca = ""
+                        displaySentieriList()
+                        (activity as? AppCompatActivity)?.supportActionBar?.title = "Elenco sentieri"
                         return true
                     }
                 })
 
                 searchView.setOnCloseListener {
-                    // 1. Pulisci la variabile di stato della ricerca
-                    viewModel.ricerca = ""
-                    // 2. Richiama la funzione che carica la lista completa e ordinata
-                    displaySentieriList()
-                    // 3. Resetta il titolo dell'ActionBar (opzionale ma consigliato)
-                    (activity as? AppCompatActivity)?.supportActionBar?.title = "Elenco sentieri"
-                    true // Indica che hai gestito l'evento
+                    // Ritorna true per impedire alla SearchView di chiudersi internamente (iconify)
+                    // La chiusura è delegata al tasto indietro della toolbar (CollapseActionView)
+                    true 
                 }
 
             }

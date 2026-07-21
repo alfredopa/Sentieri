@@ -43,9 +43,7 @@
         tools:layout="@layout/fragment_sentieri" >
         <action
             android:id="@+id/action_sentieriFragment_to_schedaFragment"
-            app:destination="@id/schedaFragment"
-            app:popUpTo="@id/sentieriFragment"
-            app:popUpToInclusive="true" />
+            app:destination="@id/schedaFragment" />
     </fragment>
 
     <fragment
