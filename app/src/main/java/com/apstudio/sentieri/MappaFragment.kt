@@ -485,6 +485,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        isViewRecreated = true
         TooltipCompat.setTooltipText(binding.btnMenu, "Apre il menu")
         TooltipCompat.setTooltipText(binding.camera, "Scatta una foto")
         TooltipCompat.setTooltipText(binding.fabBlocMappa,"Abilita riposizionamento della mappa automatico")
@@ -1041,6 +1042,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     currentTrackPolyline.setPoints(LocationRepository.getFullTrackSnapshot())
                 }
                 
+                // Assicura che il colore sia quello corrente
+                currentTrackPolyline.outlinePaint.color = coloreTraccia
+                
                 gpsMarker.setVisible(viewModel.isRecording)
                 if (viewModel.isRecording) {
                     viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
@@ -1140,6 +1144,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         WindowInsetsControllerCompat(requireActivity().window, requireActivity().window.decorView).isAppearanceLightStatusBars = true
         mapView.onResume()
         preferenze.registerOnSharedPreferenceChangeListener(this)
+        
+        // Assicurati che il colore della traccia sia aggiornato dalle preferenze
+        val defaultColorArgb = ContextCompat.getColor(requireContext(), R.color.red)
+        coloreTraccia = preferenze.getInt("colore_traccia", defaultColorArgb)
+        if (::currentTrackPolyline.isInitialized) {
+            currentTrackPolyline.outlinePaint.color = coloreTraccia
+        }
+
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
         //Log.d("onResume", "${viewModel.recTraccia})")
 
@@ -1260,7 +1272,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // Se non è stata ricreata, sincronizziamo solo se non è stato già fatto in questo onResume.
         if (!layersSyncedThisResume || isViewRecreated) {
             onReturnFromLayerDialog()
-            isViewRecreated = false // Resetta il flag dopo la sincronizzazione
         }
 
         syncLayerVisuals()
@@ -1289,6 +1300,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
         }
         
+        isViewRecreated = false // Resetta il flag dopo la sincronizzazione
         mapView.invalidate()
         //Log.d(TAG, "onResume invalidate")
     }
@@ -1434,6 +1446,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 // ferma aggiornamenti posizione ui e ferma servizio LocationService
         // //Log.d("Posizione","Stop servizio")
         requireActivity().stopService(Intent(context, LocationService::class.java))
+        viewModel.tracciaDaSeguire = ""
+        viewModel.layerItems.forEach {item ->
+            item.segui = false
+        }
         viewModel.stopUpdates()
         viewModel.isRecording = false
         binding.fabBlocMappa.isVisible = false
@@ -1515,6 +1531,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // pulizia totale prima di iniziare
         viewModel.isRecording = false
         viewModel.resetCruscotto() // Questo chiama internamente LocationRepository.clearTrack()
+        viewModel.alertFuoriTraccia = true
         LocationRepository.clearTrack(requireContext()) // Chiamata esplicita per sicurezza
         viewModel.recTraccia.items?.clear()
         viewModel.isFixed = false
