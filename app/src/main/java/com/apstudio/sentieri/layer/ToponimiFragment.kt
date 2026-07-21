@@ -52,24 +52,20 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
         SentieriFactory(repository, application)
     }
 
-    // Variabile per memorizzare l'ultima query
-    private var lastQuery: String? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
             columnCount = it.getInt(ARG_COLUMN_COUNT)
         }
-        savedInstanceState?.getString("last_query")?.let { lastQuery = it }
     }
 
 
     // Se vuoi una persistenza più robusta (es. attraverso la distruzione del processo)
-    // dovresti salvare e ripristinare lastQuery in onSaveInstanceState.
+    // dovresti salvare e ripristinare la query in onSaveInstanceState se non usi SavedStateHandle
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        if (!lastQuery.isNullOrBlank()) {
-            outState.putString("last_query", lastQuery)
+        if (!viewModel.toponimiSearchQuery.isNullOrBlank()) {
+            outState.putString("last_query", viewModel.toponimiSearchQuery)
         }
     }
 
@@ -92,14 +88,20 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
                 else -> GridLayoutManager(context, columnCount)
             }
             adapter = toponimiAdapter
-            if (!lastQuery.isNullOrBlank()) {
-                cercaRecord(lastQuery)
+            
+            // Ripristina i dati dal ViewModel se presenti
+            viewModel.toponimiSearchResults?.let {
+                toponimiAdapter.updateData(it)
+            } ?: run {
+                if (!viewModel.toponimiSearchQuery.isNullOrBlank()) {
+                    cercaRecord(viewModel.toponimiSearchQuery)
+                }
             }
         }
 
         binding.searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
-                lastQuery = query // Salva l'ultima query
+                viewModel.toponimiSearchQuery = query // Salva l'ultima query nel ViewModel
                 cercaRecord(query)
                 binding.searchView.clearFocus()
                 return true
@@ -107,18 +109,18 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
 
             override fun onQueryTextChange(newText: String?): Boolean {
                 if (newText.isNullOrEmpty() && !binding.searchView.isIconified) {
-                    // Se l'utente cancella manualmente il testo, pulisci i risultati e lastQuery
-                    lastQuery = null
+                    // Se l'utente cancella manualmente il testo, pulisci i risultati e la query
+                    viewModel.toponimiSearchQuery = null
+                    viewModel.toponimiSearchResults = null
                     toponimiAdapter.updateData(emptyList())
                 }
                 return true
             }
         })
 
-        // Ripristina l'ultima ricerca se presente
-        if (!lastQuery.isNullOrBlank()) {
-            binding.searchView.setQuery(lastQuery, false)
-            cercaRecord(lastQuery)
+        // Ripristina l'ultima ricerca visiva se presente
+        if (!viewModel.toponimiSearchQuery.isNullOrBlank()) {
+            binding.searchView.setQuery(viewModel.toponimiSearchQuery, false)
         }
     }
 
@@ -149,15 +151,17 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
 
     private fun cercaRecord(query: String?) {
         if (featureDao == null) {
+            viewModel.toponimiSearchResults = null
             toponimiAdapter.updateData(emptyList())
             return
         }
         if (query.isNullOrBlank()) {
+            viewModel.toponimiSearchResults = null
             toponimiAdapter.updateData(emptyList())
             return
         }
 
-        lastQuery = query
+        viewModel.toponimiSearchQuery = query
         if (binding.searchView.query.toString() != query) {
              binding.searchView.setQuery(query, false)
         }
@@ -190,6 +194,7 @@ class ToponimiFragment : Fragment(), ToponimiRecyclerViewAdapter.OnItemClickList
         } catch (e: Exception) {
             Log.e("ToponimiFragment", "Errore durante l'esecuzione della query: ${e.message}", e)
         }
+        viewModel.toponimiSearchResults = risultatiRicerca
         toponimiAdapter.updateData(risultatiRicerca)
     }
 

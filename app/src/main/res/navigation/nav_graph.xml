@@ -175,13 +175,11 @@
         android:name="com.apstudio.sentieri.layer.ToponimiFragment"
         android:label="Ricerca toponimi"
         tools:layout="@layout/fragment_toponimi_list" >
-        <!-- Modificato: popUpToInclusive a false -->
+        <!-- Rimosso popUpTo per mantenere lo stato del frammento nel backstack -->
         <action
             android:id="@+id/action_toponimiFragment_to_mappaFragment"
             app:destination="@id/mappaFragment"
-            app:launchSingleTop="true"
-            app:popUpTo="@id/mappaFragment"
-            app:popUpToInclusive="false" />
+            app:launchSingleTop="true" />
     </fragment>
 
     <fragment
