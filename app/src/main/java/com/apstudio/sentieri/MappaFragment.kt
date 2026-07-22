@@ -455,19 +455,17 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
 
             is Polyline -> {
-                //Log.d("ListenerDebug", "Ri-attacco InfoWindow per Polyline")
+                //Log.d("ListenerDebug", "Ri-attacco Listener per Polyline")
                 // Recuperiamo i dati e verifichiamo se è il layer CAI
                 val lineFeature = overlay.relatedObject as? LineStringFeature
-                overlay.setOnClickListener { clickedPolyline, map, eventPosition ->
-                    val iw = if (clickedPolyline.id?.contains("Sentieri CAI") == true) {
-                        WebsiteInfoWindow(lineFeature!!, map)
+                overlay.setOnClickListener { clickedPolyline, _, _ ->
+                    if (clickedPolyline.id?.contains("Sentieri CAI") == true && lineFeature != null) {
+                        mostraDettagliSentieroCai(lineFeature)
                     } else {
-                        BasicInfoWindow(R.layout.bonuspack_bubble, map)
+                        // Fallback per altre polilinee se necessario
+                        clickedPolyline.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
+                        clickedPolyline.showInfoWindow()
                     }
-                    clickedPolyline.infoWindow = iw
-                    clickedPolyline.infoWindowLocation = eventPosition
-                    clickedPolyline.showInfoWindow()
-                    map.controller.animateTo(eventPosition)
                     true
                 }
             }
@@ -1028,7 +1026,24 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
             }
 
-            // 5. Assicura che la traccia in registrazione sia visibile e in cima
+            // 5. Gestione navigazione a POI selezionato (apertura InfoWindow)
+            if (viewModel.poi != GeoPoint(0.0, 0.0, 0.0)) {
+                val target = viewModel.poi
+                tracksFolder.items.forEach { overlay ->
+                    if (overlay is Marker) {
+                        // Tolleranza per il confronto tra coordinate
+                        if (Math.abs(overlay.position.latitude - target.latitude) < 0.0001 &&
+                            Math.abs(overlay.position.longitude - target.longitude) < 0.0001) {
+                            
+                            overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
+                            overlay.showInfoWindow()
+                        }
+                    }
+                }
+                viewModel.poi = GeoPoint(0.0, 0.0, 0.0) // Richiesta gestita
+            }
+
+            // 6. Assicura che la traccia in registrazione sia visibile e in cima
             if (viewModel.isRecording || LocationRepository.trackPointsList.isNotEmpty()) {
                 if (!mapView.overlays.contains(currentTrackPolyline)) {
                     mapView.overlays.add(currentTrackPolyline)
@@ -1251,12 +1266,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
 
         if (viewModel.poi != GeoPoint(0.0, 0.0, 0.0)) {
-            // Cerchiamo il marker rigenerato basandoci sulla posizione o titolo
-            // Dato che abbiamo rigenerato tutto, non possiamo usare il vecchio riferimento.
-            // syncLayerVisuals() è già stato chiamato o lo sarà a breve.
-            // Per ora forziamo un'animazione alla posizione.
+            // Centra la mappa immediatamente.
+            // La InfoWindow verrà aperta in syncLayerVisuals() dopo la rigenerazione dei marker.
             mapView.controller.animateTo(viewModel.poi, viewModel.ultZoom.toDouble(), 0)
-            viewModel.poi = GeoPoint(0.0, 0.0, 0.0)
         }
 
         // 1. Sincronizzazione Toponimi (Ottimizzata)
@@ -2711,22 +2723,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             // Imposta lo snippet, servirà alla BasicInfoWindow
             osmdroidPolyline.snippet = lineFeature.description
 
-            // IMPOSTA UN LISTENER "INTELLIGENTE" CHE CREA LA FINESTRA AL MOMENTO DEL CLICK
-            osmdroidPolyline.setOnClickListener { clickedPolyline, map, eventPosition ->
-                // 1. Crea la InfoWindow "just-in-time" usando la 'map' VALIDA fornita dal listener
-                val iw = if (featureInfo.name == "Sentieri CAI") {
-                    WebsiteInfoWindow(lineFeature, map)
-                } else {
-                    BasicInfoWindow(R.layout.bonuspack_bubble, map)
-                }
-
-                // 2. Assegna e mostra la InfoWindow appena creata
-                clickedPolyline.infoWindow = iw
-                clickedPolyline.infoWindowLocation = eventPosition
-                clickedPolyline.showInfoWindow()
-
-                // 3. Centra la mappa sul punto
-                map.controller.animateTo(eventPosition)
+            // IMPOSTA UN LISTENER "INTELLIGENTE" CHE APRE UN DIALOGO AL MOMENTO DEL CLICK
+            osmdroidPolyline.setOnClickListener { _, _, _ ->
+                mostraDettagliSentieroCai(lineFeature)
                 true // Evento gestito
             }
             // 2. Aggiungi la Polyline di osmdroid al FolderOverlay
@@ -2975,6 +2974,45 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             indexManager.close() // Chiudi l'indexManager per rilasciare la connessione al DB metadata
         }
     }
+    private fun mostraDettagliSentieroCai(lineFeature: LineStringFeature) {
+        if (!isAdded) return
+        
+        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.custom_info_window, null)
+        val titleView: TextView = dialogView.findViewById(R.id.bubble_title)
+        val descriptionView: TextView = dialogView.findViewById(R.id.bubble_description)
+        val websiteButton: Button = dialogView.findViewById(R.id.bubble_website_button)
+        val closeButton: Button = dialogView.findViewById(R.id.dialog_close_button)
+
+        titleView.text = lineFeature.title
+        descriptionView.text = lineFeature.description
+
+        val dialog = AlertDialog.Builder(requireContext())
+            .setView(dialogView)
+            .create()
+
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        if (!lineFeature.website.isNullOrBlank()) {
+            websiteButton.visibility = View.VISIBLE
+            websiteButton.setOnClickListener {
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, lineFeature.website.toUri())
+                    startActivity(intent)
+                } catch (_: Exception) {
+                    Toast.makeText(context, "Impossibile aprire il link", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } else {
+            websiteButton.visibility = View.GONE
+        }
+
+        closeButton.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.show()
+    }
+
     private fun mostraDettagliGeologia(tipo: String, unita: String) {
         val messaggio = "TIPO UNITÀ: $tipo\n\nUNITÀ GERARCHICA: $unita"
 
@@ -3619,56 +3657,4 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
-    inner class WebsiteInfoWindow(
-        private val lineFeature: LineStringFeature,
-        mapView: MapView
-    ) : InfoWindow(R.layout.custom_info_window, mapView) {
-
-        override fun onOpen(item: Any?) {
-            // Chiude altre finestre eventualmente aperte
-            closeAllInfoWindowsOn(mapView)
-
-            val titleView: TextView = mView.findViewById(R.id.bubble_title)
-            val descriptionView: TextView = mView.findViewById(R.id.bubble_description)
-            val websiteButton: Button = mView.findViewById(R.id.bubble_website_button)
-            val chiduButton: Button = mView.findViewById(R.id.dialog_close_button)
-            // Popola i dati
-            titleView.text = lineFeature.title
-            descriptionView.text = lineFeature.description
-
-            // Imposta la visibilità e il listener per il pulsante del sito web
-            if (!lineFeature.website.isNullOrBlank()) {
-                websiteButton.visibility = View.VISIBLE
-                websiteButton.setOnClickListener {
-                    try {
-                        val intent = Intent(Intent.ACTION_VIEW, lineFeature.website.toUri())
-                        // Usa il contesto del fragment per avviare l'activity
-                        context?.startActivity(intent)
-                    } catch (e: Exception) {
-                        Toast.makeText(
-                            context,
-                            "Impossibile aprire il link",
-                            Toast.LENGTH_SHORT
-                        )
-                            .show()
-                        Log.e(TAG, "Errore nell'aprire il link dall'InfoWindow", e)
-                    }
-                }
-            } else {
-                websiteButton.visibility = View.GONE
-            }
-            // Imposta un OnClickListener sulla vista principale dell'infowindow
-            // per chiuderla quando viene toccata.
-            chiduButton.setOnClickListener {
-                close() // Chiude questa InfoWindow
-            }
-        }
-
-        override fun onClose() {
-            // Rimuovi i listener per prevenire memory leak, se necessario.
-            // In questo caso, non è strettamente richiesto perché i listener
-            // vengono ricreati ogni volta che la finestra si apre.
-            mView.setOnClickListener(null)
-        }
-    }
 }
