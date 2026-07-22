@@ -49,4 +49,11 @@ class GeoPackageFeatureTileModule(
     }
 
     override fun getUsesDataConnection(): Boolean = false
+
+    fun close() {
+        try {
+            featureTiles.close()
+        } catch (_: Exception) {
+        }
+    }
 }
