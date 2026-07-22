@@ -103,12 +103,12 @@ class LayerViewModel(application: Application) : AndroidViewModel(application) {
     fun openGeoPackageAndLoadConfig() {
         // Se è già stato caricato con successo, non fare nulla.
         if (isReady.value == true) {
-            Log.d(TAG, "ViewModel e GeoPackage sono già pronti.")
+            //Log.d(TAG, "ViewModel e GeoPackage sono già pronti.")
             return
         }
         // Se è già in corso, non avviarlo di nuovo.
         if (loadingStatus["_global_"] == true) {
-            Log.d(TAG, "Caricamento del GeoPackage già in corso.")
+            //Log.d(TAG, "Caricamento del GeoPackage già in corso.")
             return
         }
 
@@ -179,7 +179,7 @@ private suspend fun actuallyOpenAndConfigGeoPackage(): Boolean = withContext(Dis
         (configurator.loadConfigFromFile() as? MutableMap<String, List<FieldSchemaInfo>>)?.also {
             //(configurator.loadConfigFromFile() as? MutableMap<String, List<Pair<String, Boolean>>>)?.also {
             labelConfig = it
-            Log.d(TAG, "LabelConfig loaded successfully.")
+            //Log.d(TAG, "LabelConfig loaded successfully.")
         } ?: Log.e(TAG, "Failed to load or cast labelConfig.")
 
         // 2. Popola featureList

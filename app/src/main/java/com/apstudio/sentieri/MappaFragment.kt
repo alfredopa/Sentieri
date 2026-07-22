@@ -376,10 +376,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // Itera su tutti i layer e sincronizza il loro stato con la mappa attuale.
         layerModel.featureList.forEach { featureInfo ->
             if (featureInfo.isVisible) {
-                // Se è il layer geologico, lo ricreiamo SEMPRE per evitare il blocco dei thread del TileProvider
-                // che si verifica dopo il detach della MapView precedente (es. quando si torna da un altro Fragment).
-                if (featureInfo.name == "area_geologica") {
-                    featureInfo.listOverlay?.let { mapView.overlays.removeAll(it) }
+                // Se è il layer geologico O se la vista è stata appena ricreata,
+                // dobbiamo forzare la rigenerazione degli overlay (specialmente quelli vettoriali)
+                // perché i vecchi oggetti sono legati alla MapView precedente.
+                if (featureInfo.name == "area_geologica" || isViewRecreated) {
+                    featureInfo.listOverlay?.let { overlays ->
+                        overlays.forEach { it.onDetach(mapView) }
+                        mapView.overlays.removeAll(overlays)
+                    }
                     featureInfo.listOverlay?.clear()
                 }
 
@@ -962,61 +966,102 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
      */
     private fun syncLayerVisuals() {
         if (_binding == null) return
-        val layers = viewModel.layerItems
+        val layers = viewModel.layerItems.toList() // Copia istantanea dei dati
         
-        // Sincronizzazione basata sui DATI del ViewModel
-        mapView.post {
-            if (_binding == null) return@post
-            
-            // Pulisci il folder corrente prima di rigenerare
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+            // Pulisci il folder corrente (operazione UI veloce)
             tracksFolder.items.clear()
             
-            // 1. Rigenera percorsi dai layerItems
-            layers.forEach { item ->
-                if (!item.abilitato || item.punti.isEmpty()) return@forEach
+            // Area per raccogliere gli overlay preparati in background
+            val preparedOverlays = withContext(Dispatchers.Default) {
+                val list = mutableListOf<org.osmdroid.views.overlay.Overlay>()
                 
-                // Crea linea di sfondo
-                val lineSfondo = Polyline(mapView).apply {
-                    id = "sfondo"
-                    title = item.nome
-                    setPoints(item.punti)
-                    disegnaLineaSfondo(this)
+                // 1. Rigenera percorsi dai layerItems
+                layers.forEach { item ->
+                    if (!item.abilitato || item.punti.isEmpty()) return@forEach
+                    
+                    // Crea linea di sfondo (operazione grafica veloce)
+                    val lineSfondo = Polyline(mapView).apply {
+                        id = "sfondo"
+                        title = item.nome
+                        setPoints(item.punti)
+                        disegnaLineaSfondo(this)
+                    }
+                    list.add(lineSfondo)
+                    
+                    // Crea linea di percorso
+                    val linePercorso = Polyline(mapView).apply {
+                        id = "percorso"
+                        title = item.nome
+                        setPoints(item.punti)
+                    }
+                    
+                    // Applica stili (operazioni pesanti: calcoli matematici e paint lists)
+                    if (item.direzione) {
+                        MapUtils.applicaFrecceDirezione(linePercorso)
+                    }
+                    if (item.mostraPendenza) {
+                        val pendenze = MapUtils.calcolaPendenzeSmussate(linePercorso, 8)
+                        disegnaPercorsoColorato(linePercorso, pendenze)
+                    } else {
+                        disegnaPercorsoColorato(linePercorso)
+                    }
+                    
+                    // Aggiungiamo i listener nel thread principale dopo
+                    lineSfondo.relatedObject = item // Salviamo il riferimento per il listener
+                    list.add(linePercorso)
+                    
+                    // Prepariamo i marker di inizio/fine
+                    val startMarker = Marker(mapView).apply {
+                        position = item.punti.first()
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_start)
+                        title = "Partenza"
+                    }
+                    val endMarker = Marker(mapView).apply {
+                        position = item.punti.last()
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_finish)
+                        title = "Arrivo"
+                    }
+                    list.add(startMarker)
+                    list.add(endMarker)
                 }
-                tracksFolder.add(lineSfondo)
                 
-                // Crea linea di percorso
-                val linePercorso = Polyline(mapView).apply {
-                    id = "percorso"
-                    title = item.nome
-                    setPoints(item.punti)
+                // 2. Rigenera Waypoint globali
+                viewModel.wayPoint.forEach { wp ->
+                    val marker = Marker(mapView).apply {
+                        title = wp.name
+                        position = GeoPoint(wp.latitude, wp.longitude, wp.elevation ?: 0.0)
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        icon = ResourcesCompat.getDrawable(resources, R.drawable.ic_finish, null)
+                    }
+                    list.add(marker)
                 }
                 
-                // Applica stili
-                if (item.direzione) {
-                    MapUtils.applicaFrecceDirezione(linePercorso)
+                // 3. Rigenera POI della sessione
+                viewModel.poiDBList.forEach { poi ->
+                    val marker = Marker(mapView).apply {
+                        title = poi.NomePOI
+                        position = GeoPoint(poi.Latit, poi.Longit, poi.Ele)
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        icon = ResourcesCompat.getDrawable(resources, R.drawable.ic_finish, null)
+                    }
+                    list.add(marker)
                 }
-                if (item.mostraPendenza) {
-                    val pendenze = MapUtils.calcolaPendenzeSmussate(linePercorso, 8)
-                    disegnaPercorsoColorato(linePercorso, pendenze)
-                } else {
-                    disegnaPercorsoColorato(linePercorso)
-                }
-                
-                setPolylineClickListener(lineSfondo)
-                tracksFolder.add(linePercorso)
-                
-                // Aggiungi marker inizio/fine
-                addMarkerToFolder(item.punti, tracksFolder)
+                list
             }
+
+            // Tornati sul Main Thread: aggiungiamo gli overlay e i listener
+            if (_binding == null) return@launch
             
-            // 2. Rigenera Waypoint globali del ViewModel
-            viewModel.wayPoint.forEach { waypoint ->
-                addWaypointMarkerToFolder(waypoint, tracksFolder)
-            }
-            
-            // 3. Rigenera POI della sessione corrente
-            viewModel.poiDBList.forEach { poi ->
-                addPoiMarkerToFolder(poi, tracksFolder)
+            preparedOverlays.forEach { overlay ->
+                tracksFolder.add(overlay)
+                if (overlay is Polyline && overlay.id == "sfondo") {
+                    setPolylineClickListener(overlay)
+                } else if (overlay is Marker) {
+                    setMarkerClickListener(overlay)
+                }
             }
 
             // 4. Ripristina marker di destinazione BRouter se attivo
@@ -1026,21 +1071,19 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
             }
 
-            // 5. Gestione navigazione a POI selezionato (apertura InfoWindow)
+            // 5. Gestione navigazione a POI selezionato
             if (viewModel.poi != GeoPoint(0.0, 0.0, 0.0)) {
                 val target = viewModel.poi
                 tracksFolder.items.forEach { overlay ->
                     if (overlay is Marker) {
-                        // Tolleranza per il confronto tra coordinate
                         if (Math.abs(overlay.position.latitude - target.latitude) < 0.0001 &&
                             Math.abs(overlay.position.longitude - target.longitude) < 0.0001) {
-                            
                             overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
                             overlay.showInfoWindow()
                         }
                     }
                 }
-                viewModel.poi = GeoPoint(0.0, 0.0, 0.0) // Richiesta gestita
+                viewModel.poi = GeoPoint(0.0, 0.0, 0.0)
             }
 
             // 6. Assicura che la traccia in registrazione sia visibile e in cima
@@ -1051,15 +1094,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 if (!mapView.overlays.contains(gpsMarker)) {
                     mapView.overlays.add(gpsMarker)
                 }
-                
-                // Forza il ripopolamento dei punti se la polilinea è vuota (es. dopo ricreazione vista)
                 if (currentTrackPolyline.actualPoints.isEmpty() && LocationRepository.trackPointsList.isNotEmpty()) {
                     currentTrackPolyline.setPoints(LocationRepository.getFullTrackSnapshot())
                 }
-                
-                // Assicura che il colore sia quello corrente
                 currentTrackPolyline.outlinePaint.color = coloreTraccia
-                
                 gpsMarker.setVisible(viewModel.isRecording)
                 if (viewModel.isRecording) {
                     viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
@@ -1069,46 +1107,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             bringRecordingToFront()
             mapView.invalidate()
         }
-    }
-
-    private fun addMarkerToFolder(points: List<GeoPoint>, folder: FolderOverlay) {
-        if (points.isEmpty()) return
-        val startMarker = Marker(mapView).apply {
-            position = points.first()
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_start)
-            title = "Partenza"
-        }
-        val endMarker = Marker(mapView).apply {
-            position = points.last()
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_finish)
-            title = "Arrivo"
-        }
-        folder.add(startMarker)
-        folder.add(endMarker)
-    }
-
-    private fun addWaypointMarkerToFolder(wp: WayPoint, folder: FolderOverlay) {
-        val marker = Marker(mapView).apply {
-            title = wp.name
-            position = GeoPoint(wp.latitude, wp.longitude, wp.elevation ?: 0.0)
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            icon = ResourcesCompat.getDrawable(resources, R.drawable.ic_finish, null)
-        }
-        setMarkerClickListener(marker)
-        folder.add(marker)
-    }
-
-    private fun addPoiMarkerToFolder(poi: PoiDB, folder: FolderOverlay) {
-        val marker = Marker(mapView).apply {
-            title = poi.NomePOI
-            position = GeoPoint(poi.Latit, poi.Longit, poi.Ele)
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            icon = ResourcesCompat.getDrawable(resources, R.drawable.ic_finish, null)
-        }
-        setMarkerClickListener(marker)
-        folder.add(marker)
     }
 
     private fun mostraAllarmeFuoriTraccia() {
@@ -2001,6 +1999,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         alertDialog = null
         if (_binding != null) {
             mapView.onPause() // Per sicurezza, assicuriamoci che sia in pausa
+
+            // Rilascia le risorse dei layer GeoPackage (specialmente TilesOverlay)
+            // prima che la MapView venga distrutta.
+            layerModel.featureList.forEach { info ->
+                info.listOverlay?.forEach { it.onDetach(mapView) }
+            }
             
             // Per evitare il crash NPE in FolderOverlay.onTouchEvent, NON chiamiamo 
             // mapView.onDetach() perché questo causerebbe il detach ricorsivo di tutti 
@@ -2499,6 +2503,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         if (featureInfo.listOverlay != null && featureInfo.listOverlay!!.isNotEmpty()) {
             //Log.d(TAG,"Pulizia di ${featureInfo.listOverlay!!.size} overlay esistenti per il layer: $tableName")
+            // 1. Invocare onDetach per rilasciare risorse (es. connessioni DB in TilesOverlay)
+            featureInfo.listOverlay!!.forEach { it.onDetach(mapView) }
             // 2. Rimuovi tutti gli overlay precedentemente associati a questo layer dalla mappa.
             mapView.overlays.removeAll(featureInfo.listOverlay!!.toSet()) // .toSet() è più sicuro
             // 3. Svuota la lista di overlay salvata nel modello dati.
@@ -2521,6 +2527,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     mTileProviderList.add(GeoPackageFeatureTileModule(featureTiles))
                 }
                 override fun getMinimumZoomLevel(): Int = 12
+
+                override fun detach() {
+                    // Chiude esplicitamente le risorse GeoPackage nel nostro modulo custom
+                    mTileProviderList.forEach { 
+                        if (it is GeoPackageFeatureTileModule) it.close()
+                    }
+                    super.detach()
+                }
             }
 
             val tilesOverlay = object : TilesOverlay(tileProvider, requireContext()) {
@@ -2903,75 +2917,54 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     private fun interrogaGeologia(punto: GeoPoint, geoPackage: GeoPackage, tableName: String) {
-        val featureDao = geoPackage.getFeatureDao(tableName)
-        val indexManager = FeatureIndexManager(requireContext(), geoPackage, featureDao)
-        var results: mil.nga.geopackage.features.index.FeatureIndexResults? = null
+        viewLifecycleOwner.lifecycleScope.launch {
+            val resultRow = withContext(Dispatchers.IO) {
+                val featureDao = geoPackage.getFeatureDao(tableName)
+                val indexManager = FeatureIndexManager(requireContext(), geoPackage, featureDao)
+                var results: mil.nga.geopackage.features.index.FeatureIndexResults? = null
 
-        try {
-            if (!indexManager.isIndexed) {
-                Toast.makeText(context, "Indice spaziale non trovato.", Toast.LENGTH_SHORT).show()
-                return
-            }
+                try {
+                    if (!indexManager.isIndexed) return@withContext null
 
-            // 1. Crea una bounding box minuscola intorno al punto
-            val tolerance = 0.00001 // Ridotta per maggiore precisione (circa 1 metro)
-            val queryBox = mil.nga.geopackage.BoundingBox(
-                punto.longitude - tolerance, punto.longitude + tolerance,
-                punto.latitude - tolerance, punto.latitude + tolerance
-            )
+                    val tolerance = 0.00001
+                    val queryBox = mil.nga.geopackage.BoundingBox(
+                        punto.longitude - tolerance, punto.longitude + tolerance,
+                        punto.latitude - tolerance, punto.latitude + tolerance
+                    )
 
-            // 2. Esegui la query sull'indice
-            results = indexManager.query(queryBox)
+                    results = indexManager.query(queryBox)
+                    var foundRow: FeatureRow? = null
+                    val clickPoint = mil.nga.sf.Point(punto.longitude, punto.latitude)
 
-            var foundRow: FeatureRow? = null
-
-            // Trasformiamo il GeoPoint di osmdroid in un punto della libreria SF
-            val clickPoint = mil.nga.sf.Point(punto.longitude, punto.latitude)
-
-            // 3. Iteriamo su tutti i poligoni trovati per trovare quello che CONTIENE il punto
-            for (featureRow in results) {
-                val geometryData = featureRow.geometry
-                if (geometryData != null && !geometryData.isEmpty) {
-                    // Test di inclusione preciso (Point-in-Polygon)
-                    val isInside = when (val geometry = geometryData.geometry) {
-                        is mil.nga.sf.Polygon -> {
-                            mil.nga.sf.util.GeometryUtils.pointInPolygon(clickPoint, geometry)
-                        }
-
-                        is MultiPolygon -> {
-                            // Per i MultiPolygon, controlliamo se il punto è in almeno uno dei poligoni componenti
-                            geometry.polygons.any { poly ->
-                                mil.nga.sf.util.GeometryUtils.pointInPolygon(clickPoint, poly)
+                    for (featureRow in results) {
+                        val geometryData = featureRow.geometry
+                        if (geometryData != null && !geometryData.isEmpty) {
+                            val isInside = when (val geometry = geometryData.geometry) {
+                                is mil.nga.sf.Polygon -> mil.nga.sf.util.GeometryUtils.pointInPolygon(clickPoint, geometry)
+                                is MultiPolygon -> geometry.polygons.any { poly -> mil.nga.sf.util.GeometryUtils.pointInPolygon(clickPoint, poly) }
+                                else -> false
+                            }
+                            if (isInside) {
+                                foundRow = featureRow
                             }
                         }
-
-                        else -> false
                     }
-
-                    if (isInside) {
-                        // Trovato! Poiché potrebbero esserci sovrapposizioni, l'ultimo trovato
-                        // nel ciclo (solitamente il più "giovane" o specifico) sarà quello salvato.
-                        foundRow = featureRow
-                    }
+                    foundRow
+                } catch (e: Exception) {
+                    Log.e("GEO", "Errore interrogazione", e)
+                    null
+                } finally {
+                    results?.close()
+                    indexManager.close()
                 }
             }
 
-
-            if (foundRow != null) {
-                val tipoUnit = foundRow.getValueString("TIPOUNIT_1") ?: "N/D"
-                val unitaGer = foundRow.getValueString("UNITAGER_1") ?: "N/D"
+            if (_binding == null) return@launch
+            if (resultRow != null) {
+                val tipoUnit = resultRow.getValueString("TIPOUNIT_1") ?: "N/D"
+                val unitaGer = resultRow.getValueString("UNITAGER_1") ?: "N/D"
                 mostraDettagliGeologia(tipoUnit, unitaGer)
-            } else {
-                // Se non trovi nulla con precisione chirurgica, prova a mostrare il primo risultato della box
-                results?.firstOrNull()?.let {
-                    mostraDettagliGeologia(it.getValueString("TIPOUNIT_1") ?: "N/D", it.getValueString("UNITAGER_1") ?: "N/D")
-                }
             }
-        } catch (e: Exception) {
-            Log.e("GEO", "Errore interrogazione", e)
-        } finally {
-            results?.close()
-            indexManager.close() // Chiudi l'indexManager per rilasciare la connessione al DB metadata
         }
     }
     private fun mostraDettagliSentieroCai(lineFeature: LineStringFeature) {
