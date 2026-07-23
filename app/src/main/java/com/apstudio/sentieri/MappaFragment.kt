@@ -2203,25 +2203,45 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     /**
-     * Garantisce che gli elementi della registrazione attiva (traccia, marker inizio/fine e GPS)
+     * Garantisce che gli elementi critici (registrazione, toponimi, GPS)
      * siano sempre gli ultimi overlay nella lista, venendo così disegnati SOPRA ogni altro layer.
      */
     private fun bringRecordingToFront() {
         if (_binding == null) return
-        
-        // 1. Sposta il FolderOverlay che contiene i marker di inizio/fine
-        if (mapView.overlays.contains(viewModel.recTraccia)) {
-            mapView.overlays.remove(viewModel.recTraccia)
-            mapView.overlays.add(viewModel.recTraccia)
+
+        // 1. Sposta il FolderOverlay dei percorsi caricati (possono stare sotto la registrazione)
+        if (mapView.overlays.contains(tracksFolder)) {
+            mapView.overlays.remove(tracksFolder)
+            mapView.overlays.add(tracksFolder)
         }
-        
+
         // 2. Sposta la Polyline del percorso corrente
         if (::currentTrackPolyline.isInitialized && mapView.overlays.contains(currentTrackPolyline)) {
             mapView.overlays.remove(currentTrackPolyline)
             mapView.overlays.add(currentTrackPolyline)
         }
-        
-        // 3. Sposta il marker della posizione GPS (deve essere il più alto in assoluto)
+
+        // 3. Sposta il FolderOverlay che contiene i marker di inizio/fine registrazione
+        if (mapView.overlays.contains(viewModel.recTraccia)) {
+            mapView.overlays.remove(viewModel.recTraccia)
+            mapView.overlays.add(viewModel.recTraccia)
+        }
+
+        // 4. Sposta il FolderOverlay dei toponimi cercati
+        if (mapView.overlays.contains(viewModel.topoLayer)) {
+            mapView.overlays.remove(viewModel.topoLayer)
+            mapView.overlays.add(viewModel.topoLayer)
+        }
+
+        // 5. Sposta il marker di destinazione BRouter (se attivo)
+        destinationMarker?.let {
+            if (mapView.overlays.contains(it)) {
+                mapView.overlays.remove(it)
+                mapView.overlays.add(it)
+            }
+        }
+
+        // 6. Sposta il marker della posizione GPS (deve essere il più alto in assoluto)
         if (::gpsMarker.isInitialized && mapView.overlays.contains(gpsMarker)) {
             mapView.overlays.remove(gpsMarker)
             mapView.overlays.add(gpsMarker)
@@ -2417,15 +2437,16 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     /**
      * Sincronizza i marker dei toponimi sulla mappa con la lista nel ViewModel.
-     * Rimuove solo quelli necessari o ricrea la lista se cambiata significativamente.
+     * Utilizza viewModel.topoLayer (FolderOverlay) per garantire il corretto Z-order.
      */
     private fun syncToponimiMarkers() {
         if (!isAdded || _binding == null) return
 
         // Se la vista è stata ricreata, i marker in 'displayedTopoMarkers' sono obsoleti
-        // (legati alla vecchia MapView) e non sono presenti nella nuova MapView.
+        // e anche il contenuto del FolderOverlay deve essere ripulito per la nuova MapView.
         if (isViewRecreated) {
             displayedTopoMarkers.clear()
+            viewModel.topoLayer.items.clear()
         }
 
         val currentToponimi = viewModel.toponimiSelezionati.toList()
@@ -2435,16 +2456,16 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             currentToponimi.none { it.id == marker.id }
         }
         markersToRemove.forEach { marker ->
-            mapView.overlays.remove(marker)
+            viewModel.topoLayer.remove(marker)
             displayedTopoMarkers.remove(marker)
         }
 
-        // 2. Aggiungi i nuovi marker
+        // 2. Aggiungi i nuovi marker al FolderOverlay
         currentToponimi.forEach { topoData ->
             if (displayedTopoMarkers.none { it.id == topoData.id }) {
                 val newMarker = createTopoMarker(topoData)
                 displayedTopoMarkers.add(newMarker)
-                mapView.overlays.add(newMarker)
+                viewModel.topoLayer.add(newMarker)
             }
         }
 
@@ -2479,7 +2500,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
                 if (toponimoDataToRemove != null) {
                     viewModel.toponimiSelezionati.remove(toponimoDataToRemove)
-                    mapView.overlays.remove(markerInstance)
+                    viewModel.topoLayer.remove(markerInstance)
                     displayedTopoMarkers.remove(markerInstance)
                     mapView.invalidate()
                     Toast.makeText(
