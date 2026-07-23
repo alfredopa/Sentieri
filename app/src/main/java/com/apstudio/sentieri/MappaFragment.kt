@@ -38,7 +38,6 @@ import android.view.KeyEvent
 import android.view.KeyEvent.KEYCODE_VOLUME_DOWN
 import android.view.KeyEvent.KEYCODE_VOLUME_UP
 import android.view.LayoutInflater
-import android.view.Menu
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -89,7 +88,6 @@ import com.apstudio.sentieri.db.PoiDao
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
-import com.apstudio.sentieri.db.TrackDao
 import com.apstudio.sentieri.layer.FeatureTableInfo
 import com.apstudio.sentieri.layer.GeologiaFeatureTiles
 import com.apstudio.sentieri.layer.LayerViewModel
@@ -117,7 +115,6 @@ import net.federicomatera.agpxp.models.Gpx
 import net.federicomatera.agpxp.models.GpxMetadata
 import net.federicomatera.agpxp.models.Link
 import net.federicomatera.agpxp.models.Track
-import net.federicomatera.agpxp.models.WayPoint
 import org.osmdroid.api.IGeoPoint
 import org.osmdroid.api.IMapController
 import org.osmdroid.events.MapEventsReceiver
@@ -138,7 +135,6 @@ import org.osmdroid.views.overlay.compass.CompassOverlay
 import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider
 import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 import org.osmdroid.views.overlay.infowindow.BasicInfoWindow
-import org.osmdroid.views.overlay.infowindow.InfoWindow
 import org.osmdroid.views.overlay.simplefastpoint.LabelledGeoPoint
 import org.osmdroid.views.overlay.simplefastpoint.SimpleFastPointOverlay
 import org.osmdroid.views.overlay.simplefastpoint.SimpleFastPointOverlayOptions
@@ -149,6 +145,7 @@ import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
 
 private const val TAG = "MappaFragment"
 
@@ -222,9 +219,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     private lateinit var currentTrackPolyline: Polyline // La traccia che disegna sulla mappa
     private lateinit var tracksFolder: FolderOverlay
     private var alertDialog: AlertDialog? = null
-
-    // memorizza istanza del menu per aggiornare icone
-    private var menu: Menu? = null
 
     //gestione preferenze e listener
     private lateinit var preferenze: SharedPreferences
@@ -1076,7 +1070,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 val target = viewModel.poi
                 tracksFolder.items.forEach { overlay ->
                     if (overlay is Marker) {
-                        if (Math.abs(overlay.position.latitude - target.latitude) < 0.0001 &&
+                        if (abs(overlay.position.latitude - target.latitude) < 0.0001 &&
                             Math.abs(overlay.position.longitude - target.longitude) < 0.0001) {
                             overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
                             overlay.showInfoWindow()
@@ -1708,7 +1702,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         syncLayerVisuals()
         
         // 6. Aggiungi i marker di inizio/fine (associandoli alla polilinea di sfondo)
-        addMarker(polylineSfondo)
+        addMarker()
         //------------------------------------------------------------------------------------------
         // questo usato per disegno traccia con altitudine
         //disegnaLine(line)
@@ -2156,7 +2150,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
-    private fun addMarker(polyline: Polyline) {
+    private fun addMarker() {
         // I marker ora sono rigenerati da syncLayerVisuals basandosi sui dati in layerItems
         syncLayerVisuals()
     }
