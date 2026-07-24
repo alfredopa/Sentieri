@@ -259,11 +259,11 @@ class LocationService : LifecycleService() {
             return
         }
         when (message.take(6)) {
-            "\$GPGGA", "\$GNGGA" -> {
+            $$"$GPGGA", $$"$GNGGA" -> {
                 parseGPGGA(message)}
-            "\$GPRMC" -> {
+            $$"$GPRMC" -> {
                 parseGPRMC(message)}
-            "\$GNVTG" -> {
+            $$"$GNVTG" -> {
                 parseGNVTG(message)}
         }
     }

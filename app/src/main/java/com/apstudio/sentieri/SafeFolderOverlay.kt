@@ -1,7 +1,5 @@
 package com.apstudio.sentieri
 
-import android.graphics.Canvas
-import android.view.MotionEvent
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.FolderOverlay
 
@@ -14,7 +12,7 @@ class SafeFolderOverlay : FolderOverlay() {
 
     override fun onDetach(mapView: MapView?) {
         // Log.d("SafeFolderOverlay", "onDetach called for $name")
-        // We call onDetach on the internal manager but we DO NOT set it to null.
+        // We call onDetach on the internal manager  DO NOT set it to null.
         // This prevents the NPE in draw() when the overlay is reused.
         // Note: osmdroid's FolderOverlay.onDetach() normally sets mOverlayManager = null.
         // By NOT doing that, we keep the items alive for the next MapView.
@@ -30,7 +28,7 @@ class SafeFolderOverlay : FolderOverlay() {
         
         try {
             super.draw(canvas, osmv, shadow)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Log.e("SafeFolderOverlay", "Error during draw: ${e.message}")
         }
     }

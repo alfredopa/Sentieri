@@ -73,7 +73,7 @@ object MapUtils {
      */
     fun disegnaPercorsoColorato(line: Polyline, pendenze: List<Float>? = null) {
         line.id = "percorso"
-        val values = pendenze ?: try { line.actualPoints.map { it.altitude.toFloat() } } catch (e: Exception) { emptyList() }
+        val values = pendenze ?: try { line.actualPoints.map { it.altitude.toFloat() } } catch (_: Exception) { emptyList() }
         if (values.isEmpty()) return
 
         val minVal: Float
@@ -503,7 +503,7 @@ object MapUtils {
     }
 
     fun calcolaPendenzeSmussate(line: Polyline, finestra: Int = 10): MutableList<Float> {
-        val punti = try { line.actualPoints } catch (e: Exception) { emptyList() }
+        val punti = try { line.actualPoints } catch (_: Exception) { emptyList() }
         if (punti.isEmpty() || punti.size < 2) return mutableListOf()
         val nette = mutableListOf<Float>().apply { add(0f) }
         for (i in 1 until punti.size) {

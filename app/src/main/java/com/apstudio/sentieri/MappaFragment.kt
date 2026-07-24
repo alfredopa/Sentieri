@@ -1071,7 +1071,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 tracksFolder.items.forEach { overlay ->
                     if (overlay is Marker) {
                         if (abs(overlay.position.latitude - target.latitude) < 0.0001 &&
-                            Math.abs(overlay.position.longitude - target.longitude) < 0.0001) {
+                            abs(overlay.position.longitude - target.longitude) < 0.0001) {
                             overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
                             overlay.showInfoWindow()
                         }

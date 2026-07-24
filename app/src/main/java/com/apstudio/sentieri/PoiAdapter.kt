@@ -73,10 +73,6 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
         // Qui potresti voler aggiornare l'UI di tutti i pulsanti allo stato normale se necessario
     }
 
-    fun releasePlayer() {
-        stopCurrentPlayback()
-    }
-
     class PoiViewHolder(
         private val binding: FragmentPoiDettaglioBinding,
         private val onPlayAudioClicked: (filePath: String) -> Unit

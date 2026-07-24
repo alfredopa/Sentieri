@@ -152,7 +152,7 @@ class Barometro : Fragment(), SensorEventListener {
     }
 
     private fun loggaNMEA(message: String) {
-        if (message.startsWith("\$GPGGA") || message.startsWith("\$GNGGA")) {
+        if (message.startsWith($$"$GPGGA") || message.startsWith($$"$GNGGA")) {
             val nmeaSplit = message.split(",")
             if (nmeaSplit.size > 9) {
                 val fixQuality = nmeaSplit[6]
