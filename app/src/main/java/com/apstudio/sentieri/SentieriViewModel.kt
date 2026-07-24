@@ -28,12 +28,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import mil.nga.geopackage.GeoPackageFactory
-import mil.nga.geopackage.GeoPackageManager
 import net.federicomatera.agpxp.models.WayPoint
 import org.apache.commons.net.ftp.FTPClient
 import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.overlay.FolderOverlay
 import org.osmdroid.views.overlay.Polyline
 import java.io.IOException
 
@@ -49,13 +46,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     private var discardedGpsPointsCount: Int = 0
 
-    val geoPackageManager: GeoPackageManager by lazy {
-        GeoPackageFactory.getManager(getApplication())
-    }
-
-    // Liste di dati persistenti per rigenerare gli overlay
-    var waypointItems = mutableListOf<WayPoint>()
-    
     var recTraccia = SafeFolderOverlay() // overlay per traccia in registrazione e marker inizio e fine
     var topoLayer = SafeFolderOverlay()
     var puntiDaSeguire =
