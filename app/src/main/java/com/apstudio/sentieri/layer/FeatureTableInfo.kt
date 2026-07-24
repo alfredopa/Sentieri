@@ -1,7 +1,9 @@
 package com.apstudio.sentieri.layer
 
+import androidx.annotation.Keep
 import org.osmdroid.views.overlay.Overlay
 
+@Keep
 data class FeatureTableInfo(
     val name: String,
     var isVisible: Boolean = false,

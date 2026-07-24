@@ -1,8 +1,24 @@
 # --- Generic Android rules ---
 # Keep debugging info for stack traces
 -keepattributes SourceFile,LineNumberTable
-# Keep attributes necessary for reflection, serialization, and annotations
--keepattributes Exceptions,Signature,InnerClasses,*Annotation*
+# Keep Attributes necessary for reflection
+-keepattributes Exceptions,Signature,InnerClasses,*Annotation*,EnclosingMethod
+
+# Keep classes and members annotated with @Keep
+-keep @androidx.annotation.Keep class * {*;}
+-keepclassmembers class * {
+    @androidx.annotation.Keep *;
+}
+
+# Protect JNI calls and native library loading
+-keepclassmembers class * {
+    native <methods>;
+}
+
+# Protect androidx.lifecycle and coroutines
+-keep class androidx.lifecycle.** { *; }
+-keep class kotlinx.coroutines.** { *; }
+-dontwarn kotlinx.coroutines.**
 
 # --- osmdroid ---
 -keep class org.osmdroid.** { *; }
@@ -17,7 +33,23 @@
 # Keep all classes in the NGA (GeoPackage) and ORMLite namespaces.
 # This is a broad rule to prevent any class from being removed or obfuscated.
 -keep class mil.nga.** { *; }
+-keep interface mil.nga.** { *; }
 -keep class com.j256.ormlite.** { *; }
+-keep interface com.j256.ormlite.** { *; }
+
+# CRITICAL: Keep all models used in the app
+-keep class com.apstudio.sentieri.db.** { *; }
+-keep class com.apstudio.sentieri.layer.** { *; }
+
+# Room persistence library
+-keep class androidx.room.paging.** { *; }
+-keep class androidx.room.** { *; }
+-dontwarn androidx.room.**
+
+# SQLite Android bindings (used by GeoPackage for RTree)
+-keep class org.sqlite.database.** { *; }
+-keep interface org.sqlite.database.** { *; }
+-dontwarn org.sqlite.database.**
 
 # CRITICAL: Keep the default, no-argument constructors for any class
 # that is used as a database entity. ORMLite uses reflection to create
