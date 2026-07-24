@@ -2742,8 +2742,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 ) // Assicurati che l'ordine sia (latitudine, longitudine)
             }
             osmdroidPolyline.setPoints(geoPoints)
-            // Puoi personalizzare l'aspetto della Polyline qui (colore, spessore, ecc.)
-            osmdroidPolyline.outlinePaint.color = layerModel.getRandomIntColor()
+            // Usa una colorazione deterministica basata sul titolo del sentiero
+            // Questo assicura che lo stesso sentiero mantenga lo stesso colore tra i cambi di fragment.
+            osmdroidPolyline.outlinePaint.color = layerModel.getDeterministicColor(lineFeature.title)
             osmdroidPolyline.outlinePaint.strokeWidth = 8f
             // --- Gestione InfoWindow ---
             osmdroidPolyline.id = "line_${featureInfo.name}_$index"

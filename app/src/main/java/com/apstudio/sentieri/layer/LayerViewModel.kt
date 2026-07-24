@@ -265,6 +265,21 @@ private suspend fun actuallyOpenAndConfigGeoPackage(): Boolean = withContext(Dis
         return Color.argb(alpha, red, green, blue)
     }
 
+    /**
+     * Genera un colore deterministico basato su una stringa (seed).
+     * Garantisce che lo stesso sentiero abbia sempre lo stesso colore.
+     */
+    fun getDeterministicColor(seed: String, alpha: Int = 255): Int {
+        if (seed.isEmpty()) return getRandomIntColor(alpha)
+        
+        // Usa l'hash della stringa come seme per il generatore Random
+        val random = Random(seed.hashCode().toLong())
+        val red = random.nextInt(256)
+        val green = random.nextInt(256)
+        val blue = random.nextInt(256)
+        return Color.argb(alpha, red, green, blue)
+    }
+
     fun closeGeoPackage() {
         geoPackageInstance?.let { geoPkg ->
             try {
