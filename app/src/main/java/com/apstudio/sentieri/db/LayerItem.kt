@@ -1,5 +1,8 @@
 package com.apstudio.sentieri.db
 
+import androidx.annotation.Keep
+
+@Keep
 data class LayerItem(
     val nome: String,
     var abilitato: Boolean,
