@@ -367,18 +367,30 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             Log.w(TAG, "onReturnFromLayerDialog chiamato ma la vista è nulla. Interruzione.")
             return
         }
+
+        // Se la vista è stata appena ricreata, dobbiamo invalidare TUTTI gli overlay salvati
+        // perché sono legati alla MapView precedente e non sarebbero visibili sulla nuova.
+        if (isViewRecreated) {
+            layerModel.featureList.forEach { info ->
+                info.listOverlay?.let { overlays ->
+                    overlays.forEach { it.onDetach(mapView) }
+                    mapView.overlays.removeAll(overlays)
+                }
+                info.listOverlay = null // Forza il ricaricamento asincrono al prossimo ciclo
+            }
+        }
+
         // Itera su tutti i layer e sincronizza il loro stato con la mappa attuale.
         layerModel.featureList.forEach { featureInfo ->
             if (featureInfo.isVisible) {
-                // Se è il layer geologico O se la vista è stata appena ricreata,
-                // dobbiamo forzare la rigenerazione degli overlay (specialmente quelli vettoriali)
-                // perché i vecchi oggetti sono legati alla MapView precedente.
-                if (featureInfo.name == "area_geologica" || isViewRecreated) {
+                // Caso speciale: Area Geologica (già gestito dalla pulizia globale sopra se isViewRecreated è true)
+                // Se non è ricreata, ma siamo qui (es. chiusura dialogo), lo rinfreschiamo comunque per sicurezza.
+                if (featureInfo.name == "area_geologica" && !isViewRecreated) {
                     featureInfo.listOverlay?.let { overlays ->
                         overlays.forEach { it.onDetach(mapView) }
                         mapView.overlays.removeAll(overlays)
                     }
-                    featureInfo.listOverlay?.clear()
+                    featureInfo.listOverlay = null
                 }
 
                 // Se il layer deve essere visibile...
@@ -396,7 +408,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
             } else {
                 // Se il layer non deve essere visibile, rimuovilo dalla mappa se presente,
-                // ma NON pulire 'listOverlay' per evitare ricaricamenti dal DB in futuro.
+                // ma NON pulire 'listOverlay' se NON siamo in una ricreazione vista,
+                // così da preservarlo per una riattivazione rapida nella stessa sessione.
                 featureInfo.listOverlay?.let { overlays ->
                     if (overlays.isNotEmpty()) {
                         mapView.overlays.removeAll(overlays)
@@ -405,8 +418,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
         }
 
-        //mapView.invalidate()      // Forza un singolo ridisegno alla fine di tutte le operazioni.
-        //Log.d(TAG, "invalidate onReturnFromLayerDialog.")
         bringRecordingToFront()
         layersSyncedThisResume = true
     }
