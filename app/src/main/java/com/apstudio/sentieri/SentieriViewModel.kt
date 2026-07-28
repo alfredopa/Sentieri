@@ -88,6 +88,11 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         get() = LocationRepository.isFixed
         set(value) { LocationRepository.isFixed = value }
     var ricerca = String()
+    private val _isCalendarMode = MutableLiveData(false)
+    val isCalendarMode: LiveData<Boolean> = _isCalendarMode
+    fun setCalendarMode(enabled: Boolean) { _isCalendarMode.value = enabled }
+    
+    var selectedDate: String? = null
     var ultPosizione = GeoPoint(40.120875, 9.012893, 40.0)   // posizione iniziale mappa
     private var oldPunto = GeoPoint(0.0, 0.0, 0.0)
     var ultZoom = (11)
@@ -337,6 +342,14 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     fun cercaNome(searchQuery: String): LiveData<List<Sentieri>> {
         return repository.cercaNome(searchQuery).asLiveData()
+    }
+
+    fun getSentieriPerData(dateQuery: String): LiveData<List<Sentieri>> {
+        return repository.getSentieriPerData(dateQuery).asLiveData()
+    }
+
+    fun getGiorniConRegistrazioni(): LiveData<List<String>> {
+        return repository.getGiorniConRegistrazioni().asLiveData()
     }
 
     suspend fun salvaSentiero(sentiero: Sentieri): Long {

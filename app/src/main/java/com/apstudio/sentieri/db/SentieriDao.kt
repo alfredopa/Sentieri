@@ -37,6 +37,12 @@ interface SentieriDao {
     @Query("SELECT * FROM sentieri WHERE Nome LIKE :searchQuery")
     fun cercaNome(searchQuery: String): Flow<List<Sentieri>>
 
+    @Query("SELECT * FROM sentieri WHERE DataOra LIKE :dateQuery ORDER BY dataOra DESC")
+    fun getSentieriPerData(dateQuery: String): Flow<List<Sentieri>>
+
+    @Query("SELECT DISTINCT substr(DataOra, 1, 10) FROM Sentieri")
+    fun getGiorniConRegistrazioni(): Flow<List<String>>
+
     @Query("SELECT max(id) from sentieri")
     suspend fun ultimoId() : Int
 }
