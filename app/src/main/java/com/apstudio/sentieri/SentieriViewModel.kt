@@ -33,6 +33,7 @@ import org.apache.commons.net.ftp.FTPClient
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.Polyline
 import java.io.IOException
+import kotlin.time.Duration.Companion.milliseconds
 
 data class LocationData(val geoPoint: GeoPoint, val bearing: Float)
 
@@ -293,7 +294,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                     if ((velocita.value ?: 0) != 0) { // Controlla nullabilità di velocita.value
                         incrementMovementSeconds() // incrementMovementSeconds ora usa postValue
                     }
-                    delay(1000)
+                    delay(1000.milliseconds)
                 }
             }
     }
