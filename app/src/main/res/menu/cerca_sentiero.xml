@@ -3,6 +3,11 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <item android:id="@+id/menu_calendar"
+        android:title="Calendario"
+        android:icon="@android:drawable/ic_menu_today"
+        app:showAsAction="ifRoom" />
+
     <item android:id="@+id/menu_search"
         android:title="Cerca"
         android:icon="@drawable/ic_search"

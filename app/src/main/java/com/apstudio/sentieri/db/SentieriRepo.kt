@@ -30,6 +30,14 @@ class SentieriRepo(
         return sentieriDao.cercaNome(searchQuery)
     }
 
+    fun getSentieriPerData(dateQuery: String): Flow<List<Sentieri>> {
+        return sentieriDao.getSentieriPerData(dateQuery)
+    }
+
+    fun getGiorniConRegistrazioni(): Flow<List<String>> {
+        return sentieriDao.getGiorniConRegistrazioni()
+    }
+
     suspend fun insertSentiero(sentiero: Sentieri): Long {
         return sentieriDao.insertDB(sentiero)
     }

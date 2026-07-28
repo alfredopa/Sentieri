@@ -23,6 +23,11 @@ import com.apstudio.sentieri.databinding.FragmentSentieriBinding
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
+import com.applandeo.materialcalendarview.CalendarDay
+import com.applandeo.materialcalendarview.EventDay
+import com.applandeo.materialcalendarview.listeners.OnDayClickListener
+import java.util.Calendar
+import java.util.Locale
 
 class SentieriFragment : Fragment() {
     private val viewModel: SentieriViewModel by activityViewModels {
@@ -93,7 +98,9 @@ class SentieriFragment : Fragment() {
                         
                         // Se la query è vuota, mostriamo comunque tutti i sentieri
                         if (query.isEmpty()) {
-                            displaySentieriList()
+                            if (viewModel.isCalendarMode.value != true) {
+                                displaySentieriList()
+                            }
                             (activity as? AppCompatActivity)?.supportActionBar?.title = "Elenco sentieri"
                         } else {
                             (activity as? AppCompatActivity)?.supportActionBar?.title = "Filtro: $query"
@@ -108,13 +115,21 @@ class SentieriFragment : Fragment() {
 
                 search.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
                     override fun onMenuItemActionExpand(item: MenuItem): Boolean {
+                        // Se attiviamo la ricerca, chiudiamo il calendario
+                        if (viewModel.isCalendarMode.value == true) {
+                            viewModel.setCalendarMode(false)
+                        }
                         return true
                     }
 
                     override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
                         // Reset totale quando si chiude la barra di ricerca
                         viewModel.ricerca = ""
-                        displaySentieriList()
+                        if (viewModel.isCalendarMode.value != true) {
+                            displaySentieriList()
+                        } else {
+                            viewModel.selectedDate?.let { cercaPerData(it) }
+                        }
                         (activity as? AppCompatActivity)?.supportActionBar?.title = "Elenco sentieri"
                         return true
                     }
@@ -134,6 +149,11 @@ class SentieriFragment : Fragment() {
                     R.id.menu_search -> {
                         true
                     }
+                    R.id.menu_calendar -> {
+                        val current = viewModel.isCalendarMode.value ?: false
+                        viewModel.setCalendarMode(!current)
+                        true
+                    }
 
                     else -> false
                 }
@@ -146,12 +166,117 @@ class SentieriFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         setHasOptionsMenu(true)
         initRecyclerView()
+
+        binding.calendarViewSentieri.setOnDayClickListener(object : OnDayClickListener {
+            override fun onDayClick(eventDay: EventDay) {
+                val calendar = eventDay.calendar
+                val date = formatDate(
+                    calendar.get(Calendar.YEAR),
+                    calendar.get(Calendar.MONTH),
+                    calendar.get(Calendar.DAY_OF_MONTH)
+                )
+                viewModel.selectedDate = date
+                cercaPerData(date)
+            }
+        })
+
+        // Osserva le date con registrazioni per evidenziarle
+        viewModel.getGiorniConRegistrazioni().observe(viewLifecycleOwner) { dateList ->
+            val calendarDays = mutableListOf<CalendarDay>()
+            dateList.forEach { dateStr ->
+                try {
+                    val parts = dateStr.split("-")
+                    val cal = Calendar.getInstance()
+                    cal.set(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt())
+                    
+                    val calendarDay = CalendarDay(cal).apply {
+                        backgroundResource = R.drawable.ic_day_highlight
+                        labelColor = android.R.color.white
+                        // Mantiene il cerchio rosso anche quando il giorno è selezionato
+                        selectedBackgroundResource = R.drawable.ic_day_highlight
+                        selectedLabelColor = android.R.color.white
+                    }
+                    calendarDays.add(calendarDay)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            binding.calendarViewSentieri.setCalendarDays(calendarDays)
+        }
+
+        // Osserva lo stato del calendario per gestire la visibilità
+        viewModel.isCalendarMode.observe(viewLifecycleOwner) { isVisible ->
+            toggleCalendarVisibility(isVisible)
+        }
+
+        // Ripristina la data graficamente se siamo in modalità calendario
+        viewModel.selectedDate?.let { dateStr ->
+            try {
+                val parts = dateStr.split("-")
+                val cal = Calendar.getInstance()
+                cal.set(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt())
+                binding.calendarViewSentieri.setDate(cal)
+                binding.calendarViewSentieri.selectedDates = listOf(cal)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun toggleCalendarVisibility(visible: Boolean) {
+        if (visible) {
+            binding.containerCalendar.visibility = View.VISIBLE
+            // Se il calendario è visibile e abbiamo una data salvata, cerchiamo per quella
+            val date = viewModel.selectedDate ?: run {
+                val calendar = Calendar.getInstance()
+                val today = formatDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH))
+                viewModel.selectedDate = today
+                today
+            }
+            
+            // Sincronizza anche la selezione grafica nel calendario
+            try {
+                val parts = date.split("-")
+                val cal = Calendar.getInstance()
+                cal.set(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt())
+                binding.calendarViewSentieri.setDate(cal)
+                binding.calendarViewSentieri.selectedDates = listOf(cal)
+            } catch (_: Exception) {}
+
+            cercaPerData(date)
+        } else {
+            binding.containerCalendar.visibility = View.GONE
+            binding.tvNoDataSentieri.visibility = View.GONE
+            if (viewModel.ricerca.isEmpty()) {
+                displaySentieriList()
+            } else {
+                cercaNome(viewModel.ricerca)
+            }
+        }
+    }
+
+    private fun cercaPerData(date: String) {
+        val dateQuery = "$date%"
+        viewModel.getSentieriPerData(dateQuery).observe(viewLifecycleOwner) { list ->
+            adapter.setData(list)
+            if (list.isEmpty()) {
+                binding.tvNoDataSentieri.visibility = View.VISIBLE
+            } else {
+                binding.tvNoDataSentieri.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun formatDate(year: Int, month: Int, day: Int): String {
+        return String.format(Locale.getDefault(), "%04d-%02d-%02d", year, month + 1, day)
     }
 
     override fun onResume() {
         super.onResume()
         if (viewModel.ricerca.isNotEmpty()) {
             cercaNome(viewModel.ricerca)
+        } else if (viewModel.isCalendarMode.value == true && viewModel.selectedDate != null) {
+            cercaPerData(viewModel.selectedDate!!)
         } else {
             displaySentieriList()
         }
