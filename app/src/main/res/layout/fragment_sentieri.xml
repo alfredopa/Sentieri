@@ -27,9 +27,14 @@
                 android:id="@+id/calendarViewSentieri"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                app:abbreviationsBarColor="?attr/colorSurface"
+                app:abbreviationsLabelsColor="?attr/colorOnSurfaceVariant"
+                app:daysLabelsColor="?attr/colorOnSurface"
                 app:headerColor="@color/purple_500"
+                app:headerLabelColor="?attr/colorOnPrimary"
+                app:pagesColor="?attr/colorSurface"
                 app:selectionColor="@color/purple_200"
-                app:todayLabelColor="@color/purple_700"
+                app:todayLabelColor="@color/red"
                 app:type="one_day_picker" />
 
             <View
