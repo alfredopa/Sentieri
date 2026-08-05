@@ -46,8 +46,10 @@
         app:layout_constrainedWidth="true"
         app:layout_constraintBottom_toBottomOf="@id/icon_dist"
         app:layout_constraintEnd_toStartOf="@id/guideline_col1_end"
+        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toEndOf="@id/icon_dist"
         app:layout_constraintTop_toTopOf="@id/icon_dist"
+        app:layout_constraintVertical_bias="0.0"
         tools:text="123 m" />
 
     <ImageView
@@ -254,6 +256,16 @@
         app:layout_constraintStart_toEndOf="@id/icon_tempo_mov"
         app:layout_constraintTop_toTopOf="@id/icon_tempo_mov"
         tools:text="00:00:00" />
+
+    <com.apstudio.sentieri.BatteryProgressView
+        android:id="@+id/batteryIndicator"
+        android:layout_width="90dp"
+        android:layout_height="35dp"
+        android:layout_marginEnd="8dp"
+        app:layout_constraintBottom_toBottomOf="@+id/icon_tempo_mov"
+        app:layout_constraintEnd_toStartOf="@+id/guideline_col2_end"
+        app:layout_constraintTop_toTopOf="@+id/icon_tempo_mov"
+        app:layout_constraintVertical_bias="0.272" />
 
     <Button
         android:id="@+id/btnAllarme"

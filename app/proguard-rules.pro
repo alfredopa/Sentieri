@@ -36,6 +36,7 @@
 -keep interface mil.nga.** { *; }
 -keep class com.j256.ormlite.** { *; }
 -keep interface com.j256.ormlite.** { *; }
+-keep class com.example.levo_sdk.domain.model.** { *; }
 
 # CRITICAL: Keep all models used in the app
 -keep class com.apstudio.sentieri.db.** { *; }
