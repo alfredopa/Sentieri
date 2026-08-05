@@ -86,6 +86,9 @@ class MainActivity :
         add(Manifest.permission.INTERNET)
         add(Manifest.permission.ACCESS_NETWORK_STATE)
         add(Manifest.permission.CAMERA)
+        // Aggiungi i permessi Bluetooth per Android 12+
+        add(Manifest.permission.BLUETOOTH_SCAN)
+        add(Manifest.permission.BLUETOOTH_CONNECT)
         // permesso da Android 13
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.POST_NOTIFICATIONS)

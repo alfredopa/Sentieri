@@ -63,12 +63,19 @@ class Preferenze : PreferenceFragmentCompat() {
             viewModel.listDirectory()
             true
         }
+
+        val ebikeButton: Preference? = findPreference("connessione_ebike")
+        ebikeButton?.setOnPreferenceClickListener {
+            showEbikeScanDialog()
+            true
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         observeDownloadStatus()
         observeFtpFileList()
+        observeBtStatus()
     }
 
     override fun onResume() {
@@ -199,5 +206,60 @@ class Preferenze : PreferenceFragmentCompat() {
             dialog.dismiss()
         }
         builder.create().show()
+    }
+
+    private var ebikeScanDialog: AlertDialog? = null
+
+    private fun showEbikeScanDialog() {
+        viewModel.startBtDiscovery()
+        
+        val builder = AlertDialog.Builder(requireContext())
+        builder.setTitle("Scansione E-bike...")
+        
+        // Inizialmente vuoto o con i dispositivi già noti
+        val deviceNames = viewModel.btDevices.value?.map { "${it.name ?: "Unknown"} (${it.address})" }?.toTypedArray() ?: arrayOf()
+        
+        builder.setItems(deviceNames) { _, which ->
+            val selectedDevice = viewModel.btDevices.value?.get(which)
+            selectedDevice?.let { 
+                viewModel.connectToBtDevice(it)
+            }
+            viewModel.stopBtDiscovery()
+        }
+        
+        builder.setNegativeButton("Annulla") { dialog, _ ->
+            viewModel.stopBtDiscovery()
+            dialog.dismiss()
+        }
+        
+        ebikeScanDialog = builder.create()
+        ebikeScanDialog?.show()
+        
+        // Osserva i cambiamenti nella lista dei dispositivi e aggiorna il dialogo se possibile
+        viewModel.btDevices.observe(viewLifecycleOwner) { devices ->
+            if (ebikeScanDialog?.isShowing == true) {
+                val listView = ebikeScanDialog?.listView
+                if (listView != null) {
+                    val adapter = android.widget.ArrayAdapter(
+                        requireContext(),
+                        android.R.layout.simple_list_item_1,
+                        devices.map { "${it.name ?: "Unknown"} (${it.address})" }.toTypedArray()
+                    )
+                    listView.adapter = adapter
+                    listView.setOnItemClickListener { _, _, position, _ ->
+                        val selectedDevice = devices[position]
+                        viewModel.connectToBtDevice(selectedDevice)
+                        viewModel.stopBtDiscovery()
+                        ebikeScanDialog?.dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun observeBtStatus() {
+        viewModel.btStatus.observe(viewLifecycleOwner) { status ->
+            Toast.makeText(requireContext(), status, Toast.LENGTH_SHORT).show()
+        }
     }
 }

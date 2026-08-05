@@ -246,7 +246,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     private var isAudioRecording = false
     private val recordingDurationMs: Long = 5000 // 5 secondi
     private val audioHandler = Handler(Looper.getMainLooper())
-
+    // Levo bluetooth
+    private lateinit var batteryIndicator : BatteryProgressView
     // BRouter
     private var brouterService: IBRouterService? = null
     private var isBound = false
@@ -858,6 +859,19 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             // Aggiorna il TextView con il valore della pendenza, aggiungendo il simbolo %
             binding.cruscotto.tvPendenza.text = "$pendenza %"
         }
+
+        // --- OSSERVATORI E-BIKE ---
+        viewModel.ebikeMessage.observe(viewLifecycleOwner) { message ->
+            val socPercent = message.soc.toFloatOrNull() ?: 0f
+            binding.cruscotto.batteryIndicator.setBatteryState(socPercent / 100f)
+        }
+
+        viewModel.isConnected.observe(viewLifecycleOwner) { connected ->
+            val showEbike = preferenze.getBoolean("mostra_dati_ebike", true)
+            binding.cruscotto.batteryIndicator.isVisible = connected && showEbike
+        }
+        // --------------------------
+
         viewModel.isAllarmeAttivo.observe(viewLifecycleOwner) { isAttivo ->
             updateBtnAllarmeUI(isAttivo)
         }
@@ -959,6 +973,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         LocationRepository.newTrackPoint.observe(viewLifecycleOwner) { newPoint ->
             currentTrackPolyline.addPoint(newPoint)
         }
+        batteryIndicator = binding.cruscotto.batteryIndicator
+        // Imposta la percentuale (es. 75%) e opzionalmente un colore custom
+        batteryIndicator.setBatteryState(
+            percentage = 0.75f,
+            batteryColor = Color.GREEN
+        )
         
         syncLayerVisuals()
         ripristinaStatoMappa()
@@ -1172,6 +1192,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
         //Log.d("onResume", "${viewModel.recTraccia})")
+
+        // E-bike auto-reconnect
+        viewModel.autoConnectEbike()
 
         if (viewModel.isRecording) {
             // Se stiamo registrando, forziamo l'aggiornamento dell'icona GPS e la visibilità
@@ -2264,6 +2287,16 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             "haBaro" -> {
                 // Anche se questo valore non dovrebbe cambiare, è buona norma gestirlo.
                 viewModel.haBaro = sharedPreferences.getBoolean(key, false)
+            }
+
+            "mostra_dati_ebike" -> {
+                val enabled = sharedPreferences.getBoolean(key, true)
+                if (enabled) {
+                    viewModel.autoConnectEbike()
+                } else {
+                    viewModel.disconnectBt()
+                }
+                binding.cruscotto.batteryIndicator.isVisible = enabled && (viewModel.isConnected.value == true)
             }
 
             "colore_traccia" -> { // NUOVA LOGICA QUI
