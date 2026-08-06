@@ -19,5 +19,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Sentieri"
 include ':app'
-include(":levo-sdk")
+include ':levo-sdk'
     

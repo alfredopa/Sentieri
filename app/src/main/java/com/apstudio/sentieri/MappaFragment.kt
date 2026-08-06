@@ -34,6 +34,7 @@ import android.os.Looper
 import android.provider.MediaStore
 import android.telephony.TelephonyManager
 import android.util.Log
+import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.KeyEvent.KEYCODE_VOLUME_DOWN
 import android.view.KeyEvent.KEYCODE_VOLUME_UP
@@ -615,12 +616,39 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         bottomSheetBehavior.skipCollapsed = false
         
         // Imposta lo stato iniziale in base alla registrazione
+        val peekHeightDp = 220
+        val peekHeightPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, peekHeightDp.toFloat(), resources.displayMetrics).toInt()
+
         if (viewModel.isRecording) {
-            bottomSheetBehavior.peekHeight = 120
+            bottomSheetBehavior.peekHeight = peekHeightPx
         } else {
             bottomSheetBehavior.peekHeight = 0
             bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
         }
+
+        bottomSheetBehavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
+            override fun onStateChanged(bottomSheet: View, newState: Int) {
+                val showEbike = preferenze.getBoolean("mostra_dati_ebike", true)
+                val isEbikeConnected = viewModel.isConnected.value == true
+
+                if (newState == BottomSheetBehavior.STATE_COLLAPSED || newState == BottomSheetBehavior.STATE_HIDDEN) {
+                    binding.cruscotto.ebikeDetailsPanel.alpha = 0f
+                } else if (newState == BottomSheetBehavior.STATE_EXPANDED) {
+                    // Se l'e-bike non è attiva, l'alpha resta 0 anche in expanded
+                    binding.cruscotto.ebikeDetailsPanel.alpha = if (showEbike && isEbikeConnected) 1f else 0f
+                }
+            }
+
+            override fun onSlide(bottomSheet: View, slideOffset: Float) {
+                val showEbike = preferenze.getBoolean("mostra_dati_ebike", true)
+                val isEbikeConnected = viewModel.isConnected.value == true
+                if (showEbike && isEbikeConnected) {
+                    binding.cruscotto.ebikeDetailsPanel.alpha = slideOffset.coerceIn(0f, 1f)
+                } else {
+                    binding.cruscotto.ebikeDetailsPanel.alpha = 0f
+                }
+            }
+        })
 
         binding.cruscotto.root.post {
             if (isAdded && !viewModel.isRecording) {
@@ -864,11 +892,28 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.ebikeMessage.observe(viewLifecycleOwner) { message ->
             val socPercent = message.soc.toFloatOrNull() ?: 0f
             binding.cruscotto.batteryIndicator.setBatteryState(socPercent / 100f)
+
+            // Nuovi campi dettagliati
+            binding.cruscotto.tvRiderPower.text = "${message.riderPower} W"
+            binding.cruscotto.tvAssistLevel.text = message.assistLevel
+            binding.cruscotto.tvBatteryTemp.text = "${message.batteryTemp} °C"
+            binding.cruscotto.tvOdometer.text = "${message.total} km"
+
+            // Colore dinamico per il livello di assistenza
+            val assistColor = when(message.assistLevel.uppercase()) {
+                "TURBO" -> Color.RED
+                "TRAIL", "SPORT" -> Color.GREEN
+                "ECO" -> Color.CYAN
+                else -> Color.WHITE
+            }
+            binding.cruscotto.tvAssistLevel.setTextColor(assistColor)
         }
 
         viewModel.isConnected.observe(viewLifecycleOwner) { connected ->
             val showEbike = preferenze.getBoolean("mostra_dati_ebike", true)
-            binding.cruscotto.batteryIndicator.isVisible = connected && showEbike
+            val isVisible = connected && showEbike
+            binding.cruscotto.batteryIndicator.isVisible = isVisible
+            binding.cruscotto.ebikeDetailsPanel.isVisible = isVisible
         }
         // --------------------------
 
@@ -887,6 +932,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
         LocationRepository.gpsStatus.observe(viewLifecycleOwner) { status ->
             updateGpsIcon(status)
+        }
+        LocationRepository.isRecordingLiveData.observe(viewLifecycleOwner) { _ ->
+            updateGpsIcon(LocationRepository.gpsStatus.value)
         }
         viewModel.locationData.observe(viewLifecycleOwner) { locationData ->
             if (!isAdded) return@observe
@@ -974,12 +1022,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             currentTrackPolyline.addPoint(newPoint)
         }
         batteryIndicator = binding.cruscotto.batteryIndicator
-        // Imposta la percentuale (es. 75%) e opzionalmente un colore custom
-        batteryIndicator.setBatteryState(
-            percentage = 0.75f,
-            batteryColor = Color.GREEN
-        )
-        
+
         syncLayerVisuals()
         ripristinaStatoMappa()
         mapView.invalidate()
@@ -1206,7 +1249,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             binding.fabBlocMappa.isVisible = true
 
             bottomSheetBehavior.isHideable = false
-            bottomSheetBehavior.peekHeight = 120
+            bottomSheetBehavior.peekHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 220f, resources.displayMetrics).toInt()
 
             val stateToRestore = viewModel.bottomState
             if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
@@ -1481,9 +1524,22 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     private fun fermaRecording(fine: Boolean = false) {
+        LocationRepository.isRecording = false
+        // Reset rotazione e blocco mappa
+        viewModel.bloccaMappa = false
+        mapView.mapOrientation = 0f
+        
+        // Notifica al service di aggiornare la notifica (Bluetooth rimane attivo)
+        val intent = Intent(requireContext(), LocationService::class.java).apply {
+            action = "ACTION_UPDATE_NOTIFICATION"
+        }
+        requireContext().startService(intent)
+        
 // ferma aggiornamenti posizione ui e ferma servizio LocationService
         // //Log.d("Posizione","Stop servizio")
-        requireActivity().stopService(Intent(context, LocationService::class.java))
+        // Non fermiamo più il servizio qui se vogliamo che il Bluetooth rimanga attivo
+        // requireActivity().stopService(Intent(context, LocationService::class.java))
+        
         viewModel.tracciaDaSeguire = ""
         viewModel.layerItems.forEach {item ->
             item.segui = false
@@ -1611,7 +1667,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // 4. Invalida la mappa per forzare un ridisegno immediato.
         mapView.invalidate()
 
-
+        LocationRepository.isRecording = true
         // avvia il servizio per tracciare locazione in background
         //requireActivity().startService(Intent(context, LocationService::class.java))
         val serviceIntent = Intent(requireContext(), LocationService::class.java)
@@ -1631,9 +1687,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             binding.cruscotto.tvPendenza.visibility = View.VISIBLE
         }
         bottomSheetBehavior.isHideable = false
-        bottomSheetBehavior.peekHeight = 120
-        bottomSheetBehavior.halfExpandedRatio = 0.5f
-        bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
+        bottomSheetBehavior.peekHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 220f, resources.displayMetrics).toInt()
+        //bottomSheetBehavior.halfExpandedRatio = 0.5f
+        //bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
         LocationRepository.updateGpsStatus("started")
         binding.fabStopRec.isVisible = true
         showCustomSnackbar(binding.root, "Registrazione in corso")
@@ -1800,15 +1856,24 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     private fun updateGpsIcon(status: String?) {
+        val isRecording = LocationRepository.isRecording
         when (status) {
-            "started" -> {binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.orange) // O l'icona che usi per "ricerca GPS"
-                        binding.fabStopRec.isVisible = true}
-            "fixed" -> {binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.red)// Icona per GPS fixato
-                        binding.fabStopRec.isVisible = true}
-            "stopped" -> {binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.white)   // Icona per GPS spento/non attivo
-                        binding.fabStopRec.isVisible = false}
-            else -> {binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.white)      // Default a spento se lo stato è null o non riconosciuto
-                        binding.fabStopRec.isVisible = false}
+            "started" -> {
+                binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.orange)
+                binding.fabStopRec.isVisible = isRecording
+            }
+            "fixed" -> {
+                binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.red)
+                binding.fabStopRec.isVisible = isRecording
+            }
+            "stopped" -> {
+                binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.white)
+                binding.fabStopRec.isVisible = false
+            }
+            else -> {
+                binding.fabStopRec.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.white)
+                binding.fabStopRec.isVisible = false
+            }
         }
     }
 
@@ -2296,7 +2361,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 } else {
                     viewModel.disconnectBt()
                 }
-                binding.cruscotto.batteryIndicator.isVisible = enabled && (viewModel.isConnected.value == true)
+                val isVisible = enabled && (viewModel.isConnected.value == true)
+                binding.cruscotto.batteryIndicator.isVisible = isVisible
+                binding.cruscotto.ebikeDetailsPanel.isVisible = isVisible
+                
+                // Se disabilitato, riporta il bottomSheet allo stato compatto
+                if (!enabled) {
+                    bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+                }
             }
 
             "colore_traccia" -> { // NUOVA LOGICA QUI

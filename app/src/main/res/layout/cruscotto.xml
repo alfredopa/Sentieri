@@ -8,8 +8,20 @@
     android:background="@drawable/border_segment_round"
     android:backgroundTint="#09155A"
     android:padding="8dp"
+    android:elevation="8dp"
     app:behavior_fitToContents="true"
     app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
+
+    <!-- MANIGLIA PER TRASCINAMENTO -->
+    <View
+        android:id="@+id/drag_handle"
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_marginTop="4dp"
+        android:background="#88FFFFFF"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideline_col1_end"
@@ -31,8 +43,9 @@
         android:id="@+id/icon_dist"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/drag_handle"
         app:srcCompat="@drawable/ic_distance"
         tools:ignore="ContentDescription" />
 
@@ -57,7 +70,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:layout_constraintStart_toStartOf="@id/guideline_col1_end"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toTopOf="@id/icon_dist"
         app:srcCompat="@drawable/ic_avg_speed"
         tools:ignore="ContentDescription" />
 
@@ -358,5 +371,103 @@
         android:layout_height="wrap_content"
         android:visibility="gone"
         app:constraint_referenced_ids="icon_rem_dist,tvRemainingDist,icon_rem_dpiu,tvRemainingDPiu,icon_rem_dmeno,tvRemainingDMeno" />
+
+    <!-- SEZIONE DETTAGLI E-BIKE (VISIBILE SOLO IN EXPANDED) -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/ebikeDetailsPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:paddingTop="8dp"
+        android:alpha="0"
+        app:layout_constraintTop_toBottomOf="@id/barrier_row4">
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#44FFFFFF"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <!-- Potenza Rider e Assistenza -->
+        <ImageView
+            android:id="@+id/icon_power"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginTop="12dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/ic_bolt"
+            app:tint="#4CAF50" />
+
+        <TextView
+            android:id="@+id/tvRiderPower"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            app:layout_constraintBottom_toBottomOf="@id/icon_power"
+            app:layout_constraintStart_toEndOf="@id/icon_power"
+            app:layout_constraintTop_toTopOf="@id/icon_power"
+            tools:text="150 W" />
+
+        <TextView
+            android:id="@+id/tvAssistLevel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#4CAF50"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="@id/icon_power"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/icon_power"
+            tools:text="TRAIL" />
+
+        <!-- Temperatura e Odometro -->
+        <ImageView
+            android:id="@+id/icon_temp"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginTop="16dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/icon_power"
+            app:srcCompat="@drawable/ic_thermostat"
+            app:tint="#FF9800" />
+
+        <TextView
+            android:id="@+id/tvBatteryTemp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            app:layout_constraintBottom_toBottomOf="@id/icon_temp"
+            app:layout_constraintStart_toEndOf="@id/icon_temp"
+            app:layout_constraintTop_toTopOf="@id/icon_temp"
+            tools:text="32 °C" />
+
+        <ImageView
+            android:id="@+id/icon_odo"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            app:layout_constraintBottom_toBottomOf="@id/icon_temp"
+            app:layout_constraintEnd_toStartOf="@id/tvOdometer"
+            app:layout_constraintTop_toTopOf="@id/icon_temp"
+            app:srcCompat="@drawable/ic_distance"
+            app:tint="#03A9F4" />
+
+        <TextView
+            android:id="@+id/tvOdometer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            app:layout_constraintBottom_toBottomOf="@id/icon_temp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/icon_temp"
+            tools:text="1250 km" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

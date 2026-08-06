@@ -24,7 +24,7 @@ class BatteryProgressView @JvmOverloads constructor(
             LayoutParams.MATCH_PARENT
         )
         max = 100
-        progressDrawable = ContextCompat.getDrawable(context, R.drawable.border_drawable)
+        progressDrawable = ContextCompat.getDrawable(context, R.drawable.battery_progress_drawable)
     }
     private val textView: TextView
 
@@ -59,10 +59,14 @@ class BatteryProgressView @JvmOverloads constructor(
         progressBar.progress = soc
         textView.text = "$soc%"
 
-        // Imposta il colore della barra se fornito
-        batteryColor?.let {
-            progressBar.progressTintList = ColorStateList.valueOf(it)
+        // Determina il colore in base alla carica se non fornito esternamente
+        val color = batteryColor ?: when {
+            soc >= 50 -> Color.GREEN
+            soc >= 20 -> Color.YELLOW
+            else -> Color.RED
         }
+        
+        progressBar.progressTintList = ColorStateList.valueOf(color)
 
         // Cambia il colore del testo (> 50% = Nero, altrimenti colorOnSurface del tema)
         if (clampedPercentage > 0.5f) {

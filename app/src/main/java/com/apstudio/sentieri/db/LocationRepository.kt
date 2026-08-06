@@ -13,6 +13,8 @@ import kotlinx.coroutines.launch
 import java.sql.Timestamp
 import java.util.concurrent.CopyOnWriteArrayList
 import androidx.core.content.edit
+import com.example.levo_sdk.domain.model.BtDevice
+import com.example.levo_sdk.domain.model.BtMessage
 
 object LocationRepository {
     private const val TEMP_TRACK_ID = -100
@@ -25,7 +27,12 @@ object LocationRepository {
     private const val EMA_ALFA = 0.21
 
     // Stato sessione
-    var isRecording = false
+    private val _isRecording = MutableLiveData(false)
+    val isRecordingLiveData: LiveData<Boolean> = _isRecording
+    var isRecording: Boolean
+        get() = _isRecording.value ?: false
+        set(value) { _isRecording.postValue(value) }
+
     var oraInizio = 0L
     var isFixed = false
     var normalPressure = 1013.25f
@@ -83,6 +90,25 @@ object LocationRepository {
     private val _isCalibrato = MutableLiveData(false)
     val isCalibrato: LiveData<Boolean> = _isCalibrato
     private var calibratoInterno: Boolean = false // Variabile per i calcoli
+
+    // --- BLUETOOTH / E-BIKE ---
+    private val _btIsConnected = MutableLiveData(false)
+    val btIsConnected: LiveData<Boolean> = _btIsConnected
+
+    private val _btConnectedDeviceName = MutableLiveData<String>()
+    val btConnectedDeviceName: LiveData<String> = _btConnectedDeviceName
+
+    private val _btStatus = MutableLiveData("Disconnesso")
+    val btStatus: LiveData<String> = _btStatus
+
+    private val _ebikeMessage = MutableLiveData<BtMessage>()
+    val ebikeMessage: LiveData<BtMessage> = _ebikeMessage
+
+    private val _btDevices = MutableLiveData<List<BtDevice>>(emptyList())
+    val btDevices: LiveData<List<BtDevice>> = _btDevices
+
+    private val _btIsScanning = MutableLiveData(false)
+    val btIsScanning: LiveData<Boolean> = _btIsScanning
 
     // Dati traccia
     val trackPointsList = mutableListOf<GeoPoint>()
@@ -260,6 +286,27 @@ object LocationRepository {
     fun updateVelocita(v: Int) { _velocitaKmh.postValue(v) }
     fun updateMslAltitude(a: Double) { _mslAltitude.postValue(a) }
     fun updateGpsStatus(s: String) { _gpsStatus.postValue(s) }
+
+    fun updateBtConnectionState(connected: Boolean, deviceName: String? = null) {
+        _btIsConnected.postValue(connected)
+        deviceName?.let { _btConnectedDeviceName.postValue(it) }
+    }
+
+    fun updateBtStatus(status: String) {
+        _btStatus.postValue(status)
+    }
+
+    fun updateEbikeMessage(message: BtMessage) {
+        _ebikeMessage.postValue(message)
+    }
+
+    fun updateBtDevices(devices: List<BtDevice>) {
+        _btDevices.postValue(devices)
+    }
+
+    fun updateBtScanning(isScanning: Boolean) {
+        _btIsScanning.postValue(isScanning)
+    }
 
     fun baroCalibrato(valore: Boolean) {
         calibratoInterno = valore // Aggiorna per i calcoli interni
