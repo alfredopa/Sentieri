@@ -18,9 +18,17 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
+import android.content.SharedPreferences
 import com.apstudio.sentieri.db.LocationRepository
+import com.example.levo_sdk.data.LevoBluetoothController
+import com.example.levo_sdk.domain.BluetoothController
+import com.example.levo_sdk.domain.ConnectionResult
+import com.example.levo_sdk.domain.model.BtDevice
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 
 /**
  * LocationService is a foreground service responsible for tracking the device's location
@@ -86,6 +94,14 @@ class LocationService : LifecycleService() {
         private var MIN_DISTANCE_CHANGE_METERS = 6f
 
         private const val MIN_ACCURACY_METERS = 40f
+        
+        // Azioni Bluetooth
+        const val ACTION_START_SCAN = "com.apstudio.sentieri.ACTION_START_SCAN"
+        const val ACTION_STOP_SCAN = "com.apstudio.sentieri.ACTION_STOP_SCAN"
+        const val ACTION_CONNECT = "com.apstudio.sentieri.ACTION_CONNECT"
+        const val ACTION_DISCONNECT = "com.apstudio.sentieri.ACTION_DISCONNECT"
+        const val EXTRA_DEVICE_ADDRESS = "EXTRA_DEVICE_ADDRESS"
+        const val EXTRA_DEVICE_NAME = "EXTRA_DEVICE_NAME"
     }
 
     private lateinit var locationManager: LocationManager
@@ -97,11 +113,23 @@ class LocationService : LifecycleService() {
     private var speedKnots: Double = 0.0
     private var speedKmh: Int = 0
     private var wakeLock: PowerManager.WakeLock? = null
-    private var timerJob: kotlinx.coroutines.Job? = null
-
+    private var timerJob: Job? = null
+    
+    // Bluetooth / E-bike
+    private lateinit var bluetoothController: BluetoothController
+    private var bluetoothJob: Job? = null
+    private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+        if (key == "mostra_dati_ebike" || key == "last_ebike_address") {
+            handleBluetoothReconnect(prefs)
+        }
+    }
+    
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
+        
+        // Non chiamiamo startForeground qui all'avvio
+        // Lo faremo solo se e quando inizia la registrazione.
+
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         // PARTIAL_WAKE_LOCK mantiene la CPU attiva anche a schermo spento
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Sentieri::RecordingWakeLock")
@@ -113,12 +141,87 @@ class LocationService : LifecycleService() {
         initializeGnssCallback()
         initializeLocationListener()
         initializeNmeaListener()
-        requestLocationUpdates()
+        // Rimosso requestLocationUpdates() da qui, lo gestiremo in base a isRecording
         initializeBarometer()
+
+        // Bluetooth Setup
+        bluetoothController = LevoBluetoothController(this)
+        
+        // Collega i flussi del controller al Repository
+        lifecycleScope.launch {
+            bluetoothController.isConnected.collect { LocationRepository.updateBtConnectionState(it) }
+        }
+        lifecycleScope.launch {
+            bluetoothController.connectedDeviceName.collect { LocationRepository.updateBtConnectionState(LocationRepository.btIsConnected.value == true, it) }
+        }
+        lifecycleScope.launch {
+            bluetoothController.isScanning.collect { LocationRepository.updateBtScanning(it) }
+        }
+        lifecycleScope.launch {
+            bluetoothController.devices.collect { LocationRepository.updateBtDevices(it) }
+        }
+
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
+        handleBluetoothReconnect(prefs)
         
         // Ripristina lo stato della sessione se necessario
         LocationRepository.restoreSessionState(this)
         startTimerIfRecording()
+        
+        // Osserva lo stato di registrazione per gestire la notifica foreground E il GPS
+        LocationRepository.isRecordingLiveData.observe(this) { recording ->
+            updateNotification()
+            if (recording) {
+                requestLocationUpdates()
+            } else {
+                removeLocationUpdates()
+            }
+        }
+    }
+
+    private fun handleBluetoothReconnect(prefs: SharedPreferences) {
+        val enabled = prefs.getBoolean("mostra_dati_ebike", true)
+        if (enabled) {
+            autoConnectEbike(prefs)
+        } else {
+            bluetoothJob?.cancel()
+            bluetoothController.closeConnection()
+            LocationRepository.updateBtConnectionState(false)
+            LocationRepository.updateBtStatus("Bluetooth disattivato")
+        }
+    }
+
+    private fun autoConnectEbike(prefs: SharedPreferences) {
+        val address = prefs.getString("last_ebike_address", null)
+        if (!address.isNullOrEmpty() && LocationRepository.btIsConnected.value != true) {
+            connectToBtDevice(address)
+        }
+    }
+
+    private fun connectToBtDevice(address: String) {
+        bluetoothJob?.cancel()
+        bluetoothJob = lifecycleScope.launch {
+            bluetoothController.connectToDevice(BtDevice(name = null, address = address))
+                .collect { result ->
+                    when (result) {
+                        is ConnectionResult.ConnectionEstablished -> {
+                            LocationRepository.updateBtConnectionState(true, "E-bike")
+                            LocationRepository.updateBtStatus("Connesso")
+                        }
+                        is ConnectionResult.TransferSucceeded -> {
+                            LocationRepository.updateEbikeMessage(result.message)
+                        }
+                        is ConnectionResult.Error -> {
+                            LocationRepository.updateBtConnectionState(false)
+                            LocationRepository.updateBtStatus("Errore: ${result.message}")
+                            // Riprova dopo un po' se è un errore di connessione
+                            delay(10000)
+                            autoConnectEbike(PreferenceManager.getDefaultSharedPreferences(this@LocationService))
+                        }
+                    }
+                }
+        }
     }
 
     private fun startTimerIfRecording() {
@@ -173,6 +276,33 @@ class LocationService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         startTimerIfRecording()
+        
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        
+        when (intent?.action) {
+            ACTION_START_SCAN -> {
+                bluetoothController.startDiscovery()
+            }
+            ACTION_STOP_SCAN -> {
+                bluetoothController.stopDiscovery()
+            }
+            ACTION_CONNECT -> {
+                val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
+                if (address != null) connectToBtDevice(address)
+            }
+            ACTION_DISCONNECT -> {
+                bluetoothJob?.cancel()
+                bluetoothController.closeConnection()
+            }
+            "ACTION_UPDATE_NOTIFICATION" -> {
+                updateNotification()
+            }
+            else -> {
+                // Caso di avvio generico: controlla se riconnettere
+                handleBluetoothReconnect(prefs)
+            }
+        }
+
         val activityType =
             intent?.getStringExtra("ACTIVITY_TYPE") ?: "mtb" // Usa mountain_bike se null
         //Log.d(TAG, "Servizio avviato con tipo attività: $activityType")
@@ -218,7 +348,11 @@ class LocationService : LifecycleService() {
         }
     }
 
+    private var isGpsRunning = false
+    
     private fun requestLocationUpdates() {
+        if (isGpsRunning) return
+        
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
@@ -245,6 +379,7 @@ class LocationService : LifecycleService() {
             MIN_DISTANCE_CHANGE_METERS,
             locationListener
         )
+        isGpsRunning = true
     }
 
     private fun initializeBarometer() {
@@ -304,6 +439,14 @@ class LocationService : LifecycleService() {
     override fun onDestroy() {
         stopTimer()
         stopBarometer()
+        
+        // Bluetooth Cleanup
+        bluetoothJob?.cancel()
+        PreferenceManager.getDefaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(preferenceListener)
+        if (::bluetoothController.isInitialized) {
+            bluetoothController.release()
+        }
+
         LocationRepository.updateGpsStatus("stopped")
         removeLocationUpdates()
         wakeLock?.release()
@@ -315,12 +458,15 @@ class LocationService : LifecycleService() {
     }
 
     private fun removeLocationUpdates() {
+        if (!isGpsRunning) return
+        
         nmeaListener?.let {
             locationManager.removeNmeaListener(it)
             //Log.d(TAG, "Removed NMEA listener")
         }
         locationManager.removeUpdates(locationListener)
         locationManager.unregisterGnssStatusCallback(gnssCallback)
+        isGpsRunning = false
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -328,42 +474,54 @@ class LocationService : LifecycleService() {
         return null
     }
 
-    private fun createNotificationChannel() {
-        val channelName = "Location Service"
-        val importance = NotificationManager.IMPORTANCE_HIGH
-        val channelId = "LOCATION_SERVICE_CHANNEL" // Assicurati che sia univoco
-        val channel = NotificationChannel(channelId, channelName, importance)
-        channel.setSound(null, null) // Considera se vuoi un suono o meno
+    private fun updateNotification() {
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(channel)
+        if (LocationRepository.isRecording) {
+            val title = "Registrazione GPS in corso"
+            val text = "Sto registrando la traccia..."
+            val notification = buildNotification(title, text)
+            // Se stiamo registrando, il servizio DEVE essere in foreground
+            startForeground(LOCATION_SERVICE_CHANNEL, notification)
+        } else {
+            // Se non stiamo registrando, togliamo il servizio dal primo piano.
+            // La notifica sparirà, e il servizio rimarrà attivo in background per il Bluetooth
+            // finché il sistema lo consente.
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            // Assicuriamoci che qualsiasi notifica residua (magari postata con notify()) venga rimossa
+            manager.cancel(LOCATION_SERVICE_CHANNEL)
+        }
+    }
+
+    private fun buildNotification(title: String, text: String): android.app.Notification {
+        val channelId = "LOCATION_SERVICE_CHANNEL"
+        val channelName = "Location Service"
+        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        
+        if (manager.getNotificationChannel(channelId) == null) {
+            val channel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_LOW)
+            channel.setSound(null, null)
+            channel.setShowBadge(false)
+            manager.createNotificationChannel(channel)
+        }
+
         val notifyIntent = Intent(this, MainActivity::class.java).apply {
-            // FLAG_ACTIVITY_SINGLE_TOP: se l'attività è già in esecuzione, non ne crea una nuova
-            // FLAG_ACTIVITY_CLEAR_TOP: pulisce eventuali altre attività sopra di essa
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
 
-        // PendingIntent per navigare a MappaFragment
         val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            notifyIntent,
+            this, 0, notifyIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(this, channelId)
+        return NotificationCompat.Builder(this, channelId)
             .setOngoing(true)
-            .setContentTitle("Registrazione GPS in corso") // Titolo più conciso
-            .setContentText("Sentieri sta registrando la traccia") // Usa setContentText per il corpo
+            .setContentTitle(title)
+            .setContentText(text)
             .setSmallIcon(R.drawable.ic_start)
             .setContentIntent(pendingIntent)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE) // Usa NotificationCompat per coerenza
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT) // Usa NotificationCompat per coerenza
-            // .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE) // Per Android 12+ se vuoi che appaia subito
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setSilent(true) // Impedisce il suono ad ogni aggiornamento
             .build()
-
-        // Usa un ID univoco per startForeground, non una costante stringa per il channelId
-        // LOCATION_SERVICE_CHANNEL è l'ID della notifica, non del canale qui
-        startForeground(LOCATION_SERVICE_CHANNEL, notification) // Usa l'ID definito nella companion object
     }
-
 }

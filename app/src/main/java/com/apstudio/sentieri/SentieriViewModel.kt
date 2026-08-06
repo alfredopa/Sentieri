@@ -23,17 +23,12 @@ import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TopoMarkerData
 import com.apstudio.sentieri.layer.Event
 import com.apstudio.sentieri.layer.placeholder.PlaceholderContent
-import com.example.levo_sdk.data.LevoBluetoothController
-import com.example.levo_sdk.domain.BluetoothController
-import com.example.levo_sdk.domain.ConnectionResult
 import com.example.levo_sdk.domain.model.BtDevice
-import com.example.levo_sdk.domain.model.BtMessage
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.federicomatera.agpxp.models.WayPoint
@@ -48,19 +43,13 @@ data class LocationData(val geoPoint: GeoPoint, val bearing: Float)
 class SentieriViewModel(private val repository: SentieriRepo, application: Application) :
     AndroidViewModel(application) {
 
-    private val bluetoothController: BluetoothController = LevoBluetoothController(application)
-
-    // Bluetooth LiveData
-    val btDevices = bluetoothController.devices.asLiveData()
-    val isScanning = bluetoothController.isScanning.asLiveData()
-    val isConnected = bluetoothController.isConnected.asLiveData()
-    val connectedDeviceName = bluetoothController.connectedDeviceName.asLiveData()
-
-    private val _ebikeMessage = MutableLiveData<BtMessage>()
-    val ebikeMessage: LiveData<BtMessage> = _ebikeMessage
-
-    private val _btStatus = MutableLiveData<String>()
-    val btStatus: LiveData<String> = _btStatus
+    // Bluetooth LiveData (ora osservano il LocationRepository)
+    val btDevices = LocationRepository.btDevices
+    val isScanning = LocationRepository.btIsScanning
+    val isConnected = LocationRepository.btIsConnected
+    val connectedDeviceName = LocationRepository.btConnectedDeviceName
+    val ebikeMessage = LocationRepository.ebikeMessage
+    val btStatus = LocationRepository.btStatus
 
 
     companion object {
@@ -138,49 +127,48 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         )
     }
 
-    // Bluetooth Methods
+    // Bluetooth Methods (tramite Service)
     fun startBtDiscovery() {
-        bluetoothController.startDiscovery()
+        val intent = Intent(getApplication(), LocationService::class.java).apply {
+            action = LocationService.ACTION_START_SCAN
+        }
+        getApplication<Application>().startService(intent)
     }
 
     fun stopBtDiscovery() {
-        bluetoothController.stopDiscovery()
+        val intent = Intent(getApplication(), LocationService::class.java).apply {
+            action = LocationService.ACTION_STOP_SCAN
+        }
+        getApplication<Application>().startService(intent)
     }
 
     fun connectToBtDevice(device: BtDevice) {
-        viewModelScope.launch {
-            bluetoothController.connectToDevice(device).collectLatest { result ->
-                when (result) {
-                    is ConnectionResult.ConnectionEstablished -> {
-                        _btStatus.postValue("Connesso a ${device.name ?: "E-bike"}")
-                        // Salva l'indirizzo per riconnessione automatica se desiderato
-                        PreferenceManager.getDefaultSharedPreferences(getApplication()).edit {
-                            putString("last_ebike_address", device.address)
-                        }
-                    }
-                    is ConnectionResult.TransferSucceeded -> {
-                        _ebikeMessage.postValue(result.message)
-                    }
-                    is ConnectionResult.Error -> {
-                        _btStatus.postValue("Errore: ${result.message}")
-                    }
-                }
-            }
+        val intent = Intent(getApplication(), LocationService::class.java).apply {
+            action = LocationService.ACTION_CONNECT
+            putExtra(LocationService.EXTRA_DEVICE_ADDRESS, device.address)
+            putExtra(LocationService.EXTRA_DEVICE_NAME, device.name)
+        }
+        getApplication<Application>().startService(intent)
+        
+        // Salva l'indirizzo per riconnessione automatica
+        PreferenceManager.getDefaultSharedPreferences(getApplication()).edit {
+            putString("last_ebike_address", device.address)
         }
     }
 
     fun disconnectBt() {
-        bluetoothController.closeConnection()
+        val intent = Intent(getApplication(), LocationService::class.java).apply {
+            action = LocationService.ACTION_DISCONNECT
+        }
+        getApplication<Application>().startService(intent)
     }
 
     fun autoConnectEbike() {
-        val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
-        val address = prefs.getString("last_ebike_address", null)
-        val enabled = prefs.getBoolean("mostra_dati_ebike", true)
-
-        if (enabled && !address.isNullOrEmpty() && isConnected.value != true) {
-            connectToBtDevice(BtDevice(name = null, address = address))
-        }
+        // La riconnessione automatica è ora gestita dal LocationService
+        // basandosi sulle preferenze. Chiamiamo comunque il service per sicurezza
+        // nel caso non fosse già in esecuzione o per forzare un check.
+        val intent = Intent(getApplication(), LocationService::class.java)
+        getApplication<Application>().startService(intent)
     }
 
     init {
