@@ -891,6 +891,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // --- OSSERVATORI E-BIKE ---
         viewModel.ebikeMessage.observe(viewLifecycleOwner) { message ->
             val socPercent = message.soc.toFloatOrNull() ?: 0f
+            Log.d("EbikeDebug", "UI: Observer attivato, imposto batteryIndicator a: $socPercent%")
             binding.cruscotto.batteryIndicator.setBatteryState(socPercent / 100f)
 
             // Nuovi campi dettagliati
