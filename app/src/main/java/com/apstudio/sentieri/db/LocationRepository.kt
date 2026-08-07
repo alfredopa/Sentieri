@@ -1,6 +1,7 @@
 package com.apstudio.sentieri.db
 
 import android.location.Location
+import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.apstudio.sentieri.MapUtils
@@ -297,6 +298,7 @@ object LocationRepository {
     }
 
     fun updateEbikeMessage(message: BtMessage) {
+        Log.d("EbikeDebug", "Repository: Aggiorno LiveData, SoC: ${message.soc}")
         _ebikeMessage.postValue(message)
     }
 

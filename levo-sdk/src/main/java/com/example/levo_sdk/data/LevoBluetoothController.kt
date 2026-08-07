@@ -223,6 +223,7 @@ class LevoBluetoothController(
                     slowIndex = (slowIndex + 1) % slowItems.size
                     delay(100.milliseconds)
                 } catch (e: Exception) {
+                    Log.d("EbikeDebug", "errore catch polling")
                     delay(5000.milliseconds)
                 }
             }
@@ -245,6 +246,7 @@ class LevoBluetoothController(
             if (updated != lastMessage) {
                 lastMessage = updated
                 val log = "[Levo] ${data.take(2).toByteArray().toHexString()}: ${data.toHexString()}"
+                Log.d("EbikeDebug", "SDK: Dato ricevuto e decodificato: $updated") // <-- AGGIUNGI QUESTO
                 notificationFlow.tryEmit(lastMessage to log)
             }
         }

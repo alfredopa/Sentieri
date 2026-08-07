@@ -20,6 +20,7 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import android.content.SharedPreferences
+import android.util.Log
 import com.apstudio.sentieri.db.LocationRepository
 import com.example.levo_sdk.data.LevoBluetoothController
 import com.example.levo_sdk.domain.BluetoothController
@@ -210,6 +211,7 @@ class LocationService : LifecycleService() {
                             LocationRepository.updateBtStatus("Connesso")
                         }
                         is ConnectionResult.TransferSucceeded -> {
+                            Log.d("EbikeDebug", "Service: Ricevuto TransferSucceeded, SoC: ${result.message.soc}")
                             LocationRepository.updateEbikeMessage(result.message)
                         }
                         is ConnectionResult.Error -> {
