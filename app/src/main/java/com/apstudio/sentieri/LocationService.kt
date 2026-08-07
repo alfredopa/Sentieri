@@ -211,7 +211,7 @@ class LocationService : LifecycleService() {
                             LocationRepository.updateBtStatus("Connesso")
                         }
                         is ConnectionResult.TransferSucceeded -> {
-                            Log.d("EbikeDebug", "Service: Ricevuto TransferSucceeded, SoC: ${result.message.soc}")
+                            //Log.d("EbikeDebug", "Service: Ricevuto TransferSucceeded, SoC: ${result.message.soc}")
                             LocationRepository.updateEbikeMessage(result.message)
                         }
                         is ConnectionResult.Error -> {
