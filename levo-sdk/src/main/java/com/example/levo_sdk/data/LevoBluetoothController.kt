@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import com.example.levo_sdk.data.protocol.LevoProtocol
 import com.example.levo_sdk.data.protocol.toHexString
@@ -138,6 +139,9 @@ class LevoBluetoothController(
                 return@callbackFlow
             }
 
+            // Chiudi eventuali connessioni precedenti per evitare status 133 (multipli clientIf)
+            closeConnection()
+
             val bluetoothDevice = bluetoothAdapter?.getRemoteDevice(device.address)
             if (bluetoothDevice == null) {
                 trySend(ConnectionResult.Error("Device not found"))
@@ -149,9 +153,21 @@ class LevoBluetoothController(
 
             val gattCallback = object : BluetoothGattCallback() {
                 override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+                    //Log.d("EbikeDebug", "SDK: onConnectionStateChange status=$status, newState=$newState")
+                    if (status != BluetoothGatt.GATT_SUCCESS) {
+                        Log.e("EbikeDebug", "SDK: GATT Error $status")
+                        _isConnected.update { false }
+                        pollingJob?.cancel()
+                        trySend(ConnectionResult.Error("GATT Error $status"))
+                        close()
+                        return
+                    }
+
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
+                        //Log.d("EbikeDebug", "SDK: Connected, discovering services...")
                         gatt.discoverServices()
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                        //Log.d("EbikeDebug", "SDK: Disconnected")
                         _isConnected.update { false }
                         pollingJob?.cancel()
                         trySend(ConnectionResult.Error("Disconnected"))
@@ -160,6 +176,7 @@ class LevoBluetoothController(
                 }
 
                 override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+                    //Log.d("EbikeDebug", "SDK: onServicesDiscovered status=$status")
                     if (status == BluetoothGatt.GATT_SUCCESS) {
                         val service = gatt.getService(UUID.fromString(LEVO_SERVICE_UUID))
                         val writeChar = service?.getCharacteristic(UUID.fromString(LEVO_WRITE_CHAR_UUID))
@@ -197,8 +214,25 @@ class LevoBluetoothController(
                 }
             }
 
-            currentGatt = bluetoothDevice.connectGatt(context, false, gattCallback)
-            awaitClose { closeConnection() }
+            //Log.d("EbikeDebug", "SDK: Connecting to ${device.address}...")
+            val gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                bluetoothDevice.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+            } else {
+                bluetoothDevice.connectGatt(context, false, gattCallback)
+            }
+            currentGatt = gatt
+
+            awaitClose {
+                //Log.d("EbikeDebug", "SDK: awaitClose - closing current connection")
+                // Non chiamare closeConnection() qui per evitare ricorsione se chiudiamo tramite close() del flow
+                pollingJob?.cancel()
+                gatt.disconnect()
+                gatt.close()
+                if (currentGatt == gatt) {
+                    currentGatt = null
+                }
+                _isConnected.update { false }
+            }
         }.flowOn(Dispatchers.IO)
     }
 
@@ -223,7 +257,7 @@ class LevoBluetoothController(
                     slowIndex = (slowIndex + 1) % slowItems.size
                     delay(100.milliseconds)
                 } catch (e: Exception) {
-                    Log.d("EbikeDebug", "errore catch polling")
+                    //Log.d("EbikeDebug", "errore catch polling")
                     delay(5000.milliseconds)
                 }
             }
@@ -246,7 +280,7 @@ class LevoBluetoothController(
             if (updated != lastMessage) {
                 lastMessage = updated
                 val log = "[Levo] ${data.take(2).toByteArray().toHexString()}: ${data.toHexString()}"
-                Log.d("EbikeDebug", "SDK: Dato ricevuto e decodificato: $updated") // <-- AGGIUNGI QUESTO
+                //Log.d("EbikeDebug", "SDK: Dato ricevuto e decodificato: $updated") // <-- AGGIUNGI QUESTO
                 notificationFlow.tryEmit(lastMessage to log)
             }
         }

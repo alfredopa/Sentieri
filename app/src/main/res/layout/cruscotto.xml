@@ -28,14 +28,14 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        app:layout_constraintGuide_percent="0.42" />
+        app:layout_constraintGuide_percent="0.46" />
 
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideline_col2_end"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        app:layout_constraintGuide_percent="0.70" />
+        app:layout_constraintGuide_percent="0.73" />
 
 
     <!-- RIGA 1: Distanza, Velocità -->
@@ -265,29 +265,22 @@
         android:textSize="22sp"
         app:layout_constrainedWidth="true"
         app:layout_constraintBottom_toBottomOf="@id/icon_tempo_mov"
-        app:layout_constraintEnd_toStartOf="@id/btnAllarme"
+        app:layout_constraintEnd_toStartOf="@id/guideline_col1_end"
         app:layout_constraintStart_toEndOf="@id/icon_tempo_mov"
         app:layout_constraintTop_toTopOf="@id/icon_tempo_mov"
         tools:text="00:00:00" />
 
-    <com.apstudio.sentieri.BatteryProgressView
-        android:id="@+id/batteryIndicator"
-        android:layout_width="90dp"
-        android:layout_height="35dp"
-        android:layout_marginEnd="8dp"
-        app:layout_constraintBottom_toBottomOf="@+id/icon_tempo_mov"
-        app:layout_constraintEnd_toStartOf="@+id/guideline_col2_end"
-        app:layout_constraintTop_toTopOf="@+id/icon_tempo_mov"
-        app:layout_constraintVertical_bias="0.272" />
-
     <Button
         android:id="@+id/btnAllarme"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="40dp"
         android:text="Allarme on"
+        android:textSize="14sp"
+        android:padding="0dp"
         android:backgroundTint="@color/red"
         app:layout_constraintBottom_toBottomOf="@id/icon_tempo_mov"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@id/guideline_col2_end"
         app:layout_constraintTop_toTopOf="@id/icon_tempo_mov" />
 
     <androidx.constraintlayout.widget.Barrier
@@ -388,14 +381,35 @@
             android:background="#44FFFFFF"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- Potenza Rider e Assistenza -->
-        <ImageView
-            android:id="@+id/icon_power"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
+        <!-- Riga 1: Batteria e Assistenza -->
+        <com.apstudio.sentieri.BatteryProgressView
+            android:id="@+id/batteryIndicator"
+            android:layout_width="90dp"
+            android:layout_height="35dp"
             android:layout_marginTop="12dp"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/tvAssistLevel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#4CAF50"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="@id/batteryIndicator"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/batteryIndicator"
+            tools:text="TRAIL" />
+
+        <!-- Riga 2: Potenza e Temperatura -->
+        <ImageView
+            android:id="@+id/icon_power"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginTop="16dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/batteryIndicator"
             app:srcCompat="@drawable/ic_bolt"
             app:tint="#4CAF50" />
 
@@ -405,32 +419,19 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:textColor="#FFFFFF"
-            android:textSize="18sp"
+            android:textSize="17sp"
             app:layout_constraintBottom_toBottomOf="@id/icon_power"
             app:layout_constraintStart_toEndOf="@id/icon_power"
             app:layout_constraintTop_toTopOf="@id/icon_power"
             tools:text="150 W" />
 
-        <TextView
-            android:id="@+id/tvAssistLevel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#4CAF50"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            app:layout_constraintBottom_toBottomOf="@id/icon_power"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="@id/icon_power"
-            tools:text="TRAIL" />
-
-        <!-- Temperatura e Odometro -->
         <ImageView
             android:id="@+id/icon_temp"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginTop="16dp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/icon_power"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            app:layout_constraintBottom_toBottomOf="@id/icon_power"
+            app:layout_constraintEnd_toStartOf="@id/tvBatteryTemp"
+            app:layout_constraintTop_toTopOf="@id/icon_power"
             app:srcCompat="@drawable/ic_thermostat"
             app:tint="#FF9800" />
 
@@ -440,19 +441,24 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            app:layout_constraintBottom_toBottomOf="@id/icon_temp"
-            app:layout_constraintStart_toEndOf="@id/icon_temp"
-            app:layout_constraintTop_toTopOf="@id/icon_temp"
+            android:textSize="17sp"
+            app:layout_constraintBottom_toBottomOf="@id/icon_power"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/icon_power"
             tools:text="32 °C" />
 
+        <!-- Riga 3: Odometro -->
         <ImageView
             android:id="@+id/icon_odo"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            app:layout_constraintBottom_toBottomOf="@id/icon_temp"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@id/tvOdometer"
-            app:layout_constraintTop_toTopOf="@id/icon_temp"
+            app:layout_constraintHorizontal_chainStyle="packed"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/icon_power"
             app:srcCompat="@drawable/ic_distance"
             app:tint="#03A9F4" />
 
@@ -462,10 +468,11 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            app:layout_constraintBottom_toBottomOf="@id/icon_temp"
+            android:textSize="17sp"
+            app:layout_constraintBottom_toBottomOf="@id/icon_odo"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="@id/icon_temp"
+            app:layout_constraintStart_toEndOf="@id/icon_odo"
+            app:layout_constraintTop_toTopOf="@id/icon_odo"
             tools:text="1250 km" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>

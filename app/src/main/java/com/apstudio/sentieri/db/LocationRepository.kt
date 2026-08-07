@@ -298,7 +298,7 @@ object LocationRepository {
     }
 
     fun updateEbikeMessage(message: BtMessage) {
-        Log.d("EbikeDebug", "Repository: Aggiorno LiveData, SoC: ${message.soc}")
+        //Log.d("EbikeDebug", "Repository: Aggiorno LiveData, SoC: ${message.soc}")
         _ebikeMessage.postValue(message)
     }
 

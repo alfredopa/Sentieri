@@ -615,12 +615,16 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         bottomSheetBehavior.isHideable = true
         bottomSheetBehavior.skipCollapsed = false
         
-        // Imposta lo stato iniziale in base alla registrazione
-        val peekHeightDp = 220
+        // Usa FitToContents per ancorare il cruscotto al contenuto ed evitare lo scorrimento a tutto schermo
+        bottomSheetBehavior.isFitToContents = true
+
+        // Imposta il peekHeight per vedere solo le prime 2 righe (Distanza, Velocità, Quota, Dislivelli)
+        val peekHeightDp = 125
         val peekHeightPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, peekHeightDp.toFloat(), resources.displayMetrics).toInt()
 
         if (viewModel.isRecording) {
             bottomSheetBehavior.peekHeight = peekHeightPx
+            bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
         } else {
             bottomSheetBehavior.peekHeight = 0
             bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
@@ -631,19 +635,22 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 val showEbike = preferenze.getBoolean("mostra_dati_ebike", true)
                 val isEbikeConnected = viewModel.isConnected.value == true
 
-                if (newState == BottomSheetBehavior.STATE_COLLAPSED || newState == BottomSheetBehavior.STATE_HIDDEN) {
-                    binding.cruscotto.ebikeDetailsPanel.alpha = 0f
-                } else if (newState == BottomSheetBehavior.STATE_EXPANDED) {
-                    // Se l'e-bike non è attiva, l'alpha resta 0 anche in expanded
+                if (newState == BottomSheetBehavior.STATE_EXPANDED) {
                     binding.cruscotto.ebikeDetailsPanel.alpha = if (showEbike && isEbikeConnected) 1f else 0f
+                } else if (newState == BottomSheetBehavior.STATE_COLLAPSED) {
+                    binding.cruscotto.ebikeDetailsPanel.alpha = 0f
                 }
             }
 
             override fun onSlide(bottomSheet: View, slideOffset: Float) {
+                // slideOffset va da 0.0 (peekHeight) a 1.0 (full height)
+                // Dissolvenza fluida dei dati E-bike: iniziano a comparire dopo il 60% dell'apertura
                 val showEbike = preferenze.getBoolean("mostra_dati_ebike", true)
                 val isEbikeConnected = viewModel.isConnected.value == true
+
                 if (showEbike && isEbikeConnected) {
-                    binding.cruscotto.ebikeDetailsPanel.alpha = slideOffset.coerceIn(0f, 1f)
+                    val alpha = if (slideOffset > 0.6f) (slideOffset - 0.6f) * 2.5f else 0f
+                    binding.cruscotto.ebikeDetailsPanel.alpha = alpha.coerceIn(0f, 1f)
                 } else {
                     binding.cruscotto.ebikeDetailsPanel.alpha = 0f
                 }
@@ -888,10 +895,17 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             binding.cruscotto.tvPendenza.text = "$pendenza %"
         }
 
+        viewModel.btStatus.observe(viewLifecycleOwner) { status ->
+            //Log.d("EbikeDebug", "UI: btStatus changed to: $status")
+            if (status.contains("Errore")) {
+                Toast.makeText(requireContext(), status, Toast.LENGTH_LONG).show()
+            }
+        }
+
         // --- OSSERVATORI E-BIKE ---
         viewModel.ebikeMessage.observe(viewLifecycleOwner) { message ->
             val socPercent = message.soc.toFloatOrNull() ?: 0f
-            Log.d("EbikeDebug", "UI: Observer attivato, imposto batteryIndicator a: $socPercent%")
+            //Log.d("EbikeDebug", "UI: Observer attivato, imposto batteryIndicator a: $socPercent%")
             binding.cruscotto.batteryIndicator.setBatteryState(socPercent / 100f)
 
             // Nuovi campi dettagliati
