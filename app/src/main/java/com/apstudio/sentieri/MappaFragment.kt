@@ -951,6 +951,17 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         LocationRepository.isRecordingLiveData.observe(viewLifecycleOwner) { _ ->
             updateGpsIcon(LocationRepository.gpsStatus.value)
         }
+        // Osserva i valori rimanenti se segue traccia
+        viewModel.remainingDist.observe(viewLifecycleOwner) { remDist ->
+            binding.cruscotto.tvRemainingDist.text = MapUtils.formattastring(remDist)
+        }
+        viewModel.remainingDPiu.observe(viewLifecycleOwner) { remDPiu ->
+            binding.cruscotto.tvRemainingDPiu.text = numberFormat.format(remDPiu.toInt())
+        }
+        viewModel.remainingDMeno.observe(viewLifecycleOwner) { remDMeno ->
+            binding.cruscotto.tvRemainingDMeno.text = numberFormat.format(remDMeno.toInt())
+        }
+
         viewModel.locationData.observe(viewLifecycleOwner) { locationData ->
             if (!isAdded) return@observe
 
@@ -974,32 +985,21 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
             }
 
-            // Osserva i valori rimanenti se segue traccia
-            viewModel.remainingDist.observe(viewLifecycleOwner) { remDist ->
-                binding.cruscotto.tvRemainingDist.text = MapUtils.formattastring(remDist)
-            }
-            viewModel.remainingDPiu.observe(viewLifecycleOwner) { remDPiu ->
-                binding.cruscotto.tvRemainingDPiu.text = numberFormat.format(remDPiu.toInt())
-            }
-            viewModel.remainingDMeno.observe(viewLifecycleOwner) { remDMeno ->
-                binding.cruscotto.tvRemainingDMeno.text = numberFormat.format(remDMeno.toInt())
-            }
+            // MODIFICA PRINCIPALE: Gestione della rotazione e del centraggio
+            if (viewModel.bloccaMappa) {
+                val gpsbearing = locationData.bearing
+                var t: Float = 360 - gpsbearing
+                if (t < 0) t += 360f
+                if (t > 360) t -= 360f
+                t = (t.toInt() / 5 * 5).toFloat()
 
-        // MODIFICA PRINCIPALE: Gestione della rotazione e del centraggio
-        if (viewModel.bloccaMappa) {
-            val gpsbearing = locationData.bearing
-            var t: Float = 360 - gpsbearing
-            if (t < 0) t += 360f
-            if (t > 360) t -= 360f
-            t = (t.toInt() / 5 * 5).toFloat()
-
-            mapView.mapOrientation = t
-            
-            // --- FIX BLOCCO MAPPA: Centra solo se non stiamo selezionando una destinazione ---
-            if (!isSelectingDestination) {
-                mapView.controller?.setCenter(newGeoPoint)
+                mapView.mapOrientation = t
+                
+                // --- FIX BLOCCO MAPPA: Centra solo se non stiamo selezionando una destinazione ---
+                if (!isSelectingDestination) {
+                    mapView.controller?.setCenter(newGeoPoint)
+                }
             }
-        }
 
             // segue traccia con una coroutine
             if (viewModel.alertFuoriTraccia && viewModel.tracciaDaSeguire.isNotEmpty()) {
@@ -1654,6 +1654,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         accendiSchermo()
 // inizio registrazione posizione
         viewModel.isRecording = true
+        viewModel.bloccaMappa = true // Forza il blocco mappa all'inizio
+        aggiornaUIFabBlocMappa(showToast = false)
         viewModel.oraInizio = System.currentTimeMillis()
         LocationRepository.saveSessionState(requireContext())
         // legge preferenze per il tipo di attività
