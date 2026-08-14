@@ -81,6 +81,9 @@ object LocationRepository {
     private val _secondiMovimento = MutableLiveData(0L)
     val secondiMovimentoLiveData: LiveData<Long> = _secondiMovimento
 
+    private val _tempoTrascorso = MutableLiveData("00:00:00")
+    val tempoTrascorso: LiveData<String> = _tempoTrascorso
+
     private val _gpsStatus = MutableLiveData("stopped")
     val gpsStatus: LiveData<String> = _gpsStatus
 
@@ -319,6 +322,11 @@ object LocationRepository {
         if (isRecording && (_velocitaKmh.value ?: 0) > 2) { // 2 km/h soglia minima
             secondiMovimento++
             _secondiMovimento.postValue(secondiMovimento)
+        }
+        // Aggiorna anche il tempo totale trascorso
+        if (isRecording && oraInizio > 0) {
+            val elapsed = System.currentTimeMillis() - oraInizio
+            _tempoTrascorso.postValue(MapUtils.formatElapsedTime(elapsed))
         }
     }
 

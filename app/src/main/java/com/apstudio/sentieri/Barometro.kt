@@ -18,11 +18,8 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.app.ActivityCompat
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
 import com.apstudio.sentieri.databinding.FragmentBarometroBinding
 import com.apstudio.sentieri.db.LocationRepository
-import com.apstudio.sentieri.db.SentieriDB
-import com.apstudio.sentieri.db.SentieriRepo
 import kotlin.math.pow
 
 private const val ARG_PARAM1 = "param1"
@@ -31,20 +28,6 @@ private const val ARG_PARAM2 = "param2"
 class Barometro : Fragment(), SensorEventListener {
     private var param1: String? = null
     private var param2: String? = null
-
-    private val viewModel: SentieriViewModel by activityViewModels(
-        factoryProducer = {
-            val application = requireActivity().application
-            val database = SentieriDB.getInstance(application)
-            val repository = SentieriRepo(
-                sentieriDao = database.sentieriDao(),
-                trackDao = database.trackDao(),
-                poiDao = database.poiDao(),
-                fotoPoiDao = database.fotoPoiDao()
-            )
-            SentieriFactory(repository, application)
-        }
-    )
 
     private val locationModel = LocationRepository
 
@@ -87,7 +70,6 @@ class Barometro : Fragment(), SensorEventListener {
             val input = binding.EditPressione.text.toString()
             if (input.isNotEmpty()) {
                 NORMAL_PRESSURE = input.toFloat()
-                viewModel.NORMAL_PRESSURE = NORMAL_PRESSURE
                 locationModel.baroCalibrato(true)
             }
         }
@@ -97,7 +79,6 @@ class Barometro : Fragment(), SensorEventListener {
             if (input.isNotEmpty()) {
                 NORMAL_PRESSURE = MapUtils.getSealevelPressure(input.toFloat(), millibarsOfPressure)
                 binding.EditPressione.setText(NORMAL_PRESSURE.toString())
-                viewModel.NORMAL_PRESSURE = NORMAL_PRESSURE
                 locationModel.baroCalibrato(true)
             }
         }

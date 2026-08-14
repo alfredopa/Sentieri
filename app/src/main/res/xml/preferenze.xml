@@ -39,7 +39,6 @@
             app:summary="Scegli un tema per le mappe MapsForge"
             app:defaultValue="OSMARENDER" />
     </PreferenceCategory>
-
     <PreferenceCategory app:title="E-bike">
         <Preference
             app:key="connessione_ebike"
