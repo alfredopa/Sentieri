@@ -238,7 +238,7 @@ class MainActivity :
         // verifica se esiste cartella Sentieri nello spazio file applicazione ATTENZIONE solo la cartella media visibile da file picker
         //val baseDir: File? = getAppSpecificExternalDirectory(applicationContext) // restituisce cartella data anzichè media
         val mediaStorageDir = this.externalMediaDirs
-        val baseDir: File? = mediaStorageDir[0]
+        val baseDir: File? = mediaStorageDir.getOrNull(0) ?: getExternalFilesDir(null) ?: cacheDir
         val sentieriFolder = File(baseDir, "/Mappe")
         if (!sentieriFolder.exists()) {
             // crea cartelle Sentieri nello spazio file applicazione

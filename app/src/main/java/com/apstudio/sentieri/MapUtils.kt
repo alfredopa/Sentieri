@@ -590,19 +590,20 @@ object MapUtils {
         }
     }*/
 
-    fun decomprimiZipInCartellaMappe(context: Context, nomeZip: String): Boolean { // <-- Modifica la firma qui
-        Log.d("MapUtils", "Inizio decompressione zip: $nomeZip") // Aggiungi un log per capire se questa funzione viene chiamata
+    fun decomprimiZipInCartellaMappe(context: Context, nomeZip: String): Boolean { 
+        Log.d("MapUtils", "Inizio decompressione zip: $nomeZip")
 
         return try {
-            @Suppress("DEPRECATION")
-            val zipFile = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), nomeZip)
+            val downloadDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir
+            val zipFile = File(downloadDir, nomeZip)
 
             if (!zipFile.exists()) {
                 Log.e("MapUtils", "File zip da decomprimere non trovato: ${zipFile.absolutePath}")
                 false // Restituisce false se il file zip non esiste
             } else {
                 // Assicurati che la directory di destinazione esista
-                val destDir = File(context.externalMediaDirs.first(), "Mappe")
+                val mediaDir = context.externalMediaDirs.firstOrNull() ?: context.getExternalFilesDir(null) ?: context.cacheDir
+                val destDir = File(mediaDir, "Mappe")
                 if (!destDir.exists()) {
                     destDir.mkdirs()
                     Log.d("MapUtils", "Creata directory di destinazione: ${destDir.absolutePath}")
