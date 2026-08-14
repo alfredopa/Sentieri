@@ -38,7 +38,9 @@ class BatteryProgressView @JvmOverloads constructor(
             ).apply {
                 gravity = Gravity.CENTER
             }
-            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleSmall)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            textSize = 22f // Ingrandisce il font (valore in SP)
         }
 
         // 3. Aggiungi i componenti al FrameLayout
