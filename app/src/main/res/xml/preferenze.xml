@@ -16,18 +16,6 @@
 
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="E-bike">
-        <Preference
-            app:key="connessione_ebike"
-            app:title="Connessione e-bike"
-            app:summary="Seleziona e connetti la tua e-bike Specialized" />
-        <SwitchPreferenceCompat
-            app:key="mostra_dati_ebike"
-            app:title="Mostra dati e-bike"
-            app:summary="Visualizza i dati della bici sul cruscotto"
-            app:defaultValue="true" />
-    </PreferenceCategory>
-
     <PreferenceCategory app:title="Personalizzazione">
         <ListPreference
             app:key="activity_type"
@@ -50,6 +38,17 @@
             app:title="Seleziona Tema Mappa Offline"
             app:summary="Scegli un tema per le mappe MapsForge"
             app:defaultValue="OSMARENDER" />
+    </PreferenceCategory>
 
+    <PreferenceCategory app:title="E-bike">
+        <Preference
+            app:key="connessione_ebike"
+            app:title="Connessione e-bike"
+            app:summary="Seleziona e connetti la tua e-bike Specialized" />
+        <SwitchPreferenceCompat
+            app:key="mostra_dati_ebike"
+            app:title="Mostra dati e-bike"
+            app:summary="Visualizza i dati della bici sul cruscotto"
+            app:defaultValue="true" />
     </PreferenceCategory>
 </PreferenceScreen>

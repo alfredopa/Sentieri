@@ -100,10 +100,11 @@ class DownloadService : Service() {
                 val localFile: File
 
                 if (deveScompattare) {
-                    val cartellaDownloadPubblica = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                    localFile = File(cartellaDownloadPubblica, nomeFile)
+                    // Usiamo una directory privata dell'app per i download temporanei (evita problemi di permessi su Android 11+)
+                    val downloadDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: cacheDir
+                    localFile = File(downloadDir, nomeFile)
                 } else {
-                    val appMediaDir = externalMediaDirs.getOrNull(0)
+                    val appMediaDir = externalMediaDirs.getOrNull(0) ?: getExternalFilesDir(null) ?: cacheDir
                     val mappeDir = File(appMediaDir, "Mappe")
                     if (!mappeDir.exists()) mappeDir.mkdirs()
                     localFile = File(mappeDir, nomeFile)
