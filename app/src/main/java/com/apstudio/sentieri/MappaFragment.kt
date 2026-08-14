@@ -618,8 +618,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // Usa FitToContents per ancorare il cruscotto al contenuto ed evitare lo scorrimento a tutto schermo
         bottomSheetBehavior.isFitToContents = true
 
-        // Imposta il peekHeight per vedere solo le prime 2 righe (Distanza, Velocità, Quota, Dislivelli)
-        val peekHeightDp = 125
+        // Imposta il peekHeight per vedere le prime 2 righe (Distanza, Velocità, Quota, Dislivelli)
+        val peekHeightDp = 40
         val peekHeightPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, peekHeightDp.toFloat(), resources.displayMetrics).toInt()
 
         if (viewModel.isRecording) {
@@ -929,6 +929,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             val isVisible = connected && showEbike
             binding.cruscotto.batteryIndicator.isVisible = isVisible
             binding.cruscotto.ebikeDetailsPanel.isVisible = isVisible
+            
+            // Se non è visibile, assicuriamoci che l'alpha sia 0 per evitare sovrapposizioni fantasma
+            if (!isVisible) {
+                binding.cruscotto.ebikeDetailsPanel.alpha = 0f
+            }
         }
         // --------------------------
 
@@ -953,7 +958,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
         // Osserva i valori rimanenti se segue traccia
         viewModel.remainingDist.observe(viewLifecycleOwner) { remDist ->
-            binding.cruscotto.tvRemainingDist.text = MapUtils.formattastring(remDist)
+            binding.cruscotto.tvRemainingDist.text = MapUtils.formattastring(remDist.toInt())
         }
         viewModel.remainingDPiu.observe(viewLifecycleOwner) { remDPiu ->
             binding.cruscotto.tvRemainingDPiu.text = numberFormat.format(remDPiu.toInt())
@@ -1264,7 +1269,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             binding.fabBlocMappa.isVisible = true
 
             bottomSheetBehavior.isHideable = false
-            bottomSheetBehavior.peekHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 220f, resources.displayMetrics).toInt()
+            bottomSheetBehavior.peekHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 40f, resources.displayMetrics).toInt()
 
             val stateToRestore = viewModel.bottomState
             if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
@@ -1559,7 +1564,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.layerItems.forEach {item ->
             item.segui = false
         }
-        viewModel.stopUpdates()
+        // viewModel.stopUpdates() // Rimosso: gestito dal Service
         viewModel.isRecording = false
         binding.fabBlocMappa.isVisible = false
         gpsMarker.setVisible(false)
@@ -1660,7 +1665,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         LocationRepository.saveSessionState(requireContext())
         // legge preferenze per il tipo di attività
         val activityType = preferenze.getString("activity_type", "mtb")
-        viewModel.startUpdates()
+        // viewModel.startUpdates() // Rimosso: gestito dal Service
 
         if (::currentTrackPolyline.isInitialized) {
             mapView.overlays.remove(currentTrackPolyline)
@@ -1704,9 +1709,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             binding.cruscotto.tvPendenza.visibility = View.VISIBLE
         }
         bottomSheetBehavior.isHideable = false
-        bottomSheetBehavior.peekHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 220f, resources.displayMetrics).toInt()
-        //bottomSheetBehavior.halfExpandedRatio = 0.5f
-        //bottomSheetBehavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
+        bottomSheetBehavior.peekHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 110f, resources.displayMetrics).toInt()
+        bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
         LocationRepository.updateGpsStatus("started")
         binding.fabStopRec.isVisible = true
         showCustomSnackbar(binding.root, "Registrazione in corso")
