@@ -1,21 +1,20 @@
 package com.apstudio.sentieri.db
 
 import android.location.Location
-import android.util.Log
+import androidx.core.content.edit
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.apstudio.sentieri.MapUtils
-import net.federicomatera.agpxp.models.WayPoint
-import org.osmdroid.util.GeoPoint
+import com.example.levo_sdk.domain.model.BtDevice
+import com.example.levo_sdk.domain.model.BtMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import net.federicomatera.agpxp.models.WayPoint
+import org.osmdroid.util.GeoPoint
 import java.sql.Timestamp
 import java.util.concurrent.CopyOnWriteArrayList
-import androidx.core.content.edit
-import com.example.levo_sdk.domain.model.BtDevice
-import com.example.levo_sdk.domain.model.BtMessage
 
 object LocationRepository {
     private const val TEMP_TRACK_ID = -100
@@ -100,7 +99,6 @@ object LocationRepository {
     val btIsConnected: LiveData<Boolean> = _btIsConnected
 
     private val _btConnectedDeviceName = MutableLiveData<String>()
-    val btConnectedDeviceName: LiveData<String> = _btConnectedDeviceName
 
     private val _btStatus = MutableLiveData("Disconnesso")
     val btStatus: LiveData<String> = _btStatus
@@ -112,7 +110,6 @@ object LocationRepository {
     val btDevices: LiveData<List<BtDevice>> = _btDevices
 
     private val _btIsScanning = MutableLiveData(false)
-    val btIsScanning: LiveData<Boolean> = _btIsScanning
 
     // Dati traccia
     val trackPointsList = mutableListOf<GeoPoint>()
