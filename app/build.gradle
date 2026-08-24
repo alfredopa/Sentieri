@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 // File: /app/build.gradle
 
 plugins {
@@ -57,7 +59,7 @@ android {
     
     kotlin {
         compilerOptions {
-            jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25
+            jvmTarget = JvmTarget.JVM_25
         }
     }
     packaging {

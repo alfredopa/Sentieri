@@ -25,7 +25,6 @@ import com.example.levo_sdk.domain.model.BtDevice
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.federicomatera.agpxp.models.WayPoint
@@ -33,24 +32,15 @@ import org.apache.commons.net.ftp.FTPClient
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.Polyline
 import java.io.IOException
-import java.util.ArrayDeque
 
 class SentieriViewModel(private val repository: SentieriRepo, application: Application) :
     AndroidViewModel(application) {
 
     // Bluetooth LiveData (ora osservano il LocationRepository)
     val btDevices = LocationRepository.btDevices
-    val isScanning = LocationRepository.btIsScanning
     val isConnected = LocationRepository.btIsConnected
-    val connectedDeviceName = LocationRepository.btConnectedDeviceName
     val ebikeMessage = LocationRepository.ebikeMessage
     val btStatus = LocationRepository.btStatus
-
-    companion object {
-        private const val MOVING_AVERAGE_WINDOW_SIZE = 15
-    }
-
-    var discardedGpsPointsCount = 0
 
     var recTraccia: SafeFolderOverlay = SafeFolderOverlay()
     var topoLayer: SafeFolderOverlay = SafeFolderOverlay()
@@ -81,7 +71,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     var connessione = false
     var menuMap = 0
     var uriMappa: Uri = Uri.EMPTY
-    private var updatesJob: Job? = null
 
     var isRecording: Boolean
         get() = LocationRepository.isRecording
@@ -96,13 +85,12 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         }
 
     var ricerca: String = ""
-    private val _isCalendarMode = MutableLiveData<Boolean?>(false)
+    private val _isCalendarMode = MutableLiveData(false)
     val isCalendarMode: LiveData<Boolean> = _isCalendarMode.map { it ?: false }
     fun setCalendarMode(value: Boolean) { _isCalendarMode.value = value }
 
     var selectedDate: String? = null
     var ultPosizione: GeoPoint = GeoPoint(39.215, 9.11)
-    var oldPunto = GeoPoint(0.0, 0.0, 0.0)
     var ultZoom = 15
 
     val distanzaMetri: LiveData<Int> = LocationRepository.distanzaMetri
@@ -178,12 +166,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _isAllarmeAttivo = MutableLiveData(true)
     val isAllarmeAttivo: LiveData<Boolean> = _isAllarmeAttivo
 
-    // Variabili per il calcolo della pendenza
-    private var referencePointForSlope: GeoPoint? = null
-
-    private val gpsAltitudeHistory: ArrayDeque<Double> = ArrayDeque(MOVING_AVERAGE_WINDOW_SIZE)
-    private var previousFilteredAltitude: Double? = null
-
     // in Scheda per visualizzare pendenza oppure quota
     var mostraPendenza = true
     var coloriPuntiDaSeguire: List<Float>? = null
@@ -196,20 +178,16 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     // valori per barometro
     var haBaro = false
     var setBaro = false
-    private var oldQuota: Double? = null
-
-    // Variabile per tenere traccia dell'ultima quota che ha generato un incremento nel dislivello
-    private var lastRecordedAltitudeForSum: Double? = null
 
     var bottomState = 0
 
     private val _ftpDownloadStatus = MutableLiveData<Event<String>>()
     val ftpDownloadStatus: LiveData<Event<String>> = _ftpDownloadStatus
 
-    private val _isDownloading = MutableLiveData<Boolean?>(false)
+    private val _isDownloading = MutableLiveData(false)
     val isDownloading: LiveData<Boolean> = _isDownloading.map { it ?: false }
 
-    private val _downloadProgress = MutableLiveData<Int?>(0)
+    private val _downloadProgress = MutableLiveData(0)
     val downloadProgress: LiveData<Int> = _downloadProgress.map { it ?: 0 }
 
     private val _downloadFileName = MutableLiveData<String>()
@@ -228,26 +206,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     val remainingDPiu: LiveData<Double> = _remainingDPiu
     private val _remainingDMeno = MutableLiveData(0.0)
     val remainingDMeno: LiveData<Double> = _remainingDMeno
-
-    fun updateRemainingValues(dist: Float, dPiu: Double, dMeno: Double) {
-        _remainingDist.postValue(dist)
-        _remainingDPiu.postValue(dPiu)
-        _remainingDMeno.postValue(dMeno)
-    }
-
-    fun triggerMapInvalidate() {
-        _mapInvalidateRequest.value = Event(Unit)
-    }
-
-    fun stopGPS(context: android.content.Context) {
-        clearTrack(context)
-        oldQuota = null
-        lastRecordedAltitudeForSum = null
-        previousFilteredAltitude = null
-        discardedGpsPointsCount = 0
-        referencePointForSlope = null
-        gpsAltitudeHistory.clear()
-    }
 
     fun resetCruscotto() {
         clearTrack(getApplication())
@@ -277,11 +235,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             percorso
         }
     }
-
-    // La logica dei tempi è ora gestita interamente dal LocationService
-    // tramite il LocationRepository.
-    fun startUpdates() {}
-    fun stopUpdates() {}
 
     fun getSavedSentieri() = liveData {
         repository.getTuttiSentieri().collect {
@@ -333,9 +286,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     suspend fun preparaDatiGrafico(): List<com.github.mikephil.charting.data.Entry> {
         return withContext(Dispatchers.IO) {
-            if (geoPuntiPercorso.isEmpty()) {
-                // ...
-            }
             MapUtils.getPuntiInterpolati(geoPuntiPercorso)
         }
     }
