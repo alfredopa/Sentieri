@@ -28,6 +28,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import org.osmdroid.bonuspack.kml.KmlDocument
+import org.osmdroid.bonuspack.kml.KmlFeature
+import org.osmdroid.bonuspack.kml.KmlFolder
+import org.osmdroid.bonuspack.kml.KmlLineString
+import org.osmdroid.bonuspack.kml.KmlPlacemark
+import org.osmdroid.bonuspack.kml.KmlPoint
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -268,14 +274,18 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
     }
 
-    // 2. Launcher per la selezione dei file .gpx
+    // 2. Launcher per la selezione dei file .gpx o .kml
     private val gpxFileSelectorLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                // Logica che prima era in onActivityResult per SELECT_GPX_FILE
-                caricaGPX(uri)
+                val fileName = getFileNameFromUri(requireContext(), uri).lowercase()
+                if (fileName.endsWith(".kml")) {
+                    caricaKML(uri)
+                } else {
+                    caricaGPX(uri)
+                }
             }
         }
     }
@@ -807,7 +817,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
 
         binding.fabSelectDestination.setOnClickListener {
-            if (viewModel.isRecording && viewModel.isFixed) {
+            if (viewModel.isRecording && viewModel.puntiGPS.isNotEmpty()) {
                 if (!isSelectingDestination) {
                     enterDestinationSelectionMode()
                 } else {
@@ -1874,6 +1884,125 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         //Log.d("layerItems", "caricagpx ${viewModel.layerItems.size}")
         // Infine, ridisegna la mappa
         mapView.invalidate()
+    }
+
+    private fun caricaKML(uri: Uri) {
+        if (!isAdded) return
+        
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val kmlDocument = KmlDocument()
+                val stream = requireActivity().contentResolver.openInputStream(uri) ?: return@launch
+                val success = kmlDocument.parseKMLStream(stream, null)
+                stream.close()
+
+                if (!success) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(requireContext(), "Errore nel parsing del file KML", Toast.LENGTH_SHORT).show()
+                    }
+                    return@launch
+                }
+
+                withContext(Dispatchers.Main) {
+                    val nome = getFileNameFromUri(requireContext(), uri)
+                    
+                    val allPoints = mutableListOf<GeoPoint>()
+                    val allWaypoints = mutableListOf<net.federicomatera.agpxp.models.WayPoint>()
+                    
+                    fun processKmlFeature(feature: KmlFeature) {
+                        when (feature) {
+                            is KmlPlacemark -> {
+                                if (feature.mGeometry is KmlLineString) {
+                                    val lineString = feature.mGeometry as KmlLineString
+                                    allPoints.addAll(lineString.mCoordinates)
+                                } else if (feature.mGeometry is KmlPoint) {
+                                    val point = feature.mGeometry as KmlPoint
+                                    val gp = point.mCoordinates[0]
+                                    allWaypoints.add(
+                                        net.federicomatera.agpxp.models.WayPoint(
+                                            latitude = gp.latitude,
+                                            longitude = gp.longitude,
+                                            elevation = gp.altitude,
+                                            time = Date(),
+                                            name = feature.mName,
+                                            description = feature.mDescription
+                                        )
+                                    )
+                                }
+                            }
+                            is KmlFolder -> {
+                                for (subFeature in feature.mItems) {
+                                    processKmlFeature(subFeature)
+                                }
+                            }
+                        }
+                    }
+                    
+                    processKmlFeature(kmlDocument.mKmlRoot)
+
+                    if (allPoints.isNotEmpty()) {
+                        var trackDistanza = 0f
+                        var trackAscesa = 0
+                        var trackDiscesa = 0
+                        var oldPunto: GeoPoint? = null
+                        
+                        allPoints.forEach { punto ->
+                            if (oldPunto != null) {
+                                trackDistanza += MapUtils.getDistanceInMeters(oldPunto, punto)
+                                val dislivello = punto.altitude - oldPunto.altitude
+                                if (dislivello > 0) trackAscesa += dislivello.toInt()
+                                else trackDiscesa += dislivello.toInt()
+                            }
+                            oldPunto = punto
+                        }
+
+                        viewModel.layerItems.removeAll { it.nome == nome }
+                        viewModel.layerItems.add(
+                            com.apstudio.sentieri.db.LayerItem(
+                                nome = nome,
+                                abilitato = true,
+                                direzione = false,
+                                segui = false,
+                                distanza = trackDistanza,
+                                ascesa = trackAscesa,
+                                discesa = trackDiscesa,
+                                punti = allPoints.toList()
+                            )
+                        )
+                        
+                        allWaypoints.forEach { wp ->
+                            if (viewModel.wayPoint.none { it.latitude == wp.latitude && it.longitude == wp.longitude }) {
+                                viewModel.wayPoint.add(wp)
+                            }
+                        }
+                        
+                        syncLayerVisuals()
+                        
+                        val tempBounds = Polyline().apply { setPoints(allPoints) }.bounds
+                        mapView.zoomToBoundingBox(tempBounds.increaseByScale(1.2f), true)
+                        
+                        MapUtils.alertSegui(requireContext(), viewModel, nome, allPoints)
+                    } else if (allWaypoints.isNotEmpty()) {
+                        allWaypoints.forEach { wp ->
+                            if (viewModel.wayPoint.none { it.latitude == wp.latitude && it.longitude == wp.longitude }) {
+                                viewModel.wayPoint.add(wp)
+                            }
+                        }
+                        syncLayerVisuals()
+                        Toast.makeText(requireContext(), "Caricati ${allWaypoints.size} waypoint dal KML", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(requireContext(), "Nessun dato trovato nel KML", Toast.LENGTH_SHORT).show()
+                    }
+                    
+                    mapView.invalidate()
+                }
+            } catch (e: Exception) {
+                Log.e("KML", "Errore caricamento KML", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(requireContext(), "Errore: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     private fun updateGpsIcon(status: String?) {
@@ -3537,9 +3666,15 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
                 R.id.menu_gpx -> {
                     val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                        type = "application/octet-stream"
-                        //val mimeTypes = arrayOf("application/gpx+xml", "application/xml", "text/xml")
-                        //putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
+                        type = "*/*"
+                        val mimeTypes = arrayOf(
+                            "application/gpx+xml",
+                            "application/xml",
+                            "text/xml",
+                            "application/vnd.google-earth.kml+xml",
+                            "application/octet-stream"
+                        )
+                        putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
                         addCategory(Intent.CATEGORY_OPENABLE)
                     }
                     bottomSheetDialog.dismiss()
@@ -3547,7 +3682,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
 
                 R.id.menu_poi -> {
-                    if (viewModel.isRecording && viewModel.isFixed) creaWayPoint()
+                    if (viewModel.isRecording && viewModel.puntiGPS.isNotEmpty()) creaWayPoint()
                     else Toast.makeText(
                         requireContext(),
                         "Waypoint solo in registrazione traccia",
