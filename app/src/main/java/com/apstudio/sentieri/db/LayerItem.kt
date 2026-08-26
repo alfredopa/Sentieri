@@ -13,5 +13,6 @@ data class LayerItem(
     val discesa: Int,
     var mostraPendenza: Boolean = true,
     val punti: List<org.osmdroid.util.GeoPoint> = emptyList(),
-    var waypoints: List<net.federicomatera.agpxp.models.WayPoint> = emptyList()
+    var waypoints: List<net.federicomatera.agpxp.models.WayPoint> = emptyList(),
+    var isPolygon: Boolean = false
 )

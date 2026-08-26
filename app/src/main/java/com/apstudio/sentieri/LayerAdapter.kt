@@ -2,6 +2,7 @@ package com.apstudio.sentieri
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.databinding.ItemLayerBinding
 import com.apstudio.sentieri.db.LayerItem
@@ -34,10 +35,16 @@ class LayerAdapter(private val layerItems: MutableList<LayerItem>) :
         
         holder.binding.txTraccia.text = item.nome
         holder.binding.swcVisibile.isChecked = item.abilitato
-        holder.binding.swcDirezione.isChecked = item.direzione
-        holder.binding.swcQuota.isChecked = item.mostraPendenza
-        holder.binding.btnSegui.isChecked = item.segui
-        
+        if (item.isPolygon) {
+            holder.binding.swcDirezione.isVisible = false
+            holder.binding.swcQuota.isVisible = false
+            holder.binding.btnSegui.isVisible = false
+        } else {
+            holder.binding.swcDirezione.isChecked = item.direzione
+            holder.binding.swcQuota.isChecked = item.mostraPendenza
+            holder.binding.btnSegui.isChecked = item.segui
+        }
+
         // Riattiva il listener
         holder.setOnItemClickListener(onItemClickListener)
     }
