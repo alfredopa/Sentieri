@@ -334,12 +334,12 @@ class LocationService : LifecycleService() {
             // Filtro accuratezza
             if (newLocation.accuracy > MIN_ACCURACY_METERS) return@LocationListener
 
-            // Recupera i valori attuali necessari per il calcolo
-            val mslAltitude = LocationRepository.mslAltitude.value ?: newLocation.altitude
+            // Il calcolo MSL viene gestito nel Repository basandosi sui dati NMEA (GGA)
+            // o sulla correzione del geoide se disponibile.
             val baroPress = baroRepo.getLatestPressure() ?: 0.0f
 
             // Avvia l'elaborazione nel Repository (avviene nel Foreground Service)
-            LocationRepository.processNewLocation(this, newLocation, mslAltitude, baroPress)
+            LocationRepository.processNewLocation(this, newLocation, null, baroPress)
         }
     }
 
@@ -407,13 +407,18 @@ class LocationService : LifecycleService() {
 
     private fun parseGPGGA(message: String) {
         val nmeaParts = message.split(",")
-        if (nmeaParts.size > 9) {
+        if (nmeaParts.size > 11) {
             val fixQuality = nmeaParts[6]
             val mslFromNmea = nmeaParts[9].toDoubleOrNull()
-            //SimpleFileLogger.log(TAG, "parseNmeaMessage - GGA Fix Quality: $fixQuality, MSL from NMEA string: ${nmeaParts[9]}, Parsed: $mslFromNmea")
-            if (fixQuality != "0" && mslFromNmea != null) { // O controlla anche altri codici di fix validi
-                LocationRepository.updateMslAltitude(mslFromNmea)
-                //SimpleFileLogger.log(TAG, "parseNmeaMessage - Updated LocationRepository.mslAltitude from NMEA: ${LocationRepository.mslAltitude.value}")
+            val geoidSep = nmeaParts[11].toDoubleOrNull()
+            
+            if (fixQuality != "0") {
+                if (mslFromNmea != null) {
+                    LocationRepository.updateMslAltitude(mslFromNmea)
+                }
+                if (geoidSep != null) {
+                    LocationRepository.updateGeoidSeparation(geoidSep)
+                }
             }
         }
     }

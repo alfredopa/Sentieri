@@ -31,9 +31,13 @@ import android.os.Environment
 import org.osmdroid.bonuspack.kml.KmlDocument
 import org.osmdroid.bonuspack.kml.KmlFeature
 import org.osmdroid.bonuspack.kml.KmlFolder
+import org.osmdroid.bonuspack.kml.KmlGeometry
 import org.osmdroid.bonuspack.kml.KmlLineString
+import org.osmdroid.bonuspack.kml.KmlMultiGeometry
 import org.osmdroid.bonuspack.kml.KmlPlacemark
 import org.osmdroid.bonuspack.kml.KmlPoint
+import org.osmdroid.bonuspack.kml.KmlPolygon
+import org.osmdroid.bonuspack.kml.KmlTrack
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -1078,52 +1082,64 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 layers.forEach { item ->
                     if (!item.abilitato || item.punti.isEmpty()) return@forEach
                     
-                    // Crea linea di sfondo (operazione grafica veloce)
-                    val lineSfondo = Polyline(mapView).apply {
-                        id = "sfondo"
-                        title = item.nome
-                        setPoints(item.punti)
-                        disegnaLineaSfondo(this)
-                    }
-                    list.add(lineSfondo)
-                    
-                    // Crea linea di percorso
-                    val linePercorso = Polyline(mapView).apply {
-                        id = "percorso"
-                        title = item.nome
-                        setPoints(item.punti)
-                    }
-                    
-                    // Applica stili (operazioni pesanti: calcoli matematici e paint lists)
-                    if (item.direzione) {
-                        MapUtils.applicaFrecceDirezione(linePercorso)
-                    }
-                    if (item.mostraPendenza) {
-                        val pendenze = MapUtils.calcolaPendenzeSmussate(linePercorso, 8)
-                        disegnaPercorsoColorato(linePercorso, pendenze)
+                    if (item.isPolygon) {
+                        val polygon = Polygon(mapView).apply {
+                            points = item.punti
+                            fillPaint.color = Color.argb(80, 0, 0, 255) // Blu semi-trasparente
+                            outlinePaint.color = Color.BLUE
+                            outlinePaint.strokeWidth = 2f
+                            title = item.nome
+                            relatedObject = item
+                        }
+                        list.add(polygon)
                     } else {
-                        disegnaPercorsoColorato(linePercorso)
+                        // Crea linea di sfondo (operazione grafica veloce)
+                        val lineSfondo = Polyline(mapView).apply {
+                            id = "sfondo"
+                            title = item.nome
+                            setPoints(item.punti)
+                            disegnaLineaSfondo(this)
+                        }
+                        list.add(lineSfondo)
+                        
+                        // Crea linea di percorso
+                        val linePercorso = Polyline(mapView).apply {
+                            id = "percorso"
+                            title = item.nome
+                            setPoints(item.punti)
+                        }
+                        
+                        // Applica stili (operazioni pesanti: calcoli matematici e paint lists)
+                        if (item.direzione) {
+                            MapUtils.applicaFrecceDirezione(linePercorso)
+                        }
+                        if (item.mostraPendenza) {
+                            val pendenze = MapUtils.calcolaPendenzeSmussate(linePercorso, 8)
+                            disegnaPercorsoColorato(linePercorso, pendenze)
+                        } else {
+                            disegnaPercorsoColorato(linePercorso)
+                        }
+                        
+                        // Aggiungiamo i listener nel thread principale dopo
+                        lineSfondo.relatedObject = item // Salviamo il riferimento per il listener
+                        list.add(linePercorso)
+                        
+                        // Prepariamo i marker di inizio/fine
+                        val startMarker = Marker(mapView).apply {
+                            position = item.punti.first()
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_start)
+                            title = "Partenza"
+                        }
+                        val endMarker = Marker(mapView).apply {
+                            position = item.punti.last()
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_finish)
+                            title = "Arrivo"
+                        }
+                        list.add(startMarker)
+                        list.add(endMarker)
                     }
-                    
-                    // Aggiungiamo i listener nel thread principale dopo
-                    lineSfondo.relatedObject = item // Salviamo il riferimento per il listener
-                    list.add(linePercorso)
-                    
-                    // Prepariamo i marker di inizio/fine
-                    val startMarker = Marker(mapView).apply {
-                        position = item.punti.first()
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_start)
-                        title = "Partenza"
-                    }
-                    val endMarker = Marker(mapView).apply {
-                        position = item.punti.last()
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_finish)
-                        title = "Arrivo"
-                    }
-                    list.add(startMarker)
-                    list.add(endMarker)
                 }
                 
                 // 2. Rigenera Waypoint globali
@@ -1277,6 +1293,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
             gpsMarker.setVisible(true)
             binding.fabBlocMappa.isVisible = true
+            binding.fabSelectDestination.isVisible = isBRouterInstalled(requireContext())
 
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 40f, resources.displayMetrics).toInt()
@@ -1904,34 +1921,58 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
 
                 withContext(Dispatchers.Main) {
-                    val nome = getFileNameFromUri(requireContext(), uri)
+                    val nomeFile = getFileNameFromUri(requireContext(), uri)
                     
-                    val allPoints = mutableListOf<GeoPoint>()
+                    val tracksFound = mutableListOf<Pair<String, Pair<List<GeoPoint>, Boolean>>>()
                     val allWaypoints = mutableListOf<net.federicomatera.agpxp.models.WayPoint>()
-                    
-                    fun processKmlFeature(feature: KmlFeature) {
-                        when (feature) {
-                            is KmlPlacemark -> {
-                                if (feature.mGeometry is KmlLineString) {
-                                    val lineString = feature.mGeometry as KmlLineString
-                                    allPoints.addAll(lineString.mCoordinates)
-                                } else if (feature.mGeometry is KmlPoint) {
-                                    val point = feature.mGeometry as KmlPoint
-                                    val gp = point.mCoordinates[0]
+
+                    fun processGeometry(geometry: KmlGeometry?, featureName: String) {
+                        when (geometry) {
+                            is KmlLineString -> {
+                                if (geometry.mCoordinates.isNotEmpty()) {
+                                    tracksFound.add(featureName to (geometry.mCoordinates.toList() to false))
+                                }
+                            }
+                            is KmlTrack -> {
+                                if (geometry.mCoordinates.isNotEmpty()) {
+                                    tracksFound.add(featureName to (geometry.mCoordinates.toList() to false))
+                                }
+                            }
+                            is KmlPolygon -> {
+                                if (geometry.mCoordinates.isNotEmpty()) {
+                                    tracksFound.add(featureName to (geometry.mCoordinates.toList() to true))
+                                }
+                            }
+                            is KmlMultiGeometry -> {
+                                geometry.mItems?.forEach { subGeom ->
+                                    processGeometry(subGeom, featureName)
+                                }
+                            }
+                            is KmlPoint -> {
+                                if (geometry.mCoordinates.isNotEmpty()) {
+                                    val gp = geometry.mCoordinates[0]
                                     allWaypoints.add(
                                         net.federicomatera.agpxp.models.WayPoint(
                                             latitude = gp.latitude,
                                             longitude = gp.longitude,
                                             elevation = gp.altitude,
                                             time = Date(),
-                                            name = feature.mName,
-                                            description = feature.mDescription
+                                            name = featureName,
+                                            description = ""
                                         )
                                     )
                                 }
                             }
+                        }
+                    }
+
+                    fun processKmlFeature(feature: KmlFeature) {
+                        when (feature) {
+                            is KmlPlacemark -> {
+                                processGeometry(feature.mGeometry, feature.mName ?: "")
+                            }
                             is KmlFolder -> {
-                                for (subFeature in feature.mItems) {
+                                feature.mItems?.forEach { subFeature ->
                                     processKmlFeature(subFeature)
                                 }
                             }
@@ -1940,35 +1981,54 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     
                     processKmlFeature(kmlDocument.mKmlRoot)
 
-                    if (allPoints.isNotEmpty()) {
-                        var trackDistanza = 0f
-                        var trackAscesa = 0
-                        var trackDiscesa = 0
-                        var oldPunto: GeoPoint? = null
-                        
-                        allPoints.forEach { punto ->
-                            if (oldPunto != null) {
-                                trackDistanza += MapUtils.getDistanceInMeters(oldPunto, punto)
-                                val dislivello = punto.altitude - oldPunto.altitude
-                                if (dislivello > 0) trackAscesa += dislivello.toInt()
-                                else trackDiscesa += dislivello.toInt()
-                            }
-                            oldPunto = punto
-                        }
+                    if (tracksFound.isNotEmpty()) {
+                        // Rimuove layer precedenti con lo stesso nome o nome derivato
+                        viewModel.layerItems.removeAll { it.nome == nomeFile || it.nome.startsWith("$nomeFile - ") }
 
-                        viewModel.layerItems.removeAll { it.nome == nome }
-                        viewModel.layerItems.add(
-                            com.apstudio.sentieri.db.LayerItem(
-                                nome = nome,
-                                abilitato = true,
-                                direzione = false,
-                                segui = false,
-                                distanza = trackDistanza,
-                                ascesa = trackAscesa,
-                                discesa = trackDiscesa,
-                                punti = allPoints.toList()
+                        val allPointsForZoom = mutableListOf<GeoPoint>()
+                        
+                        tracksFound.forEachIndexed { index, (featureName, pointsData) ->
+                            val (points, isPolygon) = pointsData
+                            val trackNome = if (featureName.isNotEmpty()) {
+                                // Se ci sono più tracce con lo stesso nome nel file, aggiungiamo un indice
+                                val countSameName = tracksFound.take(index).count { it.first == featureName }
+                                if (tracksFound.count { it.first == featureName } > 1) "$nomeFile - $featureName (${countSameName + 1})"
+                                else "$nomeFile - $featureName"
+                            } else if (tracksFound.size > 1) {
+                                "$nomeFile (${index + 1})"
+                            } else {
+                                nomeFile
+                            }
+
+                            var trackDistanza = 0f
+                            var trackAscesa = 0
+                            var trackDiscesa = 0
+                            var oldPunto: GeoPoint? = null
+                            points.forEach { punto ->
+                                if (oldPunto != null) {
+                                    trackDistanza += MapUtils.getDistanceInMeters(oldPunto!!, punto)
+                                    val dislivello = punto.altitude - oldPunto!!.altitude
+                                    if (dislivello > 0) trackAscesa += dislivello.toInt()
+                                    else trackDiscesa += dislivello.toInt()
+                                }
+                                oldPunto = punto
+                                allPointsForZoom.add(punto)
+                            }
+
+                            viewModel.layerItems.add(
+                                com.apstudio.sentieri.db.LayerItem(
+                                    nome = trackNome,
+                                    abilitato = true,
+                                    direzione = false,
+                                    segui = false,
+                                    distanza = trackDistanza,
+                                    ascesa = trackAscesa,
+                                    discesa = trackDiscesa,
+                                    punti = points,
+                                    isPolygon = isPolygon
+                                )
                             )
-                        )
+                        }
                         
                         allWaypoints.forEach { wp ->
                             if (viewModel.wayPoint.none { it.latitude == wp.latitude && it.longitude == wp.longitude }) {
@@ -1978,10 +2038,17 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         
                         syncLayerVisuals()
                         
-                        val tempBounds = Polyline().apply { setPoints(allPoints) }.bounds
-                        mapView.zoomToBoundingBox(tempBounds.increaseByScale(1.2f), true)
+                        if (allPointsForZoom.isNotEmpty()) {
+                            val tempBounds = org.osmdroid.util.BoundingBox.fromGeoPoints(allPointsForZoom)
+                            mapView.zoomToBoundingBox(tempBounds.increaseByScale(1.2f), true)
+                        }
                         
-                        MapUtils.alertSegui(requireContext(), viewModel, nome, allPoints)
+                        // Chiedi di seguire solo se è stata trovata un'unica traccia significativa
+                        if (tracksFound.size == 1) {
+                            MapUtils.alertSegui(requireContext(), viewModel, nomeFile, tracksFound[0].second.first)
+                        } else if (tracksFound.size > 1) {
+                            Toast.makeText(requireContext(), "Caricate ${tracksFound.size} tracce separate dal KML", Toast.LENGTH_LONG).show()
+                        }
                     } else if (allWaypoints.isNotEmpty()) {
                         allWaypoints.forEach { wp ->
                             if (viewModel.wayPoint.none { it.latitude == wp.latitude && it.longitude == wp.longitude }) {

@@ -90,6 +90,8 @@ object LocationRepository {
     private val _mslAltitude = MutableLiveData(0.0)
     val mslAltitude: LiveData<Double> = _mslAltitude
 
+    private var geoidSeparation: Double? = null
+
     private val _isCalibrato = MutableLiveData(false)
     val isCalibrato: LiveData<Boolean> = _isCalibrato
     private var calibratoInterno: Boolean = false // Variabile per i calcoli
@@ -122,14 +124,19 @@ object LocationRepository {
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    fun processNewLocation(context: android.content.Context, loc: Location, msl: Double, baroPress: Float) {
+    fun processNewLocation(context: android.content.Context, loc: Location, msl: Double?, baroPress: Float) {
         _location.postValue(loc)
 
-        // LOGICA MSL PIÙ ROBUSTA:
-        // Se msl è uguale al valore precedente del repository, potrebbe essere un dato NMEA "congelato".
-        // In tal caso, usiamo l'altitudine GPS standard per rilevare i cambiamenti.
+        // Determinazione dell'altitudine SLM (MSL)
+        // 1. Usiamo l'altitudine MSL se fornita dal Service (Android 14+ o NMEA recente)
+        // 2. Altrimenti usiamo la correzione del geoide se disponibile
+        // 3. Fallback all'altitudine ellissoidale
         val currentGpsAlt = loc.altitude
-        val mslValida = if (msl == 0.0 || msl == _mslAltitude.value) currentGpsAlt else msl
+        val mslValida = when {
+            msl != null && msl != 0.0 -> msl
+            geoidSeparation != null -> currentGpsAlt - geoidSeparation!!
+            else -> currentGpsAlt
+        }
         updateMslAltitude(mslValida)
 
         // Calcola altitudine barometrica se possibile, anche se non stiamo registrando,
@@ -286,6 +293,7 @@ object LocationRepository {
 
     fun updateVelocita(v: Int) { _velocitaKmh.postValue(v) }
     fun updateMslAltitude(a: Double) { _mslAltitude.postValue(a) }
+    fun updateGeoidSeparation(s: Double) { geoidSeparation = s }
     fun updateGpsStatus(s: String) { _gpsStatus.postValue(s) }
 
     fun updateBtConnectionState(connected: Boolean, deviceName: String? = null) {
