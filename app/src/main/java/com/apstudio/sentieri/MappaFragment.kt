@@ -1282,8 +1282,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.setBaro = preferenze.getBoolean("setBaro", false)
         //Log.d("onResume", "${viewModel.recTraccia})")
 
-        // E-bike auto-reconnect
-        viewModel.autoConnectEbike()
+        // E-bike auto-reconnect: solo se non siamo già connessi e non stiamo registrando
+        // Se stiamo registrando, il Service sta già gestendo la connessione.
+        if (viewModel.isConnected.value != true && !viewModel.isRecording) {
+            viewModel.autoConnectEbike()
+        }
 
         if (viewModel.isRecording) {
             // Se stiamo registrando, forziamo l'aggiornamento dell'icona GPS e la visibilità

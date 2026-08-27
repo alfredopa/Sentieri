@@ -119,6 +119,7 @@ class LocationService : LifecycleService() {
     // Bluetooth / E-bike
     private lateinit var bluetoothController: BluetoothController
     private var bluetoothJob: Job? = null
+    private var isConnecting = false
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
         if (key == "mostra_dati_ebike" || key == "last_ebike_address") {
             handleBluetoothReconnect(prefs)
@@ -201,20 +202,31 @@ class LocationService : LifecycleService() {
     }
 
     private fun connectToBtDevice(address: String) {
+        if (isConnecting) return
+        
+        // Se siamo già connessi allo stesso indirizzo, non fare nulla
+        if (LocationRepository.btIsConnected.value == true && 
+            PreferenceManager.getDefaultSharedPreferences(this).getString("last_ebike_address", "") == address) {
+            return
+        }
+
         bluetoothJob?.cancel()
+        isConnecting = true
         bluetoothJob = lifecycleScope.launch {
             bluetoothController.connectToDevice(BtDevice(name = null, address = address))
                 .collect { result ->
                     when (result) {
                         is ConnectionResult.ConnectionEstablished -> {
+                            isConnecting = false
                             LocationRepository.updateBtConnectionState(true, "E-bike")
                             LocationRepository.updateBtStatus("Connesso")
                         }
                         is ConnectionResult.TransferSucceeded -> {
-                            //Log.d("EbikeDebug", "Service: Ricevuto TransferSucceeded, SoC: ${result.message.soc}")
+                            isConnecting = false
                             LocationRepository.updateEbikeMessage(result.message)
                         }
                         is ConnectionResult.Error -> {
+                            isConnecting = false
                             LocationRepository.updateBtConnectionState(false)
                             LocationRepository.updateBtStatus("Errore: ${result.message}")
                             // Riprova dopo un po' se è un errore di connessione
