@@ -9,6 +9,12 @@ data class BtMessage(
     val soc: String = "0",
     val assistLevel: String = "OFF",
     val riderPower: String = "0",
+    val cadence: String = "0",
     val batteryTemp: String = "0",
-    val motorTemp: String = "0"
+    val motorTemp: String = "0",
+    val motorPower: String = "0",
+    val socRE: String = "0",
+    val tempRE: String = "0",
+    val cycles: String = "0",
+    val cyclesRE: String = "0"
 )

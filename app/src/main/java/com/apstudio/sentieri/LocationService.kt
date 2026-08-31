@@ -233,6 +233,10 @@ class LocationService : LifecycleService() {
                                         connectionError = true
                                         throw Exception(result.message)
                                     }
+                                    is ConnectionResult.Reconnecting -> {
+                                        isConnecting = true
+                                        LocationRepository.updateBtStatus("Riconnessione")
+                                    }
                                 }
                             }
                     } catch (e: Exception) {

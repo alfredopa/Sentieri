@@ -4,37 +4,49 @@ import com.example.levo_sdk.domain.model.BtMessage
 import java.util.Locale
 
 object LevoProtocol {
-    
+
     fun decode(data: ByteArray, current: BtMessage): BtMessage {
         if (data.size < 3) return current
-        
+
         val sender = data[0].toInt() and 0xFF
         val channel = data[1].toInt() and 0xFF
-        
-        val rawData = data.sliceArray(2 until data.size).takeWhile { it != 0xFF.toByte() }.toByteArray()
-        if (rawData.isEmpty()) return current
+
+        val rawData = data.sliceArray(2 until data.size)
 
         return when (sender) {
-            0x00, 0x04 -> handleBattery(channel, rawData, current)
+            0x00 -> handleBattery(channel, rawData, current, isMain = true)
+            0x04 -> handleBattery(channel, rawData, current, isMain = false)
             0x01 -> handleMotor(channel, rawData, current)
             else -> current
         }
     }
 
-    private fun handleBattery(channel: Int, data: ByteArray, current: BtMessage): BtMessage {
+    private fun handleBattery(channel: Int, data: ByteArray, current: BtMessage, isMain: Boolean): BtMessage {
         return when (channel) {
-            0x03 -> current.copy(batteryTemp = "${data[0].toInt() and 0xFF}")
+            0x03 -> {
+                val temp = "${data[0].toInt() and 0xFF}"
+                if (isMain) current.copy(batteryTemp = temp) else current.copy(tempRE = temp)
+            }
             0x05 -> {
+                if (!isMain) return current
                 val raw = data[0].toInt() and 0xFF
                 val v = raw.toFloat() / 5f + 20f
                 current.copy(voltage = String.format(Locale.US, "%.1f", v))
             }
             0x06 -> {
+                if (!isMain) return current
                 val raw = data[0].toInt() and 0xFF
                 val a = raw.toFloat() / 5f
                 current.copy(amperes = String.format(Locale.US, "%.1f", a))
             }
-            0x0C -> current.copy(soc = "${data[0].toInt() and 0xFF}")
+            0x0C -> {
+                val soc = "${data[0].toInt() and 0xFF}"
+                if (isMain) current.copy(soc = soc) else current.copy(socRE = soc)
+            }
+            0x0D -> {
+                val cycles = "${readUint16(data)}"
+                if (isMain) current.copy(cycles = cycles) else current.copy(cyclesRE = cycles)
+            }
             else -> current
         }
     }
@@ -42,6 +54,7 @@ object LevoProtocol {
     private fun handleMotor(channel: Int, data: ByteArray, current: BtMessage): BtMessage {
         return when (channel) {
             0x00 -> current.copy(riderPower = "${readUint16(data)}")
+            0x01 -> current.copy(cadence = "${readUint16(data) / 10}")
             0x02 -> {
                 val raw = readUint16(data)
                 val s = raw.toFloat() / 10f
@@ -64,6 +77,7 @@ object LevoProtocol {
                 current.copy(assistLevel = level)
             }
             0x07 -> current.copy(motorTemp = "${data[0].toInt() and 0xFF}")
+            0x0C -> current.copy(motorPower = "${readUint16(data)}")
             else -> current
         }
     }
