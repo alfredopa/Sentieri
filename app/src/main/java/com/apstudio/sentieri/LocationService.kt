@@ -20,7 +20,6 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import android.content.SharedPreferences
-import android.util.Log
 import com.apstudio.sentieri.db.LocationRepository
 import com.example.levo_sdk.data.LevoBluetoothController
 import com.example.levo_sdk.domain.BluetoothController
@@ -28,6 +27,7 @@ import com.example.levo_sdk.domain.ConnectionResult
 import com.example.levo_sdk.domain.model.BtDevice
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
 
@@ -204,37 +204,54 @@ class LocationService : LifecycleService() {
     private fun connectToBtDevice(address: String) {
         if (isConnecting) return
         
-        // Se siamo già connessi allo stesso indirizzo, non fare nulla
         if (LocationRepository.btIsConnected.value == true && 
             PreferenceManager.getDefaultSharedPreferences(this).getString("last_ebike_address", "") == address) {
             return
         }
 
         bluetoothJob?.cancel()
-        isConnecting = true
         bluetoothJob = lifecycleScope.launch {
-            bluetoothController.connectToDevice(BtDevice(name = null, address = address))
-                .collect { result ->
-                    when (result) {
-                        is ConnectionResult.ConnectionEstablished -> {
-                            isConnecting = false
-                            LocationRepository.updateBtConnectionState(true, "E-bike")
-                            LocationRepository.updateBtStatus("Connesso")
-                        }
-                        is ConnectionResult.TransferSucceeded -> {
-                            isConnecting = false
-                            LocationRepository.updateEbikeMessage(result.message)
-                        }
-                        is ConnectionResult.Error -> {
-                            isConnecting = false
-                            LocationRepository.updateBtConnectionState(false)
-                            LocationRepository.updateBtStatus("Errore: ${result.message}")
-                            // Riprova dopo un po' se è un errore di connessione
-                            delay(10000)
-                            autoConnectEbike(PreferenceManager.getDefaultSharedPreferences(this@LocationService))
-                        }
+            try {
+                while (isActive) {
+                    isConnecting = true
+                    LocationRepository.updateBtStatus("Ricerca e-bike...")
+                    
+                    var connectionError = false
+                    try {
+                        bluetoothController.connectToDevice(BtDevice(name = null, address = address))
+                            .collect { result ->
+                                when (result) {
+                                    is ConnectionResult.ConnectionEstablished -> {
+                                        isConnecting = false
+                                        LocationRepository.updateBtConnectionState(true, "E-bike")
+                                        LocationRepository.updateBtStatus("Connesso")
+                                    }
+                                    is ConnectionResult.TransferSucceeded -> {
+                                        LocationRepository.updateEbikeMessage(result.message)
+                                    }
+                                    is ConnectionResult.Error -> {
+                                        connectionError = true
+                                        throw Exception(result.message)
+                                    }
+                                }
+                            }
+                    } catch (e: Exception) {
+                        isConnecting = false
+                        LocationRepository.updateBtConnectionState(false)
+                        LocationRepository.updateBtStatus("E-bike spenta o fuori portata")
+                        // Attendi prima di riprovare
+                        delay(10000)
+                    }
+                    
+                    if (!connectionError) {
+                        // Se il flow si chiude senza errore, attendi un po' prima di riprovare
+                        isConnecting = false
+                        delay(5000)
                     }
                 }
+            } finally {
+                isConnecting = false
+            }
         }
     }
 
