@@ -151,11 +151,22 @@ class LevoBluetoothController(
 
             stopDiscovery()
 
+            // Timeout per la connessione (15 secondi)
+            val timeoutJob = launch {
+                delay(15000)
+                if (!_isConnected.value) {
+                    //Log.d("EbikeDebug", "SDK: Connection Timeout")
+                    trySend(ConnectionResult.Error("Timeout connessione"))
+                    close()
+                }
+            }
+
             val gattCallback = object : BluetoothGattCallback() {
                 override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
                     //Log.d("EbikeDebug", "SDK: onConnectionStateChange status=$status, newState=$newState")
                     if (status != BluetoothGatt.GATT_SUCCESS) {
                         Log.e("EbikeDebug", "SDK: GATT Error $status")
+                        timeoutJob.cancel()
                         _isConnected.update { false }
                         pollingJob?.cancel()
                         trySend(ConnectionResult.Error("GATT Error $status"))
@@ -165,6 +176,7 @@ class LevoBluetoothController(
 
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
                         //Log.d("EbikeDebug", "SDK: Connected, discovering services...")
+                        timeoutJob.cancel()
                         gatt.discoverServices()
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         //Log.d("EbikeDebug", "SDK: Disconnected")
