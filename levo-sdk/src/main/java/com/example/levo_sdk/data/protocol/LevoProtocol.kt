@@ -43,8 +43,15 @@ object LevoProtocol {
                 val soc = "${data[0].toInt() and 0xFF}"
                 if (isMain) current.copy(soc = soc) else current.copy(socRE = soc)
             }
-            0x0D -> {
-                val cycles = "${readUint16(data)}"
+            0x04 -> {
+                // data[0] è il byte basso (LSB), data[1] è il byte alto (MSB)
+                val low = data[0].toInt() and 0xFF
+                val high = data[1].toInt() and 0xFF
+
+                // Uniamo i due byte: (MSB * 256) + LSB
+                val count = (high shl 8) or low
+
+                val cycles = count.toString()
                 if (isMain) current.copy(cycles = cycles) else current.copy(cyclesRE = cycles)
             }
             else -> current
