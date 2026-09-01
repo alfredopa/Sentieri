@@ -17,13 +17,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_25
     }
 
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
-        }
-    }
 
-    
     sourceSets {
         getByName("main") {
             java.setSrcDirs(listOf("src/main/java"))

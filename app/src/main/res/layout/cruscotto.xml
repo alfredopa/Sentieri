@@ -378,6 +378,7 @@
         app:layout_constraintTop_toBottomOf="@id/barrier_row4">
 
         <View
+            android:id="@+id/divider_ebike"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="#44FFFFFF"
@@ -449,7 +450,7 @@
             app:layout_constraintTop_toTopOf="@id/icon_power"
             tools:text="32 °C" />
 
-        <!-- Riga 3: Odometro -->
+        <!-- Riga 3: Odometro e Bottone Full Screen -->
         <ImageView
             android:id="@+id/icon_odo"
             android:layout_width="20dp"
@@ -457,8 +458,6 @@
             android:layout_marginTop="16dp"
             android:layout_marginBottom="8dp"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/tvOdometer"
-            app:layout_constraintHorizontal_chainStyle="packed"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/icon_power"
             app:srcCompat="@drawable/ic_distance"
@@ -472,10 +471,21 @@
             android:textColor="#FFFFFF"
             android:textSize="22sp"
             app:layout_constraintBottom_toBottomOf="@id/icon_odo"
-            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toEndOf="@id/icon_odo"
             app:layout_constraintTop_toTopOf="@id/icon_odo"
             tools:text="1250 km" />
+
+        <ImageButton
+            android:id="@+id/btnBikeDetails"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_search"
+            app:layout_constraintBottom_toBottomOf="@id/icon_odo"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/icon_odo"
+            app:tint="@color/white"
+            tools:ignore="ContentDescription" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

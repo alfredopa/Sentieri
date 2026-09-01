@@ -820,6 +820,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             viewModel.toggleAllarmeState()
         }
 
+        binding.cruscotto.btnBikeDetails.setOnClickListener {
+            findNavController().navigate(R.id.action_mappaFragment_to_bikeFragment)
+        }
+
         binding.fabSelectDestination.setOnClickListener {
             if (viewModel.isRecording && viewModel.puntiGPS.isNotEmpty()) {
                 if (!isSelectingDestination) {
