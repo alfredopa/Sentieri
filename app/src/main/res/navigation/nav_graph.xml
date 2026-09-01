@@ -34,6 +34,9 @@
         <action
             android:id="@+id/action_mappaFragment_to_gpkgLayer"
             app:destination="@id/gpkgLayer" />
+        <action
+            android:id="@+id/action_mappaFragment_to_bikeFragment"
+            app:destination="@id/bikeFragment" />
     </fragment>
 
     <fragment
@@ -185,4 +188,9 @@
         android:name="com.apstudio.sentieri.AboutFragment"
         android:label="Informazioni app"
         tools:layout="@layout/fragment_about" />
+
+    <fragment
+        android:id="@+id/bikeFragment"
+        android:name="com.apstudio.sentieri.Levo.BikeFragment"
+        android:label="Dettagli E-Bike" />
 </navigation>

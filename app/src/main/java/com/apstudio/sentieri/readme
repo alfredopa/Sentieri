@@ -1,5 +1,4 @@
 DA FARE
--waypoint nota vocale
 -dark mode
 
 come posso implementare la Configurazione Remota (Firebase Remote Config, API dedicata),
@@ -7,7 +6,6 @@ Se voglio poter cambiare la configurazione dinamicamente senza aggiornare l'app,
 - Per la configurazione di campi e tabelle è possibile implementare la configurazione remota con FireBase
 
 MIGLIORAMENTI
-- private fun apreMappa(uri: Uri) il codice per la gestione dell'apertura della mappa di MappaFragment e SchedaFragment è duplicato, prevedere un repository da cui accedere dai fragment
 
 
 Gestione GPS
