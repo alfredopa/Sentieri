@@ -40,7 +40,7 @@ class LevoBluetoothController(
         val POLL_BATT_TEMP = byteArrayOf(0x00, 0x03)
         val POLL_VOLTAGE = byteArrayOf(0x00, 0x05)
         val POLL_CURRENT = byteArrayOf(0x00, 0x06)
-        val POLL_CYCLES = byteArrayOf(0x00, 0x0D.toByte())
+        val POLL_CYCLES = byteArrayOf(0x00, 0x04)
         val POLL_RIDER_POWER = byteArrayOf(0x01, 0x00)
         val POLL_CADENCE = byteArrayOf(0x01, 0x01)
         val POLL_SPEED = byteArrayOf(0x01, 0x02)
@@ -50,7 +50,7 @@ class LevoBluetoothController(
         val POLL_MOTOR_TEMP = byteArrayOf(0x01, 0x07)
         val POLL_SOC_RE = byteArrayOf(0x04, 0x0C.toByte())
         val POLL_TEMP_RE = byteArrayOf(0x04, 0x03)
-        val POLL_CYCLES_RE = byteArrayOf(0x04, 0x0D.toByte())
+        val POLL_CYCLES_RE = byteArrayOf(0x04, 0x04)
     }
 
     private val bluetoothManager by lazy { context.getSystemService(BluetoothManager::class.java) }
