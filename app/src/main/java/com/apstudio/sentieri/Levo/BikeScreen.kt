@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,7 +36,7 @@ fun BikeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 24.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -43,9 +44,9 @@ fun BikeScreen(
             Text(
                 text = "STATO E-BIKE",
                 color = Color.White,
-                fontSize = 20.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = 8.dp)
             )
 
             if (!isConnected) {
@@ -56,7 +57,7 @@ fun BikeScreen(
                 // Sezione Batteria
                 BatterySection(ebikeMessage)
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
 
                 // Velocità (Grande)
                 Column(
@@ -65,19 +66,19 @@ fun BikeScreen(
                 ) {
                     Text(
                         text = ebikeMessage.speed,
-                        fontSize = 70.sp,
+                        fontSize = 60.sp,
                         color = Color.White,
                         fontWeight = FontWeight.Black
                     )
-                    Text(text = "km/h", fontSize = 16.sp, color = Color.Gray)
+                    Text(text = "km/h", fontSize = 18.sp, color = Color.Gray)
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
 
                 // Griglia Metriche
                 MetricsGrid(ebikeMessage)
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(12.dp))
 
                 // Bottone per tornare indietro
                 IconButton(
@@ -142,7 +143,7 @@ fun BatteryBar(percentage: Float, label: String) {
             color = Color.LightGray,
             modifier = Modifier.padding(bottom = 2.dp)
         )
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().height(24.dp)) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().height(32.dp)) {
             LinearProgressIndicator(
                 progress = { percentage },
                 color = batteryColor,
@@ -154,7 +155,7 @@ fun BatteryBar(percentage: Float, label: String) {
             )
             Text(
                 text = "$soc%",
-                fontSize = 14.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (percentage > 0.5f) Color.Black else Color.White
             )
@@ -171,16 +172,16 @@ fun MetricsGrid(values: BtMessage) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(alpha = 0.05f))
-            .padding(12.dp),
+            .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Riga Assist Level (Grande e Unica)
         Text(
             text = values.assistLevel.uppercase(),
-            fontSize = 32.sp,
+            fontSize = 44.sp,
             fontWeight = FontWeight.ExtraBold,
             color = getAssistColor(values.assistLevel),
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier = Modifier.padding(bottom = 8.dp)
         )
 
         // Coppie di valori
@@ -207,8 +208,8 @@ fun MetricRow(label1: String, value1: String, label2: String, value2: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.Center
     ) {
         Box(Modifier.weight(1f)) {
             if (label1.isNotEmpty()) {
@@ -225,9 +226,12 @@ fun MetricRow(label1: String, value1: String, label2: String, value2: String) {
 
 @Composable
 fun MetricText(label: String, value: String, valueColor: Color = Color.White) {
-    Column(horizontalAlignment = Alignment.Start) {
-        Text(text = label, fontSize = 12.sp, color = Color.Gray)
-        Text(text = value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = valueColor)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(text = label, fontSize = 17.sp, color = Color.Gray)
+        Text(text = value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = valueColor)
     }
 }
 
