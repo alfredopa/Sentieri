@@ -927,16 +927,16 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             binding.cruscotto.batteryIndicator.setBatteryState(socPercent / 100f)
 
             // Nuovi campi dettagliati
-            binding.cruscotto.tvRiderPower.text = "${message.riderPower} W"
+            //binding.cruscotto.tvRiderPower.text = "${message.riderPower} W"
             binding.cruscotto.tvAssistLevel.text = message.assistLevel
-            binding.cruscotto.tvBatteryTemp.text = "${message.batteryTemp} °C"
-            binding.cruscotto.tvOdometer.text = "${message.total} km"
+            //binding.cruscotto.tvBatteryTemp.text = "${message.batteryTemp} °C"
+            //binding.cruscotto.tvOdometer.text = "${message.total} km"
 
             // Colore dinamico per il livello di assistenza
             val assistColor = when(message.assistLevel.uppercase()) {
                 "TURBO" -> Color.RED
-                "TRAIL", "SPORT" -> Color.GREEN
-                "ECO" -> Color.CYAN
+                "TRAIL", "SPORT" -> Color.CYAN
+                "ECO" -> Color.GREEN
                 else -> Color.WHITE
             }
             binding.cruscotto.tvAssistLevel.setTextColor(assistColor)
