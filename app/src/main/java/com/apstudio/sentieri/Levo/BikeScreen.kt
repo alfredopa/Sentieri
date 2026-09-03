@@ -36,19 +36,10 @@ fun BikeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .padding(horizontal = 12.dp, vertical = 2.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header
-            Text(
-                text = "STATO E-BIKE",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
             if (!isConnected) {
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Text("Dispositivo non connesso", color = Color.Gray)
@@ -57,23 +48,33 @@ fun BikeScreen(
                 // Sezione Batteria
                 BatterySection(ebikeMessage)
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(4.dp))
 
                 // Velocità (Grande)
-                Column(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.Bottom
                 ) {
                     Text(
                         text = ebikeMessage.speed,
-                        fontSize = 60.sp,
+                        fontSize = 64.sp,
                         color = Color.White,
-                        fontWeight = FontWeight.Black
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.alignByBaseline()
                     )
-                    Text(text = "km/h", fontSize = 18.sp, color = Color.Gray)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "km/h",
+                        fontSize = 18.sp,
+                        color = Color.Gray,
+                        modifier = Modifier
+                            .alignByBaseline()
+                            .padding(bottom = 8.dp)
+                    )
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(4.dp))
 
                 // Griglia Metriche
                 MetricsGrid(ebikeMessage)
@@ -134,7 +135,7 @@ fun BatteryBar(percentage: Float, label: String) {
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(if (label == "RANGE EXTENDER") 0.5f else 1F)
     ) {
         Text(
             text = label,
@@ -155,9 +156,10 @@ fun BatteryBar(percentage: Float, label: String) {
             )
             Text(
                 text = "$soc%",
-                fontSize = 18.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (percentage > 0.5f) Color.Black else Color.White
+                //color = if (percentage > 0.4f) Color.Black else Color.White,
+                modifier = Modifier.background(Color.White)
             )
         }
     }
@@ -230,8 +232,8 @@ fun MetricText(label: String, value: String, valueColor: Color = Color.White) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(text = label, fontSize = 17.sp, color = Color.Gray)
-        Text(text = value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = valueColor)
+        Text(text = label, fontSize = 18.sp, color = Color.Gray)
+        Text(text = value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = valueColor)
     }
 }
 
@@ -263,7 +265,7 @@ fun PreviewBikeScreen() {
 
 fun getAssistColor(level: String): Color = when (level.uppercase()) {
     "TURBO" -> Color.Red
-    "TRAIL", "SPORT" -> Color.Green
-    "ECO" -> Color.Cyan
+    "TRAIL", "SPORT" -> Color.Cyan
+    "ECO" -> Color.Green
     else -> Color.White
 }
