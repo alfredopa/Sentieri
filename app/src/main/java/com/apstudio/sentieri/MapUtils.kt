@@ -195,12 +195,6 @@ object MapUtils {
             val offlineMappa = OfflineTileProvider(SimpleRegisterReceiver(context), maps)
             mapView.tileProvider = offlineMappa
             offlineMappa.archives.firstOrNull()?.setIgnoreTileSource(true)
-            val archive = offlineMappa.archives.firstOrNull()
-            if (archive != null) {
-                mapView.controller.setCenter(viewModel.ultPosizione)
-                mapView.controller.setZoom(viewModel.ultZoom)
-                //mapView.controller.setZoom(12.0)
-            }
         }
         
         mapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE)
@@ -212,7 +206,6 @@ object MapUtils {
             putInt("MenuMap", 0)
             putString("URIMappa", uri.toString())
         }
-        mapView.controller.setCenter(viewModel.ultPosizione)
         mapView.invalidate()
         return true
     }

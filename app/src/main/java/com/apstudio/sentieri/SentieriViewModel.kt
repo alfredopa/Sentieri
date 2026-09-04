@@ -91,7 +91,24 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     var selectedDate: String? = null
     var ultPosizione: GeoPoint = GeoPoint(39.215, 9.11)
-    var ultZoom = 15
+    var ultZoom = 11
+
+    fun persistMapState() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+        prefs.edit {
+            putFloat("ultLat", ultPosizione.latitude.toFloat())
+            putFloat("ultLon", ultPosizione.longitude.toFloat())
+            putInt("ultZoom", ultZoom)
+        }
+    }
+
+    private fun restoreMapState() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+        val lat = prefs.getFloat("ultLat", 39.215f).toDouble()
+        val lon = prefs.getFloat("ultLon", 9.11f).toDouble()
+        ultPosizione = GeoPoint(lat, lon)
+        ultZoom = prefs.getInt("ultZoom", 11)
+    }
 
     val distanzaMetri: LiveData<Int> = LocationRepository.distanzaMetri
     val dislivPiu: LiveData<Double> = LocationRepository.dislivPiu
@@ -151,6 +168,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     init {
         LocationRepository.restoreSessionState(application)
+        restoreMapState()
     }
 
     // values displayed in the dashboard

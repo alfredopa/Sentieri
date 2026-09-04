@@ -129,6 +129,9 @@ import net.federicomatera.agpxp.models.Track
 import org.osmdroid.api.IGeoPoint
 import org.osmdroid.api.IMapController
 import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.events.MapListener
+import org.osmdroid.events.ScrollEvent
+import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.MapTileProviderArray
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -242,7 +245,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     private var coloreTraccia: Int = 0
 
     // Variabile per memorizzare una richiesta di centraggio mappa in sospeso.
-    private var initialCenterPoint: GeoPoint? = GeoPoint(40.0587, 9.1122)
+    private var initialCenterPoint: GeoPoint? = null
 
     // Ottimizzazioni per evitare ricaricamenti ridondanti
     private var lastSyncedToponimi: List<com.apstudio.sentieri.db.TopoMarkerData> = emptyList()
@@ -532,6 +535,23 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mRotationGestureOverlay.setEnabled(true)
         mapView.setMultiTouchControls(true)
         mapView.overlays.add(mRotationGestureOverlay)
+
+        mapView.addMapListener(object : MapListener {
+            override fun onScroll(event: ScrollEvent?): Boolean {
+                if (event != null && event.source.mapCenter.latitude != 0.0) {
+                    viewModel.ultPosizione = event.source.mapCenter as GeoPoint
+                }
+                return false
+            }
+
+            override fun onZoom(event: ZoomEvent?): Boolean {
+                if (event != null) {
+                    viewModel.ultZoom = event.zoomLevel.toInt()
+                }
+                return false
+            }
+        })
+
         view.isFocusableInTouchMode = true
         view.requestFocus()
         view.setOnKeyListener(this)
@@ -788,7 +808,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mapView.maxZoomLevel = 19.0
         val mapController: IMapController = MapController(mapView)
         mapController.setCenter(viewModel.ultPosizione)
-        mapController.setZoom(viewModel.ultZoom.toDouble())
+        mapController.setZoom(viewModel.ultZoom)
 
         aggiornaUIFabBlocMappa(showToast = false)
 
@@ -1444,9 +1464,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         super.onPause()
         WindowInsetsControllerCompat(requireActivity().window, requireActivity().window.decorView).isAppearanceLightStatusBars = false
         preferenze.unregisterOnSharedPreferenceChangeListener(this)
-        // memorizza valori per ripristinare la mappa
-        viewModel.ultZoom = mapView.zoomLevelDouble.toInt()
-        viewModel.ultPosizione = mapView.mapCenter as GeoPoint
+        
+        // Salva lo stato corrente della mappa nel ViewModel e persisti nelle preferenze
+        viewModel.persistMapState()
+
         //memorizza stato del bottomSheet
         if (::bottomSheetBehavior.isInitialized)
             viewModel.bottomState = bottomSheetBehavior.state
