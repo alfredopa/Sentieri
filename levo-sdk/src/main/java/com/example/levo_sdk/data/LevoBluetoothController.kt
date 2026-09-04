@@ -137,7 +137,7 @@ class LevoBluetoothController(
         bluetoothAdapter?.cancelDiscovery()
     }
 
-    override fun connectToDevice(device: BtDevice): Flow<ConnectionResult> {
+    override fun connectToDevice(device: BtDevice, autoConnect: Boolean): Flow<ConnectionResult> {
         return callbackFlow {
             if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) {
                 trySend(ConnectionResult.Error("Missing Bluetooth Permissions"))
@@ -204,7 +204,7 @@ class LevoBluetoothController(
                 }
             }
 
-            currentGatt = bluetoothDevice.connectGatt(context, true, gattCallback)
+            currentGatt = bluetoothDevice.connectGatt(context, autoConnect, gattCallback)
             awaitClose { closeConnection() }
         }.flowOn(Dispatchers.IO)
     }

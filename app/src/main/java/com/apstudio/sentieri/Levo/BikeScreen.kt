@@ -58,7 +58,7 @@ fun BikeScreen(
                 ) {
                     Text(
                         text = ebikeMessage.speed,
-                        fontSize = 64.sp,
+                        fontSize = 62.sp,
                         color = Color.White,
                         fontWeight = FontWeight.Black,
                         modifier = Modifier.alignByBaseline()
@@ -201,7 +201,7 @@ fun MetricsGrid(values: BtMessage) {
         )
         
         MetricRow("Tensione", "${values.voltage} V", "Corrente", "${values.amperes} A")
-        MetricRow("Odometro", "${values.total} km", "", "")
+        MetricRow("Totale percorso", "${values.total} km", "", "")
     }
 }
 
@@ -232,8 +232,8 @@ fun MetricText(label: String, value: String, valueColor: Color = Color.White) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(text = label, fontSize = 18.sp, color = Color.Gray)
-        Text(text = value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = valueColor)
+        Text(text = label, fontSize = 20.sp, color = Color.Gray)
+        Text(text = value, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = valueColor)
     }
 }
 
