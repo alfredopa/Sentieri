@@ -90,8 +90,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     fun setCalendarMode(value: Boolean) { _isCalendarMode.value = value }
 
     var selectedDate: String? = null
-    var ultPosizione: GeoPoint = GeoPoint(39.215, 9.11)
-    var ultZoom = 11
+    var ultPosizione: GeoPoint = GeoPoint(40.16, 9.07)
+    var ultZoom = 10
 
     fun persistMapState() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
@@ -104,8 +104,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     private fun restoreMapState() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
-        val lat = prefs.getFloat("ultLat", 39.215f).toDouble()
-        val lon = prefs.getFloat("ultLon", 9.11f).toDouble()
+        val lat = prefs.getFloat("ultLat", ultPosizione.latitude.toFloat()).toDouble()
+        val lon = prefs.getFloat("ultLon", ultPosizione.longitude.toFloat()).toDouble()
         ultPosizione = GeoPoint(lat, lon)
         ultZoom = prefs.getInt("ultZoom", 11)
     }
