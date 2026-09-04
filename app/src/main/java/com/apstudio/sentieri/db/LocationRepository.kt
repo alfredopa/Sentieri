@@ -223,9 +223,17 @@ object LocationRepository {
         }
 
         // 3. Calcoli statistici (vengono eseguiti solo se isFixed == true)
-        if (isFixed) {
-            accumuloDistanzaMetri += MapUtils.getDistanceInMeters(oldPunto, currentPoint)
-            _distanzaMetri.postValue(accumuloDistanzaMetri)
+        if (isFixed && oldPunto.latitude != 0.0) {
+            val deltaDist = MapUtils.getDistanceInMeters(oldPunto, currentPoint)
+            
+            // Filtro "Anti-Spike" sulla distanza: se il salto è > 1000m in un singolo step,
+            // è un errore di posizionamento o un riavvio post-crash. Lo ignoriamo per le statistiche.
+            if (deltaDist < 1000.0) {
+                accumuloDistanzaMetri += deltaDist.toInt()
+                _distanzaMetri.postValue(accumuloDistanzaMetri)
+            } else {
+                // Log o gestione del salto (es. reset di oldPunto senza accumulare distanza)
+            }
 
             if (usaBaro && isCalibrato.value == true) {
                 updateGainLossBaro(quotaPunto)
@@ -350,6 +358,10 @@ object LocationRepository {
             putBoolean("isFixed", isFixed)
             putBoolean("usaBaro", usaBaro)
             putFloat("normalPressure", normalPressure)
+            // Salva l'ultimo punto noto per evitare "salti" al riavvio
+            putFloat("lastLat", oldPunto.latitude.toFloat())
+            putFloat("lastLon", oldPunto.longitude.toFloat())
+            putFloat("lastEle", oldPunto.altitude.toFloat())
             apply()
         }
     }
@@ -366,6 +378,15 @@ object LocationRepository {
             isFixed = prefs.getBoolean("isFixed", false)
             usaBaro = prefs.getBoolean("usaBaro", false)
             normalPressure = prefs.getFloat("normalPressure", 1013.25f)
+            
+            // Ripristina l'ultimo punto noto
+            val lastLat = prefs.getFloat("lastLat", 0f).toDouble()
+            val lastLon = prefs.getFloat("lastLon", 0f).toDouble()
+            val lastEle = prefs.getFloat("lastEle", 0f).toDouble()
+            if (lastLat != 0.0) {
+                oldPunto = GeoPoint(lastLat, lastLon, lastEle)
+                referencePointForSlope = oldPunto
+            }
 
             // Ripristina i punti dal DB
             repositoryScope.launch {

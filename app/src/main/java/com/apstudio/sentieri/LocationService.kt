@@ -184,9 +184,11 @@ class LocationService : LifecycleService() {
 
     private fun handleBluetoothReconnect(prefs: SharedPreferences) {
         val enabled = prefs.getBoolean("mostra_dati_ebike", true)
-        if (enabled) {
+        val autoReconnect = prefs.getBoolean("auto_reconnect_ebike", true)
+        
+        if (enabled && autoReconnect) {
             autoConnectEbike(prefs)
-        } else {
+        } else if (!enabled) {
             bluetoothJob?.cancel()
             bluetoothController.closeConnection()
             LocationRepository.updateBtConnectionState(false)
@@ -202,23 +204,27 @@ class LocationService : LifecycleService() {
     }
 
     private fun connectToBtDevice(address: String) {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val autoReconnect = prefs.getBoolean("auto_reconnect_ebike", true)
+
         if (isConnecting) return
         
         if (LocationRepository.btIsConnected.value == true && 
-            PreferenceManager.getDefaultSharedPreferences(this).getString("last_ebike_address", "") == address) {
+            prefs.getString("last_ebike_address", "") == address) {
             return
         }
 
         bluetoothJob?.cancel()
         bluetoothJob = lifecycleScope.launch {
             try {
-                while (isActive) {
+                // Se autoReconnect è true, usiamo il loop. Altrimenti eseguiamo un solo tentativo.
+                do {
                     isConnecting = true
                     LocationRepository.updateBtStatus("Ricerca e-bike...")
                     
                     var connectionError = false
                     try {
-                        bluetoothController.connectToDevice(BtDevice(name = null, address = address))
+                        bluetoothController.connectToDevice(BtDevice(name = null, address = address), autoConnect = autoReconnect)
                             .collect { result ->
                                 when (result) {
                                     is ConnectionResult.ConnectionEstablished -> {
@@ -242,17 +248,20 @@ class LocationService : LifecycleService() {
                     } catch (e: Exception) {
                         isConnecting = false
                         LocationRepository.updateBtConnectionState(false)
-                        LocationRepository.updateBtStatus("E-bike spenta o fuori portata")
-                        // Attendi prima di riprovare
-                        delay(10000)
+                        
+                        if (autoReconnect) {
+                            LocationRepository.updateBtStatus("E-bike spenta o fuori portata")
+                            delay(10000)
+                        } else {
+                            LocationRepository.updateBtStatus("Connessione fallita")
+                        }
                     }
                     
-                    if (!connectionError) {
-                        // Se il flow si chiude senza errore, attendi un po' prima di riprovare
+                    if (!connectionError && autoReconnect) {
                         isConnecting = false
                         delay(5000)
                     }
-                }
+                } while (isActive && autoReconnect)
             } finally {
                 isConnecting = false
             }

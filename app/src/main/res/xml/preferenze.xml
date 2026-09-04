@@ -49,5 +49,11 @@
             app:title="Mostra dati e-bike"
             app:summary="Visualizza i dati della bici sul cruscotto"
             app:defaultValue="true" />
+        <SwitchPreferenceCompat
+            app:dependency="mostra_dati_ebike"
+            app:key="auto_reconnect_ebike"
+            app:title="Riconnessione automatica"
+            app:summary="Tenta di riconnettersi automaticamente all'e-bike"
+            app:defaultValue="true" />
     </PreferenceCategory>
 </PreferenceScreen>
