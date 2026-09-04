@@ -231,7 +231,6 @@ class MainActivity :
             val menuItem = navigationView.menu.findItem(R.id.barometro)
             menuItem.isVisible = false
         }
-
     }
 
     private fun verificaCartelleDB() {
