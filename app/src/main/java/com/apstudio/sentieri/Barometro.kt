@@ -69,7 +69,9 @@ class Barometro : Fragment(), SensorEventListener {
         binding.btnPress.setOnClickListener {
             val input = binding.EditPressione.text.toString()
             if (input.isNotEmpty()) {
-                NORMAL_PRESSURE = input.toFloat()
+                val press = input.toFloat()
+                NORMAL_PRESSURE = press
+                locationModel.normalPressure = press
                 locationModel.baroCalibrato(true)
             }
         }
@@ -77,8 +79,10 @@ class Barometro : Fragment(), SensorEventListener {
         binding.btnAlti.setOnClickListener {
             val input = binding.EditAltitud.text.toString()
             if (input.isNotEmpty()) {
-                NORMAL_PRESSURE = MapUtils.getSealevelPressure(input.toFloat(), millibarsOfPressure)
-                binding.EditPressione.setText(NORMAL_PRESSURE.toString())
+                val press = MapUtils.getSealevelPressure(input.toFloat(), millibarsOfPressure)
+                NORMAL_PRESSURE = press
+                locationModel.normalPressure = press
+                binding.EditPressione.setText(press.toString())
                 locationModel.baroCalibrato(true)
             }
         }

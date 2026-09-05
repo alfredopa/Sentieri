@@ -141,7 +141,7 @@ object LocationRepository {
 
         // Calcola altitudine barometrica se possibile, anche se non stiamo registrando,
         // per permettere la visualizzazione in tempo reale della quota nel cruscotto.
-        val altitudineBarometrica = if (usaBaro && isCalibrato.value == true) {
+        val altitudineBarometrica = if (usaBaro && calibratoInterno) {
             MapUtils.calcolaAltitudineIpso(baroPress, normalPressure).toDouble()
         } else null
 
@@ -207,11 +207,11 @@ object LocationRepository {
             if (oldPunto.latitude == 0.0) {
                 oldPunto = currentPoint
                 referencePointForSlope = currentPoint
-                if (usaBaro && isCalibrato.value == true) {
+                if (usaBaro && calibratoInterno) {
                     isFixed = true
                 }
             }
-            if (!(usaBaro && isCalibrato.value == true)) {
+            if (!(usaBaro && calibratoInterno)) {
                 if (discardedGpsPointsCount < WARMUP_READINGS_TO_DISCARD) {
                     discardedGpsPointsCount++
                     return // Salta i calcoli statistici per ora
@@ -235,7 +235,7 @@ object LocationRepository {
                 // Log o gestione del salto (es. reset di oldPunto senza accumulare distanza)
             }
 
-            if (usaBaro && isCalibrato.value == true) {
+            if (usaBaro && calibratoInterno) {
                 updateGainLossBaro(quotaPunto)
             } else {
                 updateGainLossGps(mslValida) // Passiamo solo la quota msl
@@ -357,6 +357,7 @@ object LocationRepository {
             putLong("secondiMovimento", secondiMovimento)
             putBoolean("isFixed", isFixed)
             putBoolean("usaBaro", usaBaro)
+            putBoolean("isCalibrato", calibratoInterno)
             putFloat("normalPressure", normalPressure)
             // Salva l'ultimo punto noto per evitare "salti" al riavvio
             putFloat("lastLat", oldPunto.latitude.toFloat())
@@ -377,6 +378,8 @@ object LocationRepository {
             secondiMovimento = prefs.getLong("secondiMovimento", 0L)
             isFixed = prefs.getBoolean("isFixed", false)
             usaBaro = prefs.getBoolean("usaBaro", false)
+            calibratoInterno = prefs.getBoolean("isCalibrato", false)
+            _isCalibrato.value = calibratoInterno
             normalPressure = prefs.getFloat("normalPressure", 1013.25f)
             
             // Ripristina l'ultimo punto noto

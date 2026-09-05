@@ -1717,6 +1717,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.bloccaMappa = true // Forza il blocco mappa all'inizio
         aggiornaUIFabBlocMappa(showToast = false)
         viewModel.oraInizio = System.currentTimeMillis()
+
+        // Imposta se utilizzare il barometro nel repository
+        LocationRepository.usaBaro = viewModel.haBaro && viewModel.setBaro
+
         LocationRepository.saveSessionState(requireContext())
         // legge preferenze per il tipo di attività
         val activityType = preferenze.getString("activity_type", "mtb")
@@ -2590,7 +2594,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         when (key) {
             "setBaro" -> {
                 // Aggiorna il ViewModel quando la preferenza 'setBaro' cambia.
-                viewModel.setBaro = sharedPreferences.getBoolean(key, false)
+                val setBaro = sharedPreferences.getBoolean(key, false)
+                viewModel.setBaro = setBaro
+                LocationRepository.usaBaro = viewModel.haBaro && setBaro
                 //Log.d(TAG, "Preferenza 'setBaro' aggiornata a: ${viewModel.setBaro}")
             }
 
