@@ -19,4 +19,6 @@ data class Track(
     var Ele: Float,
     @ColumnInfo(name = "Time")
     var Ora: String,
+    @ColumnInfo(name = "trackUuid")
+    var trackUuid: String = ""
 )

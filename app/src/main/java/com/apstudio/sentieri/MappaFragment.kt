@@ -2184,7 +2184,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             ultimoID = viewModel.salvaSentiero(sentiero)
 
             // Finalizza la sessione aggiornando i TrackId nel DB e pulendo lo stato
-            LocationRepository.finalizeSession(requireContext(), ultimoID.toInt())
+            LocationRepository.finalizeSession(requireContext(), ultimoID.toInt(), sentiero.uuid)
 
 // scrive waypoint se inseriti durante registrazione traccia
 // la lista è PoiDB
@@ -2201,7 +2201,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         NomePOI = it.NomePOI,
                         DescrPOI = it.DescrPOI,
                         UriPath = it.UriPath,
-                        Time = it.Time
+                        Time = it.Time,
+                        trackUuid = sentiero.uuid
                     )
                     poiDao.insertDB(poi)
                     //Log.d("Track","$trackPoint")
@@ -2217,7 +2218,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         id = 0,
                         trackid = ultimoID.toInt(),
                         uriPath = it.toString(),
-                        nomeFoto = getFileNameFromUri(requireContext(), it)
+                        nomeFoto = getFileNameFromUri(requireContext(), it),
+                        trackUuid = sentiero.uuid
                     )
 
                     fotoDao.insertDB(foto)

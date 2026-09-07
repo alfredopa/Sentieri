@@ -1,5 +1,6 @@
 package com.apstudio.sentieri.db
 
+import android.content.Context
 import android.location.Location
 import androidx.core.content.edit
 import androidx.lifecycle.LiveData
@@ -423,9 +424,9 @@ object LocationRepository {
         }
     }
 
-    suspend fun finalizeSession(context: android.content.Context, realTrackId: Int) {
+    suspend fun finalizeSession(context: Context, realTrackId: Int, trackUuid: String) {
         val db = SentieriDB.getInstance(context)
-        db.trackDao().updateTrackId(TEMP_TRACK_ID, realTrackId)
+        db.trackDao().updateTrackSession(TEMP_TRACK_ID, realTrackId, trackUuid)
         clearTrack(context)
     }
 

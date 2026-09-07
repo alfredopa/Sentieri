@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.text.NumberFormat
 import java.util.Locale
+import java.util.UUID
 
 @Entity(tableName = "Sentieri")
 data class Sentieri(
@@ -39,7 +40,11 @@ data class Sentieri(
     @ColumnInfo(name = "TempoInMov")
     var TempoInMov: Double,
     @ColumnInfo(name = "MediaVel")
-    var MediaVel: Double
+    var MediaVel: Double,
+    @ColumnInfo(name = "uuid")
+    var uuid: String = UUID.randomUUID().toString(),
+    @ColumnInfo(name = "lastUpdate")
+    var lastUpdate: Long = System.currentTimeMillis()
     )
 
 fun Sentieri.prnDislivello(): String =

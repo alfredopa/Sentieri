@@ -55,6 +55,7 @@ import java.io.OutputStream
 
 private const val LAST_VERSION_CODE = "last_version_code"
 private const val PROMINENT_DISCLOSURE_SHOWN = "prominent_disclosure_shown"
+private const val UUID_MIGRATION_DONE = "uuid_migration_done"
 
 class MainActivity :
     AppCompatActivity() {
@@ -111,24 +112,40 @@ class MainActivity :
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
         // inizializza le preferenze
         initPreferenze()
-        // Controlla se è necessario l'aggiornamento
-        if (currentVersionCode > lastVersionCode) {
-            // Lancia una coroutine per fare il lavoro in background
-            lifecycleScope.launch {
-                // Puoi mostrare un indicatore di caricamento qui
+        // Controlla se è necessario l'aggiornamento (File o Database)
+        val needsUuidMigration = !preferenze.getBoolean(UUID_MIGRATION_DONE, false)
+        val needsFileUpdate = currentVersionCode > lastVersionCode
 
-                withContext(Dispatchers.IO) {
-                    // Esegui l'operazione di I/O in background
-                    verificaCartelleDB()
+        if (needsUuidMigration || needsFileUpdate) {
+            lifecycleScope.launch {
+                var progressDialog: AlertDialog? = null
+                
+                // Mostra il dialog solo se dobbiamo fare la migrazione pesante degli UUID
+                if (needsUuidMigration) {
+                    progressDialog = AlertDialog.Builder(this@MainActivity, R.style.AlertDialogCustom)
+                        .setTitle("Aggiornamento database")
+                        .setMessage("Ottimizzazione dei percorsi per la sincronizzazione. Potrebbe richiedere qualche istante...")
+                        .setCancelable(false)
+                        .show()
                 }
 
-                // Torna sul thread principale. Nascondi l'indicatore di caricamento
-                // e aggiorna le preferenze
+                withContext(Dispatchers.IO) {
+                    if (needsUuidMigration) {
+                        // Forza la migrazione di Room v2 (generazione UUID)
+                        SentieriDB.getInstance(applicationContext).sentieriDao().ultimoId()
+                        preferenze.edit { putBoolean(UUID_MIGRATION_DONE, true) }
+                    }
+                    
+                    // Aggiorna sempre i file se la versione app è cambiata
+                    if (needsFileUpdate) {
+                        verificaCartelleDB()
+                    }
+                }
+
+                progressDialog?.dismiss()
                 preferenze.edit { putLong(LAST_VERSION_CODE, currentVersionCode) }
 
-                // Continua con l'inizializzazione dell'UI che dipende da questi file
                 initAppAndPermissions()
-                // Gestisci l'intent DOPO l'inizializzazione di navController
                 handleIntent(intent)
             }
         } else {
