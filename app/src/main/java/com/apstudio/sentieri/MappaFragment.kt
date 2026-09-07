@@ -971,6 +971,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             // Se non è visibile, assicuriamoci che l'alpha sia 0 per evitare sovrapposizioni fantasma
             if (!isVisible) {
                 binding.cruscotto.ebikeDetailsPanel.alpha = 0f
+            } else {
+                // Se è visibile e siamo in EXPANDED, assicuriamoci che l'alpha sia 1
+                if (bottomSheetBehavior.state == BottomSheetBehavior.STATE_EXPANDED) {
+                    binding.cruscotto.ebikeDetailsPanel.alpha = 1f
+                }
             }
         }
         // --------------------------
@@ -1352,6 +1357,16 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         if (isAdded) {
                             // Ripristina lo stato qui dentro
                             bottomSheetBehavior.state = viewModel.bottomState
+                            
+                            // Forza il ripristino dell'alpha se espanso
+                            if (viewModel.bottomState == BottomSheetBehavior.STATE_EXPANDED) {
+                                val showEbike = preferenze.getBoolean("mostra_dati_ebike", true)
+                                val isEbikeConnected = viewModel.isConnected.value == true
+                                if (showEbike && isEbikeConnected) {
+                                    binding.cruscotto.ebikeDetailsPanel.alpha = 1f
+                                }
+                            }
+
                             // Forza il ricalcolo dei margini
                             binding.cruscotto.root.requestLayout()
                         }

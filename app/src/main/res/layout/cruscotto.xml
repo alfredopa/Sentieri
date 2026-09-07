@@ -372,10 +372,11 @@
         android:id="@+id/ebikeDetailsPanel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:paddingTop="8dp"
+        android:layout_marginTop="4dp"
         android:alpha="0"
-        app:layout_constraintTop_toBottomOf="@id/barrier_row4">
+        android:paddingTop="8dp"
+        app:layout_constraintTop_toBottomOf="@id/barrier_row4"
+        tools:layout_editor_absoluteX="8dp">
 
         <View
             android:id="@+id/divider_ebike"
@@ -389,7 +390,6 @@
             android:id="@+id/batteryIndicator"
             android:layout_width="150dp"
             android:layout_height="37dp"
-            android:layout_marginTop="12dp"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
@@ -401,13 +401,14 @@
             android:id="@+id/tvAssistLevel"
             android:layout_width="108dp"
             android:layout_height="34dp"
+            android:layout_marginStart="16dp"
             android:textColor="#4CAF50"
             android:textSize="22sp"
             android:textStyle="bold"
             app:layout_constraintBottom_toBottomOf="@id/batteryIndicator"
+            app:layout_constraintStart_toEndOf="@+id/batteryIndicator"
             app:layout_constraintTop_toTopOf="@id/batteryIndicator"
             app:layout_constraintVertical_bias="0.0"
-            tools:layout_editor_absoluteX="171dp"
             tools:text="TRAIL" />
 
         <ImageButton
@@ -418,9 +419,9 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ebike_24"
             app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/batteryIndicator"
             app:tint="@color/white"
-            tools:ignore="ContentDescription"
-            tools:layout_editor_absoluteY="8dp" />
+            tools:ignore="ContentDescription" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
