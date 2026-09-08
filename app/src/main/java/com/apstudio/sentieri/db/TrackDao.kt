@@ -2,7 +2,9 @@ package com.apstudio.sentieri.db
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -32,4 +34,13 @@ interface TrackDao {
 
     @Query("DELETE FROM Track where TrackId = :trackid")
     suspend fun deleteTrack(trackid: Int): Int
+
+    @Query("SELECT DISTINCT trackUuid FROM Track")
+    suspend fun getAllTrackUuids(): List<String>
+
+    @Query("SELECT * FROM Track WHERE trackUuid = :trackUuid")
+    suspend fun getPointsByTrackUuid(trackUuid: String): List<Track>
+
+    @Upsert
+    suspend fun upsertPoints(points: List<Track>): List<Long>
 }

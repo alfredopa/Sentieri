@@ -41,6 +41,15 @@ android {
         buildConfigField("String", "FTP_USER", ftpUser)
         buildConfigField("String", "FTP_PASS", ftpPass)
         buildConfigField("Integer", "FTP_PORT", ftpPort)
+
+        def dbHost = findProperty("mariadb.host") ?: "\"\""
+        def dbUser = findProperty("mariadb.username") ?: "\"\""
+        def dbPass = findProperty("mariadb.password") ?: "\"\""
+        def dbName = findProperty("mariadb.db") ?: "\"\""
+        buildConfigField("String", "MARIADB_HOST", dbHost)
+        buildConfigField("String", "MARIADB_USER", dbUser)
+        buildConfigField("String", "MARIADB_PASS", dbPass)
+        buildConfigField("String", "MARIADB_DB", dbName)
     }
 
     buildTypes {
@@ -133,6 +142,8 @@ dependencies {
     implementation 'mil.nga:sqlite-android:3500400'
     // scarico da FTP
     implementation("commons-net:commons-net:3.11.1")
+    // MariaDB JDBC driver
+    implementation 'org.mariadb.jdbc:mariadb-java-client:3.5.10'
     // MPAndroidChart
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
     // Calendario

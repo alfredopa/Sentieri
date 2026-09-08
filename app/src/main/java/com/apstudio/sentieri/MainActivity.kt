@@ -248,6 +248,12 @@ class MainActivity :
             val menuItem = navigationView.menu.findItem(R.id.barometro)
             menuItem.isVisible = false
         }
+        // disabilitazione della voce sincronizza se non presente
+        viewModel.sincronizza = preferenze.getBoolean("sincronizza", false)
+        if (!viewModel.sincronizza) {
+            val menuItem = navigationView.menu.findItem(R.id.sincronizza)
+            menuItem.isVisible = false
+        }
     }
 
     private fun verificaCartelleDB() {

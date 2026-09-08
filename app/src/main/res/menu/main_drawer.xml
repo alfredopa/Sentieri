@@ -39,6 +39,10 @@
         android:icon="@android:drawable/ic_menu_manage"
         android:title="Impostazioni" />
     <item
+        android:id="@+id/sincronizza"
+        android:icon="@android:drawable/ic_popup_sync"
+        android:title="Sincronizza con Nas"/>
+    <item
         android:id="@+id/aboutFragment"
         android:icon="@android:drawable/ic_dialog_info"
         android:title="Informazioni" />

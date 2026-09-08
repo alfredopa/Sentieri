@@ -21,6 +21,7 @@ import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TopoMarkerData
 import com.apstudio.sentieri.layer.Event
 import com.apstudio.sentieri.layer.placeholder.PlaceholderContent
+import com.apstudio.sentieri.sync.MariaDbSyncManager
 import com.example.levo_sdk.domain.model.BtDevice
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
@@ -92,6 +93,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     var selectedDate: String? = null
     var ultPosizione: GeoPoint = GeoPoint(40.16, 9.07)
     var ultZoom = 10
+    var sincronizza = false
 
     fun persistMapState() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
@@ -201,6 +203,38 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     private val _ftpDownloadStatus = MutableLiveData<Event<String>>()
     val ftpDownloadStatus: LiveData<Event<String>> = _ftpDownloadStatus
+
+    private val _syncStatus = MutableLiveData<String>("In attesa...")
+    val syncStatus: LiveData<String> = _syncStatus
+
+    private val _isSyncing = MutableLiveData(false)
+    val isSyncing: LiveData<Boolean> = _isSyncing
+
+    private val syncManager = MariaDbSyncManager(
+        repository.sentieriDao,
+        repository.trackDao,
+        repository.poiDao,
+        repository.fotoPoiDao
+    )
+
+    fun syncWithNas() {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            _syncStatus.value = "Avvio sincronizzazione..."
+            
+            val result = syncManager.sync { progress ->
+                _syncStatus.postValue(progress)
+            }
+            
+            result.onSuccess {
+                _syncStatus.value = "Sincronizzazione completata con successo"
+            }.onFailure { e ->
+                _syncStatus.value = "Errore: ${e.message}"
+            }
+            
+            _isSyncing.value = false
+        }
+    }
 
     private val _isDownloading = MutableLiveData(false)
     val isDownloading: LiveData<Boolean> = _isDownloading.map { it ?: false }

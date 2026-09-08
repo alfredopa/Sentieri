@@ -37,6 +37,9 @@
         <action
             android:id="@+id/action_mappaFragment_to_bikeFragment"
             app:destination="@id/bikeFragment" />
+        <action
+            android:id="@+id/action_mappaFragment_to_sincronizza"
+            app:destination="@id/sincronizza" />
     </fragment>
 
     <fragment
@@ -193,4 +196,10 @@
         android:id="@+id/bikeFragment"
         android:name="com.apstudio.sentieri.Levo.BikeFragment"
         android:label="Dettagli E-Bike" />
+
+    <fragment
+        android:id="@+id/sincronizza"
+        android:name="com.apstudio.sentieri.SincronizzaFragment"
+        android:label="Sincronizzazione NAS"
+        tools:layout="@layout/fragment_sincronizza" />
 </navigation>

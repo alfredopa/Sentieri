@@ -9,11 +9,11 @@ import kotlinx.coroutines.flow.Flow
  * È l'unica classe che dovrebbe parlare direttamente con i DAO.
  * Il ViewModel parlerà solo con questo Repository.
  */
-class SentieriRepo(
-    private val sentieriDao: SentieriDao,
-    private val poiDao: PoiDao,
-    private val fotoPoiDao: FotoPoiDao,
-    private val trackDao: TrackDao
+    class SentieriRepo(
+    val sentieriDao: SentieriDao,
+    val poiDao: PoiDao,
+    val fotoPoiDao: FotoPoiDao,
+    val trackDao: TrackDao
 ) {
 
     // --- METODI PER I SENTIERI ---

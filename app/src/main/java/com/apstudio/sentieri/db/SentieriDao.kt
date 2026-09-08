@@ -3,8 +3,10 @@ package com.apstudio.sentieri.db
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -12,6 +14,9 @@ interface SentieriDao {
 
     @Query("SELECT * from sentieri ORDER BY dataOra DESC")
     fun getItems(): Flow<List<Sentieri>>
+
+    @Query("SELECT * from sentieri ORDER BY dataOra DESC")
+    suspend fun getTuttiSentieriList(): List<Sentieri>
 
     @Query("SELECT * from sentieri WHERE id = :id")
     fun getItem(id: Int): Flow<Sentieri?>
@@ -45,4 +50,13 @@ interface SentieriDao {
 
     @Query("SELECT max(id) from sentieri")
     suspend fun ultimoId() : Int
+
+    @Query("SELECT uuid FROM Sentieri")
+    suspend fun getAllUuids(): List<String>
+
+    @Query("SELECT * FROM Sentieri WHERE uuid = :uuid")
+    suspend fun getByUuid(uuid: String): Sentieri?
+
+    @Upsert
+    suspend fun upsert(item: Sentieri): Long
 }
