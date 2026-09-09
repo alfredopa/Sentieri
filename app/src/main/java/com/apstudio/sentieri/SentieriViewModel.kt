@@ -251,6 +251,13 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _mapInvalidateRequest = MutableLiveData<Event<Unit>>()
     val mapInvalidateRequest: LiveData<Event<Unit>> = _mapInvalidateRequest
 
+    private val _importFileRequest = MutableLiveData<Event<Uri>>()
+    val importFileRequest: LiveData<Event<Uri>> = _importFileRequest
+
+    fun importFile(uri: Uri) {
+        _importFileRequest.value = Event(uri)
+    }
+
     // LiveData for remaining values
     private val _remainingDist = MutableLiveData(0f)
     val remainingDist: LiveData<Float> = _remainingDist

@@ -16,6 +16,9 @@ interface FotoPoiDao {
         @Query("SELECT * from FotoPoi")
         suspend fun listFotoPoiDB(): List<FotoPoi>
 
+        @Query("SELECT * FROM FotoPoi WHERE trackUuid = :trackUuid")
+        suspend fun getFotosByTrackUuid(trackUuid: String): List<FotoPoi>
+
         @Query("SELECT * from FotoPoi WHERE TrackId = :id")
         // restituisce tutti i POI della traccia ID
         fun getFotoPoibyID(id: Int): List<FotoPoi>

@@ -15,6 +15,9 @@ interface PoiDao {
     @Query("SELECT * from PoiDB")
     suspend fun listPoiDB(): List<PoiDB>
 
+    @Query("SELECT * FROM PoiDB WHERE trackUuid = :trackUuid")
+    suspend fun getPoisByTrackUuid(trackUuid: String): List<PoiDB>
+
     @Query("SELECT * from PoiDB WHERE TrackId = :id")
     // restituisce tutti i POI della traccia ID
     fun getPoibyID(id: Int): List<PoiDB>

@@ -34,6 +34,7 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.navOptions
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.navigateUp
 import androidx.navigation.ui.setupActionBarWithNavController
@@ -470,23 +471,27 @@ class MainActivity :
 
     private fun handleIntent(intent: Intent?) {
         intent?.let {
-            if (it.action == Intent.ACTION_VIEW && it.data != null) {
-                val gpxUri = it.data
-                Log.d("Mappa", "MainActivity: Navigating to MappaFragment with GPX URI: $gpxUri")
+            val data = it.data
+            if (it.action == Intent.ACTION_VIEW && data != null) {
+                Log.d("Mappa", "MainActivity: Navigating to MappaFragment with URI: $data")
 
-                val bundle = Bundle().apply {
-                    putString("gpx_file_uri", gpxUri.toString())
-                }
-                
-                // Usa launchSingleTop per evitare duplicati del Fragment
-                navController.navigate(
-                    R.id.mappaFragment,
-                    bundle,
-                    androidx.navigation.navOptions {
-                        launchSingleTop = true
-                        restoreState = true
+                // 1. Notifica il ViewModel dell'arrivo di un nuovo file
+                viewModel.importFile(data)
+
+                // 2. Naviga al MappaFragment (se non siamo già lì)
+                if (navController.currentDestination?.id != R.id.mappaFragment) {
+                    val bundle = Bundle().apply {
+                        putString("gpx_file_uri", data.toString())
                     }
-                )
+                    navController.navigate(
+                        R.id.mappaFragment,
+                        bundle,
+                        navOptions {
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    )
+                }
             }
         }
     }

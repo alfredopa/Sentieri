@@ -630,11 +630,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             updateRemainingVisibility()
         }
 
-        arguments?.getString("gpx_file_uri")?.let { uriString ->
-            val gpxUri = uriString.toUri()
-            caricaGPX(gpxUri)
-            arguments?.remove("gpx_file_uri")
-        }
+        // Osserva le richieste di importazione file (es. da WhatsApp o File Manager)
+        viewModel.importFileRequest.observe(viewLifecycleOwner, Observer { event ->
+            event.getContentIfNotHandled()?.let { uri ->
+                importaFile(uri)
+            }
+        })
 
         arguments?.let { bundle ->
             val latitude = bundle.getDouble("latitude", Double.NaN)
@@ -1011,8 +1012,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
 
         viewModel.locationData.observe(viewLifecycleOwner) { locationData ->
-            if (!isAdded) return@observe
+            if (!isAdded || _binding == null) return@observe
 
+            val mv = binding.Mapview
             val newGeoPoint = locationData.geoPoint
             if (newGeoPoint.latitude == 0.0 && newGeoPoint.longitude == 0.0) {
                 return@observe
@@ -1026,7 +1028,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     MapUtils.markInizioFine(
                         requireContext(),
                         newGeoPoint,
-                        mapView,
+                        mv,
                         viewModel.recTraccia,
                         0
                     )
@@ -1041,11 +1043,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 if (t > 360) t -= 360f
                 t = (t.toInt() / 5 * 5).toFloat()
 
-                mapView.mapOrientation = t
+                mv.mapOrientation = t
                 
                 // --- FIX BLOCCO MAPPA: Centra solo se non stiamo selezionando una destinazione ---
                 if (!isSelectingDestination) {
-                    mapView.controller?.setCenter(newGeoPoint)
+                    mv.controller?.setCenter(newGeoPoint)
                 }
             }
 
@@ -1055,22 +1057,22 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     // Avviamo una coroutine per non bloccare la UI
                     viewLifecycleOwner.lifecycleScope.launch {
                         val fuoriTraccia = withContext(Dispatchers.Default) {
-                                // 1. Cerchiamo la traccia nei layerItems (DATI)
-                        val tracciaData = viewModel.layerItems.find {
-                            it.nome == viewModel.tracciaDaSeguire
-                        }
-                        
-                        // Calcoliamo la distanza se abbiamo i punti
-                        tracciaData?.let {
-                            if (it.punti.isNotEmpty()) {
-                                val tempPoly = Polyline().apply { setPoints(it.punti) }
-                                !tempPoly.isCloseTo(newGeoPoint, 30.0, mapView)
-                            } else false
-                        } ?: false
+                            // 1. Cerchiamo la traccia nei layerItems (DATI)
+                            val tracciaData = viewModel.layerItems.find {
+                                it.nome == viewModel.tracciaDaSeguire
+                            }
+                            
+                            // Calcoliamo la distanza se abbiamo i punti
+                            tracciaData?.let {
+                                if (it.punti.isNotEmpty()) {
+                                    val tempPoly = Polyline().apply { setPoints(it.punti) }
+                                    !tempPoly.isCloseTo(newGeoPoint, 30.0, mv)
+                                } else false
+                            } ?: false
                         }
 
                         // 3. Torniamo sul Main Thread per mostrare il dialogo
-                        if (fuoriTraccia && isAdded) {
+                        if (fuoriTraccia && isAdded && _binding != null) {
                             mostraAllarmeFuoriTraccia()
                         }
                     }
@@ -1096,10 +1098,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
      * Necessario quando si torna da LayerDialog o dopo la ricreazione del Fragment.
      */
     private fun syncLayerVisuals() {
-        if (_binding == null) return
+        val mBinding = _binding ?: return
+        val mv = mBinding.Mapview
         val layers = viewModel.layerItems.toList() // Copia istantanea dei dati
         
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+            if (_binding == null) return@launch
             // Pulisci il folder corrente (operazione UI veloce)
             tracksFolder.items.clear()
             
@@ -1112,7 +1116,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     if (!item.abilitato || item.punti.isEmpty()) return@forEach
                     
                     if (item.isPolygon) {
-                        val polygon = Polygon(mapView).apply {
+                        val polygon = Polygon(mv).apply {
                             points = item.punti
                             fillPaint.color = Color.argb(80, 0, 0, 255) // Blu semi-trasparente
                             outlinePaint.color = Color.BLUE
@@ -1123,7 +1127,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         list.add(polygon)
                     } else {
                         // Crea linea di sfondo (operazione grafica veloce)
-                        val lineSfondo = Polyline(mapView).apply {
+                        val lineSfondo = Polyline(mv).apply {
                             id = "sfondo"
                             title = item.nome
                             setPoints(item.punti)
@@ -1132,7 +1136,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         list.add(lineSfondo)
                         
                         // Crea linea di percorso
-                        val linePercorso = Polyline(mapView).apply {
+                        val linePercorso = Polyline(mv).apply {
                             id = "percorso"
                             title = item.nome
                             setPoints(item.punti)
@@ -1154,13 +1158,13 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         list.add(linePercorso)
                         
                         // Prepariamo i marker di inizio/fine
-                        val startMarker = Marker(mapView).apply {
+                        val startMarker = Marker(mv).apply {
                             position = item.punti.first()
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                             icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_start)
                             title = "Partenza"
                         }
-                        val endMarker = Marker(mapView).apply {
+                        val endMarker = Marker(mv).apply {
                             position = item.punti.last()
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                             icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_finish)
@@ -1173,7 +1177,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 
                 // 2. Rigenera Waypoint globali
                 viewModel.wayPoint.forEach { wp ->
-                    val marker = Marker(mapView).apply {
+                    val marker = Marker(mv).apply {
                         title = wp.name
                         position = GeoPoint(wp.latitude, wp.longitude, wp.elevation ?: 0.0)
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
@@ -1184,7 +1188,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 
                 // 3. Rigenera POI della sessione
                 viewModel.poiDBList.forEach { poi ->
-                    val marker = Marker(mapView).apply {
+                    val marker = Marker(mv).apply {
                         title = poi.NomePOI
                         position = GeoPoint(poi.Latit, poi.Longit, poi.Ele)
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
@@ -1209,8 +1213,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
             // 4. Ripristina marker di destinazione BRouter se attivo
             destinationMarker?.let { marker ->
-                if (!mapView.overlays.contains(marker)) {
-                    mapView.overlays.add(marker)
+                if (!mv.overlays.contains(marker)) {
+                    mv.overlays.add(marker)
                 }
             }
 
@@ -1221,7 +1225,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     if (overlay is Marker) {
                         if (abs(overlay.position.latitude - target.latitude) < 0.0001 &&
                             abs(overlay.position.longitude - target.longitude) < 0.0001) {
-                            overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mapView)
+                            overlay.infoWindow = BasicInfoWindow(R.layout.bonuspack_bubble, mv)
                             overlay.showInfoWindow()
                         }
                     }
@@ -1231,11 +1235,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
             // 6. Assicura che la traccia in registrazione sia visibile e in cima
             if (viewModel.isRecording || LocationRepository.trackPointsList.isNotEmpty()) {
-                if (!mapView.overlays.contains(currentTrackPolyline)) {
-                    mapView.overlays.add(currentTrackPolyline)
+                if (!mv.overlays.contains(currentTrackPolyline)) {
+                    mv.overlays.add(currentTrackPolyline)
                 }
-                if (!mapView.overlays.contains(gpsMarker)) {
-                    mapView.overlays.add(gpsMarker)
+                if (!mv.overlays.contains(gpsMarker)) {
+                    mv.overlays.add(gpsMarker)
                 }
                 if (currentTrackPolyline.actualPoints.isEmpty() && LocationRepository.trackPointsList.isNotEmpty()) {
                     currentTrackPolyline.setPoints(LocationRepository.getFullTrackSnapshot())
@@ -1248,7 +1252,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
 
             bringRecordingToFront()
-            mapView.invalidate()
+            mv.invalidate()
         }
     }
 
@@ -1354,7 +1358,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     // Ridisegna la view per essere sicuro
                     //binding.cruscotto.root.invalidate()
                     binding.cruscotto.root.post {
-                        if (isAdded) {
+                        if (isAdded && _binding != null) {
                             // Ripristina lo stato qui dentro
                             bottomSheetBehavior.state = viewModel.bottomState
                             
@@ -1418,8 +1422,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             
             // Zoom alla nuova traccia
             val tempLine = Polyline().apply { setPoints(viewModel.layerItems.last().punti) }
-            mapView.post {
-                mapView.zoomToBoundingBox(tempLine.bounds.increaseByScale(1.2f), false)
+            val mv = binding.Mapview
+            mv.post {
+                if (_binding != null) {
+                    mv.zoomToBoundingBox(tempLine.bounds.increaseByScale(1.2f), false)
+                }
             }
         }
 
@@ -1790,30 +1797,63 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         showCustomSnackbar(binding.root, "Registrazione in corso")
     }
 
+    private fun importaFile(uri: Uri) {
+        if (!isAdded) return
+        val fileName = getFileNameFromUri(requireContext(), uri).lowercase()
+        Log.d("Mappa", "Importazione file: $fileName da URI: $uri")
+        
+        if (fileName.endsWith(".kml")) {
+            caricaKML(uri)
+        } else {
+            // Di default proviamo GPX (che copre anche molti octet-stream di WhatsApp)
+            // Se fallisce, caricaGPX mostrerà un errore o potremmo provare KML come fallback.
+            caricaGPX(uri)
+        }
+    }
+
     private fun caricaGPX(uri: Uri) {
-        if (!isAdded) return // Esci se il fragment non è collegato
+        if (!isAdded) return
         val trackPointsOriginali: MutableList<GeoPoint> = mutableListOf()
         var oldPunto: GeoPoint? = null
-        val stream = requireActivity().contentResolver.openInputStream(uri)
-        val parser = GpxParser()
-        var altiNulla = 0
-        val gpx = parser.parse(stream!!)
-        if (gpx.tracks == null) {
-            Toast.makeText(
-                requireActivity(),
-                "Il file GPX non è valido",
-                Toast.LENGTH_SHORT
-            ).show()
-            stream.close()
+        
+        val gpx = try {
+            val stream = requireActivity().contentResolver.openInputStream(uri)
+            if (stream == null) {
+                Toast.makeText(requireContext(), "Impossibile aprire il file", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val parser = GpxParser()
+            val result = try {
+                parser.parse(stream)
+            } catch (e: Exception) {
+                Log.e("Mappa", "Errore parsing GPX", e)
+                null
+            } finally {
+                stream.close()
+            }
+            result
+        } catch (e: Exception) {
+            Log.e("Mappa", "Errore accesso file", e)
+            null
+        }
+
+        if (gpx == null || gpx.tracks == null) {
+            // Se non è un GPX valido, proviamo se per caso è un KML (alcuni file octet-stream)
+            val fileName = getFileNameFromUri(requireContext(), uri).lowercase()
+            if (!fileName.endsWith(".gpx")) {
+                Log.d("Mappa", "GPX fallito, provo KML come fallback...")
+                caricaKML(uri)
+            } else {
+                Toast.makeText(requireActivity(), "Il file GPX non è valido", Toast.LENGTH_SHORT).show()
+            }
             return
         }
-        stream.close()
 
         viewModel.trackDistanza = 0f
         viewModel.trackAscesa = 0
         viewModel.trackDiscesa = 0
 
-
+        var altiNulla = 0
 // Carica i punti della traccia se esistono- da verificare con gpx multisegmento
         // 2. POPOLAMENTO DELLA LISTA: Leggi i punti e aggiungili alla nostra lista.
         gpx.tracks.firstOrNull()?.trackPoints?.forEach { trackPoint ->
@@ -1923,9 +1963,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 //Log.d("caricagpx", mapView.zoomLevel.toString())
 // esegue la visualizzazione dopo aver aggiornato lo zoom della mappa
         if (!gpx.tracks.isEmpty()) {
-            mapView.post {
-                val tempBounds = Polyline().apply { setPoints(trackPointsOriginali) }.bounds
-                mapView.zoomToBoundingBox(tempBounds.increaseByScale(1.2f), false)
+            val mv = binding.Mapview
+            mv.post {
+                if (_binding != null) {
+                    val tempBounds = Polyline().apply { setPoints(trackPointsOriginali) }.bounds
+                    mv.zoomToBoundingBox(tempBounds.increaseByScale(1.2f), false)
+                }
             }
             // MapUtils.alertSegui gestirà ora i punti
             MapUtils.alertSegui(requireContext(), viewModel, nome, trackPointsOriginali)
@@ -1968,6 +2011,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
 
                 withContext(Dispatchers.Main) {
+                    if (_binding == null) return@withContext
                     val nomeFile = getFileNameFromUri(requireContext(), uri)
                     
                     val tracksFound = mutableListOf<Pair<String, Pair<List<GeoPoint>, Boolean>>>()
@@ -2120,6 +2164,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     private fun updateGpsIcon(status: String?) {
+        if (_binding == null) return
         val isRecording = LocationRepository.isRecording
         when (status) {
             "started" -> {
@@ -2540,6 +2585,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     // Questa funzione aggiorna la vista in base allo stato ricevuto dal ViewModel.
     private fun updateBtnAllarmeUI(isAttivo: Boolean) {
+        if (_binding == null) return
         if (isAttivo) {
             binding.cruscotto.btnAllarme.text = "Allarme on"
             binding.cruscotto.btnAllarme.backgroundTintList = ColorStateList.valueOf(Color.RED)
@@ -2608,6 +2654,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?) {
+        if (_binding == null || !isAdded) return
+        
         when (key) {
             "setBaro" -> {
                 // Aggiorna il ViewModel quando la preferenza 'setBaro' cambia.
@@ -3645,6 +3693,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     private fun handleResult(result: Result<List<GeoPoint>>) {
+        if (!isAdded || _binding == null) return
         result.onSuccess { geoPoints ->
             // Se il risultato è un successo, disegna la traccia
             //Log.d(TAG, "Disegno della traccia sulla mappa...")
@@ -3692,8 +3741,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         // Esegui uno zoom per inquadrare la nuova traccia
         if (points.isNotEmpty()) {
-            mapView.post {
-                mapView.zoomToBoundingBox(Polyline().apply { setPoints(points) }.bounds.increaseByScale(1.2f), true)
+            val mv = binding.Mapview
+            mv.post {
+                if (_binding != null) {
+                    mv.zoomToBoundingBox(Polyline().apply { setPoints(points) }.bounds.increaseByScale(1.2f), true)
+                }
             }
         }
     }
