@@ -207,10 +207,14 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _syncStatus = MutableLiveData<String>("In attesa...")
     val syncStatus: LiveData<String> = _syncStatus
 
+    private val _syncDetails = MutableLiveData<String>("")
+    val syncDetails: LiveData<String> = _syncDetails
+
     private val _isSyncing = MutableLiveData(false)
     val isSyncing: LiveData<Boolean> = _isSyncing
 
     private val syncManager = MariaDbSyncManager(
+        application,
         repository.sentieriDao,
         repository.trackDao,
         repository.poiDao,
@@ -221,9 +225,15 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         viewModelScope.launch {
             _isSyncing.value = true
             _syncStatus.value = "Avvio sincronizzazione..."
+            _syncDetails.value = ""
             
             val result = syncManager.sync { progress ->
-                _syncStatus.postValue(progress)
+                if (progress.startsWith("Caricamento:") || progress.startsWith("Scaricamento:") || 
+                    progress.startsWith("Aggiornamento locale:") || progress.startsWith("Aggiornamento sul NAS:")) {
+                    _syncDetails.postValue((_syncDetails.value ?: "") + progress + "\n")
+                } else {
+                    _syncStatus.postValue(progress)
+                }
             }
             
             result.onSuccess {
@@ -363,7 +373,12 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 ftpClient.connect(server, portaFtp)
                 ftpClient.login(utente, password)
                 ftpClient.enterLocalPassiveMode()
-
+                // importante sul nas il servizio ftp è configurato per non avere cartella di root
+                if (ftpClient.changeWorkingDirectory("/cloud")) {
+                    Log.d("FTP_LIST", "Connessione FTP stabilita e directory 'cloud' impostata.")
+                } else {
+                    Log.e("FTP_LIST", "Impossibile accedere alla cartella cloud sul NAS")
+                }
                 val files = ftpClient.listNames(remotePath)
                 if (files != null) {
                     _ftpFileList.postValue(Event(files.toList()))

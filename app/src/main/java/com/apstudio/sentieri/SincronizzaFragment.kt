@@ -48,6 +48,10 @@ class SincronizzaFragment : Fragment() {
             binding.tvStatus.text = status
         }
 
+        viewModel.syncDetails.observe(viewLifecycleOwner) { details ->
+            binding.tvSyncDetails.text = details
+        }
+
         viewModel.isSyncing.observe(viewLifecycleOwner) { isSyncing ->
             binding.btnSync.isEnabled = !isSyncing
             binding.progressSync.visibility = if (isSyncing) View.VISIBLE else View.GONE

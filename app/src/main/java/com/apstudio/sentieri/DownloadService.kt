@@ -79,7 +79,12 @@ class DownloadService : Service() {
                 ftpClient.soTimeout = 10000
                 ftpClient.enterLocalPassiveMode()
                 ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
-
+                // importante sul nas il servizio ftp è configurato per non avere cartella di root
+                if (ftpClient.changeWorkingDirectory("/cloud")) {
+                    Log.d(TAG, "Connessione FTP stabilita e directory 'cloud' impostata.")
+                } else {
+                    Log.e(TAG, "Impossibile accedere alla cartella cloud sul NAS")
+                }
                 var fileSize = -1L
                 try {
                     val file = ftpClient.mlistFile(percorsoFileRemoto)
