@@ -1,17 +1,24 @@
 package com.apstudio.sentieri
 
+import android.content.Context
 import android.content.res.ColorStateList
+import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.MediaPlayer
+import android.net.Uri
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.databinding.FragmentPoiDettaglioBinding
 import com.apstudio.sentieri.db.OnItemClickListener
 import net.federicomatera.agpxp.models.WayPoint
-import java.io.IOException
+import java.io.File
+import java.io.FileInputStream
+import java.util.Locale
 
 class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<PoiAdapter.PoiViewHolder>() {
 
@@ -23,38 +30,77 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
         onItemClickListener = listener
     }
 
-    private fun playAudio(filePath: String) {
+    private fun playAudio(filePath: String, context: Context) {
         if (currentlyPlayingPath == filePath && mediaPlayer?.isPlaying == true) {
-            // Se lo stesso file è già in riproduzione, fermalo (o mettilo in pausa, a tua scelta)
             stopCurrentPlayback()
             return
         }
-        stopCurrentPlayback() // Ferma qualsiasi riproduzione precedente
+        stopCurrentPlayback()
+
+        val audioFile = File(filePath)
+        val isUri = filePath.startsWith("content://")
+
+        if (!isUri && !audioFile.exists()) {
+            Log.e("PoiAdapter", "File audio non trovato: $filePath")
+            Toast.makeText(context, "File audio non trovato", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (!isUri) {
+            Log.d("PoiAdapter", "File: ${audioFile.name}. Dimensione: ${audioFile.length()} bytes")
+        }
+
+        // Controllo e forzatura volume multimediale
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        if (currentVolume == 0) {
+            Log.w("PoiAdapter", "Volume STREAM_MUSIC è a zero. Provo ad alzarlo.")
+            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (maxVolume * 0.8).toInt(), AudioManager.FLAG_SHOW_UI)
+        }
+
         mediaPlayer = MediaPlayer().apply {
             try {
-                setDataSource(filePath)
-                prepareAsync() // Prepara in modo asincrono per non bloccare UI thread
-                setOnPreparedListener {
-                    start()
+                // Impostiamo STREAM_MUSIC (vecchio metodo ma spesso più affidabile per il routing immediato)
+                @Suppress("DEPRECATION")
+                setAudioStreamType(AudioManager.STREAM_MUSIC)
+                
+                // Anche AudioAttributes per sicurezza sui dispositivi più nuovi
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+
+                if (isUri) {
+                    setDataSource(context, Uri.parse(filePath))
+                } else {
+                    FileInputStream(audioFile).use { fis ->
+                        setDataSource(fis.fd)
+                    }
+                }
+
+                setVolume(1.0f, 1.0f)
+                
+                prepareAsync()
+                setOnPreparedListener { mp ->
+                    Log.d("PoiAdapter", "Preparato correttamente. Durata rilevata: ${mp.duration} ms")
+                    mp.start()
                     currentlyPlayingPath = filePath
-                    // Qui potresti voler aggiornare l'UI del pulsante per indicare la riproduzione
                 }
                 setOnCompletionListener {
+                    Log.d("PoiAdapter", "Riproduzione completata.")
                     stopCurrentPlayback()
-                    // Qui potresti voler aggiornare l'UI del pulsante allo stato normale
                 }
                 setOnErrorListener { _, what, extra ->
-                    Log.e("PoiAdapter", "MediaPlayer Error: what: $what, extra: $extra for path $filePath")
+                    Log.e("PoiAdapter", "MediaPlayer Error: what: $what, extra: $extra")
                     stopCurrentPlayback()
-                    // Gestisci l'errore, ad esempio mostrando un Toast
-                    true // Indica che l'errore è stato gestito
+                    true
                 }
-            } catch (e: IOException) {
-                Log.e("PoiAdapter", "MediaPlayer IOException: ${e.message} for path $filePath")
-                stopCurrentPlayback()
-                // Gestisci l'eccezione, ad esempio mostrando un Toast
-            } catch (e: IllegalStateException) {
-                Log.e("PoiAdapter", "MediaPlayer IllegalStateException: ${e.message} for path $filePath")
+            } catch (e: Exception) {
+                Log.e("PoiAdapter", "Errore critico MediaPlayer: ${e.message}")
+                Toast.makeText(context, "Errore durante l'avvio dell'audio", Toast.LENGTH_SHORT).show()
                 stopCurrentPlayback()
             }
         }
@@ -62,20 +108,21 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
 
     fun stopCurrentPlayback() {
         mediaPlayer?.let {
-            if (it.isPlaying) {
-                it.stop()
-            }
-            it.reset() // Resetta per riutilizzare o rilasciare
+            try {
+                if (it.isPlaying) {
+                    it.stop()
+                }
+            } catch (_: Exception) {}
+            it.reset()
             it.release()
         }
         mediaPlayer = null
         currentlyPlayingPath = null
-        // Qui potresti voler aggiornare l'UI di tutti i pulsanti allo stato normale se necessario
     }
 
     class PoiViewHolder(
         private val binding: FragmentPoiDettaglioBinding,
-        private val onPlayAudioClicked: (filePath: String) -> Unit
+        private val onPlayAudioClicked: (filePath: String, context: Context) -> Unit
     ) : RecyclerView.ViewHolder(binding.root) {
 
         private var currentOnItemClickListener: OnItemClickListener? = null
@@ -100,14 +147,13 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
             binding.tvDescriz.text = descriptionText
 
             if (poi.comment?.isNotEmpty() == true) {
-                val currentTextInTextView = binding.tvDescriz.text?.toString() ?: ("" + poi.comment)
-                binding.tvDescriz.text = currentTextInTextView
+                val currentTextInTextView = binding.tvDescriz.text?.toString() ?: ""
+                binding.tvDescriz.text = if (currentTextInTextView.isEmpty()) poi.comment else "$currentTextInTextView\n${poi.comment}"
             }
 
             binding.tvAlti.text = poi.elevation?.toInt()?.toString() ?: "N/A"
-            // Assumendo che latitude e longitude non siano null in WayPoint come da libreria AGPXP
-            binding.tvLat.text = String.format("%.6f", poi.latitude)
-            binding.tvLon.text = String.format("%.6f", poi.longitude)
+            binding.tvLat.text = String.format(Locale.US, "%.6f", poi.latitude)
+            binding.tvLon.text = String.format(Locale.US, "%.6f", poi.longitude)
 
             val context = binding.root.context
 
@@ -115,15 +161,12 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
                 binding.btnVoice.isVisible = true
                 binding.btnVoice.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.blurred_white ))
                 binding.btnVoice.isEnabled = true
-                binding.btnVoice.isClickable = true
                 binding.btnVoice.setOnClickListener {
-                    // È sicuro usare poi.src!! qui perché abbiamo già controllato isNotEmpty()
-                    onPlayAudioClicked(poi.src)
+                    onPlayAudioClicked(poi.src!!, context)
                 }
             } else {
                 binding.btnVoice.isVisible = false
-                binding.btnVoice.isEnabled = false
-                binding.btnVoice.setOnClickListener(null) // Rimuovi il listener se non c'è audio
+                binding.btnVoice.setOnClickListener(null)
             }
         }
 
@@ -138,19 +181,16 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
             parent,
             false
         )
-        return PoiViewHolder(binding) { filePath ->
-            playAudio(filePath)
+        return PoiViewHolder(binding) { filePath, context ->
+            playAudio(filePath, context)
         }
     }
 
-    override fun getItemCount(): Int {
-        return poiList.size
-    }
+    override fun getItemCount(): Int = poiList.size
 
     override fun onBindViewHolder(holder: PoiViewHolder, position: Int) {
         val poi = poiList[position]
         holder.bind(poi)
-        // Passa il listener generico dell'adapter per il click sull'intera riga
         holder.setOnItemClickListener(onItemClickListener)
     }
 }

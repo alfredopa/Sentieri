@@ -268,6 +268,17 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         _importFileRequest.value = Event(uri)
     }
 
+    /**
+     * Pulisce le liste temporanee di POI, Waypoint e Foto.
+     * Da usare prima di caricare una nuova traccia sulla mappa per evitare duplicati.
+     */
+    fun clearTemporaryPoiData() {
+        wayPoint.clear()
+        fotoList.clear()
+        poiDBList.clear()
+        fotoInPoiDB.clear()
+    }
+
     // LiveData for remaining values
     private val _remainingDist = MutableLiveData(0f)
     val remainingDist: LiveData<Float> = _remainingDist

@@ -1,5 +1,6 @@
 package com.apstudio.sentieri.db
 
+import android.net.Uri
 import androidx.annotation.Keep
 
 @Keep
@@ -14,5 +15,6 @@ data class LayerItem(
     var mostraPendenza: Boolean = true,
     val punti: List<org.osmdroid.util.GeoPoint> = emptyList(),
     var waypoints: List<net.federicomatera.agpxp.models.WayPoint> = emptyList(),
+    var fotos: List<Uri> = emptyList(),
     var isPolygon: Boolean = false
 )

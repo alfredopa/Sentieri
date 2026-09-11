@@ -1,6 +1,7 @@
 package com.apstudio.sentieri
 
 import android.annotation.SuppressLint
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -15,7 +16,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.db.OnItemClickListener
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
+import net.federicomatera.agpxp.models.WayPoint
 import org.osmdroid.util.GeoPoint
+import java.io.File
+import java.util.Locale
 
 
 class PoiFragment : Fragment() {
@@ -42,32 +46,51 @@ class PoiFragment : Fragment() {
         // Inflate the layout for this fragment
         val view = inflater.inflate(R.layout.fragment_poi, container, false)
 
-        /*// Get the DCIM directory
-        val dcimDirectory =
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
-        // Get the Sentieri directory
-        val fotoDirectory = File(dcimDirectory, "Sentieri")
-        if (viewModel.fotoList.size > 0) {
-            viewModel.fotoList.forEach {
-                val file = File(it)
-                file.delete()
+        // Colleziona tutte le foto dai layer abilitati e dalla lista globale, filtrando quelle vuote
+        val allPhotos = mutableListOf<Uri>()
+        viewModel.layerItems.forEach { item ->
+            if (item.abilitato) {
+                allPhotos.addAll(item.fotos.filter { it.toString().isNotBlank() })
             }
-        }*/
-        if (viewModel.fotoList.isNotEmpty()) {
-            // Create a recyclerPhoto  object and set the adapter
-            val recyclerPhoto = view.findViewById<RecyclerView>(R.id.rv_photo)
-            recyclerPhoto.layoutManager =
-                LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
-            val fotoAdapter = ImageAdapter(viewModel.fotoList)
-            recyclerPhoto.adapter = fotoAdapter
-            fotoAdapter.setOnItemClickListener(object : OnItemClickListener {
-                    override fun onItemClick(position: Int) {
-                        //Log.d("ImageAdapter", "clicked position: $position")
-                        val uri = viewModel.fotoList[position]
-                        val directions = PoiFragmentDirections.actionPoiFragmentToCameraFragment(uri.toString())
-                        findNavController().navigate(directions)
+        }
+        allPhotos.addAll(viewModel.fotoList.filter { it.toString().isNotBlank() })
+        
+        if (allPhotos.isNotEmpty()) {
+            // Rimuovi duplicati basandosi sul nome del file e verifica che il file esista effettivamente
+            val uniquePhotos = allPhotos.distinctBy { uri -> 
+                MapUtils.getFileNameFromUri(requireContext(), uri)
+            }.filter { uri -> 
+                val fileName = MapUtils.getFileNameFromUri(requireContext(), uri)
+                if (fileName.isBlank()) return@filter false
+                
+                // Se è un URI content://, proviamo ad aprire uno stream per verificare l'esistenza
+                if (uri.scheme == "content") {
+                    try {
+                        requireContext().contentResolver.openAssetFileDescriptor(uri, "r")?.use { true } ?: false
+                    } catch (e: Exception) {
+                        false
                     }
-            })
+                } else {
+                    // Se è un percorso file, verifichiamo con java.io.File
+                    File(uri.path ?: "").exists()
+                }
+            }
+            
+            if (uniquePhotos.isNotEmpty()) {
+                // Create a recyclerPhoto  object and set the adapter
+                val recyclerPhoto = view.findViewById<RecyclerView>(R.id.rv_photo)
+                recyclerPhoto.layoutManager =
+                    LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+                val fotoAdapter = ImageAdapter(uniquePhotos.toMutableList())
+                recyclerPhoto.adapter = fotoAdapter
+                fotoAdapter.setOnItemClickListener(object : OnItemClickListener {
+                        override fun onItemClick(position: Int) {
+                            val uri = uniquePhotos[position]
+                            val directions = PoiFragmentDirections.actionPoiFragmentToCameraFragment(uri.toString())
+                            findNavController().navigate(directions)
+                        }
+                })
+            }
         }
 
 //       imposta recyclerPoi per i Waypoint
@@ -86,26 +109,45 @@ class PoiFragment : Fragment() {
 
     @SuppressLint("NotifyDataSetChanged")
     private fun displayPoiList() {
-        val waypointsToShow = mutableListOf<net.federicomatera.agpxp.models.WayPoint>()
+        val waypointsToShow = mutableListOf<WayPoint>()
+        // Set per tracciare i waypoint già aggiunti basandosi su coordinate e nome normalizzato
+        val seenKeys = mutableSetOf<String>()
 
-        // 1. Aggiungi i waypoint preesistenti da viewModel.wayPoint
-        // Questi sono già nel formato corretto (net.federicomatera.agpxp.models.WayPoint)
-        waypointsToShow.addAll(viewModel.wayPoint)
+        fun addIfUnique(wp: WayPoint) {
+            // Arrotondiamo a 6 decimali per evitare duplicati da imprecisioni floating point
+            val latStr = String.format(Locale.US, "%.6f", wp.latitude)
+            val lonStr = String.format(Locale.US, "%.6f", wp.longitude)
+            
+            // Normalizziamo il nome: se è nullo, vuoto o il default "WayPoint", usiamo una stringa vuota nella chiave
+            val name = wp.name?.trim() ?: ""
+            val normalizedName = if (name.isEmpty() || name.equals("WayPoint", ignoreCase = true)) "" else name
+            
+            val key = "${normalizedName}_${latStr}_${lonStr}"
+            if (seenKeys.add(key)) {
+                waypointsToShow.add(wp)
+            }
+        }
 
-        // 2. Converti e aggiungi i nuovi waypoint da viewModel.poiDBList
+        // 1. Aggiungi i waypoint dai layer abilitati nel ViewModel
+        viewModel.layerItems.forEach { item ->
+            if (item.abilitato) {
+                item.waypoints.forEach { addIfUnique(it) }
+            }
+        }
+
+        // 2. Aggiungi i waypoint preesistenti globali (es. caricati da file)
+        viewModel.wayPoint.forEach { addIfUnique(it) }
+
+        // 3. Aggiungi i waypoint da viewModel.poiDBList (sessione corrente)
         viewModel.poiDBList.forEach { poiFromDb ->
-            // Converti l'oggetto PoiDB in un oggetto net.federicomatera.agpxp.models.WayPoint
-            // Assicurati che il mapping dei campi sia corretto!
-            val newWayPointEntry = net.federicomatera.agpxp.models.WayPoint(
+            addIfUnique(WayPoint(
                 latitude = poiFromDb.Latit,
                 longitude = poiFromDb.Longit,
-                elevation = poiFromDb.Ele, // o poiFromDb.Ele?.toDouble() se Ele è nullable
+                elevation = poiFromDb.Ele,
                 name = poiFromDb.NomePOI,
-                description = poiFromDb.DescrPOI, // o comment = poiFromDb.DescrPOI
-                src = poiFromDb.UriPath // Mappa UriPath al campo corretto in WayPoint (es. source)
-                // time = ... // Converti poiFromDb.Time (String) in Date se necessario per il costruttore di WayPoint
-            )
-            waypointsToShow.add(newWayPointEntry)
+                description = poiFromDb.DescrPOI,
+                src = poiFromDb.UriPath
+            ))
         }
 
         if (waypointsToShow.isEmpty()) {

@@ -61,8 +61,9 @@ class CameraFragment : Fragment() {
         // altrimenti apre la fotocamera
         if (args.uriFoto != "") {
             fabCamera.visibility = View.GONE
+            // Usiamo direttamente la stringa: Glide gestirà sia path fisici che content://
+            openFoto(ivPhoto, args.uriFoto)
             currentImageUri = args.uriFoto.toUri()
-            openFoto(ivPhoto, currentImageUri!!)
         }
         else {
             // L'applicazione ha il permesso di accedere alla fotocamera
@@ -92,13 +93,15 @@ class CameraFragment : Fragment() {
         }
     }
 
-    private fun openFoto(imageView: ImageView, uri: Uri) {
-        // utilizza Glide per caricare l'immagine
+    private fun openFoto(imageView: ImageView, data: Any) {
+        // utilizza Glide per caricare l'immagine: 'data' può essere String (path) o Uri
         Glide.with(imageView.context)
-            .load(uri)
+            .load(data)
             .into(imageView)
-        MapUtils.getFileNameFromUri(requireContext(), uri)
-        //Log.d("camera", "nome foto $nomeFoto")
+        
+        if (data is Uri) {
+            MapUtils.getFileNameFromUri(requireContext(), data)
+        }
     }
 
     private fun openCamera() {

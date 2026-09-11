@@ -1172,6 +1172,17 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         }
                         list.add(startMarker)
                         list.add(endMarker)
+
+                        // Aggiungiamo i waypoint specifici di questo layer
+                        item.waypoints.forEach { wp ->
+                            val marker = Marker(mv).apply {
+                                title = wp.name
+                                position = GeoPoint(wp.latitude, wp.longitude, wp.elevation ?: 0.0)
+                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                icon = ResourcesCompat.getDrawable(resources, R.drawable.ic_finish, null)
+                            }
+                            list.add(marker)
+                        }
                     }
                 }
                 
@@ -1397,10 +1408,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     viewModel.titoloTracciaDaSeguire
             }
             
-            // Crea o aggiorna il LayerItem nel ViewModel con i DATI (punti)
+            // Crea o aggiorna il LayerItem nel ViewModel con i DATI (punti, waypoint, foto)
             val existingItem = viewModel.layerItems.find { it.nome == viewModel.titoloTracciaDaSeguire }
             if (existingItem != null) {
-                val updatedItem = existingItem.copy(punti = viewModel.puntiDaSeguire.toList())
+                val updatedItem = existingItem.copy(
+                    punti = viewModel.puntiDaSeguire.toList(),
+                    waypoints = viewModel.wayPoint.toList(),
+                    fotos = viewModel.fotoList.toList()
+                )
                 viewModel.layerItems[viewModel.layerItems.indexOf(existingItem)] = updatedItem
             } else {
                 viewModel.layerItems.add(
@@ -1412,11 +1427,15 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         distanza = viewModel.trackDistanza,
                         ascesa = viewModel.trackAscesa,
                         discesa = viewModel.trackDiscesa,
-                        punti = viewModel.puntiDaSeguire.toList()
+                        punti = viewModel.puntiDaSeguire.toList(),
+                        waypoints = viewModel.wayPoint.toList(),
+                        fotos = viewModel.fotoList.toList()
                     )
                 )
             }
             
+            // NON puliamo wayPoint e fotoList qui perché servono ancora a PoiFragment
+            // e sono ora duplicati nel LayerItem per la persistenza sulla mappa.
             viewModel.puntiDaSeguire = mutableListOf()
             syncLayerVisuals()
             
@@ -1920,7 +1939,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 distanza = viewModel.trackDistanza,
                 ascesa = viewModel.trackAscesa,
                 discesa = viewModel.trackDiscesa,
-                punti = trackPointsOriginali.toList()
+                punti = trackPointsOriginali.toList(),
+                waypoints = gpx.wayPoints ?: emptyList()
             )
         )
         
@@ -2116,7 +2136,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                                     ascesa = trackAscesa,
                                     discesa = trackDiscesa,
                                     punti = points,
-                                    isPolygon = isPolygon
+                                    isPolygon = isPolygon,
+                                    // Aggiungiamo i waypoint del KML a questo layer se appartengono alla sua area (opzionale)
+                                    // Per ora lasciamo waypoints vuoti o li mettiamo globali se preferito.
+                                    // Dato che KML sputa fuori waypoints separatamente, li teniamo in viewModel.wayPoint per ora.
                                 )
                             )
                         }
@@ -3483,8 +3506,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         mediaRecorder?.apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            setAudioSamplingRate(44100)
+            setAudioEncodingBitRate(64000)
             setOutputFile(audioOutputFile!!.absolutePath)
 
             try {
@@ -3555,7 +3580,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             val timeStamp: String =
                 SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             // 1. Crea il nome del file e salvalo in una variabile locale non-null.
-            val finalFileName = "AUD_${timeStamp}.3gp"
+            val finalFileName = "AUD_${timeStamp}.m4a"
             // 2. Assegna il nome del file alla variabile di classe per usi futuri.
             this.audioFileName = finalFileName
             val storageDir: File? = requireContext().getExternalFilesDir("VoiceNotesWaypoints")

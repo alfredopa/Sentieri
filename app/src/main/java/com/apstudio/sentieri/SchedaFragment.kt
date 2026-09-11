@@ -228,6 +228,9 @@ class SchedaFragment : Fragment(), MenuProvider {
 
         val btnSegui: Button = binding.btnSegui
         btnSegui.setOnClickListener {
+            // Pulisce i dati precedenti per evitare duplicati sulla mappa e nel PoiFragment
+            viewModel.clearTemporaryPoiData()
+            
             // scrive i punti su polilinea d'appoggio in viewmodel
             viewModel.puntiDaSeguire = puntiOriginali.toMutableList()
             viewModel.titoloTracciaDaSeguire = binding.txNome.text.toString()
@@ -242,109 +245,85 @@ class SchedaFragment : Fragment(), MenuProvider {
 
             // carica i waypoint nella viewmodel da visualizzare sulla mappa
             poiDBList.forEach {
-                viewModel.wayPoint.add(
-                    WayPoint(
-                        latitude = it.Latit,
-                        longitude = it.Longit,
-                        elevation = it.Ele,
-                        name = it.NomePOI,
-                        description = it.DescrPOI,
-                        src = it.UriPath
-                    )
+                val wp = WayPoint(
+                    latitude = it.Latit,
+                    longitude = it.Longit,
+                    elevation = it.Ele,
+                    name = it.NomePOI,
+                    description = it.DescrPOI,
+                    src = it.UriPath
                 )
+                // Verifica unicità prima di aggiungere
+                if (viewModel.wayPoint.none { existing -> 
+                        existing.latitude == wp.latitude && 
+                        existing.longitude == wp.longitude && 
+                        existing.name == wp.name 
+                    }) {
+                    viewModel.wayPoint.add(wp)
+                }
             }
             // necessario un thread per la lettura dal db delle foto della traccia
-            MainScope().launch(Dispatchers.IO) {
+            viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
                 // aggiunge elenco foto traccia
                 viewModel.listaFotoId(idSentiero).forEach {
-                    viewModel.fotoList.add(
-                        it.uriPath.toUri()
-                    )
+                    val uri = it.uriPath.toUri()
+                    // Verifica unicità prima di aggiungere
+                    if (!viewModel.fotoList.contains(uri)) {
+                        viewModel.fotoList.add(uri)
+                    }
                 }
             }
             // verifica se traccia da seguire e se esiste già una traccia da seguire
             val targetTitle = viewModel.titoloTracciaDaSeguire.trim()
             val existingItem = viewModel.layerItems.find { it.nome.trim().equals(targetTitle, ignoreCase = true) }
             
-            if (swcSegui.isChecked) {
-                if (viewModel.tracciaDaSeguire != "") {
-                    alertVerificaSegui(requireContext()) { segui ->
-                        if (segui) {
-                            // resetta tracce con flag segui true
-                            viewModel.layerItems.forEach { it.segui = false }
-                            
-                            if (existingItem != null) {
-                                existingItem.abilitato = true
-                                existingItem.segui = true
-                            } else {
-                                viewModel.layerItems.add(
-                                    LayerItem(
-                                        viewModel.titoloTracciaDaSeguire,
-                                        true,
-                                        direzione = false,
-                                        segui = true,
-                                        distanza = viewModel.trackDistanza,
-                                        ascesa = viewModel.trackAscesa,
-                                        discesa = viewModel.trackDiscesa
-                                    )
-                                )
-                            }
-                            viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
-                            viewModel.alertFuoriTraccia = true
-                        } else {
-                            if (existingItem != null) {
-                                existingItem.abilitato = true
-                            } else {
-                                viewModel.layerItems.add(
-                                    LayerItem(
-                                        viewModel.titoloTracciaDaSeguire,
-                                        true,
-                                        direzione = false,
-                                        segui = false,
-                                        distanza = viewModel.trackDistanza,
-                                        ascesa = viewModel.trackAscesa,
-                                        discesa = viewModel.trackDiscesa
-                                    )
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    if (existingItem != null) {
-                        existingItem.abilitato = true
-                        existingItem.segui = true
-                    } else {
-                        viewModel.layerItems.add(
-                            LayerItem(
-                                viewModel.titoloTracciaDaSeguire,
-                                true,
-                                direzione = false,
-                                segui = true,
-                                distanza = viewModel.trackDistanza,
-                                ascesa = viewModel.trackAscesa,
-                                discesa = viewModel.trackDiscesa
-                            )
-                        )
-                    }
-                    viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
-                    viewModel.alertFuoriTraccia = true
-                }
-            } else {
+            fun updateOrCreateLayerItem(segui: Boolean) {
                 if (existingItem != null) {
-                    existingItem.abilitato = true
+                    val index = viewModel.layerItems.indexOf(existingItem)
+                    viewModel.layerItems[index] = existingItem.copy(
+                        abilitato = true,
+                        segui = segui,
+                        punti = puntiOriginali.toList(),
+                        waypoints = viewModel.wayPoint.toList(),
+                        fotos = viewModel.fotoList.toList()
+                    )
                 } else {
                     viewModel.layerItems.add(
                         LayerItem(
                             viewModel.titoloTracciaDaSeguire,
                             true,
                             direzione = false,
-                            segui = false,
+                            segui = segui,
                             distanza = viewModel.trackDistanza,
                             ascesa = viewModel.trackAscesa,
-                            discesa = viewModel.trackDiscesa
+                            discesa = viewModel.trackDiscesa,
+                            punti = puntiOriginali.toList(),
+                            waypoints = viewModel.wayPoint.toList(),
+                            fotos = viewModel.fotoList.toList()
                         )
                     )
                 }
+            }
+
+            if (swcSegui.isChecked) {
+                if (viewModel.tracciaDaSeguire != "") {
+                    alertVerificaSegui(requireContext()) { segui ->
+                        if (segui) {
+                            viewModel.layerItems.forEach { it.segui = false }
+                            updateOrCreateLayerItem(true)
+                            viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
+                            viewModel.alertFuoriTraccia = true
+                        } else {
+                            updateOrCreateLayerItem(false)
+                        }
+                    }
+                } else {
+                    updateOrCreateLayerItem(true)
+                    viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
+                    viewModel.alertFuoriTraccia = true
+                }
+            } else {
+                updateOrCreateLayerItem(false)
             }
 
             findNavController().navigate(R.id.action_schedaFragment_to_mappaFragment)

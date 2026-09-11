@@ -2,8 +2,10 @@ package com.apstudio.sentieri.sync
 
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
 import android.util.Log
 import com.apstudio.sentieri.BuildConfig
+import com.apstudio.sentieri.MapUtils
 import com.apstudio.sentieri.db.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -27,6 +29,14 @@ class MariaDbSyncManager(
     private val TAG = "MariaDbSyncManager"
     private val connectionUrl = "jdbc:mariadb://${BuildConfig.MARIADB_HOST}/${BuildConfig.MARIADB_DB}?user=${BuildConfig.MARIADB_USER}&password=${BuildConfig.MARIADB_PASS}"
 
+    // Helper per ottenere la cartella DCIM/Sentieri standard
+    private fun getStandardPhotoDir(): File {
+        val dcim = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
+        val sentieri = File(dcim, "Sentieri")
+        if (!sentieri.exists()) sentieri.mkdirs()
+        return sentieri
+    }
+
     suspend fun sync(onProgress: (String) -> Unit): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             onProgress("Connessione al database NAS...")
@@ -42,7 +52,7 @@ class MariaDbSyncManager(
                     syncTracks(conn, uploadedUuids, downloadedUuids)
                     
                     onProgress("Aggiornamento POI...")
-                    syncPois(conn, uploadedUuids, downloadedUuids)
+                    syncPois(conn, uploadedUuids, downloadedUuids, onProgress)
                     
                     onProgress("Sincronizzazione Foto...")
                     syncFotos(conn, uploadedUuids, downloadedUuids, onProgress)
@@ -217,39 +227,123 @@ class MariaDbSyncManager(
         }
     }
 
-    private suspend fun syncPois(conn: Connection, uploadedUuids: List<String>, downloadedUuids: List<String>) {
-        // Upload POIs for new sentieri
-        for (trackUuid in uploadedUuids) {
-            val pois = poiDao.getPoisByTrackUuid(trackUuid)
-            for (p in pois) {
-                uploadPoi(conn, p)
+    private suspend fun syncPois(conn: Connection, uploadedUuids: List<String>, downloadedUuids: List<String>, onProgress: (String) -> Unit) {
+        val ftpClient = FTPClient()
+        var ftpConnected = false
+
+        fun ensureFtpConnected(): Boolean {
+            if (ftpConnected) return true
+            try {
+                ftpClient.connect(BuildConfig.FTP_SERVER, BuildConfig.FTP_PORT)
+                if (ftpClient.login(BuildConfig.FTP_USER, BuildConfig.FTP_PASS)) {
+                    ftpClient.enterLocalPassiveMode()
+                    ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
+                    ftpConnected = true
+                    return true
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Errore connessione FTP per audio: ${e.message}")
             }
+            return false
         }
 
-        // Download POIs for new sentieri
-        for (trackUuid in downloadedUuids) {
-            val sql = "SELECT * FROM PoiDB WHERE trackUuid = ?"
-            conn.prepareStatement(sql).use { pstmt ->
-                pstmt.setString(1, trackUuid)
-                val rs = pstmt.executeQuery()
-                while (rs.next()) {
-                    val localSentiero = sentieriDao.getByUuid(trackUuid)
-                    val poiResult = PoiDB(
-                        Id = rs.getInt("id"),
-                        Trackid = localSentiero?.id ?: 0,
-                        Latit = rs.getDouble("Lat"),
-                        Longit = rs.getDouble("Lon"),
-                        Ele = rs.getDouble("Ele"),
-                        NomePOI = rs.getString("NomePOI"),
-                        DescrPOI = rs.getString("DescrPOI"),
-                        UriPath = rs.getString("UriPath"),
-                        Time = rs.getString("Time"),
-                        uuid = rs.getString("uuid"),
-                        trackUuid = trackUuid,
-                        lastUpdate = rs.getLong("lastUpdate")
-                    )
-                    poiDao.upsert(poiResult)
+        try {
+            // Upload POIs for new sentieri
+            for (trackUuid in uploadedUuids) {
+                val pois = poiDao.getPoisByTrackUuid(trackUuid)
+                for (p in pois) {
+                    uploadPoi(conn, p)
+                    
+                    // Upload audio file if present
+                    if (p.UriPath.isNotEmpty()) {
+                        val uri = Uri.parse(p.UriPath)
+                        val fileName = if (uri.scheme == "content") {
+                            MapUtils.getFileNameFromUri(context, uri)
+                        } else {
+                            File(p.UriPath).name
+                        }
+
+                        val inputStream: InputStream? = if (uri.scheme == "content") {
+                            try { context.contentResolver.openInputStream(uri) } catch (_: Exception) { null }
+                        } else {
+                            val file = File(p.UriPath)
+                            if (file.exists()) FileInputStream(file) else null
+                        }
+
+                        if (inputStream != null && ensureFtpConnected()) {
+                            // Assicura che le cartelle esistano
+                            ftpClient.makeDirectory("Sentieri")
+                            ftpClient.makeDirectory("Sentieri/Audio")
+                            
+                            onProgress("Upload audio: $fileName")
+                            inputStream.use { input ->
+                                ftpClient.storeFile("Sentieri/Audio/$fileName", input)
+                            }
+                        } else {
+                            inputStream?.close()
+                        }
+                    }
                 }
+            }
+
+            // Download POIs for new sentieri
+            for (trackUuid in downloadedUuids) {
+                val sql = "SELECT * FROM PoiDB WHERE trackUuid = ?"
+                conn.prepareStatement(sql).use { pstmt ->
+                    pstmt.setString(1, trackUuid)
+                    val rs = pstmt.executeQuery()
+                    while (rs.next()) {
+                        val localSentiero = sentieriDao.getByUuid(trackUuid)
+                        val remoteUuid = rs.getString("uuid")
+                        val remoteUriPath = rs.getString("UriPath")
+                        
+                        val localPoi = poiDao.getByUuid(remoteUuid)
+                        val poiResult = PoiDB(
+                            Id = localPoi?.Id ?: 0,
+                            Trackid = localSentiero?.id ?: 0,
+                            Latit = rs.getDouble("Lat"),
+                            Longit = rs.getDouble("Lon"),
+                            Ele = rs.getDouble("Ele"),
+                            NomePOI = rs.getString("NomePOI"),
+                            DescrPOI = rs.getString("DescrPOI"),
+                            UriPath = remoteUriPath,
+                            Time = rs.getString("Time"),
+                            uuid = remoteUuid,
+                            trackUuid = trackUuid,
+                            lastUpdate = rs.getLong("lastUpdate")
+                        )
+                        poiDao.upsert(poiResult)
+                        
+                        // Download audio file if missing or empty
+                        if (remoteUriPath.isNotEmpty()) {
+                            val fileName = remoteUriPath.substringAfterLast("/")
+                            val audioDir = File(context.getExternalFilesDir(null), "VoiceNotesWaypoints")
+                            val localFile = File(audioDir, fileName)
+                            
+                            if ((!localFile.exists() || localFile.length() == 0L) && ensureFtpConnected()) {
+                                onProgress("Download audio: $fileName")
+                                audioDir.mkdirs()
+                                
+                                val remotePath = "Sentieri/Audio/$fileName"
+                                val success = downloadFileViaFtp(ftpClient, remotePath, localFile)
+                                if (success) {
+                                    poiResult.UriPath = localFile.absolutePath
+                                    poiDao.upsert(poiResult)
+                                } else {
+                                    Log.e(TAG, "Download audio fallito: $fileName. Risposta: ${ftpClient.replyString}")
+                                }
+                            } else if (localFile.exists() && localFile.length() > 0L && poiResult.UriPath != localFile.absolutePath) {
+                                // Repair path if file exists locally but path is wrong (e.g. from other device)
+                                poiResult.UriPath = localFile.absolutePath
+                                poiDao.upsert(poiResult)
+                            }
+                        }
+                    }
+                }
+            }
+        } finally {
+            if (ftpConnected) {
+                try { ftpClient.logout(); ftpClient.disconnect() } catch (_: Exception) {}
             }
         }
     }
@@ -279,6 +373,43 @@ class MariaDbSyncManager(
         }
     }
 
+    /**
+     * Download di un file via FTP ricalcando la logica di DownloadService.kt
+     */
+    private suspend fun downloadFileViaFtp(ftpClient: FTPClient, remotePath: String, localFile: File): Boolean {
+        var success = false
+        try {
+            // Assicuriamoci che la modalità binaria sia attiva (fondamentale per le immagini)
+            ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
+            
+            val inputStream = ftpClient.retrieveFileStream(remotePath)
+            if (inputStream != null) {
+                FileOutputStream(localFile).use { output ->
+                    inputStream.use { input ->
+                        input.copyTo(output)
+                    }
+                }
+                // Chiude esplicitamente lo stream se non già fatto da use
+                try { inputStream.close() } catch (_: Exception) {}
+                
+                // PASSAGGIO CRUCIALE: completa il comando per liberare il socket e ricevere la risposta dal server
+                success = ftpClient.completePendingCommand()
+                if (!success) {
+                    Log.e(TAG, "completePendingCommand fallito per $remotePath. Risposta: ${ftpClient.replyString}")
+                }
+            } else {
+                Log.e(TAG, "retrieveFileStream restituito null per $remotePath. Risposta: ${ftpClient.replyString}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Eccezione durante downloadFileViaFtp di $remotePath: ${e.message}")
+        } finally {
+            if (!success && localFile.exists()) {
+                localFile.delete()
+            }
+        }
+        return success
+    }
+
     private suspend fun syncFotos(conn: Connection, uploadedUuids: List<String>, downloadedUuids: List<String>, onProgress: (String) -> Unit) {
         val ftpClient = FTPClient()
         var ftpConnected = false
@@ -304,17 +435,8 @@ class MariaDbSyncManager(
                 ftpClient.enterLocalPassiveMode()
                 ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
                 
-                // Assicurati che la directory esista sul NAS (relativa alla root "cloud")
-                //ftpClient.makeDirectory("SentieriFoto")
-                
-                if (ftpClient.changeWorkingDirectory("/SentieriFoto")) {
-                    Log.d(TAG, "Connessione FTP stabilita e directory 'SentieriFoto' impostata.")
-                    ftpConnected = true
-                    true
-                } else {
-                    Log.e(TAG, "Impossibile accedere alla cartella SentieriFoto sul NAS")
-                    false
-                }
+                ftpConnected = true
+                true
             } catch (e: Exception) {
                 Log.e(TAG, "Errore connessione FTP per foto: ${e.message}")
                 false
@@ -355,9 +477,13 @@ class MariaDbSyncManager(
 
                     if (inputStream != null) {
                         if (ensureFtpConnected()) {
+                            // Assicurati che le directory esistano sul NAS
+                            ftpClient.makeDirectory("Sentieri")
+                            ftpClient.makeDirectory("Sentieri/Foto")
+                            
                             onProgress("Upload foto: ${f.nomeFoto}")
                             inputStream.use { input ->
-                                val success = ftpClient.storeFile(f.nomeFoto, input)
+                                val success = ftpClient.storeFile("Sentieri/Foto/${f.nomeFoto}", input)
                                 if (success) {
                                     Log.d(TAG, "Upload successo: ${f.nomeFoto}")
                                 } else {
@@ -383,37 +509,52 @@ class MariaDbSyncManager(
                         val localSentiero = sentieriDao.getByUuid(trackUuid)
                         val nomeFoto = rs.getString("NomeFoto")
                         val uriPath = rs.getString("UriPath")
+                        val remoteUuid = rs.getString("uuid")
+                        val remoteLastUpdate = rs.getLong("lastUpdate")
+                        
+                        val localFoto = fotoPoiDao.getByUuid(remoteUuid)
+                        
                         val fotoResult = FotoPoi(
-                            id = rs.getInt("id"),
+                            id = localFoto?.id ?: 0,
                             trackid = localSentiero?.id ?: 0,
                             uriPath = uriPath,
                             nomeFoto = nomeFoto,
-                            uuid = rs.getString("uuid"),
+                            uuid = remoteUuid,
                             trackUuid = trackUuid,
-                            lastUpdate = rs.getLong("lastUpdate")
+                            lastUpdate = remoteLastUpdate
                         )
                         fotoPoiDao.upsert(fotoResult)
                         
-                        // Download del file fisico se manca localmente
-                        // Nota: il download presuppone che uriPath sia un percorso locale scrivibile
-                        val uri = Uri.parse(uriPath)
-                        if (uri.scheme != "content") {
-                            val localFile = File(uriPath)
-                            if (!localFile.exists() && ensureFtpConnected()) {
-                                onProgress("Download foto: $nomeFoto")
-                                localFile.parentFile?.mkdirs()
-                                try {
-                                    FileOutputStream(localFile).use { output ->
-                                        val success = ftpClient.retrieveFile(nomeFoto, output)
-                                        if (success) {
-                                            Log.d(TAG, "Download successo: $nomeFoto")
-                                        } else {
-                                            Log.e(TAG, "Download fallito: $nomeFoto")
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Errore durante il download del file: ${e.message}")
-                                }
+                        // Logica di download del file fisico
+                        Log.d(TAG, "Verifica file per download: $nomeFoto")
+                        
+                        val photoDir = getStandardPhotoDir()
+                        val targetFile = File(photoDir, nomeFoto)
+                        
+                        var needsDownload = false
+                        
+                        // Se il file non esiste o è vuoto (0 byte), deve essere scaricato
+                        if (!targetFile.exists() || targetFile.length() == 0L) {
+                            needsDownload = true
+                        } else {
+                            // Se esiste ed è valido, assicuriamoci che il record nel DB locale punti qui
+                            if (fotoResult.uriPath != targetFile.absolutePath) {
+                                fotoResult.uriPath = targetFile.absolutePath
+                                fotoPoiDao.upsert(fotoResult)
+                                Log.d(TAG, "File già presente in DCIM, aggiornato path: ${targetFile.absolutePath}")
+                            }
+                        }
+
+                        if (needsDownload && ensureFtpConnected()) {
+                            onProgress("Download foto: $nomeFoto")
+                            val remotePath = "Sentieri/Foto/$nomeFoto"
+                            val success = downloadFileViaFtp(ftpClient, remotePath, targetFile)
+                            if (success) {
+                                Log.d(TAG, "Download successo: $nomeFoto")
+                                fotoResult.uriPath = targetFile.absolutePath
+                                fotoPoiDao.upsert(fotoResult)
+                            } else {
+                                Log.e(TAG, "Download fallito via stream per $nomeFoto")
                             }
                         }
                     }
