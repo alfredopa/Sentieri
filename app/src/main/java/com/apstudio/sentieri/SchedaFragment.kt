@@ -278,6 +278,7 @@ class SchedaFragment : Fragment(), MenuProvider {
             val existingItem = viewModel.layerItems.find { it.nome.trim().equals(targetTitle, ignoreCase = true) }
             
             fun updateOrCreateLayerItem(segui: Boolean) {
+                val cache = MapUtils.generaCacheStatistiche(puntiOriginali.toList())
                 if (existingItem != null) {
                     val index = viewModel.layerItems.indexOf(existingItem)
                     viewModel.layerItems[index] = existingItem.copy(
@@ -285,7 +286,10 @@ class SchedaFragment : Fragment(), MenuProvider {
                         segui = segui,
                         punti = puntiOriginali.toList(),
                         waypoints = viewModel.wayPoint.toList(),
-                        fotos = viewModel.fotoList.toList()
+                        fotos = viewModel.fotoList.toList(),
+                        distanzeCumulative = cache.first,
+                        asceseCumulative = cache.second,
+                        disceseCumulative = cache.third
                     )
                 } else {
                     viewModel.layerItems.add(
@@ -299,7 +303,10 @@ class SchedaFragment : Fragment(), MenuProvider {
                             discesa = viewModel.trackDiscesa,
                             punti = puntiOriginali.toList(),
                             waypoints = viewModel.wayPoint.toList(),
-                            fotos = viewModel.fotoList.toList()
+                            fotos = viewModel.fotoList.toList(),
+                            distanzeCumulative = cache.first,
+                            asceseCumulative = cache.second,
+                            disceseCumulative = cache.third
                         )
                     )
                 }

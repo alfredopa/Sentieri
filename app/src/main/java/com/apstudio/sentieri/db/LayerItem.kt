@@ -16,5 +16,9 @@ data class LayerItem(
     val punti: List<org.osmdroid.util.GeoPoint> = emptyList(),
     var waypoints: List<net.federicomatera.agpxp.models.WayPoint> = emptyList(),
     var fotos: List<Uri> = emptyList(),
-    var isPolygon: Boolean = false
+    var isPolygon: Boolean = false,
+    // Campi di cache precalcolati per velocizzare calculateRemainingStats
+    var distanzeCumulative: List<Double> = emptyList(),
+    var asceseCumulative: List<Double> = emptyList(),
+    var disceseCumulative: List<Double> = emptyList()
 )

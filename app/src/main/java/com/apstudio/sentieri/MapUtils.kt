@@ -61,6 +61,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.zip.ZipInputStream
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.pow
@@ -251,13 +252,21 @@ object MapUtils {
             setPositiveButton("Segui") { _, _ ->
                 val targetTitle = nomeTraccia.trim()
                 val existingItem = viewModel.layerItems.find { it.nome.trim().equals(targetTitle, ignoreCase = true) }
+                val cache = generaCacheStatistiche(punti)
                 
                 if (viewModel.tracciaDaSeguire != "") {
                     alertVerificaSegui(context) { segui ->
                         if (segui) {
                             viewModel.layerItems.forEach { it.segui = false }
                             if (existingItem != null) {
-                                val updated = existingItem.copy(segui = true, abilitato = true, punti = punti)
+                                val updated = existingItem.copy(
+                                    segui = true, 
+                                    abilitato = true, 
+                                    punti = punti,
+                                    distanzeCumulative = cache.first,
+                                    asceseCumulative = cache.second,
+                                    disceseCumulative = cache.third
+                                )
                                 viewModel.layerItems[viewModel.layerItems.indexOf(existingItem)] = updated
                             } else {
                                 viewModel.layerItems.add(LayerItem(nomeTraccia, true,
@@ -266,7 +275,10 @@ object MapUtils {
                                     distanza = viewModel.trackDistanza,
                                     ascesa = viewModel.trackAscesa,
                                     discesa = viewModel.trackDiscesa,
-                                    punti = punti
+                                    punti = punti,
+                                    distanzeCumulative = cache.first,
+                                    asceseCumulative = cache.second,
+                                    disceseCumulative = cache.third
                                 ))
                             }
                         } else {
@@ -277,14 +289,24 @@ object MapUtils {
                                     distanza = viewModel.trackDistanza,
                                     ascesa = viewModel.trackAscesa,
                                     discesa = viewModel.trackDiscesa,
-                                    punti = punti
+                                    punti = punti,
+                                    distanzeCumulative = cache.first,
+                                    asceseCumulative = cache.second,
+                                    disceseCumulative = cache.third
                                 ))
                             }
                         }
                     }
                 } else {
                     if (existingItem != null) {
-                        val updated = existingItem.copy(segui = true, abilitato = true, punti = punti)
+                        val updated = existingItem.copy(
+                            segui = true, 
+                            abilitato = true, 
+                            punti = punti,
+                            distanzeCumulative = cache.first,
+                            asceseCumulative = cache.second,
+                            disceseCumulative = cache.third
+                        )
                         viewModel.layerItems[viewModel.layerItems.indexOf(existingItem)] = updated
                     } else {
                         viewModel.layerItems.add(LayerItem(nomeTraccia, true,
@@ -293,7 +315,10 @@ object MapUtils {
                             distanza = viewModel.trackDistanza,
                             ascesa = viewModel.trackAscesa,
                             discesa = viewModel.trackDiscesa,
-                            punti = punti
+                            punti = punti,
+                            distanzeCumulative = cache.first,
+                            asceseCumulative = cache.second,
+                            disceseCumulative = cache.third
                         ))
                     }
                 }
@@ -303,13 +328,17 @@ object MapUtils {
             }
             setNegativeButton(android.R.string.cancel) { _, _ ->
                 if (viewModel.layerItems.none { it.nome == nomeTraccia }) {
+                    val cache = generaCacheStatistiche(punti)
                     viewModel.layerItems.add(LayerItem(nomeTraccia, true,
                         direzione = false,
                         segui = false,
                         distanza = viewModel.trackDistanza,
                         ascesa = viewModel.trackAscesa,
                         discesa = viewModel.trackDiscesa,
-                        punti = punti
+                        punti = punti,
+                        distanzeCumulative = cache.first,
+                        asceseCumulative = cache.second,
+                        disceseCumulative = cache.third
                     ))
                 }
                 viewModel.requestMapInvalidate()
@@ -661,5 +690,70 @@ object MapUtils {
         drawable.setBounds(0, 0, canvas.width, canvas.height)
         drawable.draw(canvas)
         return bitmap
+    }
+
+    /**
+     * Calcola distanza e dislivelli di una lista di punti applicando filtri per ridurre il rumore.
+     * Restituisce un Triple con (Distanza in metri, Ascesa in metri, Discesa in metri)
+     */
+    fun calcolaStatisticheTraccia(punti: List<GeoPoint>): Triple<Float, Int, Int> {
+        val cache = generaCacheStatistiche(punti)
+        return Triple(
+            cache.first.lastOrNull()?.toFloat() ?: 0f,
+            cache.second.lastOrNull()?.toInt() ?: 0,
+            cache.third.lastOrNull()?.toInt() ?: 0
+        )
+    }
+
+    /**
+     * Genera le liste cumulative per distanza e dislivelli.
+     * Utile per ricalcoli veloci dei valori rimanenti.
+     */
+    fun generaCacheStatistiche(punti: List<GeoPoint>): Triple<List<Double>, List<Double>, List<Double>> {
+        if (punti.isEmpty()) return Triple(emptyList(), emptyList(), emptyList())
+        
+        val distanze = DoubleArray(punti.size)
+        val ascese = DoubleArray(punti.size)
+        val discese = DoubleArray(punti.size)
+        
+        // Parametri di filtraggio
+        val windowSize = 8
+        val variationThreshold = 2.0
+
+        // 1. Media mobile per altitudini
+        val filteredAltitudes = DoubleArray(punti.size)
+        for (i in punti.indices) {
+            val start = maxOf(0, i - windowSize / 2)
+            val end = minOf(punti.size - 1, i + windowSize / 2)
+            var sum = 0.0
+            for (j in start..end) sum += punti[j].altitude
+            filteredAltitudes[i] = sum / (end - start + 1)
+        }
+
+        var dAcc = 0.0
+        var aAcc = 0.0
+        var descAcc = 0.0
+        var lastAlt = filteredAltitudes[0]
+
+        distanze[0] = 0.0
+        ascese[0] = 0.0
+        discese[0] = 0.0
+
+        for (i in 1 until punti.size) {
+            // Distanza cumulativa
+            dAcc += getDistanceInMeters(punti[i-1], punti[i])
+            distanze[i] = dAcc
+
+            // Dislivello cumulativo
+            val diff = filteredAltitudes[i] - lastAlt
+            if (abs(diff) >= variationThreshold) {
+                if (diff > 0) aAcc += diff else descAcc += abs(diff)
+                lastAlt = filteredAltitudes[i]
+            }
+            ascese[i] = aAcc
+            discese[i] = descAcc
+        }
+
+        return Triple(distanze.toList(), ascese.toList(), discese.toList())
     }
 }

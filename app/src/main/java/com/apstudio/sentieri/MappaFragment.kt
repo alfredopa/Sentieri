@@ -1419,11 +1419,15 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             
             // Crea o aggiorna il LayerItem nel ViewModel con i DATI (punti, waypoint, foto)
             val existingItem = viewModel.layerItems.find { it.nome == viewModel.titoloTracciaDaSeguire }
+            val cache = MapUtils.generaCacheStatistiche(viewModel.puntiDaSeguire)
             if (existingItem != null) {
                 val updatedItem = existingItem.copy(
                     punti = viewModel.puntiDaSeguire.toList(),
                     waypoints = viewModel.wayPoint.toList(),
-                    fotos = viewModel.fotoList.toList()
+                    fotos = viewModel.fotoList.toList(),
+                    distanzeCumulative = cache.first,
+                    asceseCumulative = cache.second,
+                    disceseCumulative = cache.third
                 )
                 viewModel.layerItems[viewModel.layerItems.indexOf(existingItem)] = updatedItem
             } else {
@@ -1438,7 +1442,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         discesa = viewModel.trackDiscesa,
                         punti = viewModel.puntiDaSeguire.toList(),
                         waypoints = viewModel.wayPoint.toList(),
-                        fotos = viewModel.fotoList.toList()
+                        fotos = viewModel.fotoList.toList(),
+                        distanzeCumulative = cache.first,
+                        asceseCumulative = cache.second,
+                        disceseCumulative = cache.third
                     )
                 )
             }
@@ -1842,7 +1849,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     private fun caricaGPX(uri: Uri) {
         if (!isAdded) return
         val trackPointsOriginali: MutableList<GeoPoint> = mutableListOf()
-        var oldPunto: GeoPoint? = null
         
         val gpx = try {
             val stream = requireActivity().contentResolver.openInputStream(uri)
@@ -1882,27 +1888,18 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.trackDiscesa = 0
 
         var altiNulla = 0
-// Carica i punti della traccia se esistono- da verificare con gpx multisegmento
-        // 2. POPOLAMENTO DELLA LISTA: Leggi i punti e aggiungili alla nostra lista.
+        // Carica i punti della traccia
         gpx.tracks.firstOrNull()?.trackPoints?.forEach { trackPoint ->
-            val punto =
-                GeoPoint(trackPoint.latitude, trackPoint.longitude, trackPoint.elevation ?: 0.0)
+            val punto = GeoPoint(trackPoint.latitude, trackPoint.longitude, trackPoint.elevation ?: 0.0)
             trackPointsOriginali.add(punto)
-
-            // Calcola statistiche (distanza, ascesa, discesa)
             if (trackPoint.elevation == null) altiNulla += 1
-
-            if (oldPunto != null) {
-                viewModel.trackDistanza += MapUtils.getDistanceInMeters(oldPunto, punto)
-                val dislivello = (punto.altitude) - (oldPunto.altitude)
-                if (dislivello > 0) {
-                    viewModel.trackAscesa += dislivello.toInt()
-                } else {
-                    viewModel.trackDiscesa += dislivello.toInt()
-                }
-            }
-            oldPunto = punto
         }
+
+        // Calcola statistiche (distanza, ascesa, discesa) usando il nuovo filtro di smoothing
+        val cache = MapUtils.generaCacheStatistiche(trackPointsOriginali)
+        viewModel.trackDistanza = cache.first.lastOrNull()?.toFloat() ?: 0f
+        viewModel.trackAscesa = cache.second.lastOrNull()?.toInt() ?: 0
+        viewModel.trackDiscesa = -(cache.third.lastOrNull()?.toInt() ?: 0)
 
         // nome file (da Maputils)
         val nome = getFileNameFromUri(requireContext(), uri)
@@ -1949,7 +1946,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 ascesa = viewModel.trackAscesa,
                 discesa = viewModel.trackDiscesa,
                 punti = trackPointsOriginali.toList(),
-                waypoints = gpx.wayPoints ?: emptyList()
+                waypoints = gpx.wayPoints ?: emptyList(),
+                distanzeCumulative = cache.first,
+                asceseCumulative = cache.second,
+                disceseCumulative = cache.third
             )
         )
         
@@ -2120,20 +2120,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                                 nomeFile
                             }
 
-                            var trackDistanza = 0f
-                            var trackAscesa = 0
-                            var trackDiscesa = 0
-                            var oldPunto: GeoPoint? = null
-                            points.forEach { punto ->
-                                if (oldPunto != null) {
-                                    trackDistanza += MapUtils.getDistanceInMeters(oldPunto!!, punto)
-                                    val dislivello = punto.altitude - oldPunto!!.altitude
-                                    if (dislivello > 0) trackAscesa += dislivello.toInt()
-                                    else trackDiscesa += dislivello.toInt()
-                                }
-                                oldPunto = punto
-                                allPointsForZoom.add(punto)
-                            }
+                            val cache = MapUtils.generaCacheStatistiche(points)
+                            val trackDistanza = cache.first.lastOrNull()?.toFloat() ?: 0f
+                            val trackAscesa = cache.second.lastOrNull()?.toInt() ?: 0
+                            val trackDiscesa = -(cache.third.lastOrNull()?.toInt() ?: 0)
+                            
+                            points.forEach { allPointsForZoom.add(it) }
 
                             viewModel.layerItems.add(
                                 com.apstudio.sentieri.db.LayerItem(
@@ -2146,6 +2138,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                                     discesa = trackDiscesa,
                                     punti = points,
                                     isPolygon = isPolygon,
+                                    distanzeCumulative = cache.first,
+                                    asceseCumulative = cache.second,
+                                    disceseCumulative = cache.third
                                     // Aggiungiamo i waypoint del KML a questo layer se appartengono alla sua area (opzionale)
                                     // Per ora lasciamo waypoints vuoti o li mettiamo globali se preferito.
                                     // Dato che KML sputa fuori waypoints separatamente, li teniamo in viewModel.wayPoint per ora.
