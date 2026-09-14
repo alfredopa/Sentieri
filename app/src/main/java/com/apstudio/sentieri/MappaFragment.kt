@@ -628,6 +628,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // Osserva il cambiamento della traccia da seguire
         viewModel.tracciaDaSeguireLiveData.observe(viewLifecycleOwner) {
             updateRemainingVisibility()
+            // Selezionata una nuova traccia o deselezionata, forza il ricalcolo dei valori rimanenti
+            viewModel.locationData.value?.geoPoint?.let { currentPos ->
+                viewModel.calculateRemainingStats(currentPos)
+            }
         }
 
         // Osserva le richieste di importazione file (es. da WhatsApp o File Manager)
@@ -1021,6 +1025,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
             if (::gpsMarker.isInitialized) {
                 gpsMarker.position = newGeoPoint
+            }
+
+            // Calcola i valori rimanenti se stiamo seguendo una traccia
+            if (viewModel.tracciaDaSeguire.isNotEmpty()) {
+                viewModel.calculateRemainingStats(newGeoPoint)
             }
 
             if (viewModel.isRecording && LocationRepository.trackPointsList.size == 1) {

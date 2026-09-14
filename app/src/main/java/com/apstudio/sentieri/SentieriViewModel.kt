@@ -287,6 +287,54 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _remainingDMeno = MutableLiveData(0.0)
     val remainingDMeno: LiveData<Double> = _remainingDMeno
 
+    /**
+     * Calcola i valori rimanenti (distanza, ascesa, discesa) basandosi sulla posizione attuale
+     * e sulla traccia che si sta seguendo.
+     */
+    fun calculateRemainingStats(currentLocation: GeoPoint) {
+        val tracciaNome = tracciaDaSeguire
+        if (tracciaNome.isEmpty()) {
+            _remainingDist.postValue(0f)
+            _remainingDPiu.postValue(0.0)
+            _remainingDMeno.postValue(0.0)
+            return
+        }
+
+        val layerItem = layerItems.find { it.nome == tracciaNome } ?: return
+        val points = layerItem.punti
+        if (points.isEmpty()) return
+
+        // 1. Trova l'indice del punto più vicino sulla traccia
+        var minDistance = Double.MAX_VALUE
+        var closestIndex = -1
+        for (i in points.indices) {
+            val dist = currentLocation.distanceToAsDouble(points[i])
+            if (dist < minDistance) {
+                minDistance = dist
+                closestIndex = i
+            }
+        }
+
+        if (closestIndex == -1) return
+
+        // 2. Calcola distanza e dislivelli rimanenti dal punto più vicino alla fine
+        var remDist = 0.0
+        var remDPiu = 0.0
+        var remDMeno = 0.0
+
+        for (i in closestIndex until points.size - 1) {
+            val p1 = points[i]
+            val p2 = points[i + 1]
+            remDist += p1.distanceToAsDouble(p2)
+            val deltaEle = p2.altitude - p1.altitude
+            if (deltaEle > 0) remDPiu += deltaEle else remDMeno -= deltaEle
+        }
+
+        _remainingDist.postValue(remDist.toFloat())
+        _remainingDPiu.postValue(remDPiu)
+        _remainingDMeno.postValue(remDMeno)
+    }
+
     fun resetCruscotto() {
         clearTrack(getApplication())
     }
