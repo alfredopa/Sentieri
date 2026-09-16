@@ -291,6 +291,9 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _remainingDMeno = MutableLiveData(0.0)
     val remainingDMeno: LiveData<Double> = _remainingDMeno
 
+    private val _distanceFromTrack = MutableLiveData<Double>(0.0)
+    val distanceFromTrack: LiveData<Double> = _distanceFromTrack
+
     /**
      * Calcola i valori rimanenti (distanza, ascesa, discesa) basandosi sulla posizione attuale
      * e sulla traccia che si sta seguendo.
@@ -373,6 +376,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         }
 
         lastClosestIndex = closestIndex
+        _distanceFromTrack.postValue(minDistance)
 
         // 2. CALCOLO VALORI RIMANENTI (usando la cache cumulativa)
         if (layerItem.distanzeCumulative.isEmpty() || layerItem.distanzeCumulative.size != points.size) {

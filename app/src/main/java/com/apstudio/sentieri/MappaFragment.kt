@@ -1015,6 +1015,15 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             binding.cruscotto.tvRemainingDMeno.text = numberFormat.format(remDMeno.toInt())
         }
 
+        // Gestione unificata dell'allarme fuori traccia: osserva la distanza calcolata nel ViewModel
+        viewModel.distanceFromTrack.observe(viewLifecycleOwner) { dist ->
+            if (viewModel.alertFuoriTraccia && viewModel.tracciaDaSeguire.isNotEmpty() && dist > 50.0) {
+                if (!isAlertDialogShowing() && isAdded && _binding != null) {
+                    mostraAllarmeFuoriTraccia()
+                }
+            }
+        }
+
         viewModel.locationData.observe(viewLifecycleOwner) { locationData ->
             if (!isAdded || _binding == null) return@observe
 
@@ -1060,32 +1069,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
             }
 
-            // segue traccia con una coroutine
-            if (viewModel.alertFuoriTraccia && viewModel.tracciaDaSeguire.isNotEmpty()) {
-                if (!isAlertDialogShowing()) {
-                    // Avviamo una coroutine per non bloccare la UI
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        val fuoriTraccia = withContext(Dispatchers.Default) {
-                            // 1. Cerchiamo la traccia nei layerItems (DATI)
-                            val tracciaData = viewModel.layerItems.find {
-                                it.nome == viewModel.tracciaDaSeguire
-                            }
-                            
-                            // Calcoliamo la distanza se abbiamo i punti
-                            tracciaData?.let {
-                                if (it.punti.isNotEmpty()) {
-                                    val tempPoly = Polyline().apply { setPoints(it.punti) }
-                                    !tempPoly.isCloseTo(newGeoPoint, 30.0, mv)
-                                } else false
-                            } ?: false
-                        }
-
-                        // 3. Torniamo sul Main Thread per mostrare il dialogo
-                        if (fuoriTraccia && isAdded && _binding != null) {
-                            mostraAllarmeFuoriTraccia()
-                        }
-                    }
-                }
+            // Calcola i valori rimanenti se stiamo seguendo una traccia
+            // Questo ora aggiorna anche la distanza dalla traccia per l'allarme in modo unificato
+            if (viewModel.tracciaDaSeguire.isNotEmpty()) {
+                viewModel.calculateRemainingStats(newGeoPoint)
             }
         }
 
