@@ -31,21 +31,29 @@ android {
         targetSdk 36
         versionCode 41
         versionName '2.0.9'
-        // Definisci le variabili FTP leggendole dal file properties
-        // Access properties using .get() or bracket notation
-        def ftpServer = findProperty("ftp.server")
-        def ftpUser = findProperty("ftp.username")
-        def ftpPass = findProperty("ftp.password")
-        def ftpPort = findProperty("ftp.port")
+        
+        // Carica local.properties manualmente
+        Properties localProperties = new Properties()
+        if (rootProject.file('local.properties').exists()) {
+            localProperties.load(rootProject.file('local.properties').newDataInputStream())
+        }
+
+        // Leggi i valori dando priorità a local.properties, poi gradle.properties
+        def ftpServer = localProperties.getProperty("ftp.server") ?: findProperty("ftp.server") ?: "\"\""
+        def ftpUser = localProperties.getProperty("ftp.username") ?: findProperty("ftp.username") ?: "\"\""
+        def ftpPass = localProperties.getProperty("ftp.password") ?: findProperty("ftp.password") ?: "\"\""
+        def ftpPort = localProperties.getProperty("ftp.port") ?: findProperty("ftp.port") ?: "21"
+
         buildConfigField("String", "FTP_SERVER", ftpServer)
         buildConfigField("String", "FTP_USER", ftpUser)
         buildConfigField("String", "FTP_PASS", ftpPass)
         buildConfigField("Integer", "FTP_PORT", ftpPort)
 
-        def dbHost = findProperty("mariadb.host") ?: "\"\""
-        def dbUser = findProperty("mariadb.username") ?: "\"\""
-        def dbPass = findProperty("mariadb.password") ?: "\"\""
-        def dbName = findProperty("mariadb.db") ?: "\"\""
+        def dbHost = localProperties.getProperty("mariadb.host") ?: findProperty("mariadb.host") ?: "\"\""
+        def dbUser = localProperties.getProperty("mariadb.username") ?: findProperty("mariadb.username") ?: "\"\""
+        def dbPass = localProperties.getProperty("mariadb.password") ?: findProperty("mariadb.password") ?: "\"\""
+        def dbName = localProperties.getProperty("mariadb.db") ?: findProperty("mariadb.db") ?: "\"\""
+        
         buildConfigField("String", "MARIADB_HOST", dbHost)
         buildConfigField("String", "MARIADB_USER", dbUser)
         buildConfigField("String", "MARIADB_PASS", dbPass)
