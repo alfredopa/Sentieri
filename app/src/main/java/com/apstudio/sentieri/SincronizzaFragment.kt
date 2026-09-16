@@ -1,10 +1,14 @@
 package com.apstudio.sentieri
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.fragment.app.activityViewModels
 import com.apstudio.sentieri.databinding.FragmentSincronizzaBinding
 import com.apstudio.sentieri.db.SentieriDB
@@ -41,7 +45,11 @@ class SincronizzaFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         binding.btnSync.setOnClickListener {
-            viewModel.syncWithNas()
+            if (isNetworkAvailable()) {
+                viewModel.syncWithNas()
+            } else {
+                Toast.makeText(requireContext(), "Connessione internet non disponibile", Toast.LENGTH_SHORT).show()
+            }
         }
 
         viewModel.syncStatus.observe(viewLifecycleOwner) { status ->
@@ -61,5 +69,17 @@ class SincronizzaFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    private fun isNetworkAvailable(): Boolean {
+        val connectivityManager = requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val activeNetwork = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return when {
+            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
+            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> true
+            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> true
+            else -> false
+        }
     }
 }
