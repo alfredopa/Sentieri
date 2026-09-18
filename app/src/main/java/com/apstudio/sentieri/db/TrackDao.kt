@@ -43,4 +43,7 @@ interface TrackDao {
 
     @Upsert
     suspend fun upsertPoints(points: List<Track>): List<Long>
+
+    @Query("SELECT DISTINCT Trackid FROM Track WHERE Lat BETWEEN :minLat AND :maxLat AND Lon BETWEEN :minLon AND :maxLon")
+    suspend fun getTrackIdsInArea(minLat: Float, maxLat: Float, minLon: Float, maxLon: Float): List<Int>
 }

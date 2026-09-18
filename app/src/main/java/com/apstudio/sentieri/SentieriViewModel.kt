@@ -268,6 +268,32 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _importFileRequest = MutableLiveData<Event<Uri>>()
     val importFileRequest: LiveData<Event<Uri>> = _importFileRequest
 
+    private val _searchResults = MutableLiveData<List<Sentieri>?>(null)
+    val searchResults: LiveData<List<Sentieri>?> = _searchResults
+
+    private val _isSearchingArea = MutableLiveData(false)
+    val isSearchingArea: LiveData<Boolean> = _isSearchingArea
+
+    fun setSearchMode(active: Boolean) {
+        _isSearchingArea.value = active
+        if (active) {
+            _searchResults.value = null // Reset per la nuova ricerca
+        }
+    }
+
+    fun searchInArea(minLat: Double, maxLat: Double, minLon: Double, maxLon: Double) {
+        Log.d("SentieriViewModel", "searchInArea: $minLat, $maxLat, $minLon, $maxLon")
+        viewModelScope.launch(Dispatchers.IO) {
+            val results = repository.cercaInArea(minLat, maxLat, minLon, maxLon)
+            Log.d("SentieriViewModel", "Trovati ${results.size} risultati")
+            _searchResults.postValue(results)
+        }
+    }
+
+    fun clearSearchResults() {
+        _searchResults.value = null
+    }
+
     fun importFile(uri: Uri) {
         _importFileRequest.value = Event(uri)
     }
@@ -408,6 +434,25 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         clearTrack(getApplication())
     }
 
+    suspend fun getPointsForSentiero(id: Int): List<GeoPoint> {
+        return withContext(Dispatchers.IO) {
+            val puntiTracciaDalDb = repository.getPuntiTraccia(id)
+            puntiTracciaDalDb.map {
+                GeoPoint(it.Latit.toDouble(), it.Longit.toDouble(), it.Ele.toDouble())
+            }
+        }
+    }
+
+    suspend fun getPolylineForSentiero(id: Int): Polyline {
+        return withContext(Dispatchers.IO) {
+            val puntiTracciaDalDb = repository.getPuntiTraccia(id)
+            val percorso = Polyline()
+            puntiTracciaDalDb.forEach {
+                percorso.addPoint(GeoPoint(it.Latit.toDouble(), it.Longit.toDouble(), it.Ele.toDouble()))
+            }
+            percorso
+        }
+    }
 
     // legge i punti della traccia dal DB Track
     suspend fun leggiTrack(id: Int, poiList: MutableList<PoiDB>): Polyline {

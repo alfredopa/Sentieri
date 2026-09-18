@@ -81,4 +81,13 @@ import kotlinx.coroutines.flow.Flow
         // Aggiungi qui la cancellazione dei POI e delle foto se necessario
         sentieriDao.deleteSentiero(idSentiero)
     }
+
+    suspend fun cercaInArea(minLat: Double, maxLat: Double, minLon: Double, maxLon: Double): List<Sentieri> {
+        val ids = trackDao.getTrackIdsInArea(minLat.toFloat(), maxLat.toFloat(), minLon.toFloat(), maxLon.toFloat())
+        val sentieri = mutableListOf<Sentieri>()
+        ids.forEach { id ->
+            sentieriDao.getItemSync(id)?.let { sentieri.add(it) }
+        }
+        return sentieri
+    }
 }

@@ -21,6 +21,10 @@
             android:id="@+id/menu_mappa"
             android:icon="@android:drawable/ic_dialog_map"
             android:title="Cambia Mappa" />
+        <item
+            android:id="@+id/menu_cerca_area"
+            android:icon="@android:drawable/ic_menu_search"
+            android:title="Cerca in area" />
     </group>
     <group android:id="@+id/group_settings" android:checkableBehavior="single">
         <item

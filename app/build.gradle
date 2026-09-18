@@ -28,8 +28,8 @@ android {
         applicationId "com.apstudio.sentieri"
         minSdk 31
         targetSdk 36
-        versionCode 41
-        versionName '2.0.9'
+        versionCode 42
+        versionName '2.1'
         
         // Carica local.properties manualmente
         Properties localProperties = new Properties()

@@ -63,6 +63,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.TooltipCompat
+import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -80,6 +81,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
 import androidx.preference.PreferenceManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import btools.routingapp.IBRouterService
 import com.apstudio.sentieri.MapUtils.apreMappa
 import com.apstudio.sentieri.MapUtils.convertMillisToISO8601JavaTime
@@ -93,6 +96,7 @@ import com.apstudio.sentieri.MapUtils.showCustomSnackbar
 import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
+import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.LocationRepository
 import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.PoiDao
@@ -134,6 +138,7 @@ import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.MapTileProviderArray
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapController
@@ -225,6 +230,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     private var _binding: FragmentMappaBinding? = null
     private val binding get() = _binding!!
+
+    private lateinit var rectangleSearchOverlay: RectangleSearchOverlay
+    private lateinit var searchAdapter: SearchAdapter
+    private lateinit var searchBottomSheetBehavior: BottomSheetBehavior<CardView>
+    private lateinit var searchTracksFolder: FolderOverlay
+    private val searchPathsOverlays = mutableMapOf<Int, Polyline>()
 
     private lateinit var bottomSheetBehavior: BottomSheetBehavior<ConstraintLayout>
 
@@ -523,6 +534,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // 2. Inizializza i folder degli overlay (saranno popolati in onResume o syncLayerVisuals)
         tracksFolder = FolderOverlay()
         mapView.overlays.add(tracksFolder)
+        
+        searchTracksFolder = FolderOverlay()
+        mapView.overlays.add(searchTracksFolder)
 
         // 3. Assicurati che gli overlay di stato siano pronti e li aggiungi alla mappa
         if (viewModel.recTraccia.items == null) viewModel.recTraccia = SafeFolderOverlay()
@@ -535,6 +549,111 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         mRotationGestureOverlay.setEnabled(true)
         mapView.setMultiTouchControls(true)
         mapView.overlays.add(mRotationGestureOverlay)
+
+        rectangleSearchOverlay = RectangleSearchOverlay { bounds ->
+            //Log.d("MappaFragment", "Area selezionata: $bounds. Avvio ricerca...")
+            viewModel.searchInArea(bounds.latSouth, bounds.latNorth, bounds.lonWest, bounds.lonEast)
+        }
+        mapView.overlays.add(rectangleSearchOverlay)
+
+        searchAdapter = SearchAdapter { sentiero, isSelected ->
+            if (isSelected) {
+                caricaSentieroSuMappa(sentiero)
+            } else {
+                rimuoviSentieroDaMappa(sentiero)
+            }
+        }
+        binding.rvSearchResults.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvSearchResults.adapter = searchAdapter
+
+        searchBottomSheetBehavior = BottomSheetBehavior.from(binding.panelSearchResults)
+        searchBottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+
+        binding.btnCloseSearch.setOnClickListener {
+            toggleAreaSearchMode(false)
+            searchBottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+            binding.panelSearchResults.visibility = View.GONE
+            viewModel.clearSearchResults()
+        }
+
+        binding.btnLoadSearch.setOnClickListener {
+            val selectedItems = searchAdapter.getSelectedItems()
+            if (selectedItems.isEmpty()) {
+                Toast.makeText(requireContext(), "Nessun percorso selezionato", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            lifecycleScope.launch {
+                selectedItems.forEach { sentiero ->
+                    // Evita duplicati
+                    if (viewModel.layerItems.none { it.nome == sentiero.nome }) {
+                        val punti = viewModel.getPointsForSentiero(sentiero.id)
+                        val cache = MapUtils.generaCacheStatistiche(punti)
+                        val item = LayerItem(
+                            nome = sentiero.nome,
+                            abilitato = true,
+                            direzione = false,
+                            segui = false,
+                            distanza = sentiero.lunghezza.toFloat(),
+                            ascesa = sentiero.dislivello,
+                            discesa = sentiero.discesa,
+                            punti = punti,
+                            distanzeCumulative = cache.first,
+                            asceseCumulative = cache.second,
+                            disceseCumulative = cache.third
+                        )
+                        viewModel.layerItems.add(item)
+                    }
+                }
+                
+                // Pulisci overlay temporanei di ricerca
+                searchTracksFolder.items.clear()
+                searchPathsOverlays.clear()
+                
+                // Aggiorna mappa
+                syncLayerVisuals()
+                
+                // Chiudi pannello ricerca
+                toggleAreaSearchMode(false)
+                searchBottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+                binding.panelSearchResults.visibility = View.GONE
+                viewModel.clearSearchResults()
+                
+                Toast.makeText(requireContext(), "${selectedItems.size} percorsi caricati", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Resettiamo lo stato della ricerca all'avvio del fragment per evitare stati sporchi
+        viewModel.clearSearchResults()
+
+        viewModel.searchResults.observe(viewLifecycleOwner) { results ->
+            //Log.d("MappaFragment", "Observer searchResults: results=${results?.size}")
+            if (results == null) return@observe 
+
+            // Disattiva la modalità disegno solo quando arrivano i dati
+            toggleAreaSearchMode(false)
+
+            if (results.isNotEmpty()) {
+                searchAdapter.submitList(results)
+                binding.panelSearchResults.visibility = View.VISIBLE
+                binding.panelSearchResults.post {
+                    if (_binding != null) {
+                        searchBottomSheetBehavior.state = BottomSheetBehavior.STATE_EXPANDED
+                        //Log.d("MappaFragment", "Panel search espanso")
+                    }
+                }
+            } else {
+                Toast.makeText(requireContext(), "Nessun percorso trovato nell'area selezionata", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        viewModel.isSearchingArea.observe(viewLifecycleOwner) { active ->
+            if (active) {
+                // Nascondi pannelli precedenti quando inizia una nuova ricerca
+                binding.panelSearchResults.visibility = View.GONE
+                searchBottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+            }
+        }
 
         mapView.addMapListener(object : MapListener {
             override fun onScroll(event: ScrollEvent?): Boolean {
@@ -1822,7 +1941,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     private fun importaFile(uri: Uri) {
         if (!isAdded) return
         val fileName = getFileNameFromUri(requireContext(), uri).lowercase()
-        Log.d("Mappa", "Importazione file: $fileName da URI: $uri")
+        //Log.d("Mappa", "Importazione file: $fileName da URI: $uri")
         
         if (fileName.endsWith(".kml")) {
             caricaKML(uri)
@@ -1862,7 +1981,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             // Se non è un GPX valido, proviamo se per caso è un KML (alcuni file octet-stream)
             val fileName = getFileNameFromUri(requireContext(), uri).lowercase()
             if (!fileName.endsWith(".gpx")) {
-                Log.d("Mappa", "GPX fallito, provo KML come fallback...")
+                //Log.d("Mappa", "GPX fallito, provo KML come fallback...")
                 caricaKML(uri)
             } else {
                 Toast.makeText(requireActivity(), "Il file GPX non è valido", Toast.LENGTH_SHORT).show()
@@ -3887,6 +4006,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     handleSosClick()
                     bottomSheetDialog.dismiss()
                 }
+
+                R.id.menu_cerca_area -> {
+                    bottomSheetDialog.dismiss()
+                    toggleAreaSearchMode(true)
+                    Toast.makeText(requireContext(), "Disegna un rettangolo sulla mappa", Toast.LENGTH_SHORT).show()
+                }
             }
             true
         }
@@ -4121,6 +4246,49 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         override fun hitTest(event: MotionEvent, mapView: MapView): Boolean {
             val hit = super.hitTest(event, mapView)
             return hit
+        }
+    }
+
+    private fun toggleAreaSearchMode(active: Boolean) {
+        //Log.d("MappaFragment", "toggleAreaSearchMode: $active")
+        viewModel.setSearchMode(active)
+        rectangleSearchOverlay.isActive = active
+        
+        val mv = binding.Mapview
+        mv.setMultiTouchControls(!active)
+        
+        if (active) {
+            // Log per verificare la gerarchia degli overlay
+            //Log.d("MappaFragment", "Posizionamento overlay di ricerca in cima. Totale overlay: ${mv.overlays.size}")
+            mv.overlays.remove(rectangleSearchOverlay)
+            mv.overlays.add(rectangleSearchOverlay)
+            
+            mv.isFocusable = true
+            mv.isFocusableInTouchMode = true
+            mv.requestFocus()
+            mv.projection
+        }
+        mv.invalidate()
+    }
+
+    private fun caricaSentieroSuMappa(sentiero: Sentieri) {
+        lifecycleScope.launch {
+            val polyline = viewModel.getPolylineForSentiero(sentiero.id)
+            polyline.title = sentiero.nome
+            polyline.outlinePaint.color = Color.RED
+            polyline.outlinePaint.strokeWidth = 8f
+
+            searchPathsOverlays[sentiero.id] = polyline
+            searchTracksFolder.add(polyline)
+            mapView.invalidate()
+        }
+    }
+
+    private fun rimuoviSentieroDaMappa(sentiero: Sentieri) {
+        searchPathsOverlays[sentiero.id]?.let {
+            searchTracksFolder.remove(it)
+            searchPathsOverlays.remove(sentiero.id)
+            mapView.invalidate()
         }
     }
 
