@@ -103,6 +103,8 @@ import com.apstudio.sentieri.db.PoiDao
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
+import com.apstudio.sentieri.db.TurnInstruction
+import com.apstudio.sentieri.db.TurnType
 import com.apstudio.sentieri.layer.FeatureTableInfo
 import com.apstudio.sentieri.layer.GeologiaFeatureTiles
 import com.apstudio.sentieri.layer.LayerViewModel
@@ -1201,6 +1203,59 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         LocationRepository.newTrackPoint.observe(viewLifecycleOwner) { newPoint ->
             currentTrackPolyline.addPoint(newPoint)
         }
+        viewModel.nextTurn.observe(viewLifecycleOwner) { turn ->
+            if (turn != null) {
+                binding.imgNavTurn.setImageResource(turn.iconRes)
+                binding.tvNavDesc.text = turn.description
+                binding.cruscotto.iconTurn.setImageResource(turn.iconRes)
+                binding.cruscotto.tvTurnDesc.text = turn.description
+            } else {
+                binding.panelNavigation.visibility = View.GONE
+                binding.cruscotto.panelNextTurn.visibility = View.GONE
+            }
+        }
+
+        viewModel.distToNextTurn.observe(viewLifecycleOwner) { dist ->
+            val turn = viewModel.nextTurn.value
+            if (turn != null) {
+                val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+                val usaBRouterNav = prefs.getBoolean("navigazione_brouter", false)
+                
+                // Filtra le istruzioni: mostra solo se è una svolta reale (non tieni la dx/sx o dritto)
+                val isSignificantTurn = turn.turnType == TurnType.LEFT || 
+                                       turn.turnType == TurnType.RIGHT || 
+                                       turn.turnType == TurnType.LEFT_SHARP || 
+                                       turn.turnType == TurnType.RIGHT_SHARP ||
+                                       turn.turnType == TurnType.U_TURN
+
+                // Mostra il pannello solo se vicini (soglia 80 metri) e se è una svolta significativa
+                if (dist < 80.0 && isSignificantTurn) {
+                    if (usaBRouterNav) {
+                        binding.panelNavigation.visibility = View.VISIBLE
+                        binding.cruscotto.panelNextTurn.visibility = View.GONE
+                    } else {
+                        binding.panelNavigation.visibility = View.GONE
+                        binding.cruscotto.panelNextTurn.visibility = View.VISIBLE
+                    }
+                } else {
+                    binding.panelNavigation.visibility = View.GONE
+                    binding.cruscotto.panelNextTurn.visibility = View.GONE
+                }
+
+                val distStr = MapUtils.formattastring(dist.toInt())
+                binding.cruscotto.tvTurnDist.text = distStr
+                binding.tvNavDist.text = distStr
+                
+                if (dist < 20.0) {
+                    binding.cruscotto.tvTurnDist.setTextColor(Color.RED)
+                    binding.tvNavDist.setTextColor(Color.RED)
+                } else {
+                    binding.cruscotto.tvTurnDist.setTextColor("#00BCD4".toColorInt())
+                    binding.tvNavDist.setTextColor("#00BCD4".toColorInt())
+                }
+            }
+        }
+
         batteryIndicator = binding.cruscotto.batteryIndicator
 
         syncLayerVisuals()
@@ -1561,6 +1616,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             viewModel.puntiDaSeguire = mutableListOf()
             syncLayerVisuals()
             
+            // Se la navigazione BRouter è attiva, calcola la roadmap
+            val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+            if (prefs.getBoolean("navigazione_brouter", false)) {
+                calculateBRouterRoadmapForTrack(viewModel.layerItems.last().punti)
+            }
+            
             // Zoom alla nuova traccia
             val tempLine = Polyline().apply { setPoints(viewModel.layerItems.last().punti) }
             val mv = binding.Mapview
@@ -1766,30 +1827,24 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // Reset rotazione e blocco mappa
         viewModel.bloccaMappa = false
         mapView.mapOrientation = 0f
-        
+
         // Notifica al service di aggiornare la notifica (Bluetooth rimane attivo)
         val intent = Intent(requireContext(), LocationService::class.java).apply {
             action = "ACTION_UPDATE_NOTIFICATION"
         }
         requireContext().startService(intent)
-        
-// ferma aggiornamenti posizione ui e ferma servizio LocationService
-        // //Log.d("Posizione","Stop servizio")
-        // Non fermiamo più il servizio qui se vogliamo che il Bluetooth rimanga attivo
-        // requireActivity().stopService(Intent(context, LocationService::class.java))
-        
+
         viewModel.tracciaDaSeguire = ""
-        viewModel.layerItems.forEach {item ->
+        viewModel.layerItems.forEach { item ->
             item.segui = false
         }
-        // viewModel.stopUpdates() // Rimosso: gestito dal Service
         viewModel.isRecording = false
         binding.fabBlocMappa.isVisible = false
         gpsMarker.setVisible(false)
         binding.fabSelectDestination.isVisible = false
         binding.fabStopRec.isVisible = false
         LocationRepository.updateGpsStatus("stopped")
-// rimuove impostazione schermo sempre acceso
+        // rimuove impostazione schermo sempre acceso
         requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 // aggiunge marker fine percorso
         if (fine) {
@@ -1954,178 +2009,116 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     private fun caricaGPX(uri: Uri) {
         if (!isAdded) return
-        val trackPointsOriginali: MutableList<GeoPoint> = mutableListOf()
         
-        val gpx = try {
-            val stream = requireActivity().contentResolver.openInputStream(uri)
-            if (stream == null) {
-                Toast.makeText(requireContext(), "Impossibile aprire il file", Toast.LENGTH_SHORT).show()
-                return
-            }
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val trackPointsOriginali: MutableList<GeoPoint> = mutableListOf()
             val parser = GpxParser()
-            val result = try {
-                parser.parse(stream)
-            } catch (e: Exception) {
-                Log.e("Mappa", "Errore parsing GPX", e)
-                null
-            } finally {
-                stream.close()
-            }
-            result
-        } catch (e: Exception) {
-            Log.e("Mappa", "Errore accesso file", e)
-            null
-        }
-
-        if (gpx == null || gpx.tracks == null) {
-            // Se non è un GPX valido, proviamo se per caso è un KML (alcuni file octet-stream)
-            val fileName = getFileNameFromUri(requireContext(), uri).lowercase()
-            if (!fileName.endsWith(".gpx")) {
-                //Log.d("Mappa", "GPX fallito, provo KML come fallback...")
-                caricaKML(uri)
-            } else {
-                Toast.makeText(requireActivity(), "Il file GPX non è valido", Toast.LENGTH_SHORT).show()
-            }
-            return
-        }
-
-        viewModel.trackDistanza = 0f
-        viewModel.trackAscesa = 0
-        viewModel.trackDiscesa = 0
-
-        var altiNulla = 0
-        // Carica i punti della traccia
-        gpx.tracks.firstOrNull()?.trackPoints?.forEach { trackPoint ->
-            val punto = GeoPoint(trackPoint.latitude, trackPoint.longitude, trackPoint.elevation ?: 0.0)
-            trackPointsOriginali.add(punto)
-            if (trackPoint.elevation == null) altiNulla += 1
-        }
-
-        // Calcola statistiche (distanza, ascesa, discesa) usando il nuovo filtro di smoothing
-        val cache = MapUtils.generaCacheStatistiche(trackPointsOriginali)
-        viewModel.trackDistanza = cache.first.lastOrNull()?.toFloat() ?: 0f
-        viewModel.trackAscesa = cache.second.lastOrNull()?.toInt() ?: 0
-        viewModel.trackDiscesa = -(cache.third.lastOrNull()?.toInt() ?: 0)
-
-        // nome file (da Maputils)
-        val nome = getFileNameFromUri(requireContext(), uri)
-        // 1. Crea la Polyline per lo SFONDO (nero)
-        val polylineSfondo = Polyline(mapView).apply {
-            id = "sfondo"
-            title = nome
-            setPoints(trackPointsOriginali)
-            isVisible = true
-        }
-
-        // 2. Crea la Polyline per il PERCORSO (colorato/frecce)
-        val polylinePercorso = Polyline(mapView).apply {
-            id = "percorso"
-            title = nome
-            setPoints(trackPointsOriginali)
-            isVisible = true
-        }
-        // *** CALCOLO PENDENZE OTTIMIZZATO (chiamata singola) ***
-        val pendenze = MapUtils.calcolaPendenzeSmussate(polylinePercorso, 8)
-
-        // 4. Crea una NUOVA lista di punti con la pendenza "iniettata" nel campo altitudine.
-        val puntiConPendenza = trackPointsOriginali.mapIndexed { index, geoPoint ->
-            val pendenza = if (index < pendenze.size) pendenze[index].toDouble() else 0.0
-            GeoPoint(geoPoint.latitude, geoPoint.longitude, pendenza)
-        }
-
-        // 5. AGGIORNA i punti della polyline di sfondo per usare quelli con la pendenza.
-        //    Questo è il passaggio chiave per "ingannare" il sistema di colorazione.
-        polylinePercorso.setPoints(puntiConPendenza)
-        // 3. Applica gli stili specifici, PASSANDO la lista delle pendenze
-        disegnaLineaSfondo(polylineSfondo)
-        disegnaPercorsoColorato(polylinePercorso, pendenze)
-
-        // Aggiungi SOLO alla lista salvata dei DATI
-        viewModel.layerItems.removeAll { it.nome == nome }
-        viewModel.layerItems.add(
-            com.apstudio.sentieri.db.LayerItem(
-                nome = nome,
-                abilitato = true,
-                direzione = false,
-                segui = false,
-                distanza = viewModel.trackDistanza,
-                ascesa = viewModel.trackAscesa,
-                discesa = viewModel.trackDiscesa,
-                punti = trackPointsOriginali.toList(),
-                waypoints = gpx.wayPoints ?: emptyList(),
-                distanzeCumulative = cache.first,
-                asceseCumulative = cache.second,
-                disceseCumulative = cache.third
-            )
-        )
-        
-        syncLayerVisuals()
-        
-        // 6. Aggiungi i marker di inizio/fine (associandoli alla polilinea di sfondo)
-        addMarker()
-        //------------------------------------------------------------------------------------------
-        // questo usato per disegno traccia con altitudine
-        //disegnaLine(line)
-        //viewModel.listaTracce.add(line)
-        //addMarker(line)
-        //------------------------------------------------------------------------------------------
-// carica i waypoints nella lista wayPoints da non salvare con traccia
-        gpx.wayPoints?.forEach { waypoint ->
-            // Evita duplicati basandosi sulle coordinate e nome
-            if (viewModel.wayPoint.none { it.latitude == waypoint.latitude && it.longitude == waypoint.longitude && it.name == waypoint.name }) {
-                viewModel.wayPoint.add(waypoint)
-            }
-        }
-        syncLayerVisuals()
-
-// verifica il numero dei punti con il valore altinulla se coincide tutti i punti hanno altitudine nulla
-        if (!gpx.tracks.isEmpty()) {
-            if (gpx.tracks[0].trackPoints.size == altiNulla) {
-                val snackbar =
-                    view?.let { it1 ->
-                        Snackbar.make(
-                            it1,
-                            "La traccia non ha informazioni su altitudine",
-                            Snackbar.LENGTH_LONG
-                        ).setAction("Action", null)
+            val gpx = try {
+                val stream = requireActivity().contentResolver.openInputStream(uri)
+                if (stream == null) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(requireContext(), "Impossibile aprire il file", Toast.LENGTH_SHORT).show()
                     }
-                snackbar!!.setActionTextColor(Color.WHITE)
-                val snackbarView = snackbar.view
-                snackbarView.setBackgroundColor(Color.RED)
-                snackbar.show()                //.show()
-            }
-        }
-//Log.d("caricagpx", mapView.zoomLevel.toString())
-// esegue la visualizzazione dopo aver aggiornato lo zoom della mappa
-        if (!gpx.tracks.isEmpty()) {
-            val mv = binding.Mapview
-            mv.post {
-                if (_binding != null) {
-                    val tempBounds = Polyline().apply { setPoints(trackPointsOriginali) }.bounds
-                    mv.zoomToBoundingBox(tempBounds.increaseByScale(1.2f), false)
+                    null
+                } else {
+                    try {
+                        parser.parse(stream)
+                    } catch (e: Exception) {
+                        Log.e("Mappa", "Errore parsing GPX", e)
+                        null
+                    } finally {
+                        stream.close()
+                    }
                 }
+            } catch (e: Exception) {
+                Log.e("Mappa", "Errore accesso file", e)
+                null
             }
-            // MapUtils.alertSegui gestirà ora i punti
-            MapUtils.alertSegui(requireContext(), viewModel, nome, trackPointsOriginali)
-        }
-        if (!mapView.overlays.contains(tracksFolder)) {
-            mapView.overlays.add(tracksFolder)
-        }
-        if (viewModel.isRecording) {
-            //Log.d(TAG, "caricaGPX: Ri-ordino gli overlay per portare la registrazione in primo piano.")
-            // Rimuovi e ri-aggiungi la traccia della registrazione IN USO
-            mapView.overlays.remove(currentTrackPolyline)
-            mapView.overlays.add(currentTrackPolyline)
 
-            // Rimuovi e ri-aggiungi il marker GPS
-            mapView.overlays.remove(gpsMarker)
-            mapView.overlays.add(gpsMarker)
-            gpsMarker.setVisible(true)
-            //Log.d("caricagpx", "gpsMarker visibile")
+            if (gpx == null || gpx.tracks == null) {
+                withContext(Dispatchers.Main) {
+                    val fileName = getFileNameFromUri(requireContext(), uri).lowercase()
+                    if (!fileName.endsWith(".gpx")) {
+                        caricaKML(uri)
+                    } else {
+                        Toast.makeText(requireActivity(), "Il file GPX non è valido", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                return@launch
+            }
+
+            // Carica i punti della traccia
+            var altiNulla = 0
+            gpx.tracks.firstOrNull()?.trackPoints?.forEach { trackPoint ->
+                val punto = GeoPoint(trackPoint.latitude, trackPoint.longitude, trackPoint.elevation ?: 0.0)
+                trackPointsOriginali.add(punto)
+                if (trackPoint.elevation == null) altiNulla++
+            }
+
+            if (trackPointsOriginali.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(requireContext(), "Traccia vuota", Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
+
+            // Calcola statistiche in background
+            val cache = MapUtils.generaCacheStatistiche(trackPointsOriginali)
+            val dist = cache.first.lastOrNull()?.toFloat() ?: 0f
+            val asc = cache.second.lastOrNull()?.toInt() ?: 0
+            val disc = -(cache.third.lastOrNull()?.toInt() ?: 0)
+
+            val nome = getFileNameFromUri(requireContext(), uri)
+
+            withContext(Dispatchers.Main) {
+                if (!isAdded || _binding == null) return@withContext
+                
+                viewModel.trackDistanza = dist
+                viewModel.trackAscesa = asc
+                viewModel.trackDiscesa = disc
+
+                // Aggiungi ai LayerItem
+                viewModel.layerItems.removeAll { it.nome == nome }
+                viewModel.layerItems.add(
+                    LayerItem(
+                        nome = nome,
+                        abilitato = true,
+                        direzione = false,
+                        segui = false,
+                        distanza = dist,
+                        ascesa = asc,
+                        discesa = disc,
+                        punti = trackPointsOriginali.toList(),
+                        waypoints = gpx.wayPoints ?: emptyList(),
+                        distanzeCumulative = cache.first,
+                        asceseCumulative = cache.second,
+                        disceseCumulative = cache.third
+                    )
+                )
+
+                // Carica Waypoints globali
+                gpx.wayPoints?.forEach { waypoint ->
+                    if (viewModel.wayPoint.none { it.latitude == waypoint.latitude && it.longitude == waypoint.longitude && it.name == waypoint.name }) {
+                        viewModel.wayPoint.add(waypoint)
+                    }
+                }
+
+                syncLayerVisuals()
+                
+                if (altiNulla == trackPointsOriginali.size) {
+                    showCustomSnackbar(binding.root, "La traccia non ha informazioni su altitudine")
+                }
+
+                // Zoom alla traccia
+                val tempBounds = Polyline().apply { setPoints(trackPointsOriginali) }.bounds
+                binding.Mapview.zoomToBoundingBox(tempBounds.increaseByScale(1.2f), true)
+
+                // Chiedi se seguire
+                MapUtils.alertSegui(requireContext(), viewModel, nome, trackPointsOriginali)
+                
+                bringRecordingToFront()
+            }
         }
-        //Log.d("layerItems", "caricagpx ${viewModel.layerItems.size}")
-        // Infine, ridisegna la mappa
-        mapView.invalidate()
     }
 
     private fun caricaKML(uri: Uri) {
@@ -2336,143 +2329,134 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     }
 
     private fun salvaTraccia(nomeTraccia: String) {
-        var ultimoID: Long
+        if (nomeTraccia.isEmpty()) {
+            Toast.makeText(requireActivity(), "Il nome del file è nullo", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val dateString = dataOraIso8601()
+        val dist = viewModel.distanzaMetri.value ?: 0
+        val dPiu = viewModel.dislivPiu.value ?: 0.0
+        val dMeno = viewModel.dislivMeno.value ?: 0.0
+        val startTimestamp = viewModel.oraInizio
+        val tempoTot = viewModel.elapsedTime / 1000
+        val tempoMov = viewModel.secondiMovimento.value ?: 0L
+        val mediaVel = mediaSpeed()
+        val waypointsSnapshot = viewModel.wayPoint.toList()
+        val puntiGpsSnapshot = viewModel.puntiGPS.toList()
+        val poiDBListSnapshot = viewModel.poiDBList.toList()
+        val fotoInPoiDBSnapshot = viewModel.fotoInPoiDB.toList()
+        val tempoStr = binding.cruscotto.tvTempo.text.toString()
+        val tempoMovStr = binding.cruscotto.tvTempoMov.text.toString()
+
         val sentiero = Sentieri(
             id = 0,
             nome = nomeTraccia,
             descrizione = "Traccia",
-            lunghezza = viewModel.distanzaMetri.value!!.toDouble(),
-            dislivello = viewModel.dislivPiu.value!!.toInt(),
-            discesa = viewModel.dislivMeno.value!!.toInt(),
+            lunghezza = dist.toDouble(),
+            dislivello = dPiu.toInt(),
+            discesa = dMeno.toInt(),
             HrMed = 0,
             HrMax = 0,
-            DataOra = convertMillisToISO8601JavaTime(viewModel.oraInizio),
+            DataOra = convertMillisToISO8601JavaTime(startTimestamp),
             TempMedia = 0.0,
             TempMax = 0.0,
             TempMin = 0.0,
             DataFine = dateString,
-            TempoTot = (viewModel.elapsedTime / 1000).toDouble(),
-            TempoInMov = viewModel.secondiMovimento.value!!.toDouble(),
-            MediaVel = mediaSpeed()
+            TempoTot = tempoTot.toDouble(),
+            TempoInMov = tempoMov.toDouble(),
+            MediaVel = mediaVel
         )
 
-        viewModel.viewModelScope.launch(Dispatchers.IO) {
-            // salva il nuovo record in Tabella Sentiero
-            ultimoID = viewModel.salvaSentiero(sentiero)
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Salva nel database
+                val ultimoID = viewModel.salvaSentiero(sentiero)
+                LocationRepository.finalizeSession(requireContext(), ultimoID.toInt(), sentiero.uuid)
 
-            // Finalizza la sessione aggiornando i TrackId nel DB e pulendo lo stato
-            LocationRepository.finalizeSession(requireContext(), ultimoID.toInt(), sentiero.uuid)
-
-// scrive waypoint se inseriti durante registrazione traccia
-// la lista è PoiDB
-            if (viewModel.poiDBList.isNotEmpty()) {
-                val poiDao: PoiDao =
-                    SentieriDB.getInstance(requireActivity().application).poiDao()
-                viewModel.poiDBList.forEach {
-                    val poi = PoiDB(
+                // 2. Salva i Waypoint associati
+                val db = SentieriDB.getInstance(requireContext())
+                val poiDao = db.poiDao()
+                val fotoDao = db.fotoPoiDao()
+                
+                poiDBListSnapshot.forEach { poi ->
+                    val poiToInsert = PoiDB(
                         Id = 0,
                         Trackid = ultimoID.toInt(),
-                        Latit = it.Latit,
-                        Longit = it.Longit,
-                        Ele = it.Ele,
-                        NomePOI = it.NomePOI,
-                        DescrPOI = it.DescrPOI,
-                        UriPath = it.UriPath,
-                        Time = it.Time,
+                        Latit = poi.Latit,
+                        Longit = poi.Longit,
+                        Ele = poi.Ele,
+                        NomePOI = poi.NomePOI,
+                        DescrPOI = poi.DescrPOI,
+                        UriPath = poi.UriPath,
+                        Time = poi.Time,
                         trackUuid = sentiero.uuid
                     )
-                    poiDao.insertDB(poi)
-                    //Log.d("Track","$trackPoint")
+                    poiDao.insertDB(poiToInsert)
                 }
-            }
 
-// memorizza uri e nome file delle foto scattate in registrazione traccia
-            if (viewModel.fotoInPoiDB.isNotEmpty()) {
-                val fotoDao: FotoPoiDao =
-                    SentieriDB.getInstance(requireActivity().application).fotoPoiDao()
-                viewModel.fotoInPoiDB.forEach {
+                // Salva le foto
+                fotoInPoiDBSnapshot.forEach { uri ->
                     val foto = FotoPoi(
                         id = 0,
                         trackid = ultimoID.toInt(),
-                        uriPath = it.toString(),
-                        nomeFoto = getFileNameFromUri(requireContext(), it),
+                        uriPath = uri.toString(),
+                        nomeFoto = getFileNameFromUri(requireContext(), uri),
                         trackUuid = sentiero.uuid
                     )
-
                     fotoDao.insertDB(foto)
-                    //Log.d("Track","$trackPoint")
+                }
+
+                // 3. Esporta file GPX
+                val scriviGpx = GpxWriter()
+                val gpx = Gpx(
+                    xmlns = "http://www.topografix.com/GPX/1/1",
+                    version = "1.1",
+                    creator = "Sentieri",
+                    metadata = GpxMetadata(Link("", ""), Date()),
+                    wayPoints = waypointsSnapshot,
+                    tracks = listOf(Track(name = nomeTraccia, trackPoints = puntiGpsSnapshot))
+                )
+
+                val resolver = requireContext().contentResolver
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, "$nomeTraccia.gpx")
+                    put(MediaStore.MediaColumns.MIME_TYPE, "application/gpx+xml")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                }
+
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                uri?.let {
+                    resolver.openOutputStream(it)?.use { outputStream ->
+                        scriviGpx.write(gpx, outputStream)
+                    }
+                }
+
+                // 4. Mostra riepilogo su thread principale
+                withContext(Dispatchers.Main) {
+                    if (!isAdded) return@withContext
+                    AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+                        .setTitle("Percorso concluso")
+                        .setMessage("""
+                            Distanza: ${MapUtils.formattastring(dist)}
+                            Dislivello+: ${dPiu.toInt()} m
+                            Dislivello-: ${dMeno.toInt()} m
+                            Tempo totale: $tempoStr
+                            Tempo in movimento: $tempoMovStr
+                            Velocità media: ${String.format("%.2f", mediaVel)} km/h
+                        """.trimIndent())
+                        .setPositiveButton("Chiudi") { d, _ -> d.dismiss() }
+                        .show()
+                    
+                    azzeraCruscotto()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Errore durante il salvataggio della traccia", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(requireContext(), "Errore nel salvataggio: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
-// scrive file GPX in cartella Downloads
-        if (nomeTraccia.isNotEmpty()) {
-            val scriviGpx = GpxWriter()
-            val alink = Link("", "")
-            val time = Date()
-            val gpx = Gpx(
-                xmlns = "http://www.topografix.com/GPX/1/1",
-                version = "1.1",
-                creator = "Sentieri",
-                metadata = (GpxMetadata(alink, time)),
-                wayPoints = viewModel.wayPoint.toList(),
-                tracks = listOf(
-                    Track(
-                        name = nomeTraccia,
-                        trackPoints = (viewModel.puntiGPS)
-                    )
-                )
-            )
-
-            // METODO con ContentResolver
-            val resolver = requireContext().contentResolver
-            val contentValues = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, "$nomeTraccia.gpx")
-                put(MediaStore.MediaColumns.MIME_TYPE, "application/gpx+xml")
-                //put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOCUMENTS)
-                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-            }
-
-            val uri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
-
-            uri?.let {
-                resolver.openOutputStream(it)?.use { outputStream ->
-                    scriviGpx.write(gpx, outputStream)
-                }
-            }
-
-            val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
-            with(builder)
-            {
-                val mediaSpeed = mediaSpeed()
-                DecimalFormat("##.##").format(mediaSpeed)
-                setTitle("Percorso concluso")
-                val message = """
-                        Distanza percorsa: ${viewModel.distanzaMetri.value}
-                        Dislivello positivo (d+): ${viewModel.dislivPiu.value?.toInt()}
-                        Dislivello negativo (d-): ${viewModel.dislivMeno.value?.toInt()}
-                        Tempo trascorso: ${binding.cruscotto.tvTempo.text}
-                        Tempo in movimento: ${binding.cruscotto.tvTempoMov.text}
-                        Velocità media: ${DecimalFormat("##.##").format(mediaSpeed)}
-                """.trimIndent()
-                setMessage(message)
-                setPositiveButton(
-                    "Chiudi"
-                ) { dialog, _ ->
-                    dialog.dismiss()
-                    // User clicked OK button
-                }
-                create()
-                show()
-            }
-            azzeraCruscotto()
-        } else
-            Toast.makeText(
-                requireActivity(),
-                "Il nome del file è nullo",
-                Toast.LENGTH_SHORT
-            ).show()
-
     }
 
     private fun azzeraCruscotto() {
@@ -3756,6 +3740,100 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     // --- Fine Funzioni di Registrazione Audio ---
 
     // funzioni di servizio BRouter
+    private fun calculateBRouterRoadmapForTrack(points: List<GeoPoint>) {
+        if (points.isEmpty() || !isBound || brouterService == null) return
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            val params = Bundle().apply {
+                // Prendiamo inizio, fine e alcuni punti intermedi per guidare BRouter sulla traccia originale
+                val lons = mutableListOf<Double>()
+                val lats = mutableListOf<Double>()
+                
+                lons.add(points.first().longitude)
+                lats.add(points.first().latitude)
+                
+                // Punti intermedi (ogni ~2km o max 5 punti per non sovraccaricare BRouter)
+                if (points.size > 10) {
+                    val step = (points.size / 5).coerceAtLeast(1)
+                    for (i in step until points.size - 1 step step) {
+                        lons.add(points[i].longitude)
+                        lats.add(points[i].latitude)
+                    }
+                }
+                
+                lons.add(points.last().longitude)
+                lats.add(points.last().latitude)
+
+                putDoubleArray("lons", lons.toDoubleArray())
+                putDoubleArray("lats", lats.toDoubleArray())
+                putString("profile", preferenze.getString("activity_type", "mtb"))
+                putString("trackFormat", "gpx")
+                putString("turnInstructionMode", "3") // Importante per avere i voicehints/roadmap
+            }
+
+            val instructions = withContext(Dispatchers.IO) {
+                try {
+                    val gpxString = brouterService?.getTrackFromParams(params)
+                    if (gpxString != null && !gpxString.startsWith("Error")) {
+                        val parser = GpxParser()
+                        val gpx = parser.parse(gpxString.byteInputStream())
+                        
+                        // Trova il LayerItem corrispondente per avere le distanze cumulative della traccia originale
+                        val currentLayer = viewModel.layerItems.find { it.nome == viewModel.titoloTracciaDaSeguire }
+                        
+                        val turnInstructions = mutableListOf<TurnInstruction>()
+                        gpx.wayPoints?.forEach { wpt ->
+                            val type = TurnType.fromBRouterSymbol(wpt.sym)
+                            if (type != null) {
+                                val wpGeo = GeoPoint(wpt.latitude, wpt.longitude)
+                                var minIndex = -1
+                                var minDistance = Double.MAX_VALUE
+                                for (i in points.indices) {
+                                    val d = wpGeo.distanceToAsDouble(points[i])
+                                    if (d < minDistance) {
+                                        minDistance = d
+                                        minIndex = i
+                                    }
+                                }
+                                
+                                if (minIndex != -1 && minDistance < 100.0) {
+                                    val distAlong = if (currentLayer != null && minIndex < currentLayer.distanzeCumulative.size) {
+                                        currentLayer.distanzeCumulative[minIndex]
+                                    } else 0.0
+
+                                    Log.d(TAG, "BRouter Svolta rilevata: ${wpt.sym} ($type) al punto $minIndex, dist: ${distAlong.toInt()}m")
+
+                                    turnInstructions.add(
+                                        TurnInstruction(
+                                            pointIndex = minIndex,
+                                            distanceAlongTrack = distAlong,
+                                            turnType = type,
+                                            angle = 0.0
+                                        )
+                                    )
+                                } else {
+                                    Log.w(TAG, "Svolta BRouter scartata: troppo lontana dalla traccia (dist: ${minDistance.toInt()}m)")
+                                }
+                            }
+                        }
+                        turnInstructions
+                    } else {
+                        Log.e(TAG, "BRouter gpxString non valido: $gpxString")
+                        emptyList()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Errore calcolo roadmap BRouter", e)
+                    emptyList()
+                }
+            }
+            
+            if (instructions.isNotEmpty()) {
+                Log.d(TAG, "Ricevute ${instructions.size} istruzioni da BRouter")
+                viewModel.setBRouterInstructions(instructions)
+            }
+        }
+    }
+
     private fun calculateRoute(startPoint: GeoPoint, endPoint: GeoPoint) {
         if (!isBound || brouterService == null) {
             Log.w(TAG, "Calcolo del percorso annullato: servizio non connesso.")

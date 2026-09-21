@@ -20,5 +20,6 @@ data class LayerItem(
     // Campi di cache precalcolati per velocizzare calculateRemainingStats
     var distanzeCumulative: List<Double> = emptyList(),
     var asceseCumulative: List<Double> = emptyList(),
-    var disceseCumulative: List<Double> = emptyList()
+    var disceseCumulative: List<Double> = emptyList(),
+    var turnInstructions: List<TurnInstruction> = emptyList()
 )

@@ -24,6 +24,8 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.db.LayerItem
+import com.apstudio.sentieri.db.TurnInstruction
+import com.apstudio.sentieri.db.TurnType
 import com.github.mikephil.charting.data.Entry
 import com.google.android.material.snackbar.Snackbar
 import org.mapsforge.map.rendertheme.ExternalRenderTheme
@@ -703,6 +705,69 @@ object MapUtils {
             cache.second.lastOrNull()?.toInt() ?: 0,
             cache.third.lastOrNull()?.toInt() ?: 0
         )
+    }
+
+    /**
+     * Analizza la traccia e rileva le svolte significative basandosi sugli angoli.
+     */
+    fun rilevaSvolte(punti: List<GeoPoint>, distanzeCumulative: List<Double>): List<TurnInstruction> {
+        if (punti.size < 3 || distanzeCumulative.size != punti.size) return emptyList()
+        
+        val instructions = mutableListOf<TurnInstruction>()
+        val lookAheadDist = 25.0 // metri. Distanza per definire i segmenti di approccio e uscita
+        val minAngle = 30.0    // gradi. Sotto questa soglia è considerato "dritto"
+        
+        var lastInstructionDist = -lookAheadDist // Per evitare di rilevare troppe svolte vicine (es. tornanti stretti)
+
+        for (i in 1 until punti.size - 1) {
+            val currentDist = distanzeCumulative[i]
+            
+            // Salta se siamo troppo vicini all'ultima svolta rilevata
+            if (currentDist - lastInstructionDist < lookAheadDist) continue
+
+            // 1. Trova punto precedente (circa 20-25m indietro)
+            var prevIdx = i - 1
+            while (prevIdx > 0 && currentDist - distanzeCumulative[prevIdx] < lookAheadDist) {
+                prevIdx--
+            }
+            
+            // 2. Trova punto successivo (circa 20-25m avanti)
+            var nextIdx = i + 1
+            while (nextIdx < punti.size - 1 && distanzeCumulative[nextIdx] - currentDist < lookAheadDist) {
+                nextIdx++
+            }
+
+            val pPrev = punti[prevIdx]
+            val pCurr = punti[i]
+            val pNext = punti[nextIdx]
+
+            // 3. Calcola Bearing
+            val bearingIn = pPrev.bearingTo(pCurr)
+            val bearingOut = pCurr.bearingTo(pNext)
+            
+            // 4. Differenza angolare (normalizzata tra -180 e 180)
+            var diff = bearingOut - bearingIn
+            while (diff > 180) diff -= 360
+            while (diff < -180) diff += 360
+
+            if (abs(diff) >= minAngle) {
+                val type = when {
+                    diff <= -120 -> TurnType.LEFT_SHARP
+                    diff <= -45 -> TurnType.LEFT
+                    diff <= -minAngle -> TurnType.LEFT_SLIGHT
+                    diff >= 120 -> TurnType.RIGHT_SHARP
+                    diff >= 45 -> TurnType.RIGHT
+                    diff >= minAngle -> TurnType.RIGHT_SLIGHT
+                    else -> TurnType.STRAIGHT
+                }
+                
+                if (type != TurnType.STRAIGHT) {
+                    instructions.add(TurnInstruction(i, currentDist, type, diff))
+                    lastInstructionDist = currentDist
+                }
+            }
+        }
+        return instructions
     }
 
     /**

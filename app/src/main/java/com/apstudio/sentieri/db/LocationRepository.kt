@@ -2,6 +2,7 @@ package com.apstudio.sentieri.db
 
 import android.content.Context
 import android.location.Location
+import android.os.Looper
 import androidx.core.content.edit
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -32,7 +33,13 @@ object LocationRepository {
     val isRecordingLiveData: LiveData<Boolean> = _isRecording
     var isRecording: Boolean
         get() = _isRecording.value ?: false
-        set(value) { _isRecording.postValue(value) }
+        set(value) {
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                _isRecording.value = value
+            } else {
+                _isRecording.postValue(value)
+            }
+        }
 
     var oraInizio = 0L
     var isFixed = false

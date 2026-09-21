@@ -25,6 +25,7 @@ import com.apstudio.sentieri.sync.MariaDbSyncManager
 import com.example.levo_sdk.domain.model.BtDevice
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
+import com.apstudio.sentieri.db.TurnInstruction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -320,6 +321,19 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _distanceFromTrack = MutableLiveData<Double>(0.0)
     val distanceFromTrack: LiveData<Double> = _distanceFromTrack
 
+    private val _nextTurn = MutableLiveData<TurnInstruction?>(null)
+    val nextTurn: LiveData<TurnInstruction?> = _nextTurn
+
+    private val _distToNextTurn = MutableLiveData<Double>(0.0)
+    val distToNextTurn: LiveData<Double> = _distToNextTurn
+
+    private val _brouterTurnInstructions = MutableLiveData<List<TurnInstruction>>(emptyList())
+    val brouterTurnInstructions: LiveData<List<TurnInstruction>> = _brouterTurnInstructions
+
+    fun setBRouterInstructions(instructions: List<TurnInstruction>) {
+        _brouterTurnInstructions.postValue(instructions)
+    }
+
     /**
      * Calcola i valori rimanenti (distanza, ascesa, discesa) basandosi sulla posizione attuale
      * e sulla traccia che si sta seguendo.
@@ -332,6 +346,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _remainingDPiu.postValue(0.0)
             _remainingDMeno.postValue(0.0)
             lastClosestIndex = -1
+            _nextTurn.postValue(null)
+            _distToNextTurn.postValue(0.0)
             return
         }
 
@@ -339,48 +355,16 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         val points = layerItem.punti
         if (points.isEmpty()) return
 
-        var closestIndex = -1
-        var minDistance = Double.MAX_VALUE
+        // Eseguiamo il calcolo in background per non bloccare la UI
+        viewModelScope.launch(Dispatchers.Default) {
+            var closestIndex = -1
+            var minDistance = Double.MAX_VALUE
 
-        // 1. DETERMINAZIONE DELL'INDICE PIÙ VICINO
-        if (lastClosestIndex == -1) {
-            // PRIMA RICERCA (O RESET): Ricerca globale "intelligente"
-            // Cerchiamo il PRIMO punto che sia entro 100 metri. 
-            // Questo evita di saltare alla fine del percorso se la partenza e l'arrivo sono vicini.
-            for (i in points.indices) {
-                val dist = currentLocation.distanceToAsDouble(points[i])
-                if (dist < 100.0) {
-                    closestIndex = i
-                    minDistance = dist
-                    break // Trovato il primo aggancio utile, ci fermiamo qui
-                }
-                if (dist < minDistance) {
-                    minDistance = dist
-                    closestIndex = i
-                }
-            }
-        } else {
-            // INSEGUIMENTO: Ricerca in una finestra locale (molto più veloce e stabile)
-            val searchWindow = 50 // Finestra di 50 punti avanti e indietro
-            val startSearch = maxOf(0, lastClosestIndex - searchWindow)
-            val endSearch = minOf(points.size - 1, lastClosestIndex + searchWindow)
-
-            for (i in startSearch..endSearch) {
-                val dist = currentLocation.distanceToAsDouble(points[i])
-                if (dist < minDistance) {
-                    minDistance = dist
-                    closestIndex = i
-                }
-            }
-
-            // Se siamo troppo lontani dal punto trovato (> 200m), forse siamo fuori rotta
-            // o abbiamo saltato un tratto: facciamo una ricerca globale ma sempre ordinata.
-            if (minDistance > 200.0) {
-                minDistance = Double.MAX_VALUE
+            // 1. DETERMINAZIONE DELL'INDICE PIÙ VICINO
+            if (lastClosestIndex == -1) {
                 for (i in points.indices) {
                     val dist = currentLocation.distanceToAsDouble(points[i])
-                    // In ricerca globale di recupero, preferiamo indici SUCCESSIVI a quello attuale
-                    if (i > lastClosestIndex && dist < 100.0) {
+                    if (dist < 100.0) {
                         closestIndex = i
                         minDistance = dist
                         break
@@ -390,44 +374,91 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                         closestIndex = i
                     }
                 }
+            } else {
+                val searchWindow = 50
+                val startSearch = maxOf(0, lastClosestIndex - searchWindow)
+                val endSearch = minOf(points.size - 1, lastClosestIndex + searchWindow)
+
+                for (i in startSearch..endSearch) {
+                    val dist = currentLocation.distanceToAsDouble(points[i])
+                    if (dist < minDistance) {
+                        minDistance = dist
+                        closestIndex = i
+                    }
+                }
+
+                if (minDistance > 200.0) {
+                    minDistance = Double.MAX_VALUE
+                    for (i in points.indices) {
+                        val dist = currentLocation.distanceToAsDouble(points[i])
+                        if (i > lastClosestIndex && dist < 100.0) {
+                            closestIndex = i
+                            minDistance = dist
+                            break
+                        }
+                        if (dist < minDistance) {
+                            minDistance = dist
+                            closestIndex = i
+                        }
+                    }
+                }
+            }
+
+            if (closestIndex == -1) return@launch
+            
+            if (lastClosestIndex != -1 && closestIndex < lastClosestIndex && minDistance < 50.0) {
+                closestIndex = lastClosestIndex 
+            }
+
+            lastClosestIndex = closestIndex
+            _distanceFromTrack.postValue(minDistance)
+
+            // 2. CALCOLO VALORI RIMANENTI
+            if (layerItem.distanzeCumulative.isEmpty() || layerItem.distanzeCumulative.size != points.size) {
+                val cache = MapUtils.generaCacheStatistiche(points)
+                layerItem.distanzeCumulative = cache.first
+                layerItem.asceseCumulative = cache.second
+                layerItem.disceseCumulative = cache.third
+            }
+
+            val totalDist = layerItem.distanzeCumulative.lastOrNull() ?: 0.0
+            val currentDist = if (closestIndex < layerItem.distanzeCumulative.size) layerItem.distanzeCumulative[closestIndex] else 0.0
+            val remDist = maxOf(0.0, totalDist - currentDist)
+
+            val totalAsc = layerItem.asceseCumulative.lastOrNull() ?: 0.0
+            val currentAsc = if (closestIndex < layerItem.asceseCumulative.size) layerItem.asceseCumulative[closestIndex] else 0.0
+            val remDPiu = maxOf(0.0, totalAsc - currentAsc)
+
+            val totalDesc = layerItem.disceseCumulative.lastOrNull() ?: 0.0
+            val currentDesc = if (closestIndex < layerItem.disceseCumulative.size) layerItem.disceseCumulative[closestIndex] else 0.0
+            val remDMeno = maxOf(0.0, totalDesc - currentDesc)
+
+            _remainingDist.postValue(remDist.toFloat())
+            _remainingDPiu.postValue(remDPiu)
+            _remainingDMeno.postValue(remDMeno)
+
+            // 3. CALCOLO PROSSIMA SVOLTA
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val usaBRouterNav = prefs.getBoolean("navigazione_brouter", false)
+            
+            val instructions = if (usaBRouterNav && _brouterTurnInstructions.value?.isNotEmpty() == true) {
+                _brouterTurnInstructions.value!!
+            } else {
+                if (layerItem.turnInstructions.isEmpty()) {
+                    layerItem.turnInstructions = MapUtils.rilevaSvolte(points, layerItem.distanzeCumulative)
+                }
+                layerItem.turnInstructions
+            }
+            
+            val next = instructions.find { it.pointIndex > closestIndex }
+            if (next != null) {
+                _nextTurn.postValue(next)
+                _distToNextTurn.postValue(next.distanceAlongTrack - currentDist)
+            } else {
+                _nextTurn.postValue(null)
+                _distToNextTurn.postValue(0.0)
             }
         }
-
-        if (closestIndex == -1) return
-        
-        // STABILIZZAZIONE: Impediamo all'indice di tornare indietro se siamo vicini alla traccia.
-        // Se il GPS "balla", manteniamo l'indice più avanzato raggiunto.
-        if (lastClosestIndex != -1 && closestIndex < lastClosestIndex && minDistance < 50.0) {
-            closestIndex = lastClosestIndex 
-        }
-
-        lastClosestIndex = closestIndex
-        _distanceFromTrack.postValue(minDistance)
-
-        // 2. CALCOLO VALORI RIMANENTI (usando la cache cumulativa)
-        if (layerItem.distanzeCumulative.isEmpty() || layerItem.distanzeCumulative.size != points.size) {
-            // Se la cache non è pronta o non valida, ricalcoliamo al volo (fallback)
-            val cache = MapUtils.generaCacheStatistiche(points)
-            layerItem.distanzeCumulative = cache.first
-            layerItem.asceseCumulative = cache.second
-            layerItem.disceseCumulative = cache.third
-        }
-
-        val totalDist = layerItem.distanzeCumulative.lastOrNull() ?: 0.0
-        val currentDist = if (closestIndex < layerItem.distanzeCumulative.size) layerItem.distanzeCumulative[closestIndex] else 0.0
-        val remDist = maxOf(0.0, totalDist - currentDist)
-
-        val totalAsc = layerItem.asceseCumulative.lastOrNull() ?: 0.0
-        val currentAsc = if (closestIndex < layerItem.asceseCumulative.size) layerItem.asceseCumulative[closestIndex] else 0.0
-        val remDPiu = maxOf(0.0, totalAsc - currentAsc)
-
-        val totalDesc = layerItem.disceseCumulative.lastOrNull() ?: 0.0
-        val currentDesc = if (closestIndex < layerItem.disceseCumulative.size) layerItem.disceseCumulative[closestIndex] else 0.0
-        val remDMeno = maxOf(0.0, totalDesc - currentDesc)
-
-        _remainingDist.postValue(remDist.toFloat())
-        _remainingDPiu.postValue(remDPiu)
-        _remainingDMeno.postValue(remDMeno)
     }
 
     fun resetCruscotto() {

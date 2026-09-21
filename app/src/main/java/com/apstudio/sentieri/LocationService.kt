@@ -173,7 +173,7 @@ class LocationService : LifecycleService() {
         
         // Osserva lo stato di registrazione per gestire la notifica foreground E il GPS
         LocationRepository.isRecordingLiveData.observe(this) { recording ->
-            updateNotification()
+            updateNotification(recording)
             if (recording) {
                 requestLocationUpdates()
             } else {
@@ -339,7 +339,7 @@ class LocationService : LifecycleService() {
                 bluetoothController.closeConnection()
             }
             "ACTION_UPDATE_NOTIFICATION" -> {
-                updateNotification()
+                updateNotification(LocationRepository.isRecording)
             }
             else -> {
                 // Caso di avvio generico: controlla se riconnettere
@@ -523,21 +523,27 @@ class LocationService : LifecycleService() {
         return null
     }
 
-    private fun updateNotification() {
+    private var isNotificationActive = false
+
+    private fun updateNotification(recording: Boolean) {
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        if (LocationRepository.isRecording) {
+        if (recording) {
             val title = "Registrazione GPS in corso"
             val text = "Sto registrando la traccia..."
             val notification = buildNotification(title, text)
             // Se stiamo registrando, il servizio DEVE essere in foreground
             startForeground(LOCATION_SERVICE_CHANNEL, notification)
+            isNotificationActive = true
         } else {
             // Se non stiamo registrando, togliamo il servizio dal primo piano.
             // La notifica sparirà, e il servizio rimarrà attivo in background per il Bluetooth
             // finché il sistema lo consente.
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            // Assicuriamoci che qualsiasi notifica residua (magari postata con notify()) venga rimossa
-            manager.cancel(LOCATION_SERVICE_CHANNEL)
+            if (isNotificationActive) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                // Assicuriamoci che qualsiasi notifica residua (magari postata con notify()) venga rimossa
+                manager.cancel(LOCATION_SERVICE_CHANNEL)
+                isNotificationActive = false
+            }
         }
     }
 

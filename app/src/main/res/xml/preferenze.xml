@@ -56,4 +56,12 @@
             app:summary="Tenta di riconnettersi automaticamente all'e-bike"
             app:defaultValue="true" />
     </PreferenceCategory>
+
+    <PreferenceCategory app:title="Navigazione">
+        <SwitchPreferenceCompat
+            app:key="navigazione_brouter"
+            app:title="Navigazione BRouter"
+            app:summary="Utilizza BRouter per calcolare la roadmap e segnalare i bivi"
+            app:defaultValue="false" />
+    </PreferenceCategory>
 </PreferenceScreen>

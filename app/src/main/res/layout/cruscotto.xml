@@ -374,6 +374,58 @@
         app:barrierDirection="bottom"
         app:constraint_referenced_ids="tvRemainingDist,tvRemainingDPiu,tvRemainingDMeno,barrier_row4" />
 
+    <!-- RIGA 6: Prossima Svolta (Icona e Distanza) -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/panelNextTurn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/barrier_row5">
+
+        <ImageView
+            android:id="@+id/iconTurn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:tint="#00BCD4"
+            tools:src="@drawable/ic_finish" />
+
+        <TextView
+            android:id="@+id/tvTurnDist"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:textColor="#00BCD4"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            app:layout_constraintStart_toEndOf="@id/iconTurn"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="150 m" />
+
+        <TextView
+            android:id="@+id/tvTurnDesc"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            app:layout_constraintStart_toEndOf="@id/iconTurn"
+            app:layout_constraintTop_toBottomOf="@id/tvTurnDist"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:text="Gira a destra" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/barrier_row6"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:barrierDirection="bottom"
+        app:constraint_referenced_ids="panelNextTurn, barrier_row5" />
+
     <!-- SEZIONE DETTAGLI E-BIKE (VISIBILE SOLO IN EXPANDED) -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/ebikeDetailsPanel"
@@ -382,7 +434,7 @@
         android:layout_marginTop="4dp"
         android:alpha="0"
         android:paddingTop="8dp"
-        app:layout_constraintTop_toBottomOf="@id/barrier_row5"
+        app:layout_constraintTop_toBottomOf="@id/barrier_row6"
         tools:layout_editor_absoluteX="8dp">
 
         <View

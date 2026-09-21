@@ -112,6 +112,64 @@
         android:id="@+id/cruscotto"
         layout="@layout/cruscotto" />
 
+    <!-- Pannello Navigazione BRouter (Svolte) -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/panelNavigation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="32dp"
+        android:layout_marginTop="50dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="#CC09155A"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="4dp"
+        app:layout_anchor="@id/Mapview"
+        app:layout_anchorGravity="top|center_horizontal">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="8dp">
+
+            <ImageView
+                android:id="@+id/imgNavTurn"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:src="@drawable/ic_turn_straight"
+                app:tint="@color/white" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvNavDist"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#00BCD4"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    tools:text="150 m" />
+
+                <TextView
+                    android:id="@+id/tvNavDesc"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:textColor="@color/white"
+                    android:textSize="14sp"
+                    tools:text="Gira a destra su sentiero CAI" />
+
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
     <androidx.cardview.widget.CardView
         android:id="@+id/panelSearchResults"
         android:layout_width="match_parent"
