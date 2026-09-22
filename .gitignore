@@ -11,3 +11,4 @@
 local.properties
 /app/src/main/assets/Layers.gpkg
 levo-sdk/build/
+gradle/gradle-daemon-jvm.properties
