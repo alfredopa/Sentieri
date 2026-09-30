@@ -282,6 +282,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     private var isSelectingDestination = false
     private var startPointForRouting: GeoPoint? = null
     private var endPointForRouting: GeoPoint? = null
+    private var pendingRoadmapPoints: List<GeoPoint>? = null
 
     // 1. Registra il launcher per ricevere il risultato dell'attività
     private val mapFileSelectorLauncher = registerForActivityResult(
@@ -356,7 +357,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             brouterService = IBRouterService.Stub.asInterface(service)
             isBound = true
-            //Log.d(TAG, "BRouterService connesso con successo.")
+            Log.d(TAG, "BRouterService connesso con successo.")
+
+            // Se c'è una richiesta di roadmap in attesa per la traccia da seguire
+            pendingRoadmapPoints?.let { pts ->
+                Log.d(TAG, "Esecuzione roadmap in attesa con ${pts.size} punti.")
+                calculateBRouterRoadmapForTrack(pts)
+                pendingRoadmapPoints = null
+            }
 
             // Se ci sono punti in attesa (impostati dal click del pulsante), calcola il percorso ora.
             if (startPointForRouting != null && endPointForRouting != null) {
@@ -370,7 +378,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         override fun onServiceDisconnected(arg0: ComponentName) {
             brouterService = null
             isBound = false
-            //Log.d(TAG, "BRouterService disconnesso.")
+            Log.d(TAG, "BRouterService disconnesso.")
         }
     }
 
@@ -747,8 +755,26 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         })
 
         // Osserva il cambiamento della traccia da seguire
-        viewModel.tracciaDaSeguireLiveData.observe(viewLifecycleOwner) {
+        viewModel.tracciaDaSeguireLiveData.observe(viewLifecycleOwner) { nomeTraccia ->
+            Log.d(TAG, "tracciaDaSeguireLiveData cambiata: '$nomeTraccia'")
             updateRemainingVisibility()
+            
+            if (nomeTraccia.isNotEmpty()) {
+                val currentLayer = viewModel.layerItems.find { it.nome == nomeTraccia }
+                if (currentLayer != null && currentLayer.punti.isNotEmpty()) {
+                    val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+                    val usaBRouter = prefs.getBoolean("navigazione_brouter", false)
+                    Log.d(TAG, "Traccia attiva '${currentLayer.nome}' (${currentLayer.punti.size} punti). Navigazione BRouter attiva = $usaBRouter")
+                    if (usaBRouter) {
+                        calculateBRouterRoadmapForTrack(currentLayer.punti)
+                    }
+                } else {
+                    Log.w(TAG, "Traccia da seguire '$nomeTraccia' non trovata o senza punti nei layerItems.")
+                }
+            } else {
+                viewModel.setBRouterInstructions(emptyList())
+            }
+
             // Selezionata una nuova traccia o deselezionata, forza il ricalcolo dei valori rimanenti
             viewModel.locationData.value?.geoPoint?.let { currentPos ->
                 viewModel.calculateRemainingStats(currentPos)
@@ -1204,6 +1230,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             currentTrackPolyline.addPoint(newPoint)
         }
         viewModel.nextTurn.observe(viewLifecycleOwner) { turn ->
+            Log.d(TAG, "nextTurn aggiornato: $turn")
             if (turn != null) {
                 binding.imgNavTurn.setImageResource(turn.iconRes)
                 binding.tvNavDesc.text = turn.description
@@ -1221,15 +1248,13 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
                 val usaBRouterNav = prefs.getBoolean("navigazione_brouter", false)
                 
-                // Filtra le istruzioni: mostra solo se è una svolta reale (non tieni la dx/sx o dritto)
-                val isSignificantTurn = turn.turnType == TurnType.LEFT || 
-                                       turn.turnType == TurnType.RIGHT || 
-                                       turn.turnType == TurnType.LEFT_SHARP || 
-                                       turn.turnType == TurnType.RIGHT_SHARP ||
-                                       turn.turnType == TurnType.U_TURN
+                // Considera svolte significative (incluse pieghe a dx/sx)
+                val isSignificantTurn = turn.turnType != TurnType.STRAIGHT
 
-                // Mostra il pannello solo se vicini (soglia 80 metri) e se è una svolta significativa
-                if (dist < 80.0 && isSignificantTurn) {
+                Log.d(TAG, "distToNextTurn: dist=${dist.toInt()}m, turn=${turn.turnType}, usaBRouterNav=$usaBRouterNav")
+
+                // Mostra il pannello se vicini (soglia estesa a 120 metri per dare visibilità)
+                if (dist < 120.0 && isSignificantTurn) {
                     if (usaBRouterNav) {
                         binding.panelNavigation.visibility = View.VISIBLE
                         binding.cruscotto.panelNextTurn.visibility = View.GONE
@@ -1615,12 +1640,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             // e sono ora duplicati nel LayerItem per la persistenza sulla mappa.
             viewModel.puntiDaSeguire = mutableListOf()
             syncLayerVisuals()
-            
-            // Se la navigazione BRouter è attiva, calcola la roadmap
-            val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
-            if (prefs.getBoolean("navigazione_brouter", false)) {
-                calculateBRouterRoadmapForTrack(viewModel.layerItems.last().punti)
-            }
             
             // Zoom alla nuova traccia
             val tempLine = Polyline().apply { setPoints(viewModel.layerItems.last().punti) }
@@ -3741,42 +3760,60 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     // funzioni di servizio BRouter
     private fun calculateBRouterRoadmapForTrack(points: List<GeoPoint>) {
-        if (points.isEmpty() || !isBound || brouterService == null) return
+        if (points.isEmpty()) {
+            Log.w(TAG, "calculateBRouterRoadmapForTrack: lista punti vuota.")
+            return
+        }
+
+        if (!isBRouterInstalled(requireContext())) {
+            Log.w(TAG, "calculateBRouterRoadmapForTrack: BRouter non installato.")
+            return
+        }
+
+        if (!isBound || brouterService == null) {
+            Log.d(TAG, "BRouter non connesso: avvio bindService per roadmap (${points.size} punti)...")
+            pendingRoadmapPoints = points
+            val intent = Intent().apply {
+                component = ComponentName(
+                    BROUTER_PACKAGE,
+                    BROUTER_SERVICE_CLASS
+                )
+            }
+            try {
+                requireContext().bindService(intent, connection, Context.BIND_AUTO_CREATE)
+            } catch (e: Exception) {
+                Log.e(TAG, "Impossibile collegarsi al BRouterService", e)
+                pendingRoadmapPoints = null
+            }
+            return
+        }
+
+        Log.d(TAG, "Avvio calcolo BRouter Roadmap per traccia '${viewModel.titoloTracciaDaSeguire}' con ${points.size} punti...")
 
         viewLifecycleOwner.lifecycleScope.launch {
             val params = Bundle().apply {
-                // Prendiamo inizio, fine e alcuni punti intermedi per guidare BRouter sulla traccia originale
-                val lons = mutableListOf<Double>()
-                val lats = mutableListOf<Double>()
-                
-                lons.add(points.first().longitude)
-                lats.add(points.first().latitude)
-                
-                // Punti intermedi (ogni ~2km o max 5 punti per non sovraccaricare BRouter)
-                if (points.size > 10) {
-                    val step = (points.size / 5).coerceAtLeast(1)
-                    for (i in step until points.size - 1 step step) {
-                        lons.add(points[i].longitude)
-                        lats.add(points[i].latitude)
-                    }
-                }
-                
-                lons.add(points.last().longitude)
-                lats.add(points.last().latitude)
-
-                putDoubleArray("lons", lons.toDoubleArray())
-                putDoubleArray("lats", lats.toDoubleArray())
-                putString("profile", preferenze.getString("activity_type", "mtb"))
+                val lats = points.asSequence().map { it.latitude }.toList().toDoubleArray()
+                val lons = points.asSequence().map { it.longitude }.toList().toDoubleArray()
+                putDoubleArray("lons", lons)
+                putDoubleArray("lats", lats)
+                val profilo = preferenze.getString("activity_type", "mtb") ?: "mtb"
+                putString("profile", profilo)
                 putString("trackFormat", "gpx")
                 putString("turnInstructionMode", "3") // Importante per avere i voicehints/roadmap
+                Log.d(TAG, "BRouter params impostati: profilo=$profilo, punti=${points.size}, turnInstructionMode=3")
             }
 
             val instructions = withContext(Dispatchers.IO) {
                 try {
+                    Log.d(TAG, "Chiamata getTrackFromParams a BRouter in corso...")
                     val gpxString = brouterService?.getTrackFromParams(params)
                     if (gpxString != null && !gpxString.startsWith("Error")) {
+                        Log.d(TAG, "BRouter ha risposto con successo (lunghezza GPX: ${gpxString.length} byte). Inizio parsing...")
                         val parser = GpxParser()
                         val gpx = parser.parse(gpxString.byteInputStream())
+
+                        val totalWaypoints = gpx.wayPoints?.size ?: 0
+                        Log.d(TAG, "GPX BRouter contiene $totalWaypoints waypoint totali.")
                         
                         // Trova il LayerItem corrispondente per avere le distanze cumulative della traccia originale
                         val currentLayer = viewModel.layerItems.find { it.nome == viewModel.titoloTracciaDaSeguire }
@@ -3784,6 +3821,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         val turnInstructions = mutableListOf<TurnInstruction>()
                         gpx.wayPoints?.forEach { wpt ->
                             val type = TurnType.fromBRouterSymbol(wpt.sym)
+                            Log.d(TAG, "BRouter waypoint letto: desc='${wpt.name}', sym='${wpt.sym}', TurnType=$type, lat=${wpt.latitude}, lon=${wpt.longitude}")
                             if (type != null) {
                                 val wpGeo = GeoPoint(wpt.latitude, wpt.longitude)
                                 var minIndex = -1
@@ -3801,7 +3839,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                                         currentLayer.distanzeCumulative[minIndex]
                                     } else 0.0
 
-                                    Log.d(TAG, "BRouter Svolta rilevata: ${wpt.sym} ($type) al punto $minIndex, dist: ${distAlong.toInt()}m")
+                                    Log.i(TAG, "===> Svolta BRouter ACCETTATA: sym=${wpt.sym} ($type) al punto $minIndex, dist: ${distAlong.toInt()}m")
 
                                     turnInstructions.add(
                                         TurnInstruction(
@@ -3812,13 +3850,13 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                                         )
                                     )
                                 } else {
-                                    Log.w(TAG, "Svolta BRouter scartata: troppo lontana dalla traccia (dist: ${minDistance.toInt()}m)")
+                                    Log.w(TAG, "Svolta BRouter SCARTATA: troppo lontana dalla traccia (dist: ${minDistance.toInt()}m, sym=${wpt.sym})")
                                 }
                             }
                         }
                         turnInstructions
                     } else {
-                        Log.e(TAG, "BRouter gpxString non valido: $gpxString")
+                        Log.e(TAG, "BRouter errore o risposta non valida: $gpxString")
                         emptyList()
                     }
                 } catch (e: Exception) {
@@ -3828,8 +3866,13 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
             
             if (instructions.isNotEmpty()) {
-                Log.d(TAG, "Ricevute ${instructions.size} istruzioni da BRouter")
+                Log.i(TAG, "Ricevute e registrate ${instructions.size} istruzioni di svolta da BRouter!")
+                instructions.forEachIndexed { idx, ins ->
+                    Log.i(TAG, "  [$idx] Tipo: ${ins.turnType}, Punto #${ins.pointIndex}, Dist: ${ins.distanceAlongTrack.toInt()}m")
+                }
                 viewModel.setBRouterInstructions(instructions)
+            } else {
+                Log.w(TAG, "Nessuna istruzione di svolta generata da BRouter per questa traccia.")
             }
         }
     }

@@ -96,7 +96,6 @@ object LocationRepository {
 
     // MSL Altitude (Richiesta dal parser NMEA del Service)
     private val _mslAltitude = MutableLiveData(0.0)
-    val mslAltitude: LiveData<Double> = _mslAltitude
 
     private var geoidSeparation: Double? = null
 
@@ -132,7 +131,7 @@ object LocationRepository {
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    fun processNewLocation(context: android.content.Context, loc: Location, msl: Double?, baroPress: Float) {
+    fun processNewLocation(context: Context, loc: Location, msl: Double?, baroPress: Float) {
         _location.postValue(loc)
 
         // Determinazione dell'altitudine SLM (MSL)
@@ -237,7 +236,7 @@ object LocationRepository {
             // Filtro "Anti-Spike" sulla distanza: se il salto è > 1000m in un singolo step,
             // è un errore di posizionamento o un riavvio post-crash. Lo ignoriamo per le statistiche.
             if (deltaDist < 1000.0) {
-                accumuloDistanzaMetri += deltaDist.toInt()
+                accumuloDistanzaMetri += deltaDist
                 _distanzaMetri.postValue(accumuloDistanzaMetri)
             } else {
                 // Log o gestione del salto (es. reset di oldPunto senza accumulare distanza)
@@ -354,8 +353,8 @@ object LocationRepository {
 
     fun getFullTrackSnapshot(): List<GeoPoint> = trackPointsList.toList()
 
-    fun saveSessionState(context: android.content.Context) {
-        val prefs = context.getSharedPreferences("recording_session", android.content.Context.MODE_PRIVATE)
+    fun saveSessionState(context: Context) {
+        val prefs = context.getSharedPreferences("recording_session", Context.MODE_PRIVATE)
         prefs.edit().apply {
             putBoolean("isRecording", isRecording)
             putLong("oraInizio", oraInizio)
@@ -375,8 +374,8 @@ object LocationRepository {
         }
     }
 
-    fun restoreSessionState(context: android.content.Context) {
-        val prefs = context.getSharedPreferences("recording_session", android.content.Context.MODE_PRIVATE)
+    fun restoreSessionState(context: Context) {
+        val prefs = context.getSharedPreferences("recording_session", Context.MODE_PRIVATE)
         if (prefs.getBoolean("isRecording", false)) {
             isRecording = true
             oraInizio = prefs.getLong("oraInizio", 0L)
@@ -437,7 +436,7 @@ object LocationRepository {
         clearTrack(context)
     }
 
-    fun clearTrack(context: android.content.Context) {
+    fun clearTrack(context: Context) {
         isRecording = false
         oraInizio = 0L
         isFixed = false
@@ -454,7 +453,7 @@ object LocationRepository {
         previousFilteredAltitude = null
 
         // Cancella preferenze
-        context.getSharedPreferences("recording_session", android.content.Context.MODE_PRIVATE).edit { clear() }
+        context.getSharedPreferences("recording_session", Context.MODE_PRIVATE).edit { clear() }
         
         // Cancella punti temporanei dal DB
         repositoryScope.launch {

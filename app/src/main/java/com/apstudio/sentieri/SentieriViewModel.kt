@@ -318,13 +318,13 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _remainingDMeno = MutableLiveData(0.0)
     val remainingDMeno: LiveData<Double> = _remainingDMeno
 
-    private val _distanceFromTrack = MutableLiveData<Double>(0.0)
+    private val _distanceFromTrack = MutableLiveData(0.0)
     val distanceFromTrack: LiveData<Double> = _distanceFromTrack
 
     private val _nextTurn = MutableLiveData<TurnInstruction?>(null)
     val nextTurn: LiveData<TurnInstruction?> = _nextTurn
 
-    private val _distToNextTurn = MutableLiveData<Double>(0.0)
+    private val _distToNextTurn = MutableLiveData(0.0)
     val distToNextTurn: LiveData<Double> = _distToNextTurn
 
     private val _brouterTurnInstructions = MutableLiveData<List<TurnInstruction>>(emptyList())
