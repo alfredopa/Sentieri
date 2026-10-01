@@ -208,6 +208,8 @@ class GpxParser {
         var pDop: Double? = null
         var ageOfGPSData: Double? = null
         var dGpsId: Int? = null
+        var turnCode: String? = null
+        var offsetDistance: Double? = null
 
         val childNodes = node.childNodes
         if (childNodes != null) {
@@ -233,6 +235,18 @@ class GpxParser {
                     PDOP_NODE -> pDop = currentNode.firstChild.nodeValue.toDouble()
                     AGEOFGPSDATA_NODE -> ageOfGPSData = currentNode.firstChild.nodeValue.toDouble()
                     DGPSID_NODE -> dGpsId = currentNode.firstChild.nodeValue.toInt()
+                    "extensions" -> {
+                        val extNodes = currentNode.childNodes
+                        if (extNodes != null) {
+                            for (eIdx in 0 until extNodes.length) {
+                                val extNode = extNodes.item(eIdx)
+                                when (extNode.nodeName) {
+                                    "turn" -> turnCode = extNode.firstChild?.nodeValue
+                                    "offset" -> offsetDistance = extNode.firstChild?.nodeValue?.toDouble()
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -257,7 +271,9 @@ class GpxParser {
             vDop = vDop,
             pDop = pDop,
             ageOfGPSData = ageOfGPSData,
-            dGpsId = dGpsId
+            dGpsId = dGpsId,
+            turnCode = turnCode,
+            offsetDistance = offsetDistance
         )
     }
 }

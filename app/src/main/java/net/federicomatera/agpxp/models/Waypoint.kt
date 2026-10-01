@@ -24,5 +24,7 @@ data class WayPoint(
     val vDop: Double? = null,
     val pDop: Double? = null,
     val ageOfGPSData: Double? = null,
-    val dGpsId: Int? = null
+    val dGpsId: Int? = null,
+    val turnCode: String? = null,
+    val offsetDistance: Double? = null
 ): Serializable

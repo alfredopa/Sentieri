@@ -1245,23 +1245,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         viewModel.distToNextTurn.observe(viewLifecycleOwner) { dist ->
             val turn = viewModel.nextTurn.value
             if (turn != null) {
-                val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
-                val usaBRouterNav = prefs.getBoolean("navigazione_brouter", false)
-                
-                // Considera svolte significative (incluse pieghe a dx/sx)
-                val isSignificantTurn = turn.turnType != TurnType.STRAIGHT
+                Log.d(TAG, "distToNextTurn: dist=${dist.toInt()}m, turn=${turn.turnType}")
 
-                Log.d(TAG, "distToNextTurn: dist=${dist.toInt()}m, turn=${turn.turnType}, usaBRouterNav=$usaBRouterNav")
-
-                // Mostra il pannello se vicini (soglia estesa a 120 metri per dare visibilità)
-                if (dist < 120.0 && isSignificantTurn) {
-                    if (usaBRouterNav) {
-                        binding.panelNavigation.visibility = View.VISIBLE
-                        binding.cruscotto.panelNextTurn.visibility = View.GONE
-                    } else {
-                        binding.panelNavigation.visibility = View.GONE
-                        binding.cruscotto.panelNextTurn.visibility = View.VISIBLE
-                    }
+                // Mostra il pannello se vicini (soglia a meno di 80 metri)
+                if (dist < 80.0) {
+                    binding.panelNavigation.visibility = View.VISIBLE
+                    binding.cruscotto.panelNextTurn.visibility = View.GONE
                 } else {
                     binding.panelNavigation.visibility = View.GONE
                     binding.cruscotto.panelNextTurn.visibility = View.GONE
@@ -3809,21 +3798,46 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     val gpxString = brouterService?.getTrackFromParams(params)
                     if (gpxString != null && !gpxString.startsWith("Error")) {
                         Log.d(TAG, "BRouter ha risposto con successo (lunghezza GPX: ${gpxString.length} byte). Inizio parsing...")
+                        
+                        // Salva il GPX nella cache dell'app per ispezione
+                        try {
+                            val debugFile = File(requireContext().cacheDir, "brouter_debug.gpx")
+                            debugFile.writeText(gpxString)
+                            Log.i(TAG, "File GPX di BRouter salvato in: ${debugFile.absolutePath}")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Impossibile salvare il file GPX di debug", e)
+                        }
+
+                        // Stampa una porzione del GPX per vedere i tag (wpt, extensions, ecc.)
+                        val snippet = if (gpxString.length > 2000) gpxString.substring(0, 2000) else gpxString
+                        Log.d(TAG, "GPX Snippet: $snippet")
+
                         val parser = GpxParser()
                         val gpx = parser.parse(gpxString.byteInputStream())
 
-                        val totalWaypoints = gpx.wayPoints?.size ?: 0
-                        Log.d(TAG, "GPX BRouter contiene $totalWaypoints waypoint totali.")
+                        val routes = gpx.routes ?: emptyList()
+                        val allRoutePoints = routes.flatMap { it.routePoints }
+                        Log.d(TAG, "GPX BRouter contiene ${allRoutePoints.size} route points totali.")
                         
-                        // Trova il LayerItem corrispondente per avere le distanze cumulative della traccia originale
+                        // Assicurati che il layer abbia la cache delle distanze cumulative generata
                         val currentLayer = viewModel.layerItems.find { it.nome == viewModel.titoloTracciaDaSeguire }
+                        if (currentLayer != null && (currentLayer.distanzeCumulative.isEmpty() || currentLayer.distanzeCumulative.size != points.size)) {
+                            val cache = MapUtils.generaCacheStatistiche(points)
+                            currentLayer.distanzeCumulative = cache.first
+                            currentLayer.asceseCumulative = cache.second
+                            currentLayer.disceseCumulative = cache.third
+                        }
                         
                         val turnInstructions = mutableListOf<TurnInstruction>()
-                        gpx.wayPoints?.forEach { wpt ->
-                            val type = TurnType.fromBRouterSymbol(wpt.sym)
-                            Log.d(TAG, "BRouter waypoint letto: desc='${wpt.name}', sym='${wpt.sym}', TurnType=$type, lat=${wpt.latitude}, lon=${wpt.longitude}")
+                        allRoutePoints.forEach { rtept ->
+                            // Usa turnCode (es. "TR", "TL", "TU") o description (es. "right", "left")
+                            val symbolToCheck = rtept.turnCode?.takeIf { it.isNotBlank() } ?: rtept.description?.takeIf { it.isNotBlank() } ?: rtept.sym
+                            val type = TurnType.fromBRouterSymbol(symbolToCheck)
+                            
+                            Log.d(TAG, "BRouter route point: turnCode='${rtept.turnCode}', desc='${rtept.description}', offset=${rtept.offsetDistance}, TurnType=$type")
+                            
                             if (type != null) {
-                                val wpGeo = GeoPoint(wpt.latitude, wpt.longitude)
+                                val wpGeo = GeoPoint(rtept.latitude, rtept.longitude)
                                 var minIndex = -1
                                 var minDistance = Double.MAX_VALUE
                                 for (i in points.indices) {
@@ -3835,11 +3849,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                                 }
                                 
                                 if (minIndex != -1 && minDistance < 100.0) {
-                                    val distAlong = if (currentLayer != null && minIndex < currentLayer.distanzeCumulative.size) {
+                                    // Usa l'offset fornito da BRouter se disponibile, altrimenti distanzeCumulative[minIndex]
+                                    val distAlong = rtept.offsetDistance ?: if (currentLayer != null && minIndex < currentLayer.distanzeCumulative.size) {
                                         currentLayer.distanzeCumulative[minIndex]
                                     } else 0.0
 
-                                    Log.i(TAG, "===> Svolta BRouter ACCETTATA: sym=${wpt.sym} ($type) al punto $minIndex, dist: ${distAlong.toInt()}m")
+                                    Log.i(TAG, "===> Svolta BRouter ACCETTATA: turnCode='${rtept.turnCode}', desc='${rtept.description}' ($type) al punto $minIndex, distAlong: ${distAlong.toInt()}m")
 
                                     turnInstructions.add(
                                         TurnInstruction(
@@ -3850,7 +3865,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                                         )
                                     )
                                 } else {
-                                    Log.w(TAG, "Svolta BRouter SCARTATA: troppo lontana dalla traccia (dist: ${minDistance.toInt()}m, sym=${wpt.sym})")
+                                    Log.w(TAG, "Svolta BRouter SCARTATA: troppo lontana dalla traccia (dist: ${minDistance.toInt()}m)")
                                 }
                             }
                         }

@@ -437,23 +437,20 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _remainingDPiu.postValue(remDPiu)
             _remainingDMeno.postValue(remDMeno)
 
-            // 3. CALCOLO PROSSIMA SVOLTA
-            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
-            val usaBRouterNav = prefs.getBoolean("navigazione_brouter", false)
+            // 3. CALCOLO PROSSIMA SVOLTA (Basato sugli indici dei punti allineati alla traccia originale)
+            val instructions = _brouterTurnInstructions.value?.sortedBy { it.pointIndex } ?: emptyList()
             
-            val instructions = if (usaBRouterNav && _brouterTurnInstructions.value?.isNotEmpty() == true) {
-                _brouterTurnInstructions.value!!
-            } else {
-                if (layerItem.turnInstructions.isEmpty()) {
-                    layerItem.turnInstructions = MapUtils.rilevaSvolte(points, layerItem.distanzeCumulative)
-                }
-                layerItem.turnInstructions
-            }
-            
+            // Trova la prima svolta il cui punto sulla traccia è successivo alla posizione corrente (closestIndex)
             val next = instructions.find { it.pointIndex > closestIndex }
             if (next != null) {
                 _nextTurn.postValue(next)
-                _distToNextTurn.postValue(next.distanceAlongTrack - currentDist)
+                // Calcola la distanza metrica precisa usando le distanze cumulative della traccia originale
+                val distToTurn = if (next.pointIndex < layerItem.distanzeCumulative.size) {
+                    layerItem.distanzeCumulative[next.pointIndex] - currentDist
+                } else {
+                    next.distanceAlongTrack - currentDist
+                }
+                _distToNextTurn.postValue(distToTurn)
             } else {
                 _nextTurn.postValue(null)
                 _distToNextTurn.postValue(0.0)
