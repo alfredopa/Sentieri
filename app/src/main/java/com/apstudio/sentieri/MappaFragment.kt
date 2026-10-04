@@ -2380,7 +2380,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             try {
                 // 1. Salva nel database
                 val ultimoID = viewModel.salvaSentiero(sentiero)
-                LocationRepository.finalizeSession(requireContext(), ultimoID.toInt(), sentiero.uuid)
+                LocationRepository.finalizeSession(
+                    requireContext(),
+                    ultimoID.toInt(),
+                    sentiero.uuid,
+                    puntiGpsSnapshot
+                )
 
                 // 2. Salva i Waypoint associati
                 val db = SentieriDB.getInstance(requireContext())

@@ -430,9 +430,39 @@ object LocationRepository {
         }
     }
 
-    suspend fun finalizeSession(context: Context, realTrackId: Int, trackUuid: String) {
+    suspend fun finalizeSession(
+        context: Context,
+        realTrackId: Int,
+        trackUuid: String,
+        fallbackPoints: List<WayPoint> = emptyList()
+    ) {
         val db = SentieriDB.getInstance(context)
-        db.trackDao().updateTrackSession(TEMP_TRACK_ID, realTrackId, trackUuid)
+        val updatedRows = db.trackDao().updateTrackSession(TEMP_TRACK_ID, realTrackId, trackUuid)
+        
+        // Se per qualsiasi motivo i punti temporanei nel DB sono andati persi o sono meno di quelli registrati in memoria,
+        // utilizziamo la lista in memoria come fonte di verità assoluta.
+        if (fallbackPoints.isNotEmpty() && updatedRows < fallbackPoints.size) {
+            // Elimina eventuali record parziali già aggiornati con realTrackId
+            db.trackDao().deleteTrack(realTrackId)
+            
+            // Inserisce l'intera sequenza di punti completa dalla memoria
+            val tracksToInsert = fallbackPoints.map { wp ->
+                Track(
+                    Id = 0,
+                    Trackid = realTrackId,
+                    Latit = wp.latitude.toFloat(),
+                    Longit = wp.longitude.toFloat(),
+                    Ele = wp.elevation?.toFloat() ?: 0f,
+                    Ora = wp.time?.toString() ?: Timestamp(System.currentTimeMillis()).toString(),
+                    trackUuid = trackUuid
+                )
+            }
+            // Inserimento a blocchi (batch da 500) per efficienza e per evitare limiti SQLite
+            tracksToInsert.chunked(500).forEach { chunk ->
+                db.trackDao().insertAll(chunk)
+            }
+        }
+        
         clearTrack(context)
     }
 
