@@ -88,6 +88,24 @@ class GpxWriter {
             appendChild(PDOP_NODE, wayPoint.pDop)
             appendChild(AGEOFGPSDATA_NODE, wayPoint.ageOfGPSData)
             appendChild(DGPSID_NODE, wayPoint.dGpsId)
+
+            // Extensions: power, level_assit, ebike:battery, gpxtpx:TrackPointExtension (hr, cad)
+            if (wayPoint.power != null || wayPoint.assistLevel != null || wayPoint.batteryPercent != null || wayPoint.heartRate != null || wayPoint.cadence != null) {
+                val extNode = ownerDocument.createElement("extensions").apply {
+                    if (wayPoint.power != null) appendChild("power", wayPoint.power)
+                    if (wayPoint.assistLevel != null) appendChild("level_assit", wayPoint.assistLevel)
+                    if (wayPoint.batteryPercent != null) appendChild("ebike:battery", wayPoint.batteryPercent)
+
+                    if (wayPoint.heartRate != null || wayPoint.cadence != null) {
+                        val tpxNode = ownerDocument.createElement("gpxtpx:TrackPointExtension").apply {
+                            if (wayPoint.heartRate != null) appendChild("gpxtpx:hr", wayPoint.heartRate)
+                            if (wayPoint.cadence != null) appendChild("gpxtpx:cad", wayPoint.cadence)
+                        }
+                        appendChild(tpxNode)
+                    }
+                }
+                appendChild(extNode)
+            }
         }
 
         appendChild(child)
@@ -131,6 +149,8 @@ class GpxWriter {
         addAttribute(XMLNS, gpx.xmlns)
         addAttribute(VERSION_ATTR, gpx.version)
         addAttribute(CREATOR_ATTR, gpx.creator)
+        addAttribute("xmlns:gpxtpx", "http://www.garmin.com/xmlschemas/TrackPointExtension/v1")
+        addAttribute("xmlns:ebike", "http://www.specialized.com/xmlschemas/ebike/v1")
 
         gpx.schemas?.let {
             for(schema in it) {

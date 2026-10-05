@@ -247,7 +247,7 @@
         app:barrierDirection="bottom"
         app:constraint_referenced_ids="tvTempo, tvPendenza, tvCalcQuota" />
 
-    <!-- RIGA 4: Tempo Movimento, Allarme -->
+    <!-- RIGA 4: Tempo Movimento, Frequenza Cardiaca (HR), Allarme -->
     <ImageView
         android:id="@+id/icon_tempo_mov"
         android:layout_width="wrap_content"
@@ -272,6 +272,31 @@
         app:layout_constraintTop_toTopOf="@id/icon_tempo_mov"
         tools:text="00:00:00" />
 
+    <ImageView
+        android:id="@+id/icon_hr"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        app:layout_constraintStart_toStartOf="@id/guideline_col1_end"
+        app:layout_constraintTop_toTopOf="@id/icon_tempo_mov"
+        app:layout_constraintBottom_toBottomOf="@id/icon_tempo_mov"
+        app:srcCompat="@drawable/hearth"
+        tools:ignore="ContentDescription" />
+
+    <TextView
+        android:id="@+id/tvHeartRate"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:textColor="#FF5252"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="@id/icon_hr"
+        app:layout_constraintEnd_toStartOf="@id/guideline_col2_end"
+        app:layout_constraintStart_toEndOf="@id/icon_hr"
+        app:layout_constraintTop_toTopOf="@id/icon_hr"
+        tools:text="135" />
+
     <Button
         android:id="@+id/btnAllarme"
         android:layout_width="0dp"
@@ -290,7 +315,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:barrierDirection="bottom"
-        app:constraint_referenced_ids="tvTempoMov, btnAllarme" />
+        app:constraint_referenced_ids="tvTempoMov, icon_hr, tvHeartRate, btnAllarme" />
 
     <!-- RIGA 5: Rimanenti (Distanza, D+, D-) - Colore Giallo per distinguerli -->
     <ImageView

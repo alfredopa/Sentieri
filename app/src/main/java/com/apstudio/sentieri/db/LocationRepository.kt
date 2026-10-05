@@ -120,6 +120,22 @@ object LocationRepository {
 
     private val _btIsScanning = MutableLiveData(false)
 
+    // --- BLUETOOTH / FASCIA CARDIO (HEART RATE) ---
+    private val _hrIsConnected = MutableLiveData(false)
+    val hrIsConnected: LiveData<Boolean> = _hrIsConnected
+
+    private val _heartRate = MutableLiveData(0)
+    val heartRate: LiveData<Int> = _heartRate
+
+    private val _hrStatus = MutableLiveData("Disconnesso")
+    val hrStatus: LiveData<String> = _hrStatus
+
+    private val _hrDevices = MutableLiveData<List<BtDevice>>(emptyList())
+    val hrDevices: LiveData<List<BtDevice>> = _hrDevices
+
+    // Accumulo per statistiche cardio della sessione (HrMed e HrMax)
+    val heartRateHistory = CopyOnWriteArrayList<Int>()
+
     // Dati traccia
     val trackPointsList = mutableListOf<GeoPoint>()
     val puntiGPS = CopyOnWriteArrayList<WayPoint>()
@@ -179,15 +195,34 @@ object LocationRepository {
                 return // Esci senza aggiungere il punto alla lista né al DB
             }
         }
+        // Lettura valori telemetrici attuali (E-bike e Heart Rate)
+        val currentEbike = if (_btIsConnected.value == true) _ebikeMessage.value else null
+        val currentBattery = currentEbike?.soc?.toIntOrNull()
+        val currentCadence = currentEbike?.cadence?.toIntOrNull()
+        val currentPower = currentEbike?.riderPower?.toIntOrNull() ?: currentEbike?.motorPower?.toIntOrNull()
+        val currentAssistLevel = when (currentEbike?.assistLevel?.uppercase()) {
+            "ECO" -> 1
+            "TRAIL", "SPORT" -> 2
+            "TURBO" -> 3
+            "OFF" -> 0
+            else -> currentEbike?.assistLevel?.toIntOrNull()
+        }
+        val currentHr = if (_hrIsConnected.value == true && (_heartRate.value ?: 0) > 30) _heartRate.value else null
+
         // 1. Aggiungiamo SEMPRE il punto alla traccia visiva sulla mappa,
         // anche durante il warm-up, altrimenti la linea non appare.
         trackPointsList.add(currentPoint)
         val ts = Timestamp(System.currentTimeMillis())
         val wayPoint = WayPoint(
-            currentPoint.latitude,
-            currentPoint.longitude,
-            currentPoint.altitude,
-            ts
+            latitude = currentPoint.latitude,
+            longitude = currentPoint.longitude,
+            elevation = currentPoint.altitude,
+            time = ts,
+            power = currentPower,
+            assistLevel = currentAssistLevel,
+            batteryPercent = currentBattery,
+            heartRate = currentHr,
+            cadence = currentCadence
         )
         puntiGPS.add(wayPoint)
         _newTrackPoint.postValue(currentPoint)
@@ -203,7 +238,12 @@ object LocationRepository {
                     Latit = currentPoint.latitude.toFloat(),
                     Longit = currentPoint.longitude.toFloat(),
                     Ele = currentPoint.altitude.toFloat(),
-                    Ora = ts.toString()
+                    Ora = ts.toString(),
+                    batteryPercent = currentBattery,
+                    cadence = currentCadence,
+                    assistLevel = currentAssistLevel,
+                    power = currentPower,
+                    heartRate = currentHr
                 )
             )
         }
@@ -334,6 +374,29 @@ object LocationRepository {
         _btIsScanning.postValue(isScanning)
     }
 
+    // --- Metodi Heart Rate (Fascia Cardio) ---
+    fun updateHrConnectionState(connected: Boolean) {
+        _hrIsConnected.postValue(connected)
+        if (!connected) {
+            _heartRate.postValue(0)
+        }
+    }
+
+    fun updateHrStatus(status: String) {
+        _hrStatus.postValue(status)
+    }
+
+    fun updateHeartRate(bpm: Int) {
+        _heartRate.postValue(bpm)
+        if (isRecording && bpm > 30) {
+            heartRateHistory.add(bpm)
+        }
+    }
+
+    fun updateHrDevices(devices: List<BtDevice>) {
+        _hrDevices.postValue(devices)
+    }
+
     fun baroCalibrato(valore: Boolean) {
         calibratoInterno = valore // Aggiorna per i calcoli interni
         _isCalibrato.postValue(valore) // Notifica l'UI
@@ -411,7 +474,17 @@ object LocationRepository {
                     } catch (_: Exception) {
                         Timestamp(System.currentTimeMillis())
                     }
-                    WayPoint(it.Latit.toDouble(), it.Longit.toDouble(), it.Ele.toDouble(), ts)
+                    WayPoint(
+                        latitude = it.Latit.toDouble(),
+                        longitude = it.Longit.toDouble(),
+                        elevation = it.Ele.toDouble(),
+                        time = ts,
+                        power = it.power,
+                        assistLevel = it.assistLevel,
+                        batteryPercent = it.batteryPercent,
+                        heartRate = it.heartRate,
+                        cadence = it.cadence
+                    )
                 }
                 
                 kotlinx.coroutines.withContext(Dispatchers.Main) {
@@ -454,7 +527,12 @@ object LocationRepository {
                     Longit = wp.longitude.toFloat(),
                     Ele = wp.elevation?.toFloat() ?: 0f,
                     Ora = wp.time?.toString() ?: Timestamp(System.currentTimeMillis()).toString(),
-                    trackUuid = trackUuid
+                    trackUuid = trackUuid,
+                    batteryPercent = wp.batteryPercent,
+                    cadence = wp.cadence,
+                    assistLevel = wp.assistLevel,
+                    power = wp.power,
+                    heartRate = wp.heartRate
                 )
             }
             // Inserimento a blocchi (batch da 500) per efficienza e per evitare limiti SQLite
@@ -503,6 +581,8 @@ object LocationRepository {
             _velocitaKmh.value = 0
             _secondiMovimento.value = 0L
             _mslAltitude.value = 0.0
+            _heartRate.value = 0
+            heartRateHistory.clear()
         }
     }
 }

@@ -165,6 +165,47 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         getApplication<Application>().startService(intent)
     }
 
+    // Bluetooth Heart Rate Methods (Fascia Cardio tramite Service)
+    val hrIsConnected: LiveData<Boolean> = LocationRepository.hrIsConnected
+    val heartRate: LiveData<Int> = LocationRepository.heartRate
+    val hrStatus: LiveData<String> = LocationRepository.hrStatus
+    val hrDevices: LiveData<List<BtDevice>> = LocationRepository.hrDevices
+
+    fun startHrDiscovery() {
+        val intent = Intent(getApplication(), LocationService::class.java).apply {
+            action = LocationService.ACTION_START_HR_SCAN
+        }
+        getApplication<Application>().startService(intent)
+    }
+
+    fun stopHrDiscovery() {
+        val intent = Intent(getApplication(), LocationService::class.java).apply {
+            action = LocationService.ACTION_STOP_HR_SCAN
+        }
+        getApplication<Application>().startService(intent)
+    }
+
+    fun connectToHrDevice(device: BtDevice) {
+        val intent = Intent(getApplication(), LocationService::class.java).apply {
+            action = LocationService.ACTION_CONNECT_HR
+            putExtra(LocationService.EXTRA_DEVICE_ADDRESS, device.address)
+            putExtra(LocationService.EXTRA_DEVICE_NAME, device.name)
+        }
+        getApplication<Application>().startService(intent)
+
+        // Salva l'indirizzo per riconnessione automatica della fascia cardio
+        PreferenceManager.getDefaultSharedPreferences(getApplication()).edit {
+            putString("last_hr_address", device.address)
+        }
+    }
+
+    fun disconnectHr() {
+        val intent = Intent(getApplication(), LocationService::class.java).apply {
+            action = LocationService.ACTION_DISCONNECT_HR
+        }
+        getApplication<Application>().startService(intent)
+    }
+
     fun autoConnectEbike() {
         // La riconnessione automatica è ora gestita dal LocationService
         // basandosi sulle preferenze. Chiamiamo comunque il service per sicurezza

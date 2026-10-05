@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -69,6 +70,12 @@ class Preferenze : PreferenceFragmentCompat() {
             showEbikeScanDialog()
             true
         }
+
+        val hrButton: Preference? = findPreference("connessione_hr")
+        hrButton?.setOnPreferenceClickListener {
+            showHrScanDialog()
+            true
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -76,6 +83,7 @@ class Preferenze : PreferenceFragmentCompat() {
         observeDownloadStatus()
         observeFtpFileList()
         observeBtStatus()
+        observeHrStatus()
     }
 
     override fun onResume() {
@@ -259,6 +267,59 @@ class Preferenze : PreferenceFragmentCompat() {
 
     private fun observeBtStatus() {
         viewModel.btStatus.observe(viewLifecycleOwner) { status ->
+            Toast.makeText(requireContext(), status, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private var hrScanDialog: AlertDialog? = null
+
+    private fun showHrScanDialog() {
+        viewModel.startHrDiscovery()
+
+        val builder = AlertDialog.Builder(requireContext())
+        builder.setTitle("Scansione Fascia Cardio...")
+
+        val deviceNames = viewModel.hrDevices.value?.map { "${it.name ?: "Fascia Cardio"} (${it.address})" }?.toTypedArray() ?: arrayOf()
+
+        builder.setItems(deviceNames) { _, which ->
+            val selectedDevice = viewModel.hrDevices.value?.get(which)
+            selectedDevice?.let {
+                viewModel.connectToHrDevice(it)
+            }
+            viewModel.stopHrDiscovery()
+        }
+
+        builder.setNegativeButton("Annulla") { dialog, _ ->
+            viewModel.stopHrDiscovery()
+            dialog.dismiss()
+        }
+
+        hrScanDialog = builder.create()
+        hrScanDialog?.show()
+
+        viewModel.hrDevices.observe(viewLifecycleOwner) { devices ->
+            if (hrScanDialog?.isShowing == true) {
+                val listView = hrScanDialog?.listView
+                if (listView != null) {
+                    val adapter = ArrayAdapter(
+                        requireContext(),
+                        android.R.layout.simple_list_item_1,
+                        devices.map { "${it.name ?: "Fascia Cardio"} (${it.address})" }.toTypedArray()
+                    )
+                    listView.adapter = adapter
+                    listView.setOnItemClickListener { _, _, position, _ ->
+                        val selectedDevice = devices[position]
+                        viewModel.connectToHrDevice(selectedDevice)
+                        viewModel.stopHrDiscovery()
+                        hrScanDialog?.dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun observeHrStatus() {
+        viewModel.hrStatus.observe(viewLifecycleOwner) { status ->
             Toast.makeText(requireContext(), status, Toast.LENGTH_SHORT).show()
         }
     }

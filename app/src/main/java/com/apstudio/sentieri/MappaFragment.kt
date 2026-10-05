@@ -1114,6 +1114,19 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
             }
         }
+
+        // Osservatore Frequenza Cardiaca (Fascia Cardio)
+        viewModel.heartRate.observe(viewLifecycleOwner) { hr ->
+            val abilitaCardio = preferenze.getBoolean("abilita_fascia_cardio", false)
+            if (abilitaCardio && hr > 0) {
+                binding.cruscotto.iconHr.isVisible = true
+                binding.cruscotto.tvHeartRate.isVisible = true
+                binding.cruscotto.tvHeartRate.text = hr.toString()
+            } else {
+                binding.cruscotto.iconHr.isVisible = false
+                binding.cruscotto.tvHeartRate.isVisible = false
+            }
+        }
         // --------------------------
 
         viewModel.isAllarmeAttivo.observe(viewLifecycleOwner) { isAttivo ->
@@ -2345,6 +2358,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         val tempoStr = binding.cruscotto.tvTempo.text.toString()
         val tempoMovStr = binding.cruscotto.tvTempoMov.text.toString()
 
+        // Calcolo statistiche frequenza cardiaca della sessione
+        val hrList = LocationRepository.heartRateHistory.filter { it > 30 }
+        val hrMed = if (hrList.isNotEmpty()) hrList.average().toInt() else 0
+        val hrMax = if (hrList.isNotEmpty()) hrList.maxOrNull() ?: 0 else 0
+
         val sentiero = Sentieri(
             id = 0,
             nome = nomeTraccia,
@@ -2352,8 +2370,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             lunghezza = dist.toDouble(),
             dislivello = dPiu.toInt(),
             discesa = dMeno.toInt(),
-            HrMed = 0,
-            HrMax = 0,
+            HrMed = hrMed,
+            HrMax = hrMax,
             DataOra = convertMillisToISO8601JavaTime(startTimestamp),
             TempMedia = 0.0,
             TempMax = 0.0,

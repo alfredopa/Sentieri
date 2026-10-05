@@ -57,6 +57,18 @@
             app:defaultValue="true" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="Fascia Cardio (BLE)">
+        <Preference
+            app:key="connessione_hr"
+            app:title="Connessione fascia cardio"
+            app:summary="Seleziona e associa la tua fascia cardio Bluetooth" />
+        <SwitchPreferenceCompat
+            app:key="abilita_fascia_cardio"
+            app:title="Abilita lettura fascia cardio"
+            app:summary="Attiva la lettura della frequenza cardiaca durante la registrazione"
+            app:defaultValue="false" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="Navigazione">
         <SwitchPreferenceCompat
             app:key="navigazione_brouter"

@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Sentieri::class, Track::class, PoiDB::class, FotoPoi::class], version = 2, exportSchema = false)
+@Database(entities = [Sentieri::class, Track::class, PoiDB::class, FotoPoi::class], version = 3, exportSchema = false)
 abstract class SentieriDB : RoomDatabase() {
     abstract fun sentieriDao(): SentieriDao
     abstract fun trackDao(): TrackDao
@@ -28,11 +28,21 @@ abstract class SentieriDB : RoomDatabase() {
                         SentieriDB::class.java,
                         "sentieri.db"
                     )
-                        .addMigrations(MIGRATION_1_2)
+                        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                         .build()
                     INSTANCE = instance
                 }
                 return instance
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `Track` ADD COLUMN `batteryPercent` INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE `Track` ADD COLUMN `cadence` INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE `Track` ADD COLUMN `assistLevel` INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE `Track` ADD COLUMN `power` INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE `Track` ADD COLUMN `heartRate` INTEGER DEFAULT NULL")
             }
         }
 

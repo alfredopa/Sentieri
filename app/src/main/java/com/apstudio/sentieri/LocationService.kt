@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
+import com.apstudio.sentieri.bluetooth.HeartRateController
 import com.apstudio.sentieri.db.LocationRepository
 import com.example.levo_sdk.data.LevoBluetoothController
 import com.example.levo_sdk.domain.BluetoothController
@@ -102,6 +103,12 @@ class LocationService : LifecycleService() {
         const val ACTION_DISCONNECT = "com.apstudio.sentieri.ACTION_DISCONNECT"
         const val EXTRA_DEVICE_ADDRESS = "EXTRA_DEVICE_ADDRESS"
         const val EXTRA_DEVICE_NAME = "EXTRA_DEVICE_NAME"
+
+        // Azioni Bluetooth Fascia Cardio (Heart Rate)
+        const val ACTION_START_HR_SCAN = "com.apstudio.sentieri.ACTION_START_HR_SCAN"
+        const val ACTION_STOP_HR_SCAN = "com.apstudio.sentieri.ACTION_STOP_HR_SCAN"
+        const val ACTION_CONNECT_HR = "com.apstudio.sentieri.ACTION_CONNECT_HR"
+        const val ACTION_DISCONNECT_HR = "com.apstudio.sentieri.ACTION_DISCONNECT_HR"
     }
 
     private lateinit var locationManager: LocationManager
@@ -119,9 +126,15 @@ class LocationService : LifecycleService() {
     private lateinit var bluetoothController: BluetoothController
     private var bluetoothJob: Job? = null
     private var isConnecting = false
+
+    // Bluetooth / Fascia Cardio
+    private var heartRateController: HeartRateController? = null
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
         if (key == "mostra_dati_ebike" || key == "last_ebike_address" || key == "auto_reconnect_ebike") {
             handleBluetoothReconnect(prefs)
+        }
+        if (key == "abilita_fascia_cardio" || key == "last_hr_address") {
+            handleHeartRateReconnect(prefs)
         }
     }
     
@@ -148,6 +161,7 @@ class LocationService : LifecycleService() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
         handleBluetoothReconnect(prefs)
+        handleHeartRateReconnect(prefs)
         
         // Ripristina lo stato della sessione se necessario
         LocationRepository.restoreSessionState(this)
@@ -181,6 +195,48 @@ class LocationService : LifecycleService() {
         }
         lifecycleScope.launch {
             bluetoothController.devices.collect { LocationRepository.updateBtDevices(it) }
+        }
+    }
+
+    private fun ensureHeartRateInitialized(): HeartRateController {
+        if (heartRateController == null) {
+            val controller = HeartRateController(this)
+            heartRateController = controller
+            
+            lifecycleScope.launch {
+                controller.isConnected.collect { LocationRepository.updateHrConnectionState(it) }
+            }
+            lifecycleScope.launch {
+                controller.heartRate.collect { LocationRepository.updateHeartRate(it) }
+            }
+            lifecycleScope.launch {
+                controller.devices.collect { LocationRepository.updateHrDevices(it) }
+            }
+            lifecycleScope.launch {
+                controller.status.collect { LocationRepository.updateHrStatus(it) }
+            }
+        }
+        return heartRateController!!
+    }
+
+    private fun handleHeartRateReconnect(prefs: SharedPreferences) {
+        val enabled = prefs.getBoolean("abilita_fascia_cardio", false)
+        val address = prefs.getString("last_hr_address", null)?.trim()
+
+        if (!enabled || address.isNullOrEmpty()) {
+            heartRateController?.closeConnection()
+            LocationRepository.updateHrConnectionState(false)
+            if (!enabled) {
+                LocationRepository.updateHrStatus("Fascia cardio disattivata")
+            } else {
+                LocationRepository.updateHrStatus("Nessuna fascia cardio associata")
+            }
+            return
+        }
+
+        val controller = ensureHeartRateInitialized()
+        if (LocationRepository.hrIsConnected.value != true) {
+            controller.connectToDevice(address, reconnect = true)
         }
     }
 
@@ -354,12 +410,28 @@ class LocationService : LifecycleService() {
                     bluetoothController.closeConnection()
                 }
             }
+            ACTION_START_HR_SCAN -> {
+                ensureHeartRateInitialized().startDiscovery()
+            }
+            ACTION_STOP_HR_SCAN -> {
+                heartRateController?.stopDiscovery()
+            }
+            ACTION_CONNECT_HR -> {
+                val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
+                if (address != null) {
+                    ensureHeartRateInitialized().connectToDevice(address, reconnect = true)
+                }
+            }
+            ACTION_DISCONNECT_HR -> {
+                heartRateController?.closeConnection()
+            }
             "ACTION_UPDATE_NOTIFICATION" -> {
                 updateNotification(LocationRepository.isRecording)
             }
             else -> {
                 // Caso di avvio generico: controlla se riconnettere
                 handleBluetoothReconnect(prefs)
+                handleHeartRateReconnect(prefs)
             }
         }
 
@@ -511,6 +583,7 @@ class LocationService : LifecycleService() {
         if (::bluetoothController.isInitialized) {
             bluetoothController.release()
         }
+        heartRateController?.release()
 
         LocationRepository.updateGpsStatus("stopped")
         removeLocationUpdates()

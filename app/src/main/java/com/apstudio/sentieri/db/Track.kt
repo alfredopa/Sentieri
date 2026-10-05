@@ -20,5 +20,15 @@ data class Track(
     @ColumnInfo(name = "Time")
     var Ora: String,
     @ColumnInfo(name = "trackUuid")
-    var trackUuid: String = ""
+    var trackUuid: String = "",
+    @ColumnInfo(name = "batteryPercent")
+    var batteryPercent: Int? = null,
+    @ColumnInfo(name = "cadence")
+    var cadence: Int? = null,
+    @ColumnInfo(name = "assistLevel")
+    var assistLevel: Int? = null,
+    @ColumnInfo(name = "power")
+    var power: Int? = null,
+    @ColumnInfo(name = "heartRate")
+    var heartRate: Int? = null
 )
