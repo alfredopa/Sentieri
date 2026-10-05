@@ -42,10 +42,6 @@ import kotlinx.coroutines.flow.Flow
         return sentieriDao.insertDB(sentiero)
     }
 
-    suspend fun ultimoIdSentiero(): Int {
-        return sentieriDao.ultimoId()
-    }
-
     suspend fun rinominaSentiero(idSentiero: Int, nuovoNome: String) {
         val sentiero = sentieriDao.getItemSync(idSentiero)
         sentiero?.let {

@@ -328,7 +328,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     val distToNextTurn: LiveData<Double> = _distToNextTurn
 
     private val _brouterTurnInstructions = MutableLiveData<List<TurnInstruction>>(emptyList())
-    val brouterTurnInstructions: LiveData<List<TurnInstruction>> = _brouterTurnInstructions
 
     fun setBRouterInstructions(instructions: List<TurnInstruction>) {
         _brouterTurnInstructions.postValue(instructions)

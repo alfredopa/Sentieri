@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.location.GnssStatus
 import android.location.LocationListener
@@ -19,7 +20,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
-import android.content.SharedPreferences
 import com.apstudio.sentieri.db.LocationRepository
 import com.example.levo_sdk.data.LevoBluetoothController
 import com.example.levo_sdk.domain.BluetoothController
@@ -29,7 +29,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collect
 
 /**
  * LocationService is a foreground service responsible for tracking the device's location

@@ -28,16 +28,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
-import org.osmdroid.bonuspack.kml.KmlDocument
-import org.osmdroid.bonuspack.kml.KmlFeature
-import org.osmdroid.bonuspack.kml.KmlFolder
-import org.osmdroid.bonuspack.kml.KmlGeometry
-import org.osmdroid.bonuspack.kml.KmlLineString
-import org.osmdroid.bonuspack.kml.KmlMultiGeometry
-import org.osmdroid.bonuspack.kml.KmlPlacemark
-import org.osmdroid.bonuspack.kml.KmlPoint
-import org.osmdroid.bonuspack.kml.KmlPolygon
-import org.osmdroid.bonuspack.kml.KmlTrack
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -78,11 +68,9 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import btools.routingapp.IBRouterService
 import com.apstudio.sentieri.MapUtils.apreMappa
 import com.apstudio.sentieri.MapUtils.convertMillisToISO8601JavaTime
@@ -95,11 +83,9 @@ import com.apstudio.sentieri.MapUtils.online
 import com.apstudio.sentieri.MapUtils.showCustomSnackbar
 import com.apstudio.sentieri.databinding.FragmentMappaBinding
 import com.apstudio.sentieri.db.FotoPoi
-import com.apstudio.sentieri.db.FotoPoiDao
 import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.LocationRepository
 import com.apstudio.sentieri.db.PoiDB
-import com.apstudio.sentieri.db.PoiDao
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
@@ -112,7 +98,6 @@ import com.apstudio.sentieri.layer.LineStringFeature
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.navigation.NavigationView
-import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -134,13 +119,22 @@ import net.federicomatera.agpxp.models.Link
 import net.federicomatera.agpxp.models.Track
 import org.osmdroid.api.IGeoPoint
 import org.osmdroid.api.IMapController
+import org.osmdroid.bonuspack.kml.KmlDocument
+import org.osmdroid.bonuspack.kml.KmlFeature
+import org.osmdroid.bonuspack.kml.KmlFolder
+import org.osmdroid.bonuspack.kml.KmlGeometry
+import org.osmdroid.bonuspack.kml.KmlLineString
+import org.osmdroid.bonuspack.kml.KmlMultiGeometry
+import org.osmdroid.bonuspack.kml.KmlPlacemark
+import org.osmdroid.bonuspack.kml.KmlPoint
+import org.osmdroid.bonuspack.kml.KmlPolygon
+import org.osmdroid.bonuspack.kml.KmlTrack
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.MapTileProviderArray
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapController
@@ -162,7 +156,6 @@ import org.osmdroid.views.overlay.simplefastpoint.SimpleFastPointOverlayOptions
 import org.osmdroid.views.overlay.simplefastpoint.SimplePointTheme
 import java.io.File
 import java.io.IOException
-import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
@@ -1598,7 +1591,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 viewModel.layerItems[viewModel.layerItems.indexOf(existingItem)] = updatedItem
             } else {
                 viewModel.layerItems.add(
-                    com.apstudio.sentieri.db.LayerItem(
+                    LayerItem(
                         nome = viewModel.titoloTracciaDaSeguire,
                         abilitato = true,
                         direzione = false,
@@ -2230,7 +2223,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                             points.forEach { allPointsForZoom.add(it) }
 
                             viewModel.layerItems.add(
-                                com.apstudio.sentieri.db.LayerItem(
+                                LayerItem(
                                     nome = trackNome,
                                     abilitato = true,
                                     direzione = false,
@@ -3993,7 +3986,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
      */
     private fun disegnaTracciaBrouter(points: List<GeoPoint>) {
         // Aggiungi il percorso BRouter come un LayerItem per permetterne la gestione e persistenza
-        val brouterItem = com.apstudio.sentieri.db.LayerItem(
+        val brouterItem = LayerItem(
             nome = "Percorso BRouter",
             abilitato = true,
             direzione = false,
