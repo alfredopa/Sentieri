@@ -385,15 +385,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        /*try {
-            // Assicurati che AppSentieri sia il nome corretto della tua classe Application
-            // e che il ViewModelProvider sia configurato correttamente.
-            viewModel =
-                ViewModelProvider(requireActivity().application as AppSentieri)[SentieriViewModel::class.java]
-        } catch (e: Exception) {
-            Log.e(TAG, "FATALE: Errore durante l'inizializzazione del ViewModel in onCreate!", e)
-            // Considera di gestire questo errore in modo più drastico se l'app non può funzionare senza viewModel
-        }*/
         // Inizializza le preferenze e registra il listener
         preferenze = PreferenceManager.getDefaultSharedPreferences(requireContext())
         // Legge se esiste SENSORE BAROMETRO da Preferences
@@ -1843,10 +1834,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         requireContext().startService(intent)
 
         viewModel.tracciaDaSeguire = ""
+        viewModel.titoloTracciaDaSeguire = ""
+        viewModel.setBRouterInstructions(emptyList())
         viewModel.layerItems.forEach { item ->
             item.segui = false
         }
         viewModel.isRecording = false
+        binding.panelNavigation.visibility = View.GONE
+        binding.cruscotto.panelNextTurn.visibility = View.GONE
         binding.fabBlocMappa.isVisible = false
         gpsMarker.setVisible(false)
         binding.fabSelectDestination.isVisible = false
@@ -3835,11 +3830,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         
                         val turnInstructions = mutableListOf<TurnInstruction>()
                         allRoutePoints.forEach { rtept ->
-                            // Usa turnCode (es. "TR", "TL", "TU") o description (es. "right", "left")
+                            // Considera unicamente i valori di svolta: TR, TL, TSHR, TSHL, TSLR, TSLL
                             val symbolToCheck = rtept.turnCode?.takeIf { it.isNotBlank() } ?: rtept.description?.takeIf { it.isNotBlank() } ?: rtept.sym
                             val type = TurnType.fromBRouterSymbol(symbolToCheck)
                             
-                            Log.d(TAG, "BRouter route point: turnCode='${rtept.turnCode}', desc='${rtept.description}', offset=${rtept.offsetDistance}, TurnType=$type")
+                            Log.d(TAG, "BRouter route point: turnCode='${rtept.turnCode}', desc='${rtept.description}', TurnType=$type, lat=${rtept.latitude}, lon=${rtept.longitude}")
                             
                             if (type != null) {
                                 val wpGeo = GeoPoint(rtept.latitude, rtept.longitude)
@@ -3854,23 +3849,23 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                                 }
                                 
                                 if (minIndex != -1 && minDistance < 100.0) {
-                                    // Usa l'offset fornito da BRouter se disponibile, altrimenti distanzeCumulative[minIndex]
                                     val distAlong = rtept.offsetDistance ?: if (currentLayer != null && minIndex < currentLayer.distanzeCumulative.size) {
                                         currentLayer.distanzeCumulative[minIndex]
                                     } else 0.0
 
-                                    Log.i(TAG, "===> Svolta BRouter ACCETTATA: turnCode='${rtept.turnCode}', desc='${rtept.description}' ($type) al punto $minIndex, distAlong: ${distAlong.toInt()}m")
+                                    Log.i(TAG, "===> Svolta BRouter ACCETTATA: turnCode='${rtept.turnCode}' ($type) al punto $minIndex, coord=($wpGeo), distAlong: ${distAlong.toInt()}m")
 
                                     turnInstructions.add(
                                         TurnInstruction(
                                             pointIndex = minIndex,
                                             distanceAlongTrack = distAlong,
                                             turnType = type,
-                                            angle = 0.0
+                                            angle = 0.0,
+                                            geoPoint = wpGeo
                                         )
                                     )
                                 } else {
-                                    Log.w(TAG, "Svolta BRouter SCARTATA: troppo lontana dalla traccia (dist: ${minDistance.toInt()}m)")
+                                    Log.w(TAG, "Svolta BRouter SCARTATA: troppo lontana dalla traccia (dist: ${minDistance.toInt()}m, coord=$wpGeo)")
                                 }
                             }
                         }

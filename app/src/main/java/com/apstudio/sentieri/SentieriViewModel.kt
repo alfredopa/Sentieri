@@ -437,20 +437,57 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _remainingDPiu.postValue(remDPiu)
             _remainingDMeno.postValue(remDMeno)
 
-            // 3. CALCOLO PROSSIMA SVOLTA (Basato sugli indici dei punti allineati alla traccia originale)
+            // 3. CALCOLO PROSSIMA SVOLTA BASATO SULLE COORDINATE REALI
             val instructions = _brouterTurnInstructions.value?.sortedBy { it.pointIndex } ?: emptyList()
-            
-            // Trova la prima svolta il cui punto sulla traccia è successivo alla posizione corrente (closestIndex)
-            val next = instructions.find { it.pointIndex > closestIndex }
-            if (next != null) {
-                _nextTurn.postValue(next)
-                // Calcola la distanza metrica precisa usando le distanze cumulative della traccia originale
-                val distToTurn = if (next.pointIndex < layerItem.distanzeCumulative.size) {
-                    layerItem.distanzeCumulative[next.pointIndex] - currentDist
-                } else {
-                    next.distanceAlongTrack - currentDist
+
+            // Troviamo la svolta successiva valida:
+            // 1. In condizione normale di avanzamento sulla traccia: pointIndex > closestIndex
+            // 2. Nel caso di rientro dopo taglio/fuori rotta o salto di punti:
+            //    cerchiamo tra tutte le svolte in avanti (pointIndex >= closestIndex)
+            //    oppure verifichiamo la svolta con coordinata più vicina davanti a noi.
+            var nextTurnCandidate: TurnInstruction? = null
+            var distToNextTurnMeters = Double.MAX_VALUE
+
+            // Filtriamo prima le svolte che si trovano dal punto attuale in poi lungo la traccia
+            val upcomingTurns = instructions.filter { it.pointIndex >= closestIndex }
+
+            if (upcomingTurns.isNotEmpty()) {
+                // La svolta immediatamente successiva lungo la traccia
+                val immediateNext = upcomingTurns.first()
+                val turnCoord = immediateNext.geoPoint ?: (if (immediateNext.pointIndex < points.size) points[immediateNext.pointIndex] else null)
+
+                if (turnCoord != null) {
+                    val directDistance = currentLocation.distanceToAsDouble(turnCoord)
+                    // Se siamo molto vicini (< 25 metri) o l'abbiamo appena superata, passiamo alla successiva
+                    if (directDistance < 25.0 && upcomingTurns.size > 1 && immediateNext.pointIndex <= closestIndex) {
+                        val followingTurn = upcomingTurns[1]
+                        val followingCoord = followingTurn.geoPoint ?: points[followingTurn.pointIndex]
+                        nextTurnCandidate = followingTurn
+                        distToNextTurnMeters = currentLocation.distanceToAsDouble(followingCoord)
+                    } else {
+                        nextTurnCandidate = immediateNext
+                        distToNextTurnMeters = directDistance
+                    }
                 }
-                _distToNextTurn.postValue(distToTurn)
+            } else if (instructions.isNotEmpty()) {
+                // Caso rientro fuori rotta / salto percorso: cerchiamo la svolta con coordinate più vicina
+                var closestTurn: TurnInstruction? = null
+                var minTurnDist = Double.MAX_VALUE
+                for (turn in instructions) {
+                    val coord = turn.geoPoint ?: (if (turn.pointIndex < points.size) points[turn.pointIndex] else null) ?: continue
+                    val d = currentLocation.distanceToAsDouble(coord)
+                    if (d < minTurnDist) {
+                        minTurnDist = d
+                        closestTurn = turn
+                    }
+                }
+                nextTurnCandidate = closestTurn
+                distToNextTurnMeters = minTurnDist
+            }
+
+            if (nextTurnCandidate != null) {
+                _nextTurn.postValue(nextTurnCandidate)
+                _distToNextTurn.postValue(distToNextTurnMeters)
             } else {
                 _nextTurn.postValue(null)
                 _distToNextTurn.postValue(0.0)
@@ -460,6 +497,11 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     fun resetCruscotto() {
         clearTrack(getApplication())
+        lastClosestIndex = -1
+        _brouterTurnInstructions.postValue(emptyList())
+        _nextTurn.postValue(null)
+        _distToNextTurn.postValue(0.0)
+        _distanceFromTrack.postValue(0.0)
     }
 
     suspend fun getPointsForSentiero(id: Int): List<GeoPoint> {

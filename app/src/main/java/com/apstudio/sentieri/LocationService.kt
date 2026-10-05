@@ -121,7 +121,7 @@ class LocationService : LifecycleService() {
     private var bluetoothJob: Job? = null
     private var isConnecting = false
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
-        if (key == "mostra_dati_ebike" || key == "last_ebike_address") {
+        if (key == "mostra_dati_ebike" || key == "last_ebike_address" || key == "auto_reconnect_ebike") {
             handleBluetoothReconnect(prefs)
         }
     }
@@ -146,23 +146,6 @@ class LocationService : LifecycleService() {
         // Rimosso requestLocationUpdates() da qui, lo gestiremo in base a isRecording
         initializeBarometer()
 
-        // Bluetooth Setup
-        bluetoothController = LevoBluetoothController(this)
-        
-        // Collega i flussi del controller al Repository
-        lifecycleScope.launch {
-            bluetoothController.isConnected.collect { LocationRepository.updateBtConnectionState(it) }
-        }
-        lifecycleScope.launch {
-            bluetoothController.connectedDeviceName.collect { LocationRepository.updateBtConnectionState(LocationRepository.btIsConnected.value == true, it) }
-        }
-        lifecycleScope.launch {
-            bluetoothController.isScanning.collect { LocationRepository.updateBtScanning(it) }
-        }
-        lifecycleScope.launch {
-            bluetoothController.devices.collect { LocationRepository.updateBtDevices(it) }
-        }
-
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
         handleBluetoothReconnect(prefs)
@@ -182,23 +165,49 @@ class LocationService : LifecycleService() {
         }
     }
 
-    private fun handleBluetoothReconnect(prefs: SharedPreferences) {
-        val enabled = prefs.getBoolean("mostra_dati_ebike", true)
-        val autoReconnect = prefs.getBoolean("auto_reconnect_ebike", true)
+    private fun ensureBluetoothInitialized() {
+        if (::bluetoothController.isInitialized) return
+
+        bluetoothController = LevoBluetoothController(this)
         
-        if (enabled && autoReconnect) {
-            autoConnectEbike(prefs)
-        } else if (!enabled) {
-            bluetoothJob?.cancel()
-            bluetoothController.closeConnection()
-            LocationRepository.updateBtConnectionState(false)
-            LocationRepository.updateBtStatus("Bluetooth disattivato")
+        // Collega i flussi del controller al Repository
+        lifecycleScope.launch {
+            bluetoothController.isConnected.collect { LocationRepository.updateBtConnectionState(it) }
+        }
+        lifecycleScope.launch {
+            bluetoothController.connectedDeviceName.collect { LocationRepository.updateBtConnectionState(LocationRepository.btIsConnected.value == true, it) }
+        }
+        lifecycleScope.launch {
+            bluetoothController.isScanning.collect { LocationRepository.updateBtScanning(it) }
+        }
+        lifecycleScope.launch {
+            bluetoothController.devices.collect { LocationRepository.updateBtDevices(it) }
         }
     }
 
-    private fun autoConnectEbike(prefs: SharedPreferences) {
-        val address = prefs.getString("last_ebike_address", null)
-        if (!address.isNullOrEmpty() && LocationRepository.btIsConnected.value != true) {
+    private fun handleBluetoothReconnect(prefs: SharedPreferences) {
+        val enabled = prefs.getBoolean("mostra_dati_ebike", true)
+        val address = prefs.getString("last_ebike_address", null)?.trim()
+        val autoReconnect = prefs.getBoolean("auto_reconnect_ebike", true)
+        
+        // 1. Se disabilitato OPPURE nessun indirizzo salvato: non attivare il bluetooth e chiudi eventuali connessioni
+        if (!enabled || address.isNullOrEmpty()) {
+            bluetoothJob?.cancel()
+            if (::bluetoothController.isInitialized) {
+                bluetoothController.closeConnection()
+            }
+            LocationRepository.updateBtConnectionState(false)
+            if (!enabled) {
+                LocationRepository.updateBtStatus("Dati e-bike disattivati")
+            } else {
+                LocationRepository.updateBtStatus("Nessuna e-bike associata")
+            }
+            return
+        }
+
+        // 2. Indirizzo valido E mostra_dati_ebike attivo: attiva il controller Bluetooth e riconnetti
+        ensureBluetoothInitialized()
+        if (autoReconnect && LocationRepository.btIsConnected.value != true) {
             connectToBtDevice(address)
         }
     }
@@ -325,18 +334,26 @@ class LocationService : LifecycleService() {
         
         when (intent?.action) {
             ACTION_START_SCAN -> {
+                ensureBluetoothInitialized()
                 bluetoothController.startDiscovery()
             }
             ACTION_STOP_SCAN -> {
-                bluetoothController.stopDiscovery()
+                if (::bluetoothController.isInitialized) {
+                    bluetoothController.stopDiscovery()
+                }
             }
             ACTION_CONNECT -> {
                 val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
-                if (address != null) connectToBtDevice(address)
+                if (address != null) {
+                    ensureBluetoothInitialized()
+                    connectToBtDevice(address)
+                }
             }
             ACTION_DISCONNECT -> {
                 bluetoothJob?.cancel()
-                bluetoothController.closeConnection()
+                if (::bluetoothController.isInitialized) {
+                    bluetoothController.closeConnection()
+                }
             }
             "ACTION_UPDATE_NOTIFICATION" -> {
                 updateNotification(LocationRepository.isRecording)

@@ -133,17 +133,11 @@
             android:orientation="horizontal"
             android:padding="8dp">
 
-            <ImageView
-                android:id="@+id/imgNavTurn"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                android:src="@drawable/ic_turn_straight"
-                app:tint="@color/white" />
-
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="20dp"
+                android:layout_marginEnd="8dp"
                 android:layout_weight="1"
                 android:orientation="vertical">
 
@@ -152,7 +146,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="#00BCD4"
-                    android:textSize="20sp"
+                    android:textSize="22sp"
                     android:textStyle="bold"
                     tools:text="150 m" />
 
@@ -163,10 +157,18 @@
                     android:ellipsize="end"
                     android:maxLines="2"
                     android:textColor="@color/white"
-                    android:textSize="14sp"
-                    tools:text="Gira a destra su sentiero CAI" />
+                    android:textSize="15sp"
+                    tools:text="Gira a destra" />
 
             </LinearLayout>
+
+            <ImageView
+                android:id="@+id/imgNavTurn"
+                android:layout_width="54dp"
+                android:layout_height="54dp"
+                android:layout_marginEnd="28dp"
+                android:src="@drawable/ic_turn_straight"
+                app:tint="@color/white" />
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 

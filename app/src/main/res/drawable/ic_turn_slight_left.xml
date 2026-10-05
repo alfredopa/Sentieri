@@ -1,0 +1,15 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Freccia inclinata a ~-45 gradi (Mantieni la sinistra / Slight left) -->
+    <group
+        android:pivotX="12"
+        android:pivotY="12"
+        android:rotation="-45">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M11,20L13,20L13,9L17.5,13.5L18.92,12.08L12,5.16L5.08,12.08L6.5,13.5L11,9L11,20Z" />
+    </group>
+</vector>
