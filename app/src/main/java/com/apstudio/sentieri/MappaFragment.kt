@@ -283,6 +283,13 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
+                try {
+                    // Mantieni i permessi di lettura persistenti se l'URI proviene dal document provider
+                    requireContext().contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {}
                 apreMappa(requireContext(), mapView, viewModel, uri)
             }
         }
@@ -294,6 +301,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
+                try {
+                    requireContext().contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {}
                 val fileName = getFileNameFromUri(requireContext(), uri).lowercase()
                 if (fileName.endsWith(".kml")) {
                     caricaKML(uri)
@@ -1658,6 +1671,25 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             onReturnFromLayerDialog()
         }
 
+        // Ripristina i POI temporanei della sessione dal DB se la memoria è vuota (es. dopo destroy del fragment)
+        if (viewModel.isRecording && viewModel.poiDBList.isEmpty()) {
+            viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val db = SentieriDB.getInstance(requireContext())
+                    val tempPois = db.poiDao().getPoibyID(-100)
+                    if (tempPois.isNotEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            viewModel.poiDBList.clear()
+                            viewModel.poiDBList.addAll(tempPois)
+                            syncLayerVisuals()
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Errore recupero POI temporanei da DB", e)
+                }
+            }
+        }
+
         syncLayerVisuals()
 
         if (viewModel.isRecording || LocationRepository.trackPointsList.isNotEmpty()) {
@@ -1707,20 +1739,160 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         //Log.d(TAG, "onPause: Stato di caricamento dei layer resettato.")
     }
 
-    private fun offline() {
-        // Crea l'intent per selezionare un file generico.
-        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-            // Aggiunge i flag necessari per garantire i permessi di lettura dell'URI restituito.
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            // Specifica che il file deve essere apribile.
-            addCategory(Intent.CATEGORY_OPENABLE)
-            // Imposta il tipo MIME per accettare qualsiasi tipo di file.
-            // Puoi essere più specifico se cerchi solo file .map, ma questo è più generico.
-            type = "application/octet-stream"
+    private fun mostraMappeLocaliDialog() {
+        val mediaDirs = requireContext().externalMediaDirs
+        val baseDir = mediaDirs.firstOrNull() ?: requireContext().getExternalFilesDir(null) ?: requireContext().cacheDir
+        val mappeDir = File(baseDir, "Mappe")
+
+        val validExtensions = setOf("map", "sqlite", "mbtiles", "zip", "gemf")
+        val mapFiles = mutableListOf<File>()
+
+        if (mappeDir.exists() && mappeDir.isDirectory) {
+            mappeDir.walkTopDown().maxDepth(3).forEach { file ->
+                if (file.isFile && validExtensions.contains(file.extension.lowercase())) {
+                    mapFiles.add(file)
+                }
+            }
         }
-        // Avvia l'attività di selezione file usando il nuovo launcher.
-        // Il risultato verrà gestito nel callback definito in mapFileSelectorLauncher.
-        mapFileSelectorLauncher.launch(intent)
+
+        if (mapFiles.isEmpty()) {
+            AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+                .setTitle("Nessuna mappa trovata")
+                .setMessage("Non sono state trovate mappe scaricate nella cartella Mappe (${mappeDir.absolutePath}).\n\nPuoi scaricarle dal server in Impostazioni oppure selezionare un file tramite il file picker di sistema.")
+                .setPositiveButton("Cerca nel dispositivo") { _, _ ->
+                    offline()
+                }
+                .setNegativeButton("Chiudi", null)
+                .show()
+            return
+        }
+
+        val fileNames = mapFiles.map { file ->
+            val sizeMb = file.length() / (1024 * 1024)
+            "${file.name} (${sizeMb} MB)"
+        }.toTypedArray()
+
+        AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+            .setTitle("Seleziona mappa locale")
+            .setItems(fileNames) { dialog, which ->
+                val selectedFile = mapFiles[which]
+                val fileUri = Uri.fromFile(selectedFile)
+                val success = apreMappa(requireContext(), mapView, viewModel, fileUri)
+                if (success) {
+                    Toast.makeText(requireContext(), "Mappa caricata: ${selectedFile.name}", Toast.LENGTH_SHORT).show()
+                }
+                dialog.dismiss()
+            }
+            .setNeutralButton("Altra cartella...") { _, _ ->
+                offline()
+            }
+            .setNegativeButton("Annulla", null)
+            .show()
+    }
+
+    private fun mostraTracceLocaliDialog() {
+        val mediaDirs = requireContext().externalMediaDirs
+        val baseDir = mediaDirs.firstOrNull() ?: requireContext().getExternalFilesDir(null) ?: requireContext().cacheDir
+        val tracceDir = File(baseDir, "Tracce")
+
+        val validExtensions = setOf("gpx", "kml")
+        val trackFiles = mutableListOf<File>()
+
+        if (tracceDir.exists() && tracceDir.isDirectory) {
+            tracceDir.walkTopDown().maxDepth(3).forEach { file ->
+                if (file.isFile && validExtensions.contains(file.extension.lowercase())) {
+                    trackFiles.add(file)
+                }
+            }
+        }
+
+        if (trackFiles.isEmpty()) {
+            AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+                .setTitle("Nessuna traccia trovata")
+                .setMessage("Non sono stati trovati file GPX/KML nella cartella Tracce (${tracceDir.absolutePath}).\n\nPuoi caricarli aprendo la cartella Download o un'altra cartella del dispositivo.")
+                .setPositiveButton("Sfoglia dispositivo (Download)") { _, _ ->
+                    apriSelettoreFileGpx()
+                }
+                .setNegativeButton("Chiudi", null)
+                .show()
+            return
+        }
+
+        val fileNames = trackFiles.map { file ->
+            val sizeKb = file.length() / 1024
+            "${file.name} (${sizeKb} KB)"
+        }.toTypedArray()
+
+        AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+            .setTitle("Tracce (Cartella Tracce)")
+            .setItems(fileNames) { dialog, which ->
+                val selectedFile = trackFiles[which]
+                val fileUri = Uri.fromFile(selectedFile)
+                if (selectedFile.extension.equals("kml", ignoreCase = true)) {
+                    caricaKML(fileUri)
+                } else {
+                    caricaGPX(fileUri)
+                }
+                dialog.dismiss()
+            }
+            .setNeutralButton("Sfoglia Download...") { _, _ ->
+                apriSelettoreFileGpx()
+            }
+            .setNegativeButton("Annulla", null)
+            .show()
+    }
+
+    private fun apriSelettoreFileGpx() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            val mimeTypes = arrayOf(
+                "application/gpx+xml",
+                "application/xml",
+                "text/xml",
+                "application/vnd.google-earth.kml+xml",
+                "application/octet-stream",
+                "*/*"
+            )
+            putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
+        }
+        try {
+            gpxFileSelectorLauncher.launch(intent)
+        } catch (_: Exception) {
+            val fallbackIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+            }
+            gpxFileSelectorLauncher.launch(fallbackIntent)
+        }
+    }
+
+    private fun offline() {
+        // Crea l'intent per selezionare un file con Storage Access Framework
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
+                "application/octet-stream",
+                "application/x-sqlite3",
+                "application/zip",
+                "application/vnd.sqlite3",
+                "*/*"
+            ))
+        }
+        try {
+            mapFileSelectorLauncher.launch(intent)
+        } catch (_: Exception) {
+            val fallbackIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+            }
+            mapFileSelectorLauncher.launch(fallbackIntent)
+        }
     }
 
     /**
@@ -2393,28 +2565,33 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     puntiGpsSnapshot
                 )
 
-                // 2. Salva i Waypoint associati
+                // 2. Salva o aggiorna i Waypoint associati
                 val db = SentieriDB.getInstance(requireContext())
                 val poiDao = db.poiDao()
-                val fotoDao = db.fotoPoiDao()
+                val updatedPoiCount = poiDao.updatePoiSession(-100, ultimoID.toInt(), sentiero.uuid)
                 
-                poiDBListSnapshot.forEach { poi ->
-                    val poiToInsert = PoiDB(
-                        Id = 0,
-                        Trackid = ultimoID.toInt(),
-                        Latit = poi.Latit,
-                        Longit = poi.Longit,
-                        Ele = poi.Ele,
-                        NomePOI = poi.NomePOI,
-                        DescrPOI = poi.DescrPOI,
-                        UriPath = poi.UriPath,
-                        Time = poi.Time,
-                        trackUuid = sentiero.uuid
-                    )
-                    poiDao.insertDB(poiToInsert)
+                // Fallback: se per qualche motivo i POI nel DB temporaneo sono meno di quelli memorizzati in RAM, inseriscili
+                if (updatedPoiCount < poiDBListSnapshot.size) {
+                    poiDao.deleteByTrackId(ultimoID.toInt())
+                    poiDBListSnapshot.forEach { poi ->
+                        val poiToInsert = PoiDB(
+                            Id = 0,
+                            Trackid = ultimoID.toInt(),
+                            Latit = poi.Latit,
+                            Longit = poi.Longit,
+                            Ele = poi.Ele,
+                            NomePOI = poi.NomePOI,
+                            DescrPOI = poi.DescrPOI,
+                            UriPath = poi.UriPath,
+                            Time = poi.Time,
+                            trackUuid = sentiero.uuid
+                        )
+                        poiDao.insertDB(poiToInsert)
+                    }
                 }
 
                 // Salva le foto
+                val fotoDao = db.fotoPoiDao()
                 fotoInPoiDBSnapshot.forEach { uri ->
                     val foto = FotoPoi(
                         id = 0,
@@ -2487,11 +2664,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         return alertDialog?.isShowing == true
     }
 
-    // i Wp sono caricati nelle liste wayPoint per quelli che sono caricati da dB e Gpx
-// e in poiDBList per quelli ripresi durante registrazione traccia e devono essere salvati nel db PoiDB
-// In MappaFragment.kt
     private fun salvaWayPoint(nome: String, descr: String /*, audioPath: String? */) {
-        // Aggiungi il nuovo waypoint SOLO a viewModel.poiDBList come PoiDB
         val currentGeoPoint = viewModel.locationData.value?.geoPoint
         if (currentGeoPoint == null || (currentGeoPoint.latitude == 0.0 && currentGeoPoint.longitude == 0.0)) {
             Toast.makeText(
@@ -2501,20 +2674,33 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             ).show()
             return
         }
-// Aggiungi il nuovo waypoint SOLO a viewModel.poiDBList come PoiDB
-        viewModel.poiDBList.add(
-            PoiDB(
-                Id = 0,
-                Trackid = 0,
-                Latit = currentGeoPoint.latitude,
-                Longit = currentGeoPoint.longitude,
-                Ele = currentGeoPoint.altitude,
-                NomePOI = nome,
-                DescrPOI = descr,
-                UriPath = currentAudioFilePath ?: "",
-                Time = Date().toString() // Considera di usare un formato di data/ora più standard o un Long
-            )
+
+        val newPoi = PoiDB(
+            Id = 0,
+            Trackid = -100, // TEMP_TRACK_ID per persistenza immediata durante la sessione
+            Latit = currentGeoPoint.latitude,
+            Longit = currentGeoPoint.longitude,
+            Ele = currentGeoPoint.altitude,
+            NomePOI = nome,
+            DescrPOI = descr,
+            UriPath = currentAudioFilePath ?: "",
+            Time = Date().toString()
         )
+
+        // 1. Aggiungi alla lista in memoria del ViewModel
+        viewModel.poiDBList.add(newPoi)
+
+        // 2. Persisti IMMEDIATAMENTE nel database Room per non perderlo se il Fragment viene ricreato
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val db = SentieriDB.getInstance(requireContext())
+                val insertedId = db.poiDao().insertDB(newPoi)
+                Log.d(TAG, "Waypoint salvato in tempo reale nel DB con ID: $insertedId")
+            } catch (e: Exception) {
+                Log.e(TAG, "Errore salvataggio immediato waypoint nel DB", e)
+            }
+        }
+
         syncLayerVisuals()
     }
 
@@ -4117,20 +4303,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 }
 
                 R.id.menu_gpx -> {
-                    val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                        type = "*/*"
-                        val mimeTypes = arrayOf(
-                            "application/gpx+xml",
-                            "application/xml",
-                            "text/xml",
-                            "application/vnd.google-earth.kml+xml",
-                            "application/octet-stream"
-                        )
-                        putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                    }
                     bottomSheetDialog.dismiss()
-                    gpxFileSelectorLauncher.launch(intent)
+                    mostraTracceLocaliDialog()
                 }
 
                 R.id.menu_poi -> {
@@ -4172,10 +4346,16 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         val navigationView = view.findViewById<NavigationView>(R.id.mappa_navigation)
         navigationView.setNavigationItemSelectedListener { menuItem ->
             when (menuItem.itemId) {
-                R.id.Offline -> {
-                    menuItem.isChecked = !menuItem.isChecked
-                    offline()
+                R.id.OfflineCartellaMappe -> {
+                    menuItem.isChecked = true
                     bottomSheetDialog.dismiss()
+                    mostraMappeLocaliDialog()
+                }
+
+                R.id.Offline -> {
+                    menuItem.isChecked = true
+                    bottomSheetDialog.dismiss()
+                    offline()
                 }
 
                 R.id.Online, R.id.Mapquest, R.id.MapBox -> {

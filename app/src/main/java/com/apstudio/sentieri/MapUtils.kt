@@ -160,8 +160,14 @@ object MapUtils {
     fun apreMappa(context: Context, mapView: MapView, viewModel: SentieriViewModel, uri: Uri): Boolean {
         if (uri == Uri.EMPTY) return false
         
-        val uriPathHelper = URIPathHelper()
-        val filePath = uriPathHelper.getPath(context, uri) ?: return false
+        // Se è un URI diretto di tipo file (es. file://...), usa direttamente il percorso del file
+        val filePath = if (uri.scheme == "file") {
+            uri.path
+        } else {
+            val uriPathHelper = URIPathHelper()
+            uriPathHelper.getPath(context, uri)
+        } ?: return false
+
         val maps: Array<File?> = arrayOfNulls(1)
         val f = File(filePath)
         if (f.exists()) {

@@ -45,10 +45,10 @@ class SincronizzaFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         binding.btnSync.setOnClickListener {
-            if (isNetworkAvailable()) {
+            if (NetworkUtils.isNetworkAvailable(requireContext())) {
                 viewModel.syncWithNas()
             } else {
-                Toast.makeText(requireContext(), "Connessione internet non disponibile", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Connessione internet non disponibile (nessuna rete dati o Wi-Fi)", Toast.LENGTH_LONG).show()
             }
         }
 
@@ -69,17 +69,5 @@ class SincronizzaFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
-    }
-
-    private fun isNetworkAvailable(): Boolean {
-        val connectivityManager = requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = connectivityManager.activeNetwork ?: return false
-        val activeNetwork = connectivityManager.getNetworkCapabilities(network) ?: return false
-        return when {
-            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
-            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> true
-            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> true
-            else -> false
-        }
     }
 }

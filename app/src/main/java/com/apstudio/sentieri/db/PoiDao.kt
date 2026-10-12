@@ -25,6 +25,12 @@ interface PoiDao {
     @Insert
     suspend fun insertDB(item: PoiDB) : Long
 
+    @Query("UPDATE PoiDB SET TrackId = :newId, trackUuid = :trackUuid WHERE TrackId = :oldId")
+    suspend fun updatePoiSession(oldId: Int, newId: Int, trackUuid: String): Int
+
+    @Query("DELETE FROM PoiDB WHERE TrackId = :trackId")
+    suspend fun deleteByTrackId(trackId: Int): Int
+
     @Query("SELECT uuid FROM PoiDB")
     suspend fun getAllUuids(): List<String>
 

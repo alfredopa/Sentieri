@@ -563,10 +563,11 @@ object LocationRepository {
         // Cancella preferenze
         context.getSharedPreferences("recording_session", Context.MODE_PRIVATE).edit { clear() }
         
-        // Cancella punti temporanei dal DB
+        // Cancella punti temporanei e POI temporanei dal DB
         repositoryScope.launch {
             val db = SentieriDB.getInstance(context)
             db.trackDao().deleteTrack(TEMP_TRACK_ID)
+            db.poiDao().deleteByTrackId(TEMP_TRACK_ID)
         }
 
         repositoryScope.launch(Dispatchers.Main) {

@@ -26,6 +26,12 @@ interface FotoPoiDao {
         @Insert
         suspend fun insertDB(item: FotoPoi) : Long
 
+        @Query("UPDATE FotoPoi SET TrackId = :newId, trackUuid = :trackUuid WHERE TrackId = :oldId")
+        suspend fun updateFotoSession(oldId: Int, newId: Int, trackUuid: String): Int
+
+        @Query("DELETE FROM FotoPoi WHERE TrackId = :trackId")
+        suspend fun deleteByTrackId(trackId: Int): Int
+
     @Query("SELECT uuid FROM FotoPoi")
     suspend fun getAllUuids(): List<String>
 

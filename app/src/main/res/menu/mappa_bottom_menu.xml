@@ -2,9 +2,11 @@
 <menu xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:android="http://schemas.android.com/apk/res/android">
     <group android:checkableBehavior="single">
-        <item android:id="@+id/Offline"
-            android:title="Seleziona mappa offline da dispositivo"
+        <item android:id="@+id/OfflineCartellaMappe"
+            android:title="Mappa offline (Cartella Mappe)"
             android:checked="true"/>
+        <item android:id="@+id/Offline"
+            android:title="Seleziona mappa offline da dispositivo..." />
         <item android:id="@+id/Online"
             android:title="Mappa OpenStreetmap" />
         <item android:id="@+id/Mapquest"

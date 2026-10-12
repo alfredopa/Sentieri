@@ -61,7 +61,7 @@ class Preferenze : PreferenceFragmentCompat() {
 
         val ftpButton: Preference? = findPreference("download_ftp_button")
         ftpButton?.setOnPreferenceClickListener {
-            viewModel.listDirectory()
+            avviaDownloadMappeConControlloRete()
             true
         }
 
@@ -205,13 +205,56 @@ class Preferenze : PreferenceFragmentCompat() {
         downloadDialog?.show()
     }
 
+    private fun avviaDownloadMappeConControlloRete() {
+        if (!NetworkUtils.isNetworkAvailable(requireContext())) {
+            Toast.makeText(
+                requireContext(),
+                "Nessuna connessione di rete disponibile per scaricare le mappe.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        // Se connesso su rete cellulare (non Wi-Fi/Ethernet), avvisa l'utente della dimensione dei file
+        if (!NetworkUtils.isWifiConnected(requireContext())) {
+            AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+                .setTitle("Rete Dati Cellulare")
+                .setMessage("Sei connesso tramite rete dati cellulare. I file delle mappe possono essere molto pesanti.\n\nÈ consigliabile procedere con una connessione Wi-Fi. Vuoi continuare comunque?")
+                .setPositiveButton("Continua") { _, _ ->
+                    viewModel.listDirectory()
+                }
+                .setNegativeButton("Annulla", null)
+                .show()
+        } else {
+            // Connesso via Wi-Fi o Ethernet: procedi direttamente
+            viewModel.listDirectory()
+        }
+    }
+
     fun mostraDialogoLista(context: Context, elementi: List<String>) {
         val builder = AlertDialog.Builder(context)
         builder.setTitle("Seleziona file")
         builder.setItems(elementi.toTypedArray()) { dialog, quale ->
             val scelta = elementi[quale]
-            viewModel.downloadFileFromFtp(scelta)
-            dialog.dismiss()
+            // Verifica di nuovo la rete prima di avviare il download effettivo del file
+            if (!NetworkUtils.isNetworkAvailable(context)) {
+                Toast.makeText(context, "Connessione internet persa. Impossibile scaricare.", Toast.LENGTH_SHORT).show()
+                return@setItems
+            }
+            if (!NetworkUtils.isWifiConnected(context)) {
+                AlertDialog.Builder(context, R.style.AlertDialogCustom)
+                    .setTitle("Conferma Download")
+                    .setMessage("Download del file '$scelta' tramite rete dati cellulare. Vuoi procedere?")
+                    .setPositiveButton("Scarica") { _, _ ->
+                        viewModel.downloadFileFromFtp(scelta)
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton("Annulla", null)
+                    .show()
+            } else {
+                viewModel.downloadFileFromFtp(scelta)
+                dialog.dismiss()
+            }
         }
         builder.create().show()
     }
