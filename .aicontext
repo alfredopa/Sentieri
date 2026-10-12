@@ -1,0 +1,7 @@
+# Escludi le build e le risorse pesanti
+/build/
+/.gradle/
+/app/src/androidTest/
+# Escludi file di log o database di test giganti
+*.log
+mock_data.json
