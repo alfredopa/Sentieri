@@ -185,7 +185,7 @@ class MariaDbSyncManager(
 
     private suspend fun uploadTrack(conn: Connection, trackUuid: String) {
         val points = trackDao.getPointsByTrackUuid(trackUuid)
-        val sql = "INSERT INTO Track (id, Trackid, trackUuid, Lat, Lon, Ele, Time) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        val sql = "INSERT INTO Track (id, Trackid, trackUuid, Lat, Lon, Ele, Time, batteryPercent, cadence, assistLevel, power, heartRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         conn.prepareStatement(sql).use { pstmt ->
             for (p in points) {
                 pstmt.setInt(1, p.Id)
@@ -195,6 +195,11 @@ class MariaDbSyncManager(
                 pstmt.setFloat(5, p.Longit)
                 pstmt.setFloat(6, p.Ele)
                 pstmt.setString(7, p.Ora)
+                pstmt.setInt(8, p.batteryPercent!!)
+                pstmt.setInt(9, p.cadence!!)
+                pstmt.setInt(10, p.assistLevel!!)
+                pstmt.setInt(11, p.power!!)
+                pstmt.setInt(12, p.heartRate!!)
                 pstmt.addBatch()
             }
             pstmt.executeBatch()
@@ -218,7 +223,12 @@ class MariaDbSyncManager(
                     Longit = rs.getFloat("Lon"),
                     Ele = rs.getFloat("Ele"),
                     Ora = rs.getString("Time"),
-                    trackUuid = rs.getString("trackUuid")
+                    trackUuid = rs.getString("trackUuid"),
+                    batteryPercent = rs.getInt("batteryPercent"),
+                    cadence = rs.getInt("cadence"),
+                    assistLevel = rs.getInt("assistLevel"),
+                    power = rs.getInt("power"),
+                    heartRate = rs.getInt("heartRate")
                 ))
             }
         }
