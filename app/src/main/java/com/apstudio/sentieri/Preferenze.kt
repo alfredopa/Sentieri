@@ -15,6 +15,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.edit
 import androidx.fragment.app.activityViewModels
+import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
@@ -75,6 +76,15 @@ class Preferenze : PreferenceFragmentCompat() {
         hrButton?.setOnPreferenceClickListener {
             showHrScanDialog()
             true
+        }
+
+        val urlPref = findPreference<EditTextPreference>("nas_server_url")
+        urlPref?.summaryProvider = EditTextPreference.SimpleSummaryProvider.getInstance()
+
+        val tokenPref = findPreference<EditTextPreference>("nas_auth_token")
+        tokenPref?.summaryProvider = Preference.SummaryProvider<EditTextPreference> { pref ->
+            val text = pref.text
+            if (text.isNullOrEmpty()) "Nessun token impostato" else "Token configurato (lunghezza ${text.length})"
         }
     }
 

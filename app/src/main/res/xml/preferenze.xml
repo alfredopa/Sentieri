@@ -76,4 +76,19 @@
             app:summary="Utilizza BRouter per calcolare la roadmap e segnalare i bivi"
             app:defaultValue="false" />
     </PreferenceCategory>
+
+    <PreferenceCategory app:title="Backend NAS">
+        <EditTextPreference
+            app:key="nas_server_url"
+            app:title="URL Server NAS"
+            app:summary="URL base del server (es. https://apstudio01.myqnapcloud.com:3000)"
+            app:dialogTitle="URL Server NAS"
+            app:defaultValue="https://apstudio01.myqnapcloud.com:3000" />
+        <EditTextPreference
+            app:key="nas_auth_token"
+            app:title="Token di Autenticazione (Bearer)"
+            app:summary="Token per dispositivo configurato sul server"
+            app:dialogTitle="Token Bearer Dispositivo"
+            app:defaultValue="" />
+    </PreferenceCategory>
 </PreferenceScreen>

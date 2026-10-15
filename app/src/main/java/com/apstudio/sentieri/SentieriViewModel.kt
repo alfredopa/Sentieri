@@ -30,10 +30,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.federicomatera.agpxp.models.WayPoint
-import org.apache.commons.net.ftp.FTPClient
+import org.json.JSONObject
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.Polyline
 import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 
 class SentieriViewModel(private val repository: SentieriRepo, application: Application) :
     AndroidViewModel(application) {
@@ -644,40 +647,62 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
     fun listDirectory(remotePath: String = "") {
         viewModelScope.launch(Dispatchers.IO) {
-            _ftpDownloadStatus.postValue(Event("Richiesta lista file..."))
+            _ftpDownloadStatus.postValue(Event("Richiesta lista mappe dal server..."))
 
-            val ftpClient = FTPClient()
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val serverUrl = prefs.getString("nas_server_url", "https://apstudio01.myqnapcloud.com:3000")?.trimEnd('/') ?: ""
+            val token = prefs.getString("nas_auth_token", "")?.trim() ?: ""
+
+            if (serverUrl.isEmpty()) {
+                _ftpDownloadStatus.postValue(Event("Errore: URL Server NAS non configurato nelle impostazioni"))
+                return@launch
+            }
+            if (token.isEmpty()) {
+                _ftpDownloadStatus.postValue(Event("Errore: Token di autenticazione NAS mancante nelle impostazioni"))
+                return@launch
+            }
+
             try {
-                val server = BuildConfig.FTP_SERVER
-                val utente = BuildConfig.FTP_USER
-                val password = BuildConfig.FTP_PASS
-                val portaFtp = BuildConfig.FTP_PORT
+                val encodedPath = URLEncoder.encode(remotePath, "UTF-8")
+                //val url = URL("$serverUrl/api/list?path=$encodedPath")
+                val url = URL("$serverUrl/api/list?path=Cloud")
+                val connection = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 10000
+                    readTimeout = 15000
+                    setRequestProperty("Authorization", "Bearer $token")
+                    setRequestProperty("Accept", "application/json")
+                }
 
-                ftpClient.connect(server, portaFtp)
-                ftpClient.login(utente, password)
-                ftpClient.enterLocalPassiveMode()
-                // importante sul nas il servizio ftp è configurato per non avere cartella di root
-                if (ftpClient.changeWorkingDirectory("/cloud")) {
-                    Log.d("FTP_LIST", "Connessione FTP stabilita e directory 'cloud' impostata.")
-                } else {
-                    Log.e("FTP_LIST", "Impossibile accedere alla cartella cloud sul NAS")
-                }
-                val files = ftpClient.listNames(remotePath)
-                if (files != null) {
-                    _ftpFileList.postValue(Event(files.toList()))
-                }
-            } catch (e: IOException) {
-                Log.e("FTP_LIST", "Errore FTP", e)
-                _ftpDownloadStatus.postValue(Event("Errore FTP: ${e.message}"))
-            } finally {
-                try {
-                    if (ftpClient.isConnected) {
-                        try { ftpClient.logout() } catch (_: Exception) {}
-                        ftpClient.disconnect()
+                val responseCode = connection.responseCode
+                if (responseCode == 200) {
+                    val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+                    val jsonObject = JSONObject(responseText)
+                    val entriesArray = jsonObject.optJSONArray("entries")
+                    val fileList = mutableListOf<String>()
+
+                    if (entriesArray != null) {
+                        for (i in 0 until entriesArray.length()) {
+                            val item = entriesArray.getJSONObject(i)
+                            val isDir = item.optBoolean("isDir", false)
+                            val name = item.optString("name", "")
+                            // Filtriamo solo file (es. mappe .map, .zip, ecc.)
+                            if (!isDir && name.isNotEmpty()) {
+                                fileList.add(name)
+                            }
+                        }
                     }
-                } catch (e: Exception) {
-                    Log.e("FTP_LIST", "Errore chiusura", e)
+                    _ftpFileList.postValue(Event(fileList))
+                } else if (responseCode == 401) {
+                    _ftpDownloadStatus.postValue(Event("Autenticazione fallita (401): Token non autorizzato dal server"))
+                } else if (responseCode == 429) {
+                    _ftpDownloadStatus.postValue(Event("Troppe richieste (429): IP temporaneamente bloccato"))
+                } else {
+                    _ftpDownloadStatus.postValue(Event("Errore server ($responseCode): ${connection.responseMessage}"))
                 }
+            } catch (e: Exception) {
+                Log.e("NAS_LIST", "Errore connessione HTTP backend", e)
+                _ftpDownloadStatus.postValue(Event("Errore connessione server: ${e.message}"))
             }
         }
     }

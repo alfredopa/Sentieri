@@ -10,17 +10,18 @@ import android.os.Environment
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import org.apache.commons.net.ftp.FTP
-import org.apache.commons.net.ftp.FTPClient
-import org.apache.commons.net.ftp.FTPReply
 import java.io.File
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 
 class DownloadService : Service() {
 
@@ -68,44 +69,24 @@ class DownloadService : Service() {
 
     private fun startDownload(percorsoFileRemoto: String) {
         downloadJob = serviceScope.launch {
-            val ftpClient = FTPClient()
             var downloadSuccess = false
             var errorMessage = ""
 
             try {
-                ftpClient.defaultTimeout = 10000
-                ftpClient.connect(BuildConfig.FTP_SERVER, BuildConfig.FTP_PORT)
-                ftpClient.login(BuildConfig.FTP_USER, BuildConfig.FTP_PASS)
-                ftpClient.soTimeout = 10000
-                ftpClient.enterLocalPassiveMode()
-                ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
-                // importante sul nas il servizio ftp è configurato per non avere cartella di root
-                if (ftpClient.changeWorkingDirectory("/cloud")) {
-                    Log.d(TAG, "Connessione FTP stabilita e directory 'cloud' impostata.")
-                } else {
-                    Log.e(TAG, "Impossibile accedere alla cartella cloud sul NAS")
+                val prefs = PreferenceManager.getDefaultSharedPreferences(this@DownloadService)
+                //val serverUrl = prefs.getString("nas_server_url", "https://apstudio01.myqnapcloud.com:3000")?.trimEnd('/') ?: ""
+                val serverUrl = prefs.getString("nas_server_url", "https://sentieriapduckdns.org:443")?.trimEnd('/') ?: ""
+                val token = prefs.getString("nas_auth_token", "")?.trim() ?: ""
+
+                if (serverUrl.isEmpty() || token.isEmpty()) {
+                    throw Exception("Configurazione NAS incompleta nelle impostazioni (URL o Token mancante)")
                 }
-                var fileSize = -1L
-                try {
-                    val file = ftpClient.mlistFile(percorsoFileRemoto)
-                    if (file != null) {
-                        fileSize = file.size
-                    }
-                } catch (_: Exception) {
-                    Log.w(TAG, "MLST non supportato, provo con SIZE")
-                    val reply = ftpClient.sendCommand("SIZE", percorsoFileRemoto)
-                    if (FTPReply.isPositiveCompletion(reply)) {
-                        val replyString = ftpClient.replyStrings[0]
-                        fileSize = replyString.split(" ").getOrNull(1)?.toLongOrNull() ?: -1L
-                    }
-                }
-                
+
                 val nomeFile = percorsoFileRemoto.substringAfterLast("/")
                 val deveScompattare = nomeFile.contains(".zip", ignoreCase = true)
                 val localFile: File
 
                 if (deveScompattare) {
-                    // Usiamo una directory privata dell'app per i download temporanei (evita problemi di permessi su Android 11+)
                     val downloadDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: cacheDir
                     localFile = File(downloadDir, nomeFile)
                 } else {
@@ -114,15 +95,62 @@ class DownloadService : Service() {
                     if (!mappeDir.exists()) mappeDir.mkdirs()
                     localFile = File(mappeDir, nomeFile)
                 }
-                
-                val outputStream = FileOutputStream(localFile)
-                sendProgressBroadcast(0, nomeFile) 
 
-                val inputStream = ftpClient.retrieveFileStream(percorsoFileRemoto)
-                if (inputStream != null) {
-                    val buffer = ByteArray(8192)
+                // Supporto ripresa download (Range) se il file esiste già parzialmente
+                val existingLength = if (localFile.exists()) localFile.length() else 0L
+
+                val encodedPath = URLEncoder.encode(percorsoFileRemoto, "UTF-8")
+                val url = URL("$serverUrl/api/file?path=Cloud/$encodedPath")
+                val connection = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 15000
+                    readTimeout = 30000
+                    setRequestProperty("Authorization", "Bearer $token")
+                    if (existingLength > 0) {
+                        setRequestProperty("Range", "bytes=$existingLength-")
+                    }
+                }
+
+                val responseCode = connection.responseCode
+                val appendMode: Boolean
+                val totalExpectedSize: Long
+
+                when (responseCode) {
+                    HttpURLConnection.HTTP_PARTIAL -> {
+                        // Risposta 206 Partial Content: riprende da existingLength
+                        appendMode = true
+                        val contentLength = connection.contentLengthLong
+                        totalExpectedSize = if (contentLength > 0) existingLength + contentLength else -1L
+                        Log.d(TAG, "Download parziale ripreso da byte $existingLength su $totalExpectedSize")
+                    }
+                    HttpURLConnection.HTTP_OK -> {
+                        // Risposta 200 OK: riscarica da zero
+                        appendMode = false
+                        totalExpectedSize = connection.contentLengthLong
+                    }
+                    416 -> {
+                        // Range Not Satisfiable: file già completato o oltre fine file
+                        if (localFile.exists() && localFile.length() > 0) {
+                            totalExpectedSize = localFile.length()
+                            appendMode = true
+                            downloadSuccess = true
+                        } else {
+                            throw Exception("Errore Range non valido (416)")
+                        }
+                    }
+                    401 -> throw Exception("Accesso non autorizzato (401): verifica il token nelle impostazioni")
+                    429 -> throw Exception("Troppi tentativi falliti (429): IP temporaneamente bloccato dal NAS")
+                    else -> throw Exception("Errore server HTTP $responseCode: ${connection.responseMessage}")
+                }
+
+                if (!downloadSuccess) {
+                    val outputStream = FileOutputStream(localFile, appendMode)
+                    sendProgressBroadcast(0, nomeFile)
+
+                    val inputStream = connection.inputStream
+                    val buffer = ByteArray(16384)
                     var bytesRead: Int
-                    var totalBytesRead = 0L
+                    var currentDownloadedBytes = if (appendMode) existingLength else 0L
                     var lastReportedProgress = -1
                     var lastUpdateTime = 0L
 
@@ -131,12 +159,12 @@ class DownloadService : Service() {
                             while (input.read(buffer).also { bytesRead = it } != -1) {
                                 if (!serviceScope.isActive) break
                                 output.write(buffer, 0, bytesRead)
-                                totalBytesRead += bytesRead
-                                
-                                val progress = if (fileSize > 0) {
-                                    ((totalBytesRead * 100) / fileSize).toInt()
+                                currentDownloadedBytes += bytesRead
+
+                                val progress = if (totalExpectedSize > 0) {
+                                    ((currentDownloadedBytes * 100) / totalExpectedSize).toInt().coerceIn(0, 100)
                                 } else {
-                                    -1 
+                                    -1
                                 }
 
                                 val currentTime = System.currentTimeMillis()
@@ -149,14 +177,13 @@ class DownloadService : Service() {
                             }
                         }
                     }
-                    try { inputStream.close() } catch (_: Exception) {}
-                    downloadSuccess = ftpClient.completePendingCommand()
+
+                    downloadSuccess = (totalExpectedSize <= 0) || (currentDownloadedBytes == totalExpectedSize)
                 }
 
-                if (downloadSuccess && fileSize > 0) {
+                if (downloadSuccess) {
                     if (deveScompattare) {
-                        if (localFile.exists() && localFile.length() == fileSize) {
-                            // File scaricato correttamente, ora decomprimiamo
+                        if (localFile.exists()) {
                             updateNotification(nomeFile, PROGRESS_DECOMPRESSING)
                             sendProgressBroadcast(PROGRESS_DECOMPRESSING, nomeFile)
                             val scompattato = MapUtils.decomprimiZipInCartellaMappe(this@DownloadService, nomeFile)
@@ -185,9 +212,6 @@ class DownloadService : Service() {
                 Log.e(TAG, "Download failed: ${e.message}", e)
                 errorMessage = "Errore: ${e.message}"
             } finally {
-                if (ftpClient.isConnected) {
-                    try { ftpClient.logout(); ftpClient.disconnect() } catch (_: Exception) {}
-                }
                 sendResultBroadcast(errorMessage)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
