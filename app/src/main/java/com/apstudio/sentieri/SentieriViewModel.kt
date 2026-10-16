@@ -26,6 +26,7 @@ import com.example.levo_sdk.domain.model.BtDevice
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.db.TurnInstruction
+import com.apstudio.sentieri.sync.DownloadService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,10 +34,10 @@ import net.federicomatera.agpxp.models.WayPoint
 import org.json.JSONObject
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.Polyline
-import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import com.apstudio.sentieri.sync.DownloadService.ServerConfig
 
 class SentieriViewModel(private val repository: SentieriRepo, application: Application) :
     AndroidViewModel(application) {
@@ -650,7 +651,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _ftpDownloadStatus.postValue(Event("Richiesta lista mappe dal server..."))
 
             val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
-            val serverUrl = prefs.getString("nas_server_url", "https://sentieriap.duckdns.org")?.trimEnd('/') ?: ""
+            //val serverUrl = prefs.getString("nas_server_url", "https://sentieriap.duckdns.org")?.trimEnd('/') ?: ""
+            val serverUrl = ServerConfig.filesUrl(prefs)
             val token = prefs.getString("nas_auth_token", "")?.trim() ?: ""
 
             if (serverUrl.isEmpty()) {
@@ -664,8 +666,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
             try {
                 val encodedPath = URLEncoder.encode(remotePath, "UTF-8")
-                //val url = URL("$serverUrl/api/list?path=$encodedPath")
-                val url = URL("$serverUrl/api/list?path=Cloud")
+                //val url = URL("$serverUrl/api/list?path=Cloud")
+                val url = URL(ServerConfig.filesUrl(prefs) + "/api/list?path=Cloud")
                 val connection = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 10000

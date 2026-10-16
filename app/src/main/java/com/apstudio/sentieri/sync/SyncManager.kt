@@ -24,16 +24,17 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+import com.apstudio.sentieri.sync.DownloadService.ServerConfig
 
 private const val TAG = "SyncManager"
 
 // ───────────────────────── Configurazione ─────────────────────────
 
 data class SyncConfig(
-    val baseUrl: String,     // es. https://apstudio01.duckdns.org o https://apstudio01.myqnapcloud.com:3000
+    val baseUrl: String,     // es. https://apstudio01.duckdns.org
     val token: String        // Token bearer impostato nelle preferenze
 ) {
-    val base: String get() = baseUrl.trimEnd('/')
+    val base: String get() = baseUrl.trimEnd('/').removeSuffix("/files") // arriva con la stringa files, va tolta
 }
 
 class SyncHttpException(val code: Int, message: String) : IOException(message)
@@ -344,7 +345,8 @@ class SyncManager(
     }
 
     private fun getApi(): SyncApi {
-        val serverUrl = prefs.getString("nas_server_url", "https://sentieriap.duckdns.org/files")?.trimEnd('/') ?: ""
+        //val serverUrl = prefs.getString("nas_server_url", "https://sentieriap.duckdns.org/files")?.trimEnd('/') ?: ""
+        val serverUrl = ServerConfig.filesUrl(prefs)
         val token = prefs.getString("nas_auth_token", "")?.trim() ?: ""
         if (serverUrl.isEmpty()) {
             throw IOException("URL Server NAS non configurato nelle impostazioni")

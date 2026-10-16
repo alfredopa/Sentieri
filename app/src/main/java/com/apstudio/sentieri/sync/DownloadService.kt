@@ -1,16 +1,20 @@
-package com.apstudio.sentieri
+package com.apstudio.sentieri.sync
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
 import android.os.Environment
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.preference.PreferenceManager
+import com.apstudio.sentieri.MainActivity
+import com.apstudio.sentieri.MapUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -45,6 +49,20 @@ class DownloadService : Service() {
         const val PROGRESS_DECOMPRESSING = -2
     }
 
+    object ServerConfig {
+        private fun raw(prefs: SharedPreferences): String {
+            val s = prefs.getString("nas_server_url", "")?.trim().orEmpty().trimEnd('/')
+            require(s.isNotEmpty()) { "Server non configurato nelle impostazioni" }
+            return if (s.startsWith("http://") || s.startsWith("https://")) s else "https://$s"
+        }
+
+        /** Radice: https://sentieriap.duckdns.org  (per sync-*.php) */
+        fun baseUrl(prefs: SharedPreferences) = raw(prefs).removeSuffix("/files")
+
+        /** https://sentieriap.duckdns.org/files  (per download e upload) */
+        fun filesUrl(prefs: SharedPreferences) = baseUrl(prefs) + "/files"
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -74,8 +92,8 @@ class DownloadService : Service() {
 
             try {
                 val prefs = PreferenceManager.getDefaultSharedPreferences(this@DownloadService)
-                //val serverUrl = prefs.getString("nas_server_url", "https://apstudio01.myqnapcloud.com:3000")?.trimEnd('/') ?: ""
-                val serverUrl = prefs.getString("nas_server_url", "https://sentieriapduckdns.org:443")?.trimEnd('/') ?: ""
+                //val serverUrl = prefs.getString("nas_server_url", "https://sentieriapduckdns.org:443")?.trimEnd('/') ?: ""
+                val serverUrl = ServerConfig.filesUrl(prefs)
                 val token = prefs.getString("nas_auth_token", "")?.trim() ?: ""
 
                 if (serverUrl.isEmpty() || token.isEmpty()) {
@@ -219,7 +237,7 @@ class DownloadService : Service() {
         }
     }
 
-    private fun createNotification(content: String, progress: Int): android.app.Notification {
+    private fun createNotification(content: String, progress: Int): Notification {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
         Log.d("Download", "content=$content")

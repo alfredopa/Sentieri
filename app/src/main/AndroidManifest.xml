@@ -55,7 +55,7 @@
             android:exported="false"
             android:foregroundServiceType="location" />
         <service
-            android:name=".DownloadService"
+            android:name=".sync.DownloadService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
