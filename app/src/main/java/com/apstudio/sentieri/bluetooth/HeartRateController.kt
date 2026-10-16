@@ -17,9 +17,11 @@ import android.content.Context
 import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
+import androidx.preference.PreferenceManager
 import com.example.levo_sdk.domain.model.BtDevice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -64,6 +66,7 @@ class HeartRateController(private val context: Context) {
     private var isConnecting = false
     private var targetAddress: String? = null
     private var autoReconnect = true
+    private var reconnectJob: Job? = null
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
@@ -131,6 +134,7 @@ class HeartRateController(private val context: Context) {
     }
 
     fun connectToDevice(address: String, reconnect: Boolean = true) {
+        reconnectJob?.cancel()
         targetAddress = address
         autoReconnect = reconnect
         val adapter = bluetoothAdapter ?: return
@@ -143,7 +147,7 @@ class HeartRateController(private val context: Context) {
             return
         }
 
-        closeConnection()
+        cleanupGatt()
         isConnecting = true
         scope.launch { _status.emit("Connessione fascia cardio...") }
 
@@ -168,12 +172,20 @@ class HeartRateController(private val context: Context) {
                 isConnecting = false
                 Log.d(TAG, "Fascia cardio disconnessa")
                 scope.launch { _status.emit("Fascia cardio disconnessa") }
-                closeConnection()
+                cleanupGatt()
 
-                if (autoReconnect && targetAddress != null) {
-                    scope.launch {
+                val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+                val isHrEnabled = prefs.getBoolean("abilita_fascia_cardio", false)
+
+                if (autoReconnect && targetAddress != null && isHrEnabled) {
+                    reconnectJob?.cancel()
+                    reconnectJob = scope.launch {
                         delay(5000)
-                        targetAddress?.let { connectToDevice(it, true) }
+                        val stillEnabled = PreferenceManager.getDefaultSharedPreferences(context)
+                            .getBoolean("abilita_fascia_cardio", false)
+                        if (stillEnabled && autoReconnect) {
+                            targetAddress?.let { connectToDevice(it, true) }
+                        }
                     }
                 }
             }
@@ -247,7 +259,7 @@ class HeartRateController(private val context: Context) {
         }
     }
 
-    fun closeConnection() {
+    private fun cleanupGatt() {
         try {
             currentGatt?.disconnect()
             currentGatt?.close()
@@ -255,13 +267,21 @@ class HeartRateController(private val context: Context) {
             Log.e(TAG, "Errore chiusura gatt HR", e)
         }
         currentGatt = null
+        isConnecting = false
         _isConnected.value = false
         _heartRate.value = 0
     }
 
-    fun release() {
+    fun closeConnection() {
         autoReconnect = false
-        stopDiscovery()
+        targetAddress = null
+        reconnectJob?.cancel()
+        reconnectJob = null
+        cleanupGatt()
+    }
+
+    fun release() {
         closeConnection()
+        stopDiscovery()
     }
 }

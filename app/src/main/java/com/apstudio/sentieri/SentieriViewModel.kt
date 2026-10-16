@@ -21,7 +21,7 @@ import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TopoMarkerData
 import com.apstudio.sentieri.layer.Event
 import com.apstudio.sentieri.layer.placeholder.PlaceholderContent
-import com.apstudio.sentieri.sync.MariaDbSyncManager
+import com.apstudio.sentieri.sync.SyncManager
 import com.example.levo_sdk.domain.model.BtDevice
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
@@ -262,7 +262,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     private val _isSyncing = MutableLiveData(false)
     val isSyncing: LiveData<Boolean> = _isSyncing
 
-    private val syncManager = MariaDbSyncManager(
+    private val syncManager = SyncManager(
         application,
         repository.sentieriDao,
         repository.trackDao,
@@ -650,7 +650,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _ftpDownloadStatus.postValue(Event("Richiesta lista mappe dal server..."))
 
             val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
-            val serverUrl = prefs.getString("nas_server_url", "https://apstudio01.myqnapcloud.com:3000")?.trimEnd('/') ?: ""
+            val serverUrl = prefs.getString("nas_server_url", "https://sentieriap.duckdns.org")?.trimEnd('/') ?: ""
             val token = prefs.getString("nas_auth_token", "")?.trim() ?: ""
 
             if (serverUrl.isEmpty()) {

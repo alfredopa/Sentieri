@@ -40,8 +40,14 @@ interface TrackDao {
     @Query("SELECT DISTINCT trackUuid FROM Track")
     suspend fun getAllTrackUuids(): List<String>
 
-    @Query("SELECT * FROM Track WHERE trackUuid = :trackUuid")
+    @Query("SELECT * FROM Track WHERE trackUuid = :trackUuid ORDER BY id ASC")
     suspend fun getPointsByTrackUuid(trackUuid: String): List<Track>
+
+    @Query("SELECT COUNT(*) FROM Track WHERE trackUuid = :trackUuid")
+    suspend fun countPointsByTrackUuid(trackUuid: String): Int
+
+    @Query("SELECT * FROM Track WHERE trackUuid = :trackUuid ORDER BY id ASC LIMIT :limit OFFSET :offset")
+    suspend fun getPointsByTrackUuidPaged(trackUuid: String, offset: Int, limit: Int): List<Track>
 
     @Upsert
     suspend fun upsertPoints(points: List<Track>): List<Long>
