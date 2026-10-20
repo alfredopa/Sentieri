@@ -4265,7 +4265,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         val bottomSheetDialog = BottomSheetDialog(requireContext())
         val view = layoutInflater.inflate(R.layout.menu_bottom_sheet, null)
         bottomSheetDialog.setContentView(view)
-
+        bottomSheetDialog.setOnShowListener { dialogInterface ->
+            val bottomSheet = (dialogInterface as BottomSheetDialog)
+                .findViewById<android.widget.FrameLayout>(com.google.android.material.R.id.design_bottom_sheet)
+            bottomSheet?.background = null // Rimuove lo sfondo rettangolare di default
+        }
         val navigationView = view.findViewById<NavigationView>(R.id.navigation_view)
         navigationView.itemIconTintList = null
         val menu = navigationView.menu
