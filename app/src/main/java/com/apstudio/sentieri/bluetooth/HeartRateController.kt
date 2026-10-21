@@ -156,6 +156,17 @@ class HeartRateController(private val context: Context) {
         } else {
             device.connectGatt(context, false, gattCallback)
         }
+
+        if (reconnect) {
+            reconnectJob = scope.launch {
+                // Attendiamo un po' per vedere se la connessione avviene tramite gattCallback
+                delay(10000)
+                if (!_isConnected.value) {
+                    Log.d(TAG, "Connessione iniziale fallita o timeout, riprovo...")
+                    connectToDevice(address, true)
+                }
+            }
+        }
     }
 
     private val gattCallback = object : BluetoothGattCallback() {

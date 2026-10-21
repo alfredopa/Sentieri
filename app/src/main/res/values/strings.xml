@@ -26,5 +26,6 @@
     <string name="track_details_prompt">
         Distanza: %1$s\nAscesa: %2$s\nDiscesa: %3$s\n\nSeguire la traccia selezionata?
     </string>
-
+    <string name="scarica_db_nas">Scarica database percorsi (NAS)</string>
+    <string name="scarica_db_conferma">Vuoi scaricare tutti i percorsi dal NAS? I percorsi non presenti verranno scaricati con tutti i punti traccia.</string>
 </resources>

@@ -14,11 +14,13 @@ import android.location.OnNmeaMessageListener
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.asFlow
 import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.bluetooth.HeartRateController
 import com.apstudio.sentieri.db.LocationRepository
@@ -133,14 +135,14 @@ class LocationService : LifecycleService() {
         if (key == "mostra_dati_ebike" || key == "last_ebike_address" || key == "auto_reconnect_ebike") {
             handleBluetoothReconnect(prefs)
         }
-        if (key == "abilita_fascia_cardio" || key == "last_hr_address") {
+        if (key == "abilita_fascia_cardio" || key == "connessione_hr") {
             handleHeartRateReconnect(prefs)
         }
     }
     
     override fun onCreate() {
         super.onCreate()
-        
+
         // Non chiamiamo startForeground qui all'avvio
         // Lo faremo solo se e quando inizia la registrazione.
 
@@ -161,19 +163,39 @@ class LocationService : LifecycleService() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
         handleBluetoothReconnect(prefs)
-        handleHeartRateReconnect(prefs)
-        
+
+        // Rimosso: handleHeartRateReconnect(prefs) - non connettere la fascia cardio all'avvio
+
+        // Monitoraggio automatico della riconnessione e-bike durante la registrazione
+        lifecycleScope.launch {
+            LocationRepository.btIsConnected.asFlow().collect { connected ->
+                if (!connected) {
+                    val autoReconnect = prefs.getBoolean("auto_reconnect_ebike", true)
+                    val address = prefs.getString("connessione_ebike", null)
+                    if (LocationRepository.isRecording && autoReconnect && !address.isNullOrEmpty()) {
+                        Log.d("LocationService", "Rilevata disconnessione e-bike durante registrazione. Tento riconnessione automatica...")
+                        connectToBtDevice(address)
+                    }
+                }
+            }
+        }
+
         // Ripristina lo stato della sessione se necessario
         LocationRepository.restoreSessionState(this)
         startTimerIfRecording()
-        
+
         // Osserva lo stato di registrazione per gestire la notifica foreground E il GPS
         LocationRepository.isRecordingLiveData.observe(this) { recording ->
             updateNotification(recording)
             if (recording) {
                 requestLocationUpdates()
+                // Tentiamo la connessione alla fascia cardio solo quando iniziamo a registrare
+                handleHeartRateReconnect(prefs)
             } else {
                 removeLocationUpdates()
+                // Chiudiamo la connessione alla fascia cardio quando smettiamo di registrare
+                heartRateController?.closeConnection()
+                LocationRepository.updateHrConnectionState(false)
             }
         }
     }
@@ -221,7 +243,7 @@ class LocationService : LifecycleService() {
 
     private fun handleHeartRateReconnect(prefs: SharedPreferences) {
         val enabled = prefs.getBoolean("abilita_fascia_cardio", false)
-        val address = prefs.getString("last_hr_address", null)?.trim()
+        val address = prefs.getString("connessione_hr", null)?.trim()
 
         if (!enabled || address.isNullOrEmpty()) {
             heartRateController?.closeConnection()
@@ -242,7 +264,7 @@ class LocationService : LifecycleService() {
 
     private fun handleBluetoothReconnect(prefs: SharedPreferences) {
         val enabled = prefs.getBoolean("mostra_dati_ebike", true)
-        val address = prefs.getString("last_ebike_address", null)?.trim()
+        val address = prefs.getString("connessione_ebike", null)?.trim()
         val autoReconnect = prefs.getBoolean("auto_reconnect_ebike", true)
         
         // 1. Se disabilitato OPPURE nessun indirizzo salvato: non attivare il bluetooth e chiudi eventuali connessioni
@@ -274,7 +296,7 @@ class LocationService : LifecycleService() {
         if (isConnecting) return
         
         if (LocationRepository.btIsConnected.value == true && 
-            prefs.getString("last_ebike_address", "") == address) {
+            prefs.getString("connessione_ebike", "") == address) {
             return
         }
 

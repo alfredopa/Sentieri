@@ -199,7 +199,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
         // Salva l'indirizzo per riconnessione automatica della fascia cardio
         PreferenceManager.getDefaultSharedPreferences(getApplication()).edit {
-            putString("last_hr_address", device.address)
+            putString("connessione_hr", device.address)
         }
     }
 
@@ -278,8 +278,9 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _syncDetails.value = ""
             
             val result = syncManager.sync { progress ->
-                if (progress.startsWith("Caricamento:") || progress.startsWith("Scaricamento:") || 
-                    progress.startsWith("Aggiornamento locale:") || progress.startsWith("Aggiornamento sul NAS:")) {
+                if (progress.startsWith("Caricamento:") || progress.startsWith("Caricamento punti:") ||
+                    progress.startsWith("Scaricamento:") || progress.startsWith("Aggiornamento metadati:") ||
+                    progress.startsWith("Completato caricamento:")) {
                     _syncDetails.postValue((_syncDetails.value ?: "") + progress + "\n")
                 } else {
                     _syncStatus.postValue(progress)
@@ -292,6 +293,31 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 _syncStatus.value = "Errore: ${e.message}"
             }
             
+            _isSyncing.value = false
+        }
+    }
+
+    fun scaricaDatabaseCompleto() {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            _syncStatus.value = "Download intero database..."
+            _syncDetails.value = ""
+
+            val result = syncManager.scaricaDatabaseCompleto { progress ->
+                if (progress.startsWith("Caricamento:") || progress.startsWith("Scaricamento:") ||
+                    progress.startsWith("Aggiornamento metadati:") || progress.startsWith("Download foto:")) {
+                    _syncDetails.postValue((_syncDetails.value ?: "") + progress + "\n")
+                } else {
+                    _syncStatus.postValue(progress)
+                }
+            }
+
+            result.onSuccess {
+                _syncStatus.value = "Download database completato con successo"
+            }.onFailure { e ->
+                _syncStatus.value = "Errore: ${e.message}"
+            }
+
             _isSyncing.value = false
         }
     }
@@ -653,7 +679,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
             //val serverUrl = prefs.getString("nas_server_url", "https://sentieriap.duckdns.org")?.trimEnd('/') ?: ""
             val serverUrl = ServerConfig.filesUrl(prefs)
-            val token = prefs.getString("nas_auth_token", "")?.trim() ?: ""
+            var token = prefs.getString("NAS_AUTH_TOKEN", "")?.trim() ?: ""
+            if (token.isEmpty()) token = BuildConfig.NAS_AUTH_TOKEN
 
             if (serverUrl.isEmpty()) {
                 _ftpDownloadStatus.postValue(Event("Errore: URL Server NAS non configurato nelle impostazioni"))

@@ -320,7 +320,10 @@ class Preferenze : PreferenceFragmentCompat() {
 
     private fun observeBtStatus() {
         viewModel.btStatus.observe(viewLifecycleOwner) { status ->
-            Toast.makeText(requireContext(), status, Toast.LENGTH_SHORT).show()
+            val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+            if (prefs.getBoolean("mostra_dati_ebike", true)) {
+                Toast.makeText(requireContext(), status, Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -373,7 +376,10 @@ class Preferenze : PreferenceFragmentCompat() {
 
     private fun observeHrStatus() {
         viewModel.hrStatus.observe(viewLifecycleOwner) { status ->
-            Toast.makeText(requireContext(), status, Toast.LENGTH_SHORT).show()
+            val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+            if (prefs.getBoolean("abilita_fascia_cardio", false)) {
+                Toast.makeText(requireContext(), status, Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }
