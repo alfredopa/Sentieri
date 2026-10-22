@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.util.Log
-import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.BuildConfig
 import com.apstudio.sentieri.MapUtils
@@ -199,7 +198,14 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
 
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
-    data class PushResult(val id: Long, val puntiPresenti: Int)
+    data class SyncIndexItem(
+        val lastUpdate: Long,
+        val nPunti: Int,
+        val nPoi: Int = 0,
+        val nFoto: Int = 0
+    )
+
+    data class PushResult(val id: Long, val puntiPresenti: Int, val lastUpdate: Long = 0L)
     data class PullPage(
         val sentieri: List<SentieroDto>, val poi: List<PoiDto>, val foto: List<FotoDto>,
         val until: Long, val more: Boolean
@@ -242,8 +248,30 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
         Log.d("Sync", "pushSentiero ")
         return call(apiPost("sync-push.php", body)) { r ->
             val o = jsonOrThrow(r)
-            PushResult(o.optLong("id"), o.optInt("puntiPresenti"))
+            PushResult(
+                id = o.optLong("id"),
+                puntiPresenti = o.optInt("puntiPresenti"),
+                lastUpdate = o.optLong("lastUpdate", 0L)
+            )
         }
+    }
+
+    suspend fun syncIndex(): Map<String, SyncIndexItem> = call(apiGet("sync-index.php")) { r ->
+        val o = jsonOrThrow(r)
+        val idxObj = o.optJSONObject("indice") ?: JSONObject()
+        val result = mutableMapOf<String, SyncIndexItem>()
+        val keys = idxObj.keys()
+        while (keys.hasNext()) {
+            val uuid = keys.next()
+            val itemObj = idxObj.getJSONObject(uuid)
+            result[uuid] = SyncIndexItem(
+                lastUpdate = itemObj.optLong("lastUpdate", 0L),
+                nPunti = itemObj.optInt("nPunti", 0),
+                nPoi = itemObj.optInt("nPoi", 0),
+                nFoto = itemObj.optInt("nFoto", 0)
+            )
+        }
+        result
     }
 
     suspend fun pushPunti(uuid: String, offset: Int, punti: List<PuntoDto>): Int {
@@ -329,6 +357,14 @@ private fun sha256(f: File): String {
 
 // ───────────────────────── Logica di sincronizzazione ─────────────────────────
 
+private data class ServerCatalog(
+    val sentieri: Map<String, SentieroDto>,
+    val pois: List<PoiDto>,
+    val fotos: List<FotoDto>
+)
+
+private fun normalizeSec(ts: Long): Long = if (ts > 10_000_000_000L) ts / 1000L else ts
+
 class SyncManager(
     private val context: Context,
     private val sentieriDao: SentieriDao,
@@ -346,10 +382,9 @@ class SyncManager(
     }
 
     private fun getApi(): SyncApi {
-        //val serverUrl = prefs.getString("nas_server_url", "https://sentieriap.duckdns.org/files")?.trimEnd('/') ?: ""
         val serverUrl = ServerConfig.filesUrl(prefs)
         var token = prefs.getString("nas_auth_token", "")?.trim() ?: ""
-        if (token.isEmpty()) token  = BuildConfig.NAS_AUTH_TOKEN
+        if (token.isEmpty()) token = BuildConfig.NAS_AUTH_TOKEN
         if (serverUrl.isEmpty()) {
             throw IOException("URL Server NAS non configurato nelle impostazioni")
         }
@@ -358,115 +393,157 @@ class SyncManager(
 
     suspend fun sync(onProgress: (String) -> Unit): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            onProgress("Inizializzazione sincronizzazione HTTP...")
+            onProgress("Connessione al server NAS...")
             val api = getApi()
 
-            onProgress("Verifica percorsi da inviare...")
-            invia(api, onProgress)
+            onProgress("Lettura indice dal NAS...")
+            val indexMap = api.syncIndex()
+            Log.i(TAG, "Sincronizzazione avviata: Lettore indice NAS con ${indexMap.size} percorsi.")
 
-            onProgress("Ricezione aggiornamenti dal server...")
-            ricevi(api, onProgress, fullDownload = false)
+            val allSentieri = sentieriDao.getTuttiSentieriList()
 
-            onProgress("Sincronizzazione completata con successo")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "Errore durante la sincronizzazione", e)
-            Result.failure(e)
-        }
-    }
+            // 1. Identifica percorsi locali che necessitano di Upload
+            val toUpload = mutableListOf<Sentieri>()
+            var inviatiCount = 0
+            var scaricatiCount = 0
+            var invariatiCount = 0
 
-    /**
-     * Scarica l'intero database dal server NAS (es. per un nuovo telefono o ripristino).
-     * Esegue il pull a partire da since = 0L.
-     * Per i percorsi non presenti in locale scarica anche tutti i punti traccia.
-     */
-    suspend fun scaricaDatabaseCompleto(onProgress: (String) -> Unit): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            onProgress("Inizializzazione download database NAS...")
-            val api = getApi()
+            for (s in allSentieri) {
+                val idxItem = indexMap[s.uuid]
+                val needsPush = (idxItem == null)
 
-            onProgress("Scaricamento di tutti i percorsi dal server...")
-            ricevi(api, onProgress, fullDownload = true)
+                /*val pois = poiDao.getPoisByTrackUuid(s.uuid)
+                val fotos = fotoPoiDao.getFotosByTrackUuid(s.uuid)
+                val totalePunti = trackDao.countPointsByTrackUuid(s.uuid)
 
-            onProgress("Download database completato con successo")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "Errore durante il download del database", e)
-            Result.failure(e)
-        }
-    }
+                val maxLocalUpdate = maxOf(
+                    s.lastUpdate,
+                    pois.maxOfOrNull { it.lastUpdate } ?: 0L,
+                    fotos.maxOfOrNull { it.lastUpdate } ?: 0L
+                )
 
-    private suspend fun invia(api: SyncApi, onProgress: (String) -> Unit) {
-        val allSentieri = sentieriDao.getTuttiSentieriList()
+                val idxItem = indexMap[s.uuid]
+                val localSec = normalizeSec(maxLocalUpdate)
+                val serverSec = if (idxItem != null) normalizeSec(idxItem.lastUpdate) else 0L
 
-        for (sentiero in allSentieri) {
-            val pois = poiDao.getPoisByTrackUuid(sentiero.uuid)
-            val fotos = fotoPoiDao.getFotosByTrackUuid(sentiero.uuid)
-            val totalePunti = trackDao.countPointsByTrackUuid(sentiero.uuid)
+                val needsPush = (idxItem == null) ||
+                                (localSec > serverSec + 1) ||
+                                (totalePunti > idxItem.nPunti)*/
 
-            // 1. Upload delle eventuali foto mancanti sul server
-            val fotoDtos = mutableListOf<FotoDto>()
-            for (f in fotos) {
-                val file = risolviFileFoto(f.uriPath)
-                if (file != null && file.exists()) {
-                    try {
-                        api.caricaFoto(f.uuid, file)
-                        fotoDtos.add(FotoDto.fromEntity(f))
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Errore upload foto ${f.nomeFoto}: ${e.message}")
-                    }
+                if (needsPush) {
+                    toUpload.add(s)
                 } else {
-                    Log.w(TAG, "File foto non trovato localmente: ${f.uriPath}")
+                    invariatiCount++
                 }
             }
-
-            val poiDtos = pois.map { PoiDto.fromEntity(it) }
-            val sentieroDto = SentieroDto.fromEntity(sentiero)
-
-            // 2. Push del sentiero, poi e foto (il server risponde con quanti punti ha già)
-            val pushResult = api.pushSentiero(sentieroDto, poiDtos, fotoDtos)
-            var presenti = pushResult.puntiPresenti
-
-            // 3. Se sul server mancano dei punti (percorso nuovo o incompleto), carichiamo i punti rimanenti
-            if (presenti < totalePunti) {
-                onProgress("Caricamento punti: ${sentiero.nome} ($presenti/$totalePunti)")
-                var disallineamenti = 0
-
-                while (presenti < totalePunti) {
-                    val blocco = trackDao.getPointsByTrackUuidPaged(sentiero.uuid, presenti, CHUNK)
-                    if (blocco.isEmpty()) break
-
-                    val bloccoDto = blocco.map { PuntoDto.fromEntity(it) }
-                    val dopo = api.pushPunti(sentiero.uuid, presenti, bloccoDto)
-
-                    if (dopo == presenti + blocco.size) {
-                        disallineamenti = 0
-                    } else if (dopo == presenti || ++disallineamenti > 3) {
-                        throw IOException("Offset punti non allineato (server=$dopo, locale=$presenti)")
+            Log.d(TAG, " Sincronizzazione 1: toUpload=${toUpload.size},  invariati=$invariatiCount")
+            // Identifica UUID presenti nel NAS che necessitano di Download/Aggiornamento locale
+            val toDownloadUuids = mutableSetOf<String>()
+            for ((uuid, idxItem) in indexMap) {
+                val existing = sentieriDao.getByUuid(uuid)
+                if (existing == null) {
+                    toDownloadUuids.add(uuid)
+                } /*else {
+                    val serverSec = normalizeSec(idxItem.lastUpdate)
+                    val localSec = normalizeSec(existing.lastUpdate)
+                    val puntiLocali = trackDao.countPointsByTrackUuid(uuid)
+                    if (serverSec > localSec + 1 || puntiLocali < idxItem.nPunti) {
+                        toDownloadUuids.add(uuid)
                     }
-                    presenti = dopo
-                }
-                onProgress("Completato caricamento: ${sentiero.nome}")
+                }*/
             }
-        }
-    }
 
-    private suspend fun ricevi(api: SyncApi, onProgress: (String) -> Unit, fullDownload: Boolean) {
-        var since = if (fullDownload) 0L else prefs.getLong(KEY_SINCE, 0L)
+            Log.d(TAG, "Delta Sincronizzazione: toUpload=${toUpload.size}, toDownload=${toDownloadUuids.size}, invariati=$invariatiCount")
 
-        while (true) {
-            val page = api.pull(since)
+            if (toUpload.isEmpty() && toDownloadUuids.isEmpty()) {
+                onProgress("✓ Tutti i $invariatiCount percorsi sono già sincronizzati con il NAS")
+                return@withContext Result.success(Unit)
+            }
 
-            for (sDto in page.sentieri) {
-                val existing = sentieriDao.getByUuid(sDto.uuid)
-                val isNuovo = (existing == null)
+            // 2. Esegui INVI / UPLOADS
+            for (sentiero in toUpload) {
+                val pois = poiDao.getPoisByTrackUuid(sentiero.uuid)
+                val fotos = fotoPoiDao.getFotosByTrackUuid(sentiero.uuid)
+                val totalePunti = trackDao.countPointsByTrackUuid(sentiero.uuid)
+                val idxItem = indexMap[sentiero.uuid]
 
-                if (isNuovo || sDto.lastUpdate > existing.lastUpdate) {
-                    if (isNuovo) {
-                        onProgress("Scaricamento: ${sDto.nome}")
-                    } else {
-                        onProgress("Aggiornamento metadati: ${sDto.nome}")
+                onProgress("⬆ [INVIO]\nTraccia: ${sentiero.nome}")
+
+                // Upload delle foto
+                val fotoDtos = mutableListOf<FotoDto>()
+                for (f in fotos) {
+                    val file = risolviFileFoto(f.uriPath)
+                    if (file != null && file.exists()) {
+                        try {
+                            api.caricaFoto(f.uuid, file)
+                            fotoDtos.add(FotoDto.fromEntity(f))
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Errore upload foto ${f.nomeFoto}: ${e.message}")
+                        }
                     }
+                }
+
+                val poiDtos = pois.map { PoiDto.fromEntity(it) }
+                val sentieroDto = SentieroDto.fromEntity(sentiero)
+
+                val pushResult = api.pushSentiero(sentieroDto, poiDtos, fotoDtos)
+                var presenti = pushResult.puntiPresenti
+
+                if (presenti < totalePunti) {
+                    var disallineamenti = 0
+                    while (presenti < totalePunti) {
+                        onProgress("⬆ [INVIO]\nTraccia: ${sentiero.nome}\nPunti: $presenti / $totalePunti")
+                        val blocco = trackDao.getPointsByTrackUuidPaged(sentiero.uuid, presenti, CHUNK)
+                        if (blocco.isEmpty()) break
+
+                        val bloccoDto = blocco.map { PuntoDto.fromEntity(it) }
+                        val dopo = api.pushPunti(sentiero.uuid, presenti, bloccoDto)
+
+                        if (dopo == presenti + blocco.size) {
+                            disallineamenti = 0
+                        } else if (dopo == presenti || ++disallineamenti > 3) {
+                            throw IOException("Offset punti non allineato (server=$dopo, locale=$presenti)")
+                        }
+                        presenti = dopo
+                    }
+                }
+
+                // Allinea il timestamp locale
+                val updatedServerTs = if (pushResult.lastUpdate > 0L) {
+                    pushResult.lastUpdate
+                } else if (idxItem != null) {
+                    idxItem.lastUpdate
+                } else {
+                    System.currentTimeMillis()
+                }
+                val finalLocalMs = if (updatedServerTs < 10_000_000_000L) updatedServerTs * 1000L else updatedServerTs
+
+                sentiero.lastUpdate = finalLocalMs
+                sentieriDao.upsert(sentiero)
+
+                for (p in pois) {
+                    p.lastUpdate = finalLocalMs
+                    poiDao.upsert(p)
+                }
+                for (f in fotos) {
+                    f.lastUpdate = finalLocalMs
+                    fotoPoiDao.upsert(f)
+                }
+
+                inviatiCount++
+            }
+
+            // 3. Esegui RICEZIONE / DOWNLOADS
+            if (toDownloadUuids.isNotEmpty()) {
+                onProgress("⬇ [RICEZIONE]\nLettura dati dal NAS...")
+                val catalog = fetchServerCatalog(api)
+
+                for (sDto in catalog.sentieri.values) {
+                    if (!toDownloadUuids.contains(sDto.uuid)) continue
+
+                    onProgress("⬇ [RICEZIONE]\nTraccia: ${sDto.nome}")
+
+                    val existing = sentieriDao.getByUuid(sDto.uuid)
                     val sentieroEntity = Sentieri(
                         id = existing?.id ?: 0,
                         nome = sDto.nome,
@@ -489,18 +566,18 @@ class SyncManager(
                     )
                     sentieriDao.upsert(sentieroEntity)
 
-                    // I punti vengono scaricati se il percorso è nuovo o se mancano punti localmente
-                    val puntiLocali = trackDao.countPointsByTrackUuid(sDto.uuid)
+                    val puntiLocali = if (existing != null) trackDao.countPointsByTrackUuid(sDto.uuid) else 0
                     if (puntiLocali < sDto.nPunti) {
-                        scaricaPuntiPercorso(api, sDto)
+                        scaricaPuntiPercorso(api, sDto, onProgress)
                     }
-                }
-            }
 
-            for (pDto in page.poi) {
-                val sentieroLocale = sentieriDao.getByUuid(pDto.trackUuid)
-                val existingPoi = poiDao.getByUuid(pDto.uuid)
-                if (existingPoi == null || pDto.lastUpdate > existingPoi.lastUpdate) {
+                    scaricatiCount++
+                }
+
+                for (pDto in catalog.pois) {
+                    if (!toDownloadUuids.contains(pDto.trackUuid)) continue
+                    val sentieroLocale = sentieriDao.getByUuid(pDto.trackUuid)
+                    val existingPoi = poiDao.getByUuid(pDto.uuid)
                     val poiEntity = PoiDB(
                         Id = existingPoi?.Id ?: 0,
                         Trackid = sentieroLocale?.id ?: 0,
@@ -517,12 +594,11 @@ class SyncManager(
                     )
                     poiDao.upsert(poiEntity)
                 }
-            }
 
-            for (fDto in page.foto) {
-                val sentieroLocale = sentieriDao.getByUuid(fDto.trackUuid)
-                val existingFoto = fotoPoiDao.getByUuid(fDto.uuid)
-                if (existingFoto == null || fDto.lastUpdate > existingFoto.lastUpdate) {
+                for (fDto in catalog.fotos) {
+                    if (!toDownloadUuids.contains(fDto.trackUuid)) continue
+                    val sentieroLocale = sentieriDao.getByUuid(fDto.trackUuid)
+                    val existingFoto = fotoPoiDao.getByUuid(fDto.uuid)
                     val photoDir = getStandardPhotoDir()
                     val targetFile = File(photoDir, fDto.nomeFoto)
 
@@ -537,10 +613,8 @@ class SyncManager(
                     )
                     fotoPoiDao.upsert(fotoEntity)
 
-                    // Download del file JPEG se mancante o vuoto
                     if (!targetFile.exists() || targetFile.length() == 0L) {
                         try {
-                            onProgress("Download foto: ${fDto.nomeFoto}")
                             api.scaricaFoto(fDto.uuid, targetFile)
                         } catch (e: Exception) {
                             Log.w(TAG, "Download foto fallito ${fDto.nomeFoto}: ${e.message}")
@@ -549,19 +623,194 @@ class SyncManager(
                 }
             }
 
-            since = page.until
-            prefs.edit { putLong(KEY_SINCE, since) }
-            if (!page.more) break
+            val summary = StringBuilder("✓ Sincronizzazione completata\n\n")
+            if (inviatiCount > 0) summary.append(" Inviati sul NAS: $inviatiCount percorsi\n")
+            if (scaricatiCount > 0) summary.append(" Scaricati dal NAS: $scaricatiCount percorsi\n")
+            summary.append(" Invariati: $invariatiCount percorsi")
+
+            onProgress(summary.toString())
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Errore durante la sincronizzazione", e)
+            Result.failure(e)
         }
     }
 
-    private suspend fun scaricaPuntiPercorso(api: SyncApi, s: SentieroDto) {
+    /**
+     * Scarica l'intero database dal server NAS (es. per un nuovo telefono o ripristino).
+     * Esegue il pull a partire da since = 0L.
+     * Per i percorsi non presenti in locale scarica anche tutti i punti traccia.
+     */
+    suspend fun scaricaDatabaseCompleto(onProgress: (String) -> Unit): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            onProgress("Inizializzazione download database NAS...")
+            val api = getApi()
+
+            onProgress("Recupero catalogo completo dal server NAS...")
+            val catalog = fetchServerCatalog(api)
+            Log.i(TAG, "Download completo avviato: ${catalog.sentieri.size} percorsi presenti sul server.")
+
+            onProgress("Scaricamento di tutti i percorsi dal server...")
+            ricevi(api, catalog, onProgress)
+
+            onProgress("Download database completato con successo")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Errore durante il download del database", e)
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun fetchServerCatalog(api: SyncApi): ServerCatalog {
+        val sentieriMap = mutableMapOf<String, SentieroDto>()
+        val poisList = mutableListOf<PoiDto>()
+        val fotosList = mutableListOf<FotoDto>()
+        var since = 0L
+        while (true) {
+            val page = api.pull(since)
+            for (s in page.sentieri) {
+                sentieriMap[s.uuid] = s
+            }
+            poisList.addAll(page.poi)
+            fotosList.addAll(page.foto)
+            since = page.until
+            if (!page.more) break
+        }
+        return ServerCatalog(sentieriMap, poisList, fotosList)
+    }
+
+    private suspend fun ricevi(api: SyncApi, catalog: ServerCatalog, onProgress: (String) -> Unit) {
+        var scaricatiCount = 0
+
+        for (sDto in catalog.sentieri.values) {
+            val existing = sentieriDao.getByUuid(sDto.uuid)
+            val isNuovoInLocale = (existing == null)
+            val serverSec = normalizeSec(sDto.lastUpdate)
+            val localSec = if (existing != null) normalizeSec(existing.lastUpdate) else 0L
+
+            val isModificatoSulServer = (existing != null && serverSec > localSec + 1)
+            val puntiLocali = if (existing != null) trackDao.countPointsByTrackUuid(sDto.uuid) else 0
+            val puntiMancantiInLocale = (existing != null && puntiLocali < sDto.nPunti)
+
+            if (isNuovoInLocale) {
+                Log.i(TAG, "ricevi: Sentiero '${sDto.nome}' (uuid=${sDto.uuid}) MANCANTE in locale. Scaricamento dal server...")
+                onProgress("⬇ [RICEZIONE]\nTraccia: ${sDto.nome}")
+            } else if (isModificatoSulServer) {
+                Log.i(TAG, "ricevi: Sentiero '${sDto.nome}' modificato sul server (serverSec=$serverSec vs localSec=$localSec). Aggiornamento locale...")
+                onProgress("⬇ [RICEZIONE]\nTraccia: ${sDto.nome}")
+            } else if (puntiMancantiInLocale) {
+                Log.i(TAG, "ricevi: Sentiero '${sDto.nome}' ha punti mancanti in locale ($puntiLocali/$sDto.nPunti). Scaricamento punti...")
+                onProgress("⬇ [RICEZIONE]\nTraccia: ${sDto.nome}")
+            } else {
+                Log.d(TAG, "ricevi: Sentiero '${sDto.nome}' già presente e aggiornato in locale. Saltato.")
+                continue
+            }
+
+            val sentieroEntity = Sentieri(
+                id = existing?.id ?: 0,
+                nome = sDto.nome,
+                descrizione = sDto.descrizione,
+                lunghezza = sDto.lunghezza,
+                dislivello = sDto.dislivello,
+                discesa = sDto.discesa,
+                HrMed = sDto.hrMed,
+                HrMax = sDto.hrMax,
+                DataOra = sDto.dataOra,
+                TempMedia = sDto.tempMedia,
+                TempMax = sDto.tempMax,
+                TempMin = sDto.tempMin,
+                DataFine = sDto.dataFine,
+                TempoTot = sDto.tempoTot,
+                TempoInMov = sDto.tempoInMov,
+                MediaVel = sDto.mediaVel,
+                uuid = sDto.uuid,
+                lastUpdate = sDto.lastUpdate
+            )
+            sentieriDao.upsert(sentieroEntity)
+
+            // Scarica i punti del percorso se mancanti
+            if (puntiLocali < sDto.nPunti) {
+                scaricaPuntiPercorso(api, sDto, onProgress)
+            }
+
+            scaricatiCount++
+        }
+
+        // Processa POI dal catalogo server
+        for (pDto in catalog.pois) {
+            val sentieroLocale = sentieriDao.getByUuid(pDto.trackUuid)
+            val existingPoi = poiDao.getByUuid(pDto.uuid)
+            val serverSec = normalizeSec(pDto.lastUpdate)
+            val localSec = if (existingPoi != null) normalizeSec(existingPoi.lastUpdate) else 0L
+
+            if (existingPoi == null || serverSec > localSec + 1) {
+                val poiEntity = PoiDB(
+                    Id = existingPoi?.Id ?: 0,
+                    Trackid = sentieroLocale?.id ?: 0,
+                    Latit = pDto.lat,
+                    Longit = pDto.lon,
+                    Ele = pDto.ele,
+                    NomePOI = pDto.nome,
+                    DescrPOI = pDto.descr,
+                    UriPath = existingPoi?.UriPath ?: pDto.uriPath,
+                    Time = pDto.time,
+                    uuid = pDto.uuid,
+                    trackUuid = pDto.trackUuid,
+                    lastUpdate = pDto.lastUpdate
+                )
+                poiDao.upsert(poiEntity)
+            }
+        }
+
+        // Processa Foto dal catalogo server
+        for (fDto in catalog.fotos) {
+            val sentieroLocale = sentieriDao.getByUuid(fDto.trackUuid)
+            val existingFoto = fotoPoiDao.getByUuid(fDto.uuid)
+            val serverSec = normalizeSec(fDto.lastUpdate)
+            val localSec = if (existingFoto != null) normalizeSec(existingFoto.lastUpdate) else 0L
+
+            if (existingFoto == null || serverSec > localSec + 1) {
+                val photoDir = getStandardPhotoDir()
+                val targetFile = File(photoDir, fDto.nomeFoto)
+
+                val fotoEntity = FotoPoi(
+                    id = existingFoto?.id ?: 0,
+                    trackid = sentieroLocale?.id ?: 0,
+                    uriPath = targetFile.absolutePath,
+                    nomeFoto = fDto.nomeFoto,
+                    uuid = fDto.uuid,
+                    trackUuid = fDto.trackUuid,
+                    lastUpdate = fDto.lastUpdate
+                )
+                fotoPoiDao.upsert(fotoEntity)
+
+                if (!targetFile.exists() || targetFile.length() == 0L) {
+                    try {
+                        onProgress("⬇ [RICEZIONE]\nDownload foto: ${fDto.nomeFoto}")
+                        api.scaricaFoto(fDto.uuid, targetFile)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Download foto fallito ${fDto.nomeFoto}: ${e.message}")
+                    }
+                }
+            }
+        }
+
+        Log.i(TAG, "ricevi: Completato. Scaricati/aggiornati $scaricatiCount percorsi dal server.")
+    }
+
+    private suspend fun scaricaPuntiPercorso(api: SyncApi, s: SentieroDto, onProgress: (String) -> Unit) {
         val sentieroLocale = sentieriDao.getByUuid(s.uuid) ?: return
         var locali = trackDao.countPointsByTrackUuid(s.uuid)
 
+        Log.i(TAG, "scaricaPuntiPercorso: Avvio download punti per '${s.nome}' (locali=$locali, totali=${s.nPunti})")
+
         while (locali < s.nPunti) {
+            onProgress("⬇ [RICEZIONE]\nTraccia: ${s.nome}\nPunti: $locali / ${s.nPunti}")
             val blocco = api.trackPoints(s.uuid, locali, CHUNK)
-            if (blocco.isEmpty()) break
+            if (blocco.isEmpty()) {
+                Log.w(TAG, "scaricaPuntiPercorso: Nessun punto restituito per offset $locali")
+                break
+            }
 
             val trackPoints = blocco.map { p ->
                 Track(
@@ -582,6 +831,7 @@ class SyncManager(
             trackDao.upsertPoints(trackPoints)
             locali += blocco.size
         }
+        Log.i(TAG, "scaricaPuntiPercorso: Completato per '${s.nome}'. Punti in locale: $locali")
     }
 
     private fun risolviFileFoto(uriPath: String): File? {
@@ -606,6 +856,5 @@ class SyncManager(
 
     companion object {
         private const val CHUNK = 1000
-        private const val KEY_SINCE = "sync_http_since"
     }
 }

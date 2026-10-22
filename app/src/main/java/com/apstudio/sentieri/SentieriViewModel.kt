@@ -278,13 +278,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _syncDetails.value = ""
             
             val result = syncManager.sync { progress ->
-                if (progress.startsWith("Caricamento:") || progress.startsWith("Caricamento punti:") ||
-                    progress.startsWith("Scaricamento:") || progress.startsWith("Aggiornamento metadati:") ||
-                    progress.startsWith("Completato caricamento:")) {
-                    _syncDetails.postValue((_syncDetails.value ?: "") + progress + "\n")
-                } else {
-                    _syncStatus.postValue(progress)
-                }
+                _syncDetails.postValue(progress)
+                _syncStatus.postValue(progress.lines().firstOrNull() ?: progress)
             }
             
             result.onSuccess {
@@ -304,12 +299,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _syncDetails.value = ""
 
             val result = syncManager.scaricaDatabaseCompleto { progress ->
-                if (progress.startsWith("Caricamento:") || progress.startsWith("Scaricamento:") ||
-                    progress.startsWith("Aggiornamento metadati:") || progress.startsWith("Download foto:")) {
-                    _syncDetails.postValue((_syncDetails.value ?: "") + progress + "\n")
-                } else {
-                    _syncStatus.postValue(progress)
-                }
+                _syncDetails.postValue(progress)
+                _syncStatus.postValue(progress.lines().firstOrNull() ?: progress)
             }
 
             result.onSuccess {
