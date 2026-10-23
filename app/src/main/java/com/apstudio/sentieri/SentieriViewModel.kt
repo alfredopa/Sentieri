@@ -278,7 +278,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _syncDetails.value = ""
             
             val result = syncManager.sync { progress ->
-                _syncDetails.postValue(progress)
+                val currentDetails = _syncDetails.value ?: ""
+                _syncDetails.postValue(if (currentDetails.isEmpty()) progress else "$currentDetails\n$progress")
                 _syncStatus.postValue(progress.lines().firstOrNull() ?: progress)
             }
             
@@ -299,7 +300,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _syncDetails.value = ""
 
             val result = syncManager.scaricaDatabaseCompleto { progress ->
-                _syncDetails.postValue(progress)
+                val currentDetails = _syncDetails.value ?: ""
+                _syncDetails.postValue(if (currentDetails.isEmpty()) progress else "$currentDetails\n$progress")
                 _syncStatus.postValue(progress.lines().firstOrNull() ?: progress)
             }
 

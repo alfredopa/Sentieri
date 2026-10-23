@@ -3,6 +3,8 @@ package com.apstudio.sentieri.sync
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
+import android.provider.MediaStore
+import android.provider.OpenableColumns
 import android.util.Log
 import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.BuildConfig
@@ -173,8 +175,9 @@ data class FotoDto(
     val uriPath: String = "", val lastUpdate: Long
 ) {
     fun toJson(): JSONObject = JSONObject()
-        .put("uuid", uuid).put("trackUuid", trackUuid)
-        .put("NomeFoto", nomeFoto).put("UriPath", uriPath)
+        .put("uuid", uuid)
+        .put("trackUuid", trackUuid)
+        .put("NomeFoto", nomeFoto)
         .put("lastUpdate", lastUpdate)
 
     companion object {
@@ -240,11 +243,10 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
         return JSONObject(txt)
     }
 
-    suspend fun pushSentiero(s: SentieroDto, poi: List<PoiDto>, foto: List<FotoDto>): PushResult {
+    suspend fun pushSentiero(s: SentieroDto, poi: List<PoiDto>): PushResult {
         val body = JSONObject()
             .put("sentiero", s.toJson())
             .put("poi", JSONArray(poi.map { it.toJson() }))
-            .put("foto", JSONArray(foto.map { it.toJson() }))
         Log.d("Sync", "pushSentiero ")
         return call(apiPost("sync-push.php", body)) { r ->
             val o = jsonOrThrow(r)
@@ -285,6 +287,10 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
         }
     }
 
+    suspend fun pushFoto(f: FotoDto) {
+        call(apiPost("sync-foto.php", f.toJson())) { r -> jsonOrThrow(r); Unit }
+    }
+
     suspend fun pull(since: Long): PullPage =
         call(apiGet("sync-pull.php", "since" to since.toString())) { r ->
             val o = jsonOrThrow(r)
@@ -301,7 +307,10 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
             jsonOrThrow(r).getJSONArray("punti").map { PuntoDto.fromJson(it) }
         }
 
-    suspend fun caricaFoto(uuid: String, file: File) = withContext(Dispatchers.IO) {
+    fun nomeFileFoto(nome: String) =
+        if (nome.endsWith(".jpg", true) || nome.endsWith(".jpeg", true)) nome else "$nome.jpg"
+
+    /*suspend fun caricaFoto(uuid: String, file: File) = withContext(Dispatchers.IO) {
         val builder = Request.Builder().url("${cfg.base}/files/Foto/$uuid.jpg")
             .header("X-Content-SHA256", sha256(file))
             .put(file.asRequestBody("image/jpeg".toMediaType()))
@@ -312,10 +321,39 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
         client.newCall(req).execute().use { r ->
             if (r.code != 200 && r.code != 201) throw SyncHttpException(r.code, "upload foto $uuid: HTTP ${r.code}")
         }
+    }*/
+
+    suspend fun caricaFoto(nome: String, inputStream: java.io.InputStream, length: Long, sha256: String) = withContext(Dispatchers.IO) {
+        val url = "${cfg.base}/files".toHttpUrl().newBuilder()
+            .addPathSegment("Foto").addPathSegment(nome).build()
+
+        val requestBody = object : okhttp3.RequestBody() {
+            override fun contentType() = "image/jpeg".toMediaType()
+            override fun contentLength() = length
+            override fun writeTo(sink: okio.BufferedSink) {
+                inputStream.use { input ->
+                    val buffer = ByteArray(8192)
+                    var read: Int
+                    while (input.read(buffer).also { read = it } != -1) {
+                        sink.write(buffer, 0, read)
+                    }
+                }
+            }
+        }
+
+        val req = Request.Builder().url(url)
+            .header("Authorization", "Bearer ${cfg.token}")
+            .header("X-Content-SHA256", sha256)
+            .put(requestBody).build()
+
+        client.newCall(req).execute().use { r ->
+            if (r.code != 200 && r.code != 201) throw SyncHttpException(r.code, "upload foto $nome: HTTP ${r.code}")
+        }
     }
 
-    suspend fun scaricaFoto(uuid: String, dest: File) = withContext(Dispatchers.IO) {
-        val url = "${cfg.base}/files/api/file".toHttpUrl().newBuilder().addQueryParameter("path", "Foto/$uuid.jpg").build()
+
+    suspend fun scaricaFoto(nomeFile: String, dest: File) = withContext(Dispatchers.IO) {
+        val url = "${cfg.base}/files/api/file".toHttpUrl().newBuilder().addQueryParameter("path", "Foto/$nomeFile").build()
         val builder = Request.Builder().url(url).get()
         if (cfg.token.isNotEmpty()) {
             builder.header("Authorization", "Bearer ${cfg.token}")
@@ -324,7 +362,7 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
         dest.parentFile?.mkdirs()
         val tmp = File(dest.path + ".part")
         client.newCall(req).execute().use { r ->
-            if (!r.isSuccessful) throw SyncHttpException(r.code, "download foto $uuid: HTTP ${r.code}")
+            if (!r.isSuccessful) throw SyncHttpException(r.code, "download foto $nomeFile: HTTP ${r.code}")
             r.body!!.byteStream().use { input -> tmp.outputStream().use { out -> input.copyTo(out) } }
         }
         if (!tmp.renameTo(dest)) {
@@ -375,8 +413,10 @@ class SyncManager(
     private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
 
     private fun getStandardPhotoDir(): File {
-        val dcim = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
-        val sentieri = File(dcim, "Sentieri")
+        val appMediaDir = context.externalMediaDirs.firstOrNull()
+            ?: context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+            ?: context.cacheDir
+        val sentieri = File(appMediaDir, "Sentieri")
         if (!sentieri.exists()) sentieri.mkdirs()
         return sentieri
     }
@@ -469,30 +509,16 @@ class SyncManager(
 
                 onProgress("⬆ [INVIO]\nTraccia: ${sentiero.nome}")
 
-                // Upload delle foto
-                val fotoDtos = mutableListOf<FotoDto>()
-                for (f in fotos) {
-                    val file = risolviFileFoto(f.uriPath)
-                    if (file != null && file.exists()) {
-                        try {
-                            api.caricaFoto(f.uuid, file)
-                            fotoDtos.add(FotoDto.fromEntity(f))
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Errore upload foto ${f.nomeFoto}: ${e.message}")
-                        }
-                    }
-                }
-
                 val poiDtos = pois.map { PoiDto.fromEntity(it) }
                 val sentieroDto = SentieroDto.fromEntity(sentiero)
 
-                val pushResult = api.pushSentiero(sentieroDto, poiDtos, fotoDtos)
+                val pushResult = api.pushSentiero(sentieroDto, poiDtos)
                 var presenti = pushResult.puntiPresenti
 
                 if (presenti < totalePunti) {
                     var disallineamenti = 0
                     while (presenti < totalePunti) {
-                        onProgress("⬆ [INVIO]\nTraccia: ${sentiero.nome}\nPunti: $presenti / $totalePunti")
+                        onProgress("Punti: $presenti / $totalePunti")
                         val blocco = trackDao.getPointsByTrackUuidPaged(sentiero.uuid, presenti, CHUNK)
                         if (blocco.isEmpty()) break
 
@@ -505,6 +531,54 @@ class SyncManager(
                             throw IOException("Offset punti non allineato (server=$dopo, locale=$presenti)")
                         }
                         presenti = dopo
+                    }
+                }
+
+                // Upload delle foto (ora che il sentiero esiste sul server)
+                for (f in fotos) {
+                    try {
+                        val uri = if (f.uriPath.startsWith("content://")) {
+                            Uri.parse(f.uriPath)
+                        } else {
+                            val cleanPath = f.uriPath.removePrefix("file://")
+                            val fileName = cleanPath.substringAfterLast('/')
+                            val projection = arrayOf(MediaStore.Images.Media._ID)
+                            val selection = "${MediaStore.Images.Media.DISPLAY_NAME} = ?"
+                            val selectionArgs = arrayOf(fileName)
+
+                            context.contentResolver.query(
+                                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                                projection,
+                                selection,
+                                selectionArgs,
+                                null
+                            )?.use { cursor ->
+                                if (cursor.moveToFirst()) {
+                                    val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
+                                    Uri.withAppendedPath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id.toString())
+                                } else null
+                            } ?: Uri.fromFile(File(f.uriPath))
+                        }
+
+                        val (sha256, length) = context.contentResolver.openInputStream(uri)?.use { input ->
+                            val md = MessageDigest.getInstance("SHA-256")
+                            var bytesRead = 0L
+                            val buffer = ByteArray(8192)
+                            var read: Int
+                            while (input.read(buffer).also { read = it } != -1) {
+                                md.update(buffer, 0, read)
+                                bytesRead += read
+                            }
+                            md.digest().joinToString("") { "%02x".format(it) } to bytesRead
+                        } ?: throw IOException("Impossibile leggere il file per calcolare SHA-256")
+
+                        context.contentResolver.openInputStream(uri)?.use { uploadStream ->
+                            api.caricaFoto(f.nomeFoto, uploadStream, length, sha256)
+                            api.pushFoto(FotoDto.fromEntity(f))
+                            Log.w(TAG, "carica foto ${f.nomeFoto} completata")
+                        } ?: Log.w(TAG, "Impossibile aprire stream per upload di ${f.nomeFoto}")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Errore upload foto ${f.nomeFoto}: ${e.message}")
                     }
                 }
 
@@ -615,7 +689,7 @@ class SyncManager(
 
                     if (!targetFile.exists() || targetFile.length() == 0L) {
                         try {
-                            api.scaricaFoto(fDto.uuid, targetFile)
+                            api.scaricaFoto(fDto.nomeFoto, targetFile)
                         } catch (e: Exception) {
                             Log.w(TAG, "Download foto fallito ${fDto.nomeFoto}: ${e.message}")
                         }
@@ -805,7 +879,7 @@ class SyncManager(
         Log.i(TAG, "scaricaPuntiPercorso: Avvio download punti per '${s.nome}' (locali=$locali, totali=${s.nPunti})")
 
         while (locali < s.nPunti) {
-            onProgress("⬇ [RICEZIONE]\nTraccia: ${s.nome}\nPunti: $locali / ${s.nPunti}")
+            onProgress("Punti: $locali / ${s.nPunti}")
             val blocco = api.trackPoints(s.uuid, locali, CHUNK)
             if (blocco.isEmpty()) {
                 Log.w(TAG, "scaricaPuntiPercorso: Nessun punto restituito per offset $locali")
@@ -836,22 +910,67 @@ class SyncManager(
 
     private fun risolviFileFoto(uriPath: String): File? {
         if (uriPath.isEmpty()) return null
-        val uri = Uri.parse(uriPath)
-        if (uri.scheme == "content") {
-            try {
-                val fileName = MapUtils.getFileNameFromUri(context, uri)
-                val tempFile = File(context.cacheDir, fileName)
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    FileOutputStream(tempFile).use { output -> input.copyTo(output) }
-                }
-                return tempFile
-            } catch (e: Exception) {
-                Log.e(TAG, "Errore risoluzione file da Uri content: ${e.message}")
-                return null
-            }
+
+        val fileDiretto = File(uriPath)
+        // Se il file esiste ed è direttamente leggibile dal processo dell'app
+        if (!uriPath.startsWith("content://") && fileDiretto.exists() && fileDiretto.canRead()) {
+            return fileDiretto
         }
-        val f = File(uriPath)
-        return if (f.exists()) f else null
+
+        val uri = if (uriPath.startsWith("content://") || uriPath.startsWith("file://")) {
+            Uri.parse(uriPath)
+        } else {
+            Uri.fromFile(fileDiretto)
+        }
+
+        // 1. Prova ad aprire tramite ContentResolver e copiare nella cache dell'app (esente da EACCES / Scoped Storage)
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val fileName = if (uriPath.contains("/")) uriPath.substringAfterLast("/") else "temp_foto.jpg"
+                val tempFile = File(context.cacheDir, fileName)
+                FileOutputStream(tempFile).use { output -> input.copyTo(output) }
+                if (tempFile.exists() && tempFile.length() > 0L) {
+                    return tempFile
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Tentativo lettura via ContentResolver per '$uriPath' fallito: ${e.message}")
+        }
+
+        // 2. Fallback MediaStore per file in /storage/emulated/0/DCIM/Sentieri/
+        try {
+            val fileName = uriPath.substringAfterLast("/")
+            val projection = arrayOf(MediaStore.Images.Media._ID)
+            val selection = "${MediaStore.Images.Media.DISPLAY_NAME} = ?"
+            val selectionArgs = arrayOf(fileName)
+
+            context.contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idIndex = cursor.getColumnIndex(MediaStore.Images.Media._ID)
+                    if (idIndex >= 0) {
+                        val id = cursor.getLong(idIndex)
+                        val mediaStoreUri = Uri.withAppendedPath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id.toString())
+                        context.contentResolver.openInputStream(mediaStoreUri)?.use { input ->
+                            val tempFile = File(context.cacheDir, fileName)
+                            FileOutputStream(tempFile).use { output -> input.copyTo(output) }
+                            if (tempFile.exists() && tempFile.length() > 0L) {
+                                return tempFile
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Errore risoluzione MediaStore per '$uriPath': ${e.message}")
+        }
+
+        return null
     }
 
     companion object {

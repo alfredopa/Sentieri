@@ -117,6 +117,7 @@ import net.federicomatera.agpxp.models.Gpx
 import net.federicomatera.agpxp.models.GpxMetadata
 import net.federicomatera.agpxp.models.Link
 import net.federicomatera.agpxp.models.Track
+import net.federicomatera.agpxp.models.WayPoint
 import org.osmdroid.api.IGeoPoint
 import org.osmdroid.api.IMapController
 import org.osmdroid.bonuspack.kml.KmlDocument
@@ -2103,6 +2104,16 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         LocationRepository.clearTrack(requireContext()) // Chiamata esplicita per sicurezza
         viewModel.recTraccia.items?.clear()
         viewModel.isFixed = false
+        viewModel.poiDBList.clear()
+        viewModel.fotoInPoiDB.clear()
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val db = SentieriDB.getInstance(requireContext())
+                db.poiDao().deleteByTrackId(-100)
+            } catch (e: Exception) {
+                Log.e(TAG, "Errore pulizia POI temporanei", e)
+            }
+        }
 
 // Svuota esplicitamente la polilinea grafica
         if (::currentTrackPolyline.isInitialized) {
@@ -2523,7 +2534,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         val tempoTot = viewModel.elapsedTime / 1000
         val tempoMov = viewModel.secondiMovimento.value ?: 0L
         val mediaVel = mediaSpeed()
-        val waypointsSnapshot = viewModel.wayPoint.toList()
         val puntiGpsSnapshot = viewModel.puntiGPS.toList()
         val poiDBListSnapshot = viewModel.poiDBList.toList()
         val fotoInPoiDBSnapshot = viewModel.fotoInPoiDB.toList()
@@ -2603,6 +2613,18 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     fotoDao.insertDB(foto)
                 }
 
+                // Converti i Waypoint creati durante QUESTA sessione di registrazione per l'esportazione GPX
+                val waypointsRecordedSession = poiDBListSnapshot.map { poi ->
+                    WayPoint(
+                        latitude = poi.Latit,
+                        longitude = poi.Longit,
+                        elevation = poi.Ele,
+                        name = poi.NomePOI,
+                        description = poi.DescrPOI,
+                        time = Date()
+                    )
+                }
+
                 // 3. Esporta file GPX
                 val scriviGpx = GpxWriter()
                 val gpx = Gpx(
@@ -2610,7 +2632,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     version = "1.1",
                     creator = "Sentieri",
                     metadata = GpxMetadata(Link("", ""), Date()),
-                    wayPoints = waypointsSnapshot,
+                    wayPoints = waypointsRecordedSession,
                     tracks = listOf(Track(name = nomeTraccia, trackPoints = puntiGpsSnapshot))
                 )
 
@@ -2630,6 +2652,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
                 // 4. Mostra riepilogo su thread principale
                 withContext(Dispatchers.Main) {
+                    viewModel.poiDBList.clear()
+                    viewModel.fotoInPoiDB.clear()
                     if (!isAdded) return@withContext
                     AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
                         .setTitle("Percorso concluso")
@@ -4394,6 +4418,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         return hasOperator || isPhoneReady || hasCellularData
     }
 
+    @Suppress("WrongConstant")
     private fun isSatelliteModeAvailable(): Boolean {
         // TRANSPORT_SATELLITE (9) è disponibile da API 35 (Android 15)
         val TRANSPORT_SATELLITE = 9

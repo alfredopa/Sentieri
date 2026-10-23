@@ -71,8 +71,12 @@ class PoiFragment : Fragment() {
                         false
                     }
                 } else {
-                    // Se è un percorso file, verifichiamo con java.io.File
-                    File(uri.path ?: "").exists()
+                    val rawPath = uri.path ?: uri.toString()
+                    val cleanPath = rawPath.removePrefix("file://")
+
+                    // Sostituito File.exists() e File.canRead() con isImageInMediaStore
+                    // perché su Android 10+ exists() può essere true ma l'accesso è negato (EACCES).
+                    MapUtils.isImageInMediaStore(requireContext(), cleanPath)
                 }
             }
             

@@ -94,11 +94,13 @@ class CameraFragment : Fragment() {
     }
 
     private fun openFoto(imageView: ImageView, data: Any) {
-        // utilizza Glide per caricare l'immagine: 'data' può essere String (path) o Uri
+        // Risolve l'URI/path prima di passarlo a Glide per evitare errori EACCES su Scoped Storage
+        val mediaData = MapUtils.resolveMediaUri(imageView.context, data.toString())
         Glide.with(imageView.context)
-            .load(data)
+            .load(mediaData)
+            .error(android.R.drawable.ic_dialog_alert)
             .into(imageView)
-        
+
         if (data is Uri) {
             MapUtils.getFileNameFromUri(requireContext(), data)
         }

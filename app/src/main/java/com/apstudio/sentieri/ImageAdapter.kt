@@ -40,9 +40,13 @@ class ImageAdapter(private val images: MutableList<Uri>) : RecyclerView.Adapter<
             }
         }
         fun bind(imageUrl: String) {
-            // Load the image into the ImageView
+            // Risolve l'URI/path in un oggetto gestibile da Glide (File, MediaStore Uri o Content Uri)
+            val mediaData = MapUtils.resolveMediaUri(itemView.context, imageUrl)
             Glide.with(itemView.context)
-                .load(imageUrl)
+                .load(mediaData)
+                .centerCrop()
+                .placeholder(R.color.blurred_white)
+                .error(android.R.drawable.ic_dialog_alert)
                 .into(imageView)
         }
         private var onItemClickListener: OnItemClickListener? = null

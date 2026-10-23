@@ -12,6 +12,7 @@ import android.icu.text.DecimalFormat
 import android.location.Location
 import android.net.Uri
 import android.os.Environment
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Log
 import android.view.LayoutInflater
@@ -393,11 +394,84 @@ object MapUtils {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    return cursor.getString(nameIndex)
+                    if (nameIndex >= 0) return cursor.getString(nameIndex)
                 }
             }
         }
         return uri.path?.substringAfterLast('/') ?: ""
+    }
+
+    fun resolveMediaUri(context: Context, rawPath: String): Any {
+        if (rawPath.isBlank()) return rawPath
+
+        // 1. Se è un URI content://
+        if (rawPath.startsWith("content://")) {
+            return Uri.parse(rawPath)
+        }
+
+        val cleanPath = rawPath.removePrefix("file://")
+        val fileName = cleanPath.substringAfterLast('/')
+        val file = File(cleanPath)
+
+        // 2. Cerca nel MediaStore per DATA o DISPLAY_NAME (Prioritario su Android 10+)
+        try {
+            val projection = arrayOf(MediaStore.Images.Media._ID)
+            val selection = "${MediaStore.Images.Media.DATA} = ? OR ${MediaStore.Images.Media.DISPLAY_NAME} = ?"
+            val selectionArgs = arrayOf(cleanPath, fileName)
+
+            context.contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idIndex = cursor.getColumnIndex(MediaStore.Images.Media._ID)
+                    if (idIndex >= 0) {
+                        val id = cursor.getLong(idIndex)
+                        return Uri.withAppendedPath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id.toString())
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MapUtils", "Errore ricerca MediaStore per $rawPath: ${e.message}")
+        }
+
+        // 3. Se si trova nella cartella media privata dell'app
+        try {
+            @Suppress("DEPRECATION")
+            val mediaDirs = context.externalMediaDirs
+            if (mediaDirs.isNotEmpty()) {
+                val appMediaFile = File(File(mediaDirs[0], "Sentieri"), fileName)
+                if (appMediaFile.exists() && appMediaFile.canRead()) {
+                    return appMediaFile
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 4. Fallback finale: se il file esiste, prova a restituirlo come Uri.
+        // Nota: su Android 10+ questo potrebbe comunque fallire in Glide se non è in una cartella privata.
+        return if (file.exists()) Uri.fromFile(file) else rawPath
+    }
+
+    fun isImageInMediaStore(context: Context, cleanPath: String): Boolean {
+        return try {
+            val fileName = cleanPath.substringAfterLast('/')
+            val projection = arrayOf(MediaStore.Images.Media._ID)
+            val selection = "${MediaStore.Images.Media.DISPLAY_NAME} = ?"
+            val selectionArgs = arrayOf(fileName)
+
+            context.contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                null
+            )?.use { cursor -> cursor.moveToFirst() } ?: false
+        } catch (e: Exception) {
+            false
+        }
     }
 
     fun douglasPeucker(points: ArrayList<GeoPoint>, epsilon: Double): ArrayList<GeoPoint> {

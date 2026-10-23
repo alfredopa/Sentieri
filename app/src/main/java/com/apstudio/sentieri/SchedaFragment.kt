@@ -26,6 +26,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
+import kotlinx.coroutines.withContext
 import com.apstudio.sentieri.MapUtils.alertVerificaSegui
 import com.apstudio.sentieri.MapUtils.apreMappa
 import com.apstudio.sentieri.MapUtils.online
@@ -262,78 +263,87 @@ class SchedaFragment : Fragment(), MenuProvider {
                     viewModel.wayPoint.add(wp)
                 }
             }
-            // necessario un thread per la lettura dal db delle foto della traccia
+            // Legge dal DB l'elenco foto della traccia prima di creare il LayerItem
             viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-                // aggiunge elenco foto traccia
-                viewModel.listaFotoId(idSentiero).forEach {
-                    val uri = it.uriPath.toUri()
-                    // Verifica unicità prima di aggiungere
-                    if (!viewModel.fotoList.contains(uri)) {
-                        viewModel.fotoList.add(uri)
+                val fotoDbList = viewModel.listaFotoId(idSentiero)
+                withContext(Dispatchers.Main) {
+                    fotoDbList.forEach {
+                        if (it.uriPath.isNotBlank()) {
+                            val uri = it.uriPath.toUri()
+                            if (!viewModel.fotoList.contains(uri)) {
+                                viewModel.fotoList.add(uri)
+                            }
+                        }
                     }
-                }
-            }
-            // verifica se traccia da seguire e se esiste già una traccia da seguire
-            val targetTitle = viewModel.titoloTracciaDaSeguire.trim()
-            val existingItem = viewModel.layerItems.find { it.nome.trim().equals(targetTitle, ignoreCase = true) }
-            
-            fun updateOrCreateLayerItem(segui: Boolean) {
-                val cache = MapUtils.generaCacheStatistiche(puntiOriginali.toList())
-                if (existingItem != null) {
-                    val index = viewModel.layerItems.indexOf(existingItem)
-                    viewModel.layerItems[index] = existingItem.copy(
-                        abilitato = true,
-                        segui = segui,
-                        punti = puntiOriginali.toList(),
-                        waypoints = viewModel.wayPoint.toList(),
-                        fotos = viewModel.fotoList.toList(),
-                        distanzeCumulative = cache.first,
-                        asceseCumulative = cache.second,
-                        disceseCumulative = cache.third
-                    )
-                } else {
-                    viewModel.layerItems.add(
-                        LayerItem(
-                            viewModel.titoloTracciaDaSeguire,
-                            true,
-                            direzione = false,
-                            segui = segui,
-                            distanza = viewModel.trackDistanza,
-                            ascesa = viewModel.trackAscesa,
-                            discesa = viewModel.trackDiscesa,
-                            punti = puntiOriginali.toList(),
-                            waypoints = viewModel.wayPoint.toList(),
-                            fotos = viewModel.fotoList.toList(),
-                            distanzeCumulative = cache.first,
-                            asceseCumulative = cache.second,
-                            disceseCumulative = cache.third
-                        )
-                    )
-                }
-            }
 
-            if (swcSegui.isChecked) {
-                if (viewModel.tracciaDaSeguire != "") {
-                    alertVerificaSegui(requireContext()) { segui ->
-                        if (segui) {
-                            viewModel.layerItems.forEach { it.segui = false }
+                    // verifica se traccia da seguire e se esiste già una traccia da seguire
+                    val targetTitle = viewModel.titoloTracciaDaSeguire.trim()
+                    val existingItem = viewModel.layerItems.find { it.nome.trim().equals(targetTitle, ignoreCase = true) }
+
+                    fun updateOrCreateLayerItem(segui: Boolean) {
+                        val cache = MapUtils.generaCacheStatistiche(puntiOriginali.toList())
+                        if (existingItem != null) {
+                            val index = viewModel.layerItems.indexOf(existingItem)
+                            viewModel.layerItems[index] = existingItem.copy(
+                                abilitato = true,
+                                segui = segui,
+                                punti = puntiOriginali.toList(),
+                                waypoints = viewModel.wayPoint.toList(),
+                                fotos = viewModel.fotoList.toList(),
+                                distanzeCumulative = cache.first,
+                                asceseCumulative = cache.second,
+                                disceseCumulative = cache.third
+                            )
+                        } else {
+                            viewModel.layerItems.add(
+                                LayerItem(
+                                    viewModel.titoloTracciaDaSeguire,
+                                    true,
+                                    direzione = false,
+                                    segui = segui,
+                                    distanza = viewModel.trackDistanza,
+                                    ascesa = viewModel.trackAscesa,
+                                    discesa = viewModel.trackDiscesa,
+                                    punti = puntiOriginali.toList(),
+                                    waypoints = viewModel.wayPoint.toList(),
+                                    fotos = viewModel.fotoList.toList(),
+                                    distanzeCumulative = cache.first,
+                                    asceseCumulative = cache.second,
+                                    disceseCumulative = cache.third
+                                )
+                            )
+                        }
+                    }
+
+                    fun apriMappa() {
+                        findNavController().navigate(R.id.action_schedaFragment_to_mappaFragment)
+                    }
+
+                    if (swcSegui.isChecked) {
+                        if (viewModel.tracciaDaSeguire != "") {
+                            alertVerificaSegui(requireContext()) { segui ->
+                                if (segui) {
+                                    viewModel.layerItems.forEach { it.segui = false }
+                                    updateOrCreateLayerItem(true)
+                                    viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
+                                    viewModel.alertFuoriTraccia = true
+                                } else {
+                                    updateOrCreateLayerItem(false)
+                                }
+                                apriMappa()
+                            }
+                        } else {
                             updateOrCreateLayerItem(true)
                             viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
                             viewModel.alertFuoriTraccia = true
-                        } else {
-                            updateOrCreateLayerItem(false)
+                            apriMappa()
                         }
+                    } else {
+                        updateOrCreateLayerItem(false)
+                        apriMappa()
                     }
-                } else {
-                    updateOrCreateLayerItem(true)
-                    viewModel.tracciaDaSeguire = viewModel.titoloTracciaDaSeguire
-                    viewModel.alertFuoriTraccia = true
                 }
-            } else {
-                updateOrCreateLayerItem(false)
             }
-
-            findNavController().navigate(R.id.action_schedaFragment_to_mappaFragment)
         }
 
         val btnAltimetria: Button = binding.btnAltimetria
