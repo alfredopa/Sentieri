@@ -65,20 +65,46 @@
             android:name=".MainActivity"
             android:launchMode="singleTask"
             android:taskAffinity="com.apstudio.sentieri"
+            android:documentLaunchMode="never"
             android:windowIsTranslucent="false"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- apertura Files da filemanager e da link web -->
+        </activity>
+
+        <!-- Trampoline activity per intercettare l'apertura di file .gpx senza duplicare l'istanza dell'app -->
+        <activity
+            android:name=".GpxImportActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:exported="true">
+            <!-- 1. Filtro originale per estensione .gpx / .GPX (utilizzato da Files di Google) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="file" />
                 <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
                 <data android:mimeType="*/*" />
                 <data android:pathPattern=".*\.gpx" />
+                <data android:pathPattern=".*\.GPX" />
+            </intent-filter>
+
+            <!-- 2. Filtro per Mime Type GPX / XML specifici -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:mimeType="application/gpx+xml" />
+                <data android:mimeType="application/gpx" />
+                <data android:mimeType="application/xml" />
+                <data android:mimeType="text/xml" />
+                <data android:mimeType="application/octet-stream" />
             </intent-filter>
         </activity>
         <provider
