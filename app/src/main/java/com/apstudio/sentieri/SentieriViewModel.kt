@@ -423,24 +423,12 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             var closestIndex = -1
             var minDistance = Double.MAX_VALUE
 
-            // 1. DETERMINAZIONE DELL'INDICE PIÙ VICINO
-            if (lastClosestIndex == -1) {
-                for (i in points.indices) {
-                    val dist = currentLocation.distanceToAsDouble(points[i])
-                    if (dist < 100.0) {
-                        closestIndex = i
-                        minDistance = dist
-                        break
-                    }
-                    if (dist < minDistance) {
-                        minDistance = dist
-                        closestIndex = i
-                    }
-                }
-            } else {
-                val searchWindow = 50
-                val startSearch = maxOf(0, lastClosestIndex - searchWindow)
-                val endSearch = minOf(points.size - 1, lastClosestIndex + searchWindow)
+            // 1. DETERMINAZIONE DELL'INDICE PIÙ VICINO SULLA TRACCIA
+            if (lastClosestIndex != -1) {
+                val searchWindowBack = 30
+                val searchWindowForward = 100
+                val startSearch = maxOf(0, lastClosestIndex - searchWindowBack)
+                val endSearch = minOf(points.size - 1, lastClosestIndex + searchWindowForward)
 
                 for (i in startSearch..endSearch) {
                     val dist = currentLocation.distanceToAsDouble(points[i])
@@ -449,29 +437,27 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                         closestIndex = i
                     }
                 }
+            }
 
-                if (minDistance > 200.0) {
-                    minDistance = Double.MAX_VALUE
-                    for (i in points.indices) {
-                        val dist = currentLocation.distanceToAsDouble(points[i])
-                        if (i > lastClosestIndex && dist < 100.0) {
-                            closestIndex = i
-                            minDistance = dist
-                            break
-                        }
-                        if (dist < minDistance) {
-                            minDistance = dist
-                            closestIndex = i
-                        }
+            // Se la posizione precedente non era impostata o la distanza nella finestra supera 50m,
+            // cerca il punto più vicino su tutta la traccia per evitare falsi allarmi o stalli.
+            if (lastClosestIndex == -1 || minDistance > 50.0) {
+                var globalClosestIndex = -1
+                var globalMinDistance = Double.MAX_VALUE
+                for (i in points.indices) {
+                    val dist = currentLocation.distanceToAsDouble(points[i])
+                    if (dist < globalMinDistance) {
+                        globalMinDistance = dist
+                        globalClosestIndex = i
                     }
+                }
+                if (globalClosestIndex != -1) {
+                    closestIndex = globalClosestIndex
+                    minDistance = globalMinDistance
                 }
             }
 
             if (closestIndex == -1) return@launch
-            
-            if (lastClosestIndex != -1 && closestIndex < lastClosestIndex && minDistance < 50.0) {
-                closestIndex = lastClosestIndex 
-            }
 
             lastClosestIndex = closestIndex
             _distanceFromTrack.postValue(minDistance)

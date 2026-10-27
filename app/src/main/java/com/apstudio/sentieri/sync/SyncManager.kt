@@ -4,19 +4,24 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
-import android.provider.OpenableColumns
 import android.util.Log
 import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.BuildConfig
-import com.apstudio.sentieri.MapUtils
-import com.apstudio.sentieri.db.*
+import com.apstudio.sentieri.db.FotoPoi
+import com.apstudio.sentieri.db.FotoPoiDao
+import com.apstudio.sentieri.db.PoiDB
+import com.apstudio.sentieri.db.PoiDao
+import com.apstudio.sentieri.db.Sentieri
+import com.apstudio.sentieri.db.SentieriDao
+import com.apstudio.sentieri.db.Track
+import com.apstudio.sentieri.db.TrackDao
+import com.apstudio.sentieri.sync.DownloadService.ServerConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONArray
@@ -26,7 +31,6 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
-import com.apstudio.sentieri.sync.DownloadService.ServerConfig
 
 private const val TAG = "SyncManager"
 
@@ -307,22 +311,6 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
             jsonOrThrow(r).getJSONArray("punti").map { PuntoDto.fromJson(it) }
         }
 
-    fun nomeFileFoto(nome: String) =
-        if (nome.endsWith(".jpg", true) || nome.endsWith(".jpeg", true)) nome else "$nome.jpg"
-
-    /*suspend fun caricaFoto(uuid: String, file: File) = withContext(Dispatchers.IO) {
-        val builder = Request.Builder().url("${cfg.base}/files/Foto/$uuid.jpg")
-            .header("X-Content-SHA256", sha256(file))
-            .put(file.asRequestBody("image/jpeg".toMediaType()))
-        if (cfg.token.isNotEmpty()) {
-            builder.header("Authorization", "Bearer ${cfg.token}")
-        }
-        val req = builder.build()
-        client.newCall(req).execute().use { r ->
-            if (r.code != 200 && r.code != 201) throw SyncHttpException(r.code, "upload foto $uuid: HTTP ${r.code}")
-        }
-    }*/
-
     suspend fun caricaFoto(nome: String, inputStream: java.io.InputStream, length: Long, sha256: String) = withContext(Dispatchers.IO) {
         val url = "${cfg.base}/files".toHttpUrl().newBuilder()
             .addPathSegment("Foto").addPathSegment(nome).build()
@@ -371,6 +359,53 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
         }
     }
 
+    suspend fun caricaVoce(nome: String, inputStream: java.io.InputStream, length: Long, sha256: String) = withContext(Dispatchers.IO) {
+        val url = "${cfg.base}/files".toHttpUrl().newBuilder()
+            .addPathSegment("VoceWaypoints").addPathSegment(nome).build()
+
+        val requestBody = object : okhttp3.RequestBody() {
+            override fun contentType() = "audio/m4a".toMediaType()
+            override fun contentLength() = length
+            override fun writeTo(sink: okio.BufferedSink) {
+                inputStream.use { input ->
+                    val buffer = ByteArray(8192)
+                    var read: Int
+                    while (input.read(buffer).also { read = it } != -1) {
+                        sink.write(buffer, 0, read)
+                    }
+                }
+            }
+        }
+
+        val req = Request.Builder().url(url)
+            .header("Authorization", "Bearer ${cfg.token}")
+            .header("X-Content-SHA256", sha256)
+            .put(requestBody).build()
+
+        client.newCall(req).execute().use { r ->
+            if (r.code != 200 && r.code != 201) throw SyncHttpException(r.code, "upload voce $nome: HTTP ${r.code}")
+        }
+    }
+
+    suspend fun scaricaVoce(nomeFile: String, dest: File) = withContext(Dispatchers.IO) {
+        val url = "${cfg.base}/files/api/file".toHttpUrl().newBuilder().addQueryParameter("path", "VoceWaypoints/$nomeFile").build()
+        val builder = Request.Builder().url(url).get()
+        if (cfg.token.isNotEmpty()) {
+            builder.header("Authorization", "Bearer ${cfg.token}")
+        }
+        val req = builder.build()
+        dest.parentFile?.mkdirs()
+        val tmp = File(dest.path + ".part")
+        client.newCall(req).execute().use { r ->
+            if (!r.isSuccessful) throw SyncHttpException(r.code, "download voce $nomeFile: HTTP ${r.code}")
+            r.body!!.byteStream().use { input -> tmp.outputStream().use { out -> input.copyTo(out) } }
+        }
+        if (!tmp.renameTo(dest)) {
+            tmp.delete()
+            throw IOException("impossibile salvare ${dest.name}")
+        }
+    }
+
     companion object {
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -378,19 +413,6 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
             .writeTimeout(60, TimeUnit.SECONDS)
             .build()
     }
-}
-
-private fun sha256(f: File): String {
-    val md = MessageDigest.getInstance("SHA-256")
-    f.inputStream().use { s ->
-        val b = ByteArray(8192)
-        while (true) {
-            val n = s.read(b)
-            if (n < 0) break
-            md.update(b, 0, n)
-        }
-    }
-    return md.digest().joinToString("") { "%02x".format(it) }
 }
 
 // ───────────────────────── Logica di sincronizzazione ─────────────────────────
@@ -419,6 +441,42 @@ class SyncManager(
         val sentieri = File(appMediaDir, "Sentieri")
         if (!sentieri.exists()) sentieri.mkdirs()
         return sentieri
+    }
+
+    private fun getStandardVoceDir(): File {
+        @Suppress("DEPRECATION")
+        val mediaDir = context.externalMediaDirs.firstOrNull()
+            ?: context.getExternalFilesDir(null)
+            ?: context.cacheDir
+        val targetDir = File(mediaDir, "VoceWaypoints")
+        if (!targetDir.exists()) targetDir.mkdirs()
+        return targetDir
+    }
+
+    private fun risolviFileAudio(uriPath: String): File? {
+        if (uriPath.isBlank()) return null
+
+        val fileDiretto = File(uriPath)
+        if (!uriPath.startsWith("content://") && fileDiretto.isAbsolute && fileDiretto.exists() && fileDiretto.canRead()) {
+            return fileDiretto
+        }
+
+        val fileName = if (uriPath.contains("/")) uriPath.substringAfterLast("/") else uriPath
+
+        // 1. Cerca nella cartella VoceWaypoints
+        val fileInMedia = File(getStandardVoceDir(), fileName)
+        if (fileInMedia.exists() && fileInMedia.canRead()) {
+            return fileInMedia
+        }
+
+        // 2. Fallback alla vecchia cartella VoiceNotesWaypoints
+        val legacyDir = context.getExternalFilesDir("VoiceNotesWaypoints")
+        val fileInLegacy = legacyDir?.let { File(it, fileName) }
+        if (fileInLegacy?.exists() == true && fileInLegacy.canRead()) {
+            return fileInLegacy
+        }
+
+        return if (fileDiretto.exists() && fileDiretto.canRead()) fileDiretto else null
     }
 
     private fun getApi(): SyncApi {
@@ -582,6 +640,35 @@ class SyncManager(
                     }
                 }
 
+                // Upload dei file audio dei POI / Waypoint
+                for (p in pois) {
+                    if (p.UriPath.isNotBlank()) {
+                        val audioFile = risolviFileAudio(p.UriPath)
+                        if (audioFile != null && audioFile.exists()) {
+                            try {
+                                val fileName = audioFile.name
+                                val length = audioFile.length()
+                                val sha256 = audioFile.inputStream().use { input ->
+                                    val md = MessageDigest.getInstance("SHA-256")
+                                    val buffer = ByteArray(8192)
+                                    var read: Int
+                                    while (input.read(buffer).also { read = it } != -1) {
+                                        md.update(buffer, 0, read)
+                                    }
+                                    md.digest().joinToString("") { "%02x".format(it) }
+                                }
+
+                                audioFile.inputStream().use { uploadStream ->
+                                    api.caricaVoce(fileName, uploadStream, length, sha256)
+                                    Log.w(TAG, "carica voce $fileName completata")
+                                }
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Errore upload audio ${p.UriPath}: ${e.message}")
+                            }
+                        }
+                    }
+                }
+
                 // Allinea il timestamp locale
                 val updatedServerTs = if (pushResult.lastUpdate > 0L) {
                     pushResult.lastUpdate
@@ -652,6 +739,11 @@ class SyncManager(
                     if (!toDownloadUuids.contains(pDto.trackUuid)) continue
                     val sentieroLocale = sentieriDao.getByUuid(pDto.trackUuid)
                     val existingPoi = poiDao.getByUuid(pDto.uuid)
+
+                    val audioFileName = if (pDto.uriPath.contains("/")) pDto.uriPath.substringAfterLast("/") else pDto.uriPath
+                    val hasAudio = audioFileName.isNotBlank() && (audioFileName.endsWith(".m4a", true) || audioFileName.endsWith(".mp3", true) || audioFileName.endsWith(".aac", true) || audioFileName.endsWith(".3gp", true) || audioFileName.startsWith("AUD_"))
+                    val finalUriPath = if (hasAudio) audioFileName else (existingPoi?.UriPath ?: pDto.uriPath)
+
                     val poiEntity = PoiDB(
                         Id = existingPoi?.Id ?: 0,
                         Trackid = sentieroLocale?.id ?: 0,
@@ -660,13 +752,24 @@ class SyncManager(
                         Ele = pDto.ele,
                         NomePOI = pDto.nome,
                         DescrPOI = pDto.descr,
-                        UriPath = existingPoi?.UriPath ?: pDto.uriPath,
+                        UriPath = finalUriPath,
                         Time = pDto.time,
                         uuid = pDto.uuid,
                         trackUuid = pDto.trackUuid,
                         lastUpdate = pDto.lastUpdate
                     )
                     poiDao.upsert(poiEntity)
+
+                    if (hasAudio) {
+                        val targetAudioFile = File(getStandardVoceDir(), audioFileName)
+                        if (!targetAudioFile.exists() || targetAudioFile.length() == 0L) {
+                            try {
+                                api.scaricaVoce(audioFileName, targetAudioFile)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Download audio fallito $audioFileName: ${e.message}")
+                            }
+                        }
+                    }
                 }
 
                 for (fDto in catalog.fotos) {
@@ -818,6 +921,10 @@ class SyncManager(
             val localSec = if (existingPoi != null) normalizeSec(existingPoi.lastUpdate) else 0L
 
             if (existingPoi == null || serverSec > localSec + 1) {
+                val audioFileName = if (pDto.uriPath.contains("/")) pDto.uriPath.substringAfterLast("/") else pDto.uriPath
+                val hasAudio = audioFileName.isNotBlank() && (audioFileName.endsWith(".m4a", true) || audioFileName.endsWith(".mp3", true) || audioFileName.endsWith(".aac", true) || audioFileName.endsWith(".3gp", true) || audioFileName.startsWith("AUD_"))
+                val finalUriPath = if (hasAudio) audioFileName else (existingPoi?.UriPath ?: pDto.uriPath)
+
                 val poiEntity = PoiDB(
                     Id = existingPoi?.Id ?: 0,
                     Trackid = sentieroLocale?.id ?: 0,
@@ -826,13 +933,25 @@ class SyncManager(
                     Ele = pDto.ele,
                     NomePOI = pDto.nome,
                     DescrPOI = pDto.descr,
-                    UriPath = existingPoi?.UriPath ?: pDto.uriPath,
+                    UriPath = finalUriPath,
                     Time = pDto.time,
                     uuid = pDto.uuid,
                     trackUuid = pDto.trackUuid,
                     lastUpdate = pDto.lastUpdate
                 )
                 poiDao.upsert(poiEntity)
+
+                if (hasAudio) {
+                    val targetAudioFile = File(getStandardVoceDir(), audioFileName)
+                    if (!targetAudioFile.exists() || targetAudioFile.length() == 0L) {
+                        try {
+                            onProgress("⬇ [RICEZIONE]\nDownload audio: $audioFileName")
+                            api.scaricaVoce(audioFileName, targetAudioFile)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Download audio fallito $audioFileName: ${e.message}")
+                        }
+                    }
+                }
             }
         }
 

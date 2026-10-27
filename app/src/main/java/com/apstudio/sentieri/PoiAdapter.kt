@@ -30,6 +30,34 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
         onItemClickListener = listener
     }
 
+    private fun resolveAudioFile(filePath: String, context: Context): File? {
+        if (filePath.isBlank()) return null
+
+        val directFile = File(filePath)
+        if (directFile.isAbsolute && directFile.exists()) {
+            return directFile
+        }
+
+        val fileName = if (filePath.contains("/")) filePath.substringAfterLast("/") else filePath
+
+        // 1. Cerca nella nuova cartella Android/media/com.apstudio.sentieri/VoceWaypoints
+        @Suppress("DEPRECATION")
+        val mediaDir = context.externalMediaDirs.firstOrNull()?.let { File(it, "VoceWaypoints") }
+        val fileInMedia = mediaDir?.let { File(it, fileName) }
+        if (fileInMedia?.exists() == true) {
+            return fileInMedia
+        }
+
+        // 2. Fallback alla vecchia cartella VoiceNotesWaypoints (per retrocompatibilità)
+        val legacyDir = context.getExternalFilesDir("VoiceNotesWaypoints")
+        val fileInLegacy = legacyDir?.let { File(it, fileName) }
+        if (fileInLegacy?.exists() == true) {
+            return fileInLegacy
+        }
+
+        return if (directFile.exists()) directFile else null
+    }
+
     private fun playAudio(filePath: String, context: Context) {
         if (currentlyPlayingPath == filePath && mediaPlayer?.isPlaying == true) {
             stopCurrentPlayback()
@@ -37,17 +65,19 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
         }
         stopCurrentPlayback()
 
-        val audioFile = File(filePath)
-        val isUri = filePath.startsWith("content://")
+        val isUri = filePath.startsWith("content://") || filePath.startsWith("file://")
+        val resolvedFile = if (!isUri) resolveAudioFile(filePath, context) else null
 
-        if (!isUri && !audioFile.exists()) {
+        if (!isUri && (resolvedFile == null || !resolvedFile.exists())) {
             Log.e("PoiAdapter", "File audio non trovato: $filePath")
             Toast.makeText(context, "File audio non trovato", Toast.LENGTH_SHORT).show()
             return
         }
 
+        val audioFile = resolvedFile ?: File(filePath)
+
         if (!isUri) {
-            Log.d("PoiAdapter", "File: ${audioFile.name}. Dimensione: ${audioFile.length()} bytes")
+            Log.d("PoiAdapter", "File: ${audioFile.name}. Percorso: ${audioFile.absolutePath}, Dimensione: ${audioFile.length()} bytes")
         }
 
         // Controllo e forzatura volume multimediale

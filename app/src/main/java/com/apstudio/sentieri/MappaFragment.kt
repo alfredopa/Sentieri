@@ -161,6 +161,7 @@ import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
+import org.osmdroid.bonuspack.clustering.MarkerClusterer
 
 private const val TAG = "MappaFragment"
 
@@ -277,7 +278,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     private var startPointForRouting: GeoPoint? = null
     private var endPointForRouting: GeoPoint? = null
     private var pendingRoadmapPoints: List<GeoPoint>? = null
-
+    private lateinit var radius : MarkerClusterer
     // 1. Registra il launcher per ricevere il risultato dell'attività
     private val mapFileSelectorLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -1258,8 +1259,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             if (turn != null) {
                 Log.d(TAG, "distToNextTurn: dist=${dist.toInt()}m, turn=${turn.turnType}")
 
-                // Mostra il pannello se vicini (soglia a meno di 80 metri)
-                if (dist < 80.0) {
+                // Mostra il pannello se vicini (soglia a meno di 80 metri dal bivio)
+                if (dist in 0.0..80.0) {
                     binding.panelNavigation.visibility = View.VISIBLE
                     binding.cruscotto.panelNextTurn.visibility = View.GONE
                 } else {
@@ -2707,7 +2708,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             Ele = currentGeoPoint.altitude,
             NomePOI = nome,
             DescrPOI = descr,
-            UriPath = currentAudioFilePath ?: "",
+            UriPath = audioFileName ?: "",
             Time = Date().toString()
         )
 
@@ -2867,19 +2868,18 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         builder.setPositiveButton("Crea") { _, _ ->
             val nome = nomePoiEditText.text.toString()
             val descr = descrPoiEditText.text.toString()
-            // Passa currentAudioFilePath a salvaWayPoint.
-            // salvaWayPoint dovrà essere modificato per accettare e usare questo path.
-            salvaWayPoint(nome, descr /*, currentAudioFilePath */)
-            currentAudioFilePath = null // Resetta dopo aver salvato
+            salvaWayPoint(nome, descr)
+            currentAudioFilePath = null
+            audioFileName = null
             alertDialog.dismiss() // Chiudi il dialogo
         }
         builder.setNegativeButton(android.R.string.cancel) { _, _ ->
-            currentAudioFilePath = null // Resetta se si annulla
+            currentAudioFilePath = null
+            audioFileName = null
             // Se è stata fatta una registrazione e si annulla, si potrebbe voler cancellare il file audio
             audioOutputFile?.let {
                 if (it.exists()) {
                     it.delete()
-                    //Log.d(TAG_AUDIO, "File audio temporaneo cancellato: ${it.absolutePath}")
                 }
             }
             audioOutputFile = null
@@ -3902,18 +3902,18 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         return try {
             val timeStamp: String =
                 SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            // 1. Crea il nome del file e salvalo in una variabile locale non-null.
             val finalFileName = "AUD_${timeStamp}.m4a"
-            // 2. Assegna il nome del file alla variabile di classe per usi futuri.
             this.audioFileName = finalFileName
-            val storageDir: File? = requireContext().getExternalFilesDir("VoiceNotesWaypoints")
-            if (storageDir != null && !storageDir.exists()) {
+            
+            // Cartella Android/media/com.apstudio.sentieri/VoceWaypoints
+            val mediaBase = requireContext().externalMediaDirs.firstOrNull() ?: requireContext().getExternalFilesDir(null)
+            val storageDir = File(mediaBase, "VoceWaypoints")
+            if (!storageDir.exists()) {
                 if (!storageDir.mkdirs()) {
-                    Log.e(TAG_AUDIO, "Impossibile creare la directory VoiceNotesWaypoints")
+                    Log.e(TAG_AUDIO, "Impossibile creare la directory VoceWaypoints")
                     return null
                 }
             }
-            // 3. Usa la variabile locale 'finalFileName', che è garantita non-null.
             File(storageDir, finalFileName)
         } catch (ex: IOException) {
             Log.e(TAG_AUDIO, "Errore nella creazione del file audio: ${ex.message}")
@@ -4024,14 +4024,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         try {
                             val debugFile = File(requireContext().cacheDir, "brouter_debug.gpx")
                             debugFile.writeText(gpxString)
-                            Log.i(TAG, "File GPX di BRouter salvato in: ${debugFile.absolutePath}")
+                            Log.d(TAG, "File GPX di BRouter salvato in: ${debugFile.absolutePath}")
                         } catch (e: Exception) {
                             Log.e(TAG, "Impossibile salvare il file GPX di debug", e)
                         }
 
                         // Stampa una porzione del GPX per vedere i tag (wpt, extensions, ecc.)
-                        val snippet = if (gpxString.length > 2000) gpxString.substring(0, 2000) else gpxString
-                        Log.d(TAG, "GPX Snippet: $snippet")
+                        //val snippet = if (gpxString.length > 2000) gpxString.substring(0, 2000) else gpxString
+                        //Log.d(TAG, "GPX Snippet: $snippet")
 
                         val parser = GpxParser()
                         val gpx = parser.parse(gpxString.byteInputStream())
@@ -4051,11 +4051,15 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                         
                         val turnInstructions = mutableListOf<TurnInstruction>()
                         allRoutePoints.forEach { rtept ->
-                            // Considera unicamente i valori di svolta: TR, TL, TSHR, TSHL, TSLR, TSLL
-                            val symbolToCheck = rtept.turnCode?.takeIf { it.isNotBlank() } ?: rtept.description?.takeIf { it.isNotBlank() } ?: rtept.sym
-                            val type = TurnType.fromBRouterSymbol(symbolToCheck)
+                            var type = TurnType.fromBRouterSymbol(rtept.turnCode)
+                            if (type == null) {
+                                type = TurnType.fromBRouterSymbol(rtept.description)
+                            }
+                            if (type == null) {
+                                type = TurnType.fromBRouterSymbol(rtept.sym)
+                            }
                             
-                            Log.d(TAG, "BRouter route point: turnCode='${rtept.turnCode}', desc='${rtept.description}', TurnType=$type, lat=${rtept.latitude}, lon=${rtept.longitude}")
+                            Log.d(TAG, "BRouter route point: turnCode='${rtept.turnCode}', desc='${rtept.description}', sym='${rtept.sym}', TurnType=$type, lat=${rtept.latitude}, lon=${rtept.longitude}")
                             
                             if (type != null) {
                                 val wpGeo = GeoPoint(rtept.latitude, rtept.longitude)
@@ -4069,12 +4073,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                                     }
                                 }
                                 
-                                if (minIndex != -1 && minDistance < 100.0) {
-                                    val distAlong = rtept.offsetDistance ?: if (currentLayer != null && minIndex < currentLayer.distanzeCumulative.size) {
+                                if (minIndex != -1 && minDistance < 150.0) {
+                                    val distAlong = if (currentLayer != null && minIndex < currentLayer.distanzeCumulative.size) {
                                         currentLayer.distanzeCumulative[minIndex]
-                                    } else 0.0
+                                    } else (rtept.offsetDistance ?: 0.0)
 
-                                    Log.i(TAG, "===> Svolta BRouter ACCETTATA: turnCode='${rtept.turnCode}' ($type) al punto $minIndex, coord=($wpGeo), distAlong: ${distAlong.toInt()}m")
+                                    Log.i(TAG, "===> Svolta BRouter ACCETTATA: turnCode='${rtept.turnCode}', desc='${rtept.description}' ($type) al punto $minIndex, coord=($wpGeo), distAlong: ${distAlong.toInt()}m")
 
                                     turnInstructions.add(
                                         TurnInstruction(
@@ -4086,7 +4090,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                                         )
                                     )
                                 } else {
-                                    Log.w(TAG, "Svolta BRouter SCARTATA: troppo lontana dalla traccia (dist: ${minDistance.toInt()}m, coord=$wpGeo)")
+                                    Log.w(TAG, "Svolta BRouter SCARTATA: troppo lontana dalla traccia (dist: ${minDistance.toInt()}m, desc='${rtept.description}')")
                                 }
                             }
                         }

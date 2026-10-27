@@ -2,7 +2,6 @@ package com.apstudio.sentieri
 
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -14,6 +13,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toDrawable
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
@@ -241,7 +241,7 @@ class LayerDialog : Fragment() {
                 isCurrentlyActive: Boolean
             ) {
                 val itemView = viewHolder.itemView
-                val background = ColorDrawable(Color.RED)
+                val background = Color.RED.toDrawable()
                 val deleteIcon = ContextCompat.getDrawable(requireContext(), R.drawable.ic_delete)
 
                 if (deleteIcon != null && dX != 0f) {

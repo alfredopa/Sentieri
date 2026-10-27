@@ -17,6 +17,7 @@ data class TurnInstruction(
             TurnType.RIGHT, TurnType.TSHR -> "Gira a destra"
             TurnType.TSLL -> "Tieni la sinistra"
             TurnType.TSLR -> "Tieni la destra"
+            TurnType.U_TURN -> "Fai inversione"
         }
 
     @get:DrawableRes
@@ -26,27 +27,31 @@ data class TurnInstruction(
             TurnType.RIGHT, TurnType.TSHR -> R.drawable.ic_turn_right
             TurnType.TSLL -> R.drawable.ic_turn_slight_left
             TurnType.TSLR -> R.drawable.ic_turn_slight_right
+            TurnType.U_TURN -> R.drawable.ic_turn_u_turn
         }
 }
 
 enum class TurnType {
-    LEFT,          // TL
-    RIGHT,         // TR
+    LEFT,          // TL, LEFT, L, SHARP LEFT
+    RIGHT,         // TR, RIGHT, R, SHARP RIGHT
     TSHL,          // TSHL (Sharp Left)
     TSHR,          // TSHR (Sharp Right)
-    TSLL,          // TSLL (Slight Left)
-    TSLR;          // TSLR (Slight Right)
+    TSLL,          // TSLL (Slight Left / Keep Left / KL)
+    TSLR,          // TSLR (Slight Right / Keep Right / KR)
+    U_TURN;        // TU, TRU, U-turn
 
     companion object {
         fun fromBRouterSymbol(sym: String?): TurnType? {
             if (sym.isNullOrBlank()) return null
-            return when (sym.trim().uppercase()) {
-                "TL" -> LEFT
-                "TR" -> RIGHT
-                "TSHL" -> TSHL
-                "TSHR" -> TSHR
-                "TSLL" -> TSLL
-                "TSLR" -> TSLR
+            val clean = sym.trim().uppercase().replace(" ", "").replace("-", "").replace("_", "")
+            return when {
+                clean == "TL" || clean == "LEFT" || clean == "TURNLEFT" || clean == "L" -> LEFT
+                clean == "TR" || clean == "RIGHT" || clean == "TURNRIGHT" || clean == "R" -> RIGHT
+                clean == "TSHL" || clean == "SHARPLEFT" -> TSHL
+                clean == "TSHR" || clean == "SHARPRIGHT" -> TSHR
+                clean == "TSLL" || clean == "SLIGHTLEFT" || clean == "KEEPLEFT" || clean == "KL" -> TSLL
+                clean == "TSLR" || clean == "SLIGHTRIGHT" || clean == "KEEPRIGHT" || clean == "KR" -> TSLR
+                clean == "TU" || clean == "TRU" || clean == "UTURN" -> U_TURN
                 else -> null
             }
         }
