@@ -262,85 +262,64 @@ class MainActivity :
     }
 
     private fun verificaCartelleDB() {
-        // verifica se esiste cartella Sentieri nello spazio file applicazione ATTENZIONE solo la cartella media visibile da file picker
-        //val baseDir: File? = getAppSpecificExternalDirectory(applicationContext) // restituisce cartella data anzichè media
-        val mediaStorageDir = this.externalMediaDirs
-        val baseDir: File? = mediaStorageDir.getOrNull(0) ?: getExternalFilesDir(null) ?: cacheDir
-        val sentieriFolder = File(baseDir, "/Mappe")
-        if (!sentieriFolder.exists()) {
-            // crea cartelle Sentieri nello spazio file applicazione
-            val percorso: Set<String> = setOf("/Mappe", "/Tracce")
-            for (element in percorso) {
-                val folderPath = baseDir?.absolutePath + element
-                if (!creaCartelle(folderPath))
-                    Toast.makeText(
-                        this,
-                        "Errore nella creazione della cartella $folderPath",
-                        Toast.LENGTH_LONG
-                    ).show()
+        // Cartella principale nello spazio specifico dell'applicazione
+        val baseDir = externalMediaDirs.firstOrNull() ?: getExternalFilesDir(null) ?: filesDir
+
+        // 1. Crea le sottocartelle dell'app
+        val percorsi = listOf("Mappe", "Foto", "Tracce")
+        for (folderName in percorsi) {
+            val folder = File(baseDir, folderName)
+            if (!folder.exists() && !folder.mkdirs()) {
+                Log.e("MainActivity", "Errore nella creazione della cartella: ${folder.absolutePath}")
             }
         }
-        // controllo esistenza file db Geopackage
+
+        // 2. Inizializzazione dei file di database/configurazione interni
         val filesToInitialize = mapOf(
             "Layers.gpkg" to "databases",
             "Toponimi.gpkg" to "databases",
-            "db_schema_config.xml" to "files" // 'null' indica che copyToInternalStorage userà this.filesDir
+            "db_schema_config.xml" to "files"
         )
+
         for ((fileName, subDir) in filesToInitialize) {
             val copiedFile = copyToInternalStorage(fileName, subDir)
             if (!copiedFile.exists()) {
                 AlertDialog.Builder(this)
                     .setTitle("Errore di Inizializzazione")
-                    .setMessage("File essenziale non trovato o non è stato possibile copiarlo:\n${copiedFile.name}\nNel percorso: ${copiedFile.absolutePath}")
-                    .setPositiveButton("OK") { dialog, _ ->
-                        dialog.dismiss()
-                        // Potresti voler prendere ulteriori azioni qui, come chiudere l'activity
-                        // se l'app non può funzionare senza questi file.
-                        // E.g., finish()
-                    }
-                    .setCancelable(false) // Impedisce all'utente di chiudere il dialogo senza premere OK
+                    .setMessage("File essenziale non trovato o non è stato possibile copiarlo:\n${copiedFile.name}")
+                    .setPositiveButton("OK", null)
+                    .setCancelable(false)
                     .show()
-                return // Esce dalla funzione verificaCartelleDB si un file cruciale manca
+                return
             }
         }
-        // Tutti i file sono stati verificati e copiati con successo.
     }
 
-    private fun creaCartelle(folderPath: String): Boolean {
-        val sentieriFolder = File(folderPath)
-        if (!sentieriFolder.exists()) {
-            val isCreated = sentieriFolder.mkdirs()
-            return isCreated
+    // Copia ottimizzata in Kotlin usando I/O gestito
+    private fun copyToInternalStorage(fileName: String, subDir: String?): File {
+        val targetDir = if (subDir == "databases") {
+            getDatabasePath(fileName).parentFile ?: filesDir
         } else {
-            // La cartella esiste già
-            return true
+            filesDir
         }
-    }
 
-    // copia il file nella cartella dati interni data/data/packageName
-    private fun copyToInternalStorage(databaseName: String, subDir: String? = null): File {
-        val dataDir: File
-        if (subDir == "databases") {
-            dataDir = this.getDatabasePath(databaseName).parentFile!!
-        } else {
-            dataDir = this.filesDir
+        if (!targetDir.exists()) {
+            targetDir.mkdirs()
         }
-        val dbFile = File(dataDir, databaseName)
-        // il file non esiste oppure ha versone inferiore
-        if (!dbFile.exists() || (currentVersionCode > lastVersionCode)) {
+
+        val dbFile = File(targetDir, fileName)
+
+        // Copia il file dagli asset se non esiste o se l'app è stata aggiornata
+        if (!dbFile.exists() || currentVersionCode > lastVersionCode) {
             try {
-                val inputStream: InputStream = assets.open(databaseName)
-                val outputStream: OutputStream = FileOutputStream(dbFile)
-                val buffer = ByteArray(1024)
-                var length: Int
-                while (inputStream.read(buffer).also { length = it } > 0) {
-                    outputStream.write(buffer, 0, length)
+                assets.open(fileName).use { inputStream ->
+                    FileOutputStream(dbFile).use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
                 }
-                outputStream.flush()
-                outputStream.close()
-                inputStream.close()
+                Log.d("MainActivity", "Copiato con successo $fileName in ${dbFile.absolutePath}")
             } catch (e: IOException) {
-                Log.e("Geopackage", "Errore nella copia del file: ${e.message}")
+                Log.e("MainActivity", "Errore nella copia del file $fileName: ${e.message}")
             }
         }
         return dbFile

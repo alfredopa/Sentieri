@@ -1,6 +1,8 @@
 package com.apstudio.sentieri
 
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -8,11 +10,14 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.apstudio.sentieri.db.OnLayerClickListener
@@ -110,7 +115,7 @@ class LayerDialog : Fragment() {
                         setPadding(40, 20, 40, 20)
                     }
                     
-                    val infoText = android.widget.TextView(context).apply {
+                    val infoText = TextView(context).apply {
                         text = "\nDistanza: ${String.format("%,d", item.distanza.toInt())} m" +
                                "\nAscesa: ${String.format("%,d", item.ascesa)} m" +
                                "\nDiscesa: ${String.format("%,d", item.discesa)} m"
@@ -181,10 +186,95 @@ class LayerDialog : Fragment() {
             }
         })
 
+        // Gestione dello swipe per rimuovere percorso e waypoint collegati
+        val itemTouchHelperCallback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                return false
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                val position = viewHolder.adapterPosition
+                if (position != RecyclerView.NO_POSITION && position < viewModel.layerItems.size) {
+                    val itemToRemove = viewModel.layerItems[position]
+
+                    // 1. Rimuovi l'elemento dalla lista dei layer nel ViewModel
+                    viewModel.layerItems.removeAt(position)
+
+                    // 2. Se l'elemento rimosso era la traccia da seguire, resetta lo stato
+                    if (itemToRemove.segui || viewModel.tracciaDaSeguire == itemToRemove.nome) {
+                        viewModel.tracciaDaSeguire = ""
+                        viewModel.trackDistanza = 0f
+                        viewModel.trackAscesa = 0
+                        viewModel.trackDiscesa = 0
+                    }
+
+                    // 3. Rimuovi eventuali waypoint associati dal ViewModel
+                    if (itemToRemove.waypoints.isNotEmpty()) {
+                        viewModel.wayPoint.removeAll { wp ->
+                            itemToRemove.waypoints.any { itemWp ->
+                                itemWp.latitude == wp.latitude && itemWp.longitude == wp.longitude
+                            }
+                        }
+                    }
+
+                    // 4. Notifica l'adapter dell'eliminazione
+                    layerAdapter.notifyItemRemoved(position)
+
+                    // 5. Richiedi il ridisegno della mappa per aggiornare percorsi e waypoint
+                    viewModel.requestMapInvalidate()
+
+                    Toast.makeText(requireContext(), "Percorso \"${itemToRemove.nome}\" rimosso", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onChildDraw(
+                c: Canvas,
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                dX: Float,
+                dY: Float,
+                actionState: Int,
+                isCurrentlyActive: Boolean
+            ) {
+                val itemView = viewHolder.itemView
+                val background = ColorDrawable(Color.RED)
+                val deleteIcon = ContextCompat.getDrawable(requireContext(), R.drawable.ic_delete)
+
+                if (deleteIcon != null && dX != 0f) {
+                    val iconMargin = (itemView.height - deleteIcon.intrinsicHeight) / 2
+                    val iconTop = itemView.top + iconMargin
+                    val iconBottom = iconTop + deleteIcon.intrinsicHeight
+
+                    if (dX > 0) { // Swipe verso destra
+                        background.setBounds(itemView.left, itemView.top, itemView.left + dX.toInt(), itemView.bottom)
+                        val iconLeft = itemView.left + iconMargin
+                        val iconRight = iconLeft + deleteIcon.intrinsicWidth
+                        deleteIcon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
+                    } else { // Swipe verso sinistra
+                        background.setBounds(itemView.right + dX.toInt(), itemView.top, itemView.right, itemView.bottom)
+                        val iconRight = itemView.right - iconMargin
+                        val iconLeft = iconRight - deleteIcon.intrinsicWidth
+                        deleteIcon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
+                    }
+
+                    background.draw(c)
+                    deleteIcon.draw(c)
+                }
+
+                super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+            }
+        }
+
+        val itemTouchHelper = ItemTouchHelper(itemTouchHelperCallback)
+        itemTouchHelper.attachToRecyclerView(recyclerView)
+
         val closeButton = view.findViewById<Button>(R.id.btnOk)
         closeButton.setOnClickListener {
             // Segnaliamo al MappaFragment che deve ridisegnare tutto
-            // Se hai un LiveData per questo, usalo. Altrimenti il NavController farà il pop.
             findNavController().popBackStack()
         }
     }

@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <!--  Definisce una cartella "shared_pdfs" nella cache della tua app  -->
+    <!-- Definisce le cartelle condivise per FileProvider -->
     <cache-path name="shared_pdfs" path="shared_pdfs/"/>
+    <!-- Cartella media dell'app (Android/media/com.apstudio.sentieri/) -->
+    <external-media-path name="external_media" path="." />
+    <external-media-path name="foto_path" path="Foto/" />
+    <!-- Cartella files dell'app (Android/data/com.apstudio.sentieri/files/) -->
+    <external-files-path name="external_files" path="." />
+    <external-path name="external_files_rel" path="." />
 </paths>

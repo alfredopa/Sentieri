@@ -1745,7 +1745,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         val baseDir = mediaDirs.firstOrNull() ?: requireContext().getExternalFilesDir(null) ?: requireContext().cacheDir
         val mappeDir = File(baseDir, "Mappe")
 
-        val validExtensions = setOf("map", "sqlite", "mbtiles", "zip", "gemf")
+        val validExtensions = setOf("map", "sqlite", "mbtiles", "gemf")
         val mapFiles = mutableListOf<File>()
 
         if (mappeDir.exists() && mappeDir.isDirectory) {

@@ -2,7 +2,6 @@ package com.apstudio.sentieri
 
 import android.Manifest
 import android.app.Activity
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -17,6 +16,8 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.navArgs
@@ -24,14 +25,15 @@ import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
 import com.bumptech.glide.Glide
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import androidx.core.net.toUri
+import java.io.File
 
 class CameraFragment : Fragment() {
     // se richiamato da poiFragment riceve l'URI della foto da visualizzare
-    private val args :  CameraFragmentArgs by navArgs()
+    private val args: CameraFragmentArgs by navArgs()
     private lateinit var ivPhoto: ImageView
     private lateinit var fabCamera: FloatingActionButton
     private var currentImageUri: Uri? = null
+    private var currentPhotoFile: File? = null
     private lateinit var resultLauncher: ActivityResultLauncher<Intent>
     private val viewModel: SentieriViewModel by activityViewModels {
         val application = requireActivity().application
@@ -47,9 +49,11 @@ class CameraFragment : Fragment() {
         // 3. Crea la factory con il repository e l'applicazione
         SentieriFactory(repository, application)
     }
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
-                              savedInstanceState: Bundle?): View? {
-        // Inflate the layout for this fragment
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
         return inflater.inflate(R.layout.fragment_camera, container, false)
     }
 
@@ -57,67 +61,69 @@ class CameraFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         fabCamera = view.findViewById(R.id.fabCamera)
         ivPhoto = view.findViewById(R.id.ivImage)
-        // se è passato il parametro con l'URI della foto da visualizzare allora la carica
-        // altrimenti apre la fotocamera
+
         if (args.uriFoto != "") {
             fabCamera.visibility = View.GONE
-            // Usiamo direttamente la stringa: Glide gestirà sia path fisici che content://
             openFoto(ivPhoto, args.uriFoto)
             currentImageUri = args.uriFoto.toUri()
-        }
-        else {
-            // L'applicazione ha il permesso di accedere alla fotocamera
-            // Apri la fotocamera o esegui altre operazioni
-            //if (checkCameraPermission(this)) {
+        } else {
             resultLauncher = registerForActivityResult(
                 ActivityResultContracts.StartActivityForResult()
             ) { result ->
                 if (result.resultCode == Activity.RESULT_OK) {
-                    //Log.d("camera", "L'URI è:$currentImageUri")
-                    openFoto(ivPhoto, currentImageUri!!)
-                    // salva l'URI della foto nel viewModel per il salvataggio nel db e nella lista foto da visualizzare
-                    viewModel.fotoInPoiDB.add(currentImageUri!!)
-                    viewModel.fotoList.add(currentImageUri!!)
+                    currentImageUri?.let { uri ->
+                        openFoto(ivPhoto, uri)
+                        viewModel.fotoInPoiDB.add(uri)
+                        viewModel.fotoList.add(uri)
+                    }
                 }
             }
 
-            // apre direttamente la fotocamera
             openCamera()
 
             fabCamera.setOnClickListener {
                 if (checkCameraPermission(requireContext())) {
                     openCamera()
-                } else
+                } else {
                     requestCameraPermission(requireContext(), REQUEST_CAMERA_PERMISSION)
+                }
             }
         }
     }
 
     private fun openFoto(imageView: ImageView, data: Any) {
-        // Risolve l'URI/path prima di passarlo a Glide per evitare errori EACCES su Scoped Storage
         val mediaData = MapUtils.resolveMediaUri(imageView.context, data.toString())
         Glide.with(imageView.context)
             .load(mediaData)
             .error(android.R.drawable.ic_dialog_alert)
             .into(imageView)
-
-        if (data is Uri) {
-            MapUtils.getFileNameFromUri(requireContext(), data)
-        }
     }
 
     private fun openCamera() {
-        val values = ContentValues()
-        values.put(MediaStore.Images.Media.TITLE, "Sentieri")
-        values.put(MediaStore.Images.Media.DESCRIPTION, "foto waypoint")
-        values.put(MediaStore.Images.Media.RELATIVE_PATH, "DCIM/Sentieri")
-        currentImageUri = requireContext().contentResolver.insert(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values
+        @Suppress("DEPRECATION")
+        val appMediaDir = requireContext().externalMediaDirs.firstOrNull()
+            ?: requireContext().getExternalFilesDir(null)
+            ?: requireContext().filesDir
+
+        val fotoDir = File(appMediaDir, "Foto").apply {
+            if (!exists()) mkdirs()
+        }
+
+        val photoName = "${System.currentTimeMillis()}.jpg"
+        val photoFile = File(fotoDir, photoName)
+        currentPhotoFile = photoFile
+
+        currentImageUri = FileProvider.getUriForFile(
+            requireContext(),
+            "${requireContext().packageName}.provider",
+            photoFile
         )
-        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-        intent.putExtra(MediaStore.EXTRA_OUTPUT, currentImageUri)
+
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+            putExtra(MediaStore.EXTRA_OUTPUT, currentImageUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }
         resultLauncher.launch(intent)
-        //Log.d(ContentValues.TAG, "L'URI è:$currentImageUri")
     }
 
     private fun checkCameraPermission(context: Context): Boolean {
