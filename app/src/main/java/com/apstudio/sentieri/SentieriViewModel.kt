@@ -392,9 +392,11 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     val distToNextTurn: LiveData<Double> = _distToNextTurn
 
     private val _brouterTurnInstructions = MutableLiveData<List<TurnInstruction>>(emptyList())
+    val navigationManager = GpxNavigationManager()
 
     fun setBRouterInstructions(instructions: List<TurnInstruction>) {
         _brouterTurnInstructions.postValue(instructions)
+        navigationManager.setInstructions(instructions)
     }
 
     /**
@@ -486,53 +488,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _remainingDPiu.postValue(remDPiu)
             _remainingDMeno.postValue(remDMeno)
 
-            // 3. CALCOLO PROSSIMA SVOLTA BASATO SULLE COORDINATE REALI
-            val instructions = _brouterTurnInstructions.value?.sortedBy { it.pointIndex } ?: emptyList()
-
-            // Troviamo la svolta successiva valida:
-            // 1. In condizione normale di avanzamento sulla traccia: pointIndex > closestIndex
-            // 2. Nel caso di rientro dopo taglio/fuori rotta o salto di punti:
-            //    cerchiamo tra tutte le svolte in avanti (pointIndex >= closestIndex)
-            //    oppure verifichiamo la svolta con coordinata più vicina davanti a noi.
-            var nextTurnCandidate: TurnInstruction? = null
-            var distToNextTurnMeters = Double.MAX_VALUE
-
-            // Filtriamo prima le svolte che si trovano dal punto attuale in poi lungo la traccia
-            val upcomingTurns = instructions.filter { it.pointIndex >= closestIndex }
-
-            if (upcomingTurns.isNotEmpty()) {
-                // La svolta immediatamente successiva lungo la traccia
-                val immediateNext = upcomingTurns.first()
-                val turnCoord = immediateNext.geoPoint ?: (if (immediateNext.pointIndex < points.size) points[immediateNext.pointIndex] else null)
-
-                if (turnCoord != null) {
-                    val directDistance = currentLocation.distanceToAsDouble(turnCoord)
-                    // Se siamo molto vicini (< 25 metri) o l'abbiamo appena superata, passiamo alla successiva
-                    if (directDistance < 25.0 && upcomingTurns.size > 1 && immediateNext.pointIndex <= closestIndex) {
-                        val followingTurn = upcomingTurns[1]
-                        val followingCoord = followingTurn.geoPoint ?: points[followingTurn.pointIndex]
-                        nextTurnCandidate = followingTurn
-                        distToNextTurnMeters = currentLocation.distanceToAsDouble(followingCoord)
-                    } else {
-                        nextTurnCandidate = immediateNext
-                        distToNextTurnMeters = directDistance
-                    }
-                }
-            } else if (instructions.isNotEmpty()) {
-                // Caso rientro fuori rotta / salto percorso: cerchiamo la svolta con coordinate più vicina
-                var closestTurn: TurnInstruction? = null
-                var minTurnDist = Double.MAX_VALUE
-                for (turn in instructions) {
-                    val coord = turn.geoPoint ?: (if (turn.pointIndex < points.size) points[turn.pointIndex] else null) ?: continue
-                    val d = currentLocation.distanceToAsDouble(coord)
-                    if (d < minTurnDist) {
-                        minTurnDist = d
-                        closestTurn = turn
-                    }
-                }
-                nextTurnCandidate = closestTurn
-                distToNextTurnMeters = minTurnDist
-            }
+            // 3. CALCOLO PROSSIMA SVOLTA TRAMITE MACCHINA A STATI (GpxNavigationManager)
+            val (nextTurnCandidate, distToNextTurnMeters) = navigationManager.onLocationUpdate(currentLocation, points, closestIndex)
 
             if (nextTurnCandidate != null) {
                 _nextTurn.postValue(nextTurnCandidate)
@@ -547,6 +504,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     fun resetCruscotto() {
         clearTrack(getApplication())
         lastClosestIndex = -1
+        navigationManager.clear()
         _brouterTurnInstructions.postValue(emptyList())
         _nextTurn.postValue(null)
         _distToNextTurn.postValue(0.0)
