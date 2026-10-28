@@ -1306,91 +1306,111 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             // Area per raccogliere gli overlay preparati in background
             val preparedOverlays = withContext(Dispatchers.Default) {
                 val list = mutableListOf<org.osmdroid.views.overlay.Overlay>()
+                val drawnWaypointKeys = mutableSetOf<String>()
+                val disabledWaypointKeys = mutableSetOf<String>()
+
+                layers.forEach { item ->
+                    if (!item.abilitato) {
+                        item.waypoints.forEach { wp ->
+                            val latStr = String.format(Locale.US, "%.6f", wp.latitude)
+                            val lonStr = String.format(Locale.US, "%.6f", wp.longitude)
+                            val nameStr = wp.name?.trim() ?: ""
+                            disabledWaypointKeys.add("${nameStr}_${latStr}_${lonStr}")
+                        }
+                    }
+                }
+
+                fun addWaypointMarker(wp: WayPoint) {
+                    val latStr = String.format(Locale.US, "%.6f", wp.latitude)
+                    val lonStr = String.format(Locale.US, "%.6f", wp.longitude)
+                    val nameStr = wp.name?.trim() ?: ""
+                    val key = "${nameStr}_${latStr}_${lonStr}"
+                    if (disabledWaypointKeys.contains(key)) return
+                    if (drawnWaypointKeys.add(key)) {
+                        val marker = Marker(mv).apply {
+                            title = wp.name
+                            position = GeoPoint(wp.latitude, wp.longitude, wp.elevation ?: 0.0)
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            icon = ResourcesCompat.getDrawable(resources, R.drawable.ic_finish, null)
+                        }
+                        list.add(marker)
+                    }
+                }
                 
                 // 1. Rigenera percorsi dai layerItems
                 layers.forEach { item ->
-                    if (!item.abilitato || item.punti.isEmpty()) return@forEach
+                    if (!item.abilitato) return@forEach
                     
-                    if (item.isPolygon) {
-                        val polygon = Polygon(mv).apply {
-                            points = item.punti
-                            fillPaint.color = Color.argb(80, 0, 0, 255) // Blu semi-trasparente
-                            outlinePaint.color = Color.BLUE
-                            outlinePaint.strokeWidth = 2f
-                            title = item.nome
-                            relatedObject = item
-                        }
-                        list.add(polygon)
-                    } else {
-                        // Crea linea di sfondo (operazione grafica veloce)
-                        val lineSfondo = Polyline(mv).apply {
-                            id = "sfondo"
-                            title = item.nome
-                            setPoints(item.punti)
-                            disegnaLineaSfondo(this)
-                        }
-                        list.add(lineSfondo)
-                        
-                        // Crea linea di percorso
-                        val linePercorso = Polyline(mv).apply {
-                            id = "percorso"
-                            title = item.nome
-                            setPoints(item.punti)
-                        }
-                        
-                        // Applica stili (operazioni pesanti: calcoli matematici e paint lists)
-                        if (item.direzione) {
-                            MapUtils.applicaFrecceDirezione(linePercorso)
-                        }
-                        if (item.mostraPendenza) {
-                            val pendenze = MapUtils.calcolaPendenzeSmussate(linePercorso, 8)
-                            disegnaPercorsoColorato(linePercorso, pendenze)
-                        } else {
-                            disegnaPercorsoColorato(linePercorso)
-                        }
-                        
-                        // Aggiungiamo i listener nel thread principale dopo
-                        lineSfondo.relatedObject = item // Salviamo il riferimento per il listener
-                        list.add(linePercorso)
-                        
-                        // Prepariamo i marker di inizio/fine
-                        val startMarker = Marker(mv).apply {
-                            position = item.punti.first()
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_start)
-                            title = "Partenza"
-                        }
-                        val endMarker = Marker(mv).apply {
-                            position = item.punti.last()
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_finish)
-                            title = "Arrivo"
-                        }
-                        list.add(startMarker)
-                        list.add(endMarker)
-
-                        // Aggiungiamo i waypoint specifici di questo layer
-                        item.waypoints.forEach { wp ->
-                            val marker = Marker(mv).apply {
-                                title = wp.name
-                                position = GeoPoint(wp.latitude, wp.longitude, wp.elevation ?: 0.0)
-                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                icon = ResourcesCompat.getDrawable(resources, R.drawable.ic_finish, null)
+                    if (item.punti.isNotEmpty()) {
+                        if (item.isPolygon) {
+                            val polygon = Polygon(mv).apply {
+                                points = item.punti
+                                fillPaint.color = Color.argb(80, 0, 0, 255) // Blu semi-trasparente
+                                outlinePaint.color = Color.BLUE
+                                outlinePaint.strokeWidth = 2f
+                                title = item.nome
+                                relatedObject = item
                             }
-                            list.add(marker)
+                            list.add(polygon)
+                        } else {
+                            // Crea linea di sfondo (operazione grafica veloce)
+                            val lineSfondo = Polyline(mv).apply {
+                                id = "sfondo"
+                                title = item.nome
+                                setPoints(item.punti)
+                                disegnaLineaSfondo(this)
+                            }
+                            list.add(lineSfondo)
+                            
+                            // Crea linea di percorso
+                            val linePercorso = Polyline(mv).apply {
+                                id = "percorso"
+                                title = item.nome
+                                setPoints(item.punti)
+                            }
+                            
+                            // Applica stili (operazioni pesanti: calcoli matematici e paint lists)
+                            if (item.direzione) {
+                                MapUtils.applicaFrecceDirezione(linePercorso)
+                            }
+                            if (item.mostraPendenza) {
+                                val pendenze = MapUtils.calcolaPendenzeSmussate(linePercorso, 8)
+                                disegnaPercorsoColorato(linePercorso, pendenze)
+                            } else {
+                                disegnaPercorsoColorato(linePercorso)
+                            }
+                            
+                            // Aggiungiamo i listener nel thread principale dopo
+                            lineSfondo.relatedObject = item // Salviamo il riferimento per il listener
+                            list.add(linePercorso)
+                            
+                            // Prepariamo i marker di inizio/fine
+                            val startMarker = Marker(mv).apply {
+                                position = item.punti.first()
+                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_start)
+                                title = "Partenza"
+                            }
+                            val endMarker = Marker(mv).apply {
+                                position = item.punti.last()
+                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_finish)
+                                title = "Arrivo"
+                            }
+                            list.add(startMarker)
+                            list.add(endMarker)
                         }
+                    }
+
+                    // Aggiungiamo i waypoint specifici di questo layer
+                    item.waypoints.forEach { wp ->
+                        addWaypointMarker(wp)
                     }
                 }
                 
                 // 2. Rigenera Waypoint globali
                 viewModel.wayPoint.forEach { wp ->
-                    val marker = Marker(mv).apply {
-                        title = wp.name
-                        position = GeoPoint(wp.latitude, wp.longitude, wp.elevation ?: 0.0)
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        icon = ResourcesCompat.getDrawable(resources, R.drawable.ic_finish, null)
-                    }
-                    list.add(marker)
+                    addWaypointMarker(wp)
                 }
                 
                 // 3. Rigenera POI della sessione
@@ -1610,7 +1630,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             if (existingItem != null) {
                 val updatedItem = existingItem.copy(
                     punti = viewModel.puntiDaSeguire.toList(),
-                    waypoints = viewModel.wayPoint.toList(),
+                    waypoints = if (existingItem.waypoints.isNotEmpty()) existingItem.waypoints else viewModel.wayPoint.toList(),
                     fotos = viewModel.fotoList.toList(),
                     distanzeCumulative = cache.first,
                     asceseCumulative = cache.second,
@@ -2249,10 +2269,41 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
 
             if (trackPointsOriginali.isEmpty()) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), "Traccia vuota", Toast.LENGTH_SHORT).show()
+                val waypoints = gpx.wayPoints ?: emptyList()
+                if (waypoints.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        if (!isAdded || _binding == null) return@withContext
+                        val nome = getFileNameFromUri(requireContext(), uri)
+                        viewModel.layerItems.removeAll { it.nome == nome }
+                        viewModel.layerItems.add(
+                            LayerItem(
+                                nome = nome,
+                                abilitato = true,
+                                direzione = false,
+                                segui = false,
+                                distanza = 0f,
+                                ascesa = 0,
+                                discesa = 0,
+                                punti = emptyList(),
+                                waypoints = waypoints,
+                                isWayPoint = true
+                            )
+                        )
+                        waypoints.forEach { waypoint ->
+                            if (viewModel.wayPoint.none { it.latitude == waypoint.latitude && it.longitude == waypoint.longitude && it.name == waypoint.name }) {
+                                viewModel.wayPoint.add(waypoint)
+                            }
+                        }
+                        syncLayerVisuals()
+                        Toast.makeText(requireContext(), "Caricati ${waypoints.size} waypoint dal GPX", Toast.LENGTH_SHORT).show()
+                    }
+                    return@launch
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(requireContext(), "Traccia vuota", Toast.LENGTH_SHORT).show()
+                    }
+                    return@launch
                 }
-                return@launch
             }
 
             // Calcola statistiche in background
@@ -2430,12 +2481,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                                     discesa = trackDiscesa,
                                     punti = points,
                                     isPolygon = isPolygon,
+                                    waypoints = allWaypoints.toList(),
                                     distanzeCumulative = cache.first,
                                     asceseCumulative = cache.second,
                                     disceseCumulative = cache.third
-                                    // Aggiungiamo i waypoint del KML a questo layer se appartengono alla sua area (opzionale)
-                                    // Per ora lasciamo waypoints vuoti o li mettiamo globali se preferito.
-                                    // Dato che KML sputa fuori waypoints separatamente, li teniamo in viewModel.wayPoint per ora.
                                 )
                             )
                         }
@@ -2460,6 +2509,21 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                             Toast.makeText(requireContext(), "Caricate ${tracksFound.size} tracce separate dal KML", Toast.LENGTH_LONG).show()
                         }
                     } else if (allWaypoints.isNotEmpty()) {
+                        viewModel.layerItems.removeAll { it.nome == nomeFile }
+                        viewModel.layerItems.add(
+                            LayerItem(
+                                nome = nomeFile,
+                                abilitato = true,
+                                direzione = false,
+                                segui = false,
+                                distanza = 0f,
+                                ascesa = 0,
+                                discesa = 0,
+                                punti = emptyList(),
+                                waypoints = allWaypoints.toList(),
+                                isWayPoint = true
+                            )
+                        )
                         allWaypoints.forEach { wp ->
                             if (viewModel.wayPoint.none { it.latitude == wp.latitude && it.longitude == wp.longitude }) {
                                 viewModel.wayPoint.add(wp)

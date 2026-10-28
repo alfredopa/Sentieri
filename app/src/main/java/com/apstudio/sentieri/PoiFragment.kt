@@ -116,6 +116,19 @@ class PoiFragment : Fragment() {
         val waypointsToShow = mutableListOf<WayPoint>()
         // Set per tracciare i waypoint già aggiunti basandosi su coordinate e nome normalizzato
         val seenKeys = mutableSetOf<String>()
+        val disabledKeys = mutableSetOf<String>()
+
+        viewModel.layerItems.forEach { item ->
+            if (!item.abilitato) {
+                item.waypoints.forEach { wp ->
+                    val latStr = String.format(Locale.US, "%.6f", wp.latitude)
+                    val lonStr = String.format(Locale.US, "%.6f", wp.longitude)
+                    val name = wp.name?.trim() ?: ""
+                    val normalizedName = if (name.isEmpty() || name.equals("WayPoint", ignoreCase = true)) "" else name
+                    disabledKeys.add("${normalizedName}_${latStr}_${lonStr}")
+                }
+            }
+        }
 
         fun addIfUnique(wp: WayPoint) {
             // Arrotondiamo a 6 decimali per evitare duplicati da imprecisioni floating point
@@ -127,6 +140,7 @@ class PoiFragment : Fragment() {
             val normalizedName = if (name.isEmpty() || name.equals("WayPoint", ignoreCase = true)) "" else name
             
             val key = "${normalizedName}_${latStr}_${lonStr}"
+            if (disabledKeys.contains(key)) return
             if (seenKeys.add(key)) {
                 waypointsToShow.add(wp)
             }

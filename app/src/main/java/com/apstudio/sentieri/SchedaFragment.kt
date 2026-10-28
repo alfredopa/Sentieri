@@ -244,9 +244,9 @@ class SchedaFragment : Fragment(), MenuProvider {
             // NOTA: Se mostraPendenza è true, coloriPuntiDaSeguire è già stato correttamente 
             // popolato con le PENDENZE dalla funzione aggiornaMappaPercorso().
 
-            // carica i waypoint nella viewmodel da visualizzare sulla mappa
-            poiDBList.forEach {
-                val wp = WayPoint(
+            // carica i waypoint di questo percorso da visualizzare sulla mappa
+            val routeWaypoints = poiDBList.map {
+                WayPoint(
                     latitude = it.Latit,
                     longitude = it.Longit,
                     elevation = it.Ele,
@@ -254,7 +254,10 @@ class SchedaFragment : Fragment(), MenuProvider {
                     description = it.DescrPOI,
                     src = it.UriPath
                 )
-                // Verifica unicità prima di aggiungere
+            }
+
+            routeWaypoints.forEach { wp ->
+                // Verifica unicità prima di aggiungere a viewModel.wayPoint
                 if (viewModel.wayPoint.none { existing -> 
                         existing.latitude == wp.latitude && 
                         existing.longitude == wp.longitude && 
@@ -288,7 +291,7 @@ class SchedaFragment : Fragment(), MenuProvider {
                                 abilitato = true,
                                 segui = segui,
                                 punti = puntiOriginali.toList(),
-                                waypoints = viewModel.wayPoint.toList(),
+                                waypoints = routeWaypoints,
                                 fotos = viewModel.fotoList.toList(),
                                 distanzeCumulative = cache.first,
                                 asceseCumulative = cache.second,
@@ -305,7 +308,7 @@ class SchedaFragment : Fragment(), MenuProvider {
                                     ascesa = viewModel.trackAscesa,
                                     discesa = viewModel.trackDiscesa,
                                     punti = puntiOriginali.toList(),
-                                    waypoints = viewModel.wayPoint.toList(),
+                                    waypoints = routeWaypoints,
                                     fotos = viewModel.fotoList.toList(),
                                     distanzeCumulative = cache.first,
                                     asceseCumulative = cache.second,

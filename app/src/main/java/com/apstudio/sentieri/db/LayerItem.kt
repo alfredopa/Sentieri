@@ -17,6 +17,7 @@ data class LayerItem(
     var waypoints: List<net.federicomatera.agpxp.models.WayPoint> = emptyList(),
     var fotos: List<Uri> = emptyList(),
     var isPolygon: Boolean = false,
+    var isWayPoint: Boolean = false,
     // Campi di cache precalcolati per velocizzare calculateRemainingStats
     var distanzeCumulative: List<Double> = emptyList(),
     var asceseCumulative: List<Double> = emptyList(),

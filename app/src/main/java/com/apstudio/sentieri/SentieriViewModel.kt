@@ -12,6 +12,7 @@ import androidx.lifecycle.liveData
 import androidx.lifecycle.map
 import androidx.lifecycle.viewModelScope
 import com.apstudio.sentieri.db.FotoPoi
+import com.apstudio.sentieri.db.GpxNavigationManager
 import com.apstudio.sentieri.db.LayerItem
 import com.apstudio.sentieri.db.LocationRepository
 import com.apstudio.sentieri.db.LocationRepository.clearTrack
@@ -364,11 +365,10 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     }
 
     /**
-     * Pulisce le liste temporanee di POI, Waypoint e Foto.
+     * Pulisce le liste temporanee di POI e Foto.
      * Da usare prima di caricare una nuova traccia sulla mappa per evitare duplicati.
      */
     fun clearTemporaryPoiData() {
-        wayPoint.clear()
         fotoList.clear()
         poiDBList.clear()
         fotoInPoiDB.clear()

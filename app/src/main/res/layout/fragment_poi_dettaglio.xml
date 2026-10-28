@@ -8,63 +8,54 @@
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="5dp"
+        android:layout_marginHorizontal="6dp"
+        android:layout_marginVertical="4dp"
         app:cardCornerRadius="8dp"
-        app:cardElevation="10dp">
+        app:cardElevation="4dp">
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:padding="8dp">
 
             <TextView
                 android:id="@+id/nome_Text"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_marginTop="2dp"
                 android:layout_marginEnd="8dp"
-                android:scrollIndicators="right"
-                android:text="@{data.NomePoi}"
                 android:textSize="16sp"
-                app:layout_constraintEnd_toEndOf="parent"
+                android:textStyle="bold"
+                app:layout_constraintEnd_toStartOf="@+id/btnVoice"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
 
+            <ImageButton
+                android:id="@+id/btnVoice"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Ascolta registrazione"
+                android:src="@android:drawable/ic_btn_speak_now"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
 
             <TextView
                 android:id="@+id/tvDescriz"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"
-                android:textSize="16sp"
-                app:layout_constraintBottom_toBottomOf="@+id/btnVoice"
-                app:layout_constraintEnd_toStartOf="@+id/btnVoice"
-                app:layout_constraintHorizontal_bias="0.0"
+                android:layout_marginTop="4dp"
+                android:textSize="14sp"
+                app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@+id/nome_Text" />
-
-            <ImageButton
-                android:id="@+id/btnVoice"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginTop="2dp"
-                android:layout_marginEnd="8dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Ascolta registrazione"
-                android:src="@android:drawable/ic_btn_speak_now"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/nome_Text" />
-
 
             <TextView
                 android:id="@+id/textView15"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
                 android:layout_marginTop="8dp"
                 android:text="Quota"
-                android:textSize="16sp"
+                android:textSize="14sp"
                 app:layout_constraintEnd_toStartOf="@+id/tvAlti"
                 app:layout_constraintHorizontal_bias="0.5"
                 app:layout_constraintStart_toStartOf="parent"
@@ -76,7 +67,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="2dp"
                 android:text="tvAlti"
-                android:textSize="16sp"
+                android:textSize="14sp"
                 app:layout_constraintEnd_toStartOf="@+id/textView17"
                 app:layout_constraintStart_toEndOf="@+id/textView15"
                 app:layout_constraintTop_toTopOf="@+id/textView15" />
@@ -86,7 +77,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Lat."
-                android:textSize="16sp"
+                android:textSize="14sp"
                 app:layout_constraintEnd_toStartOf="@+id/tvLat"
                 app:layout_constraintHorizontal_bias="0.5"
                 app:layout_constraintStart_toEndOf="@+id/tvAlti"
@@ -98,7 +89,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="2dp"
                 android:text="Latitudine"
-                android:textSize="16sp"
+                android:textSize="14sp"
                 app:layout_constraintEnd_toStartOf="@+id/textView20"
                 app:layout_constraintHorizontal_bias="0.5"
                 app:layout_constraintStart_toEndOf="@+id/textView17"
@@ -110,7 +101,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="2dp"
                 android:text="Lon."
-                android:textSize="16sp"
+                android:textSize="14sp"
                 app:layout_constraintEnd_toStartOf="@+id/tvLon"
                 app:layout_constraintHorizontal_bias="0.5"
                 app:layout_constraintStart_toEndOf="@+id/tvLat"
@@ -121,9 +112,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="2dp"
-                android:layout_marginEnd="8dp"
                 android:text="Longitudine"
-                android:textSize="16sp"
+                android:textSize="14sp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toEndOf="@+id/textView20"
                 app:layout_constraintTop_toTopOf="@+id/textView20" />

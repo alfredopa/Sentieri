@@ -35,11 +35,14 @@ class LayerAdapter(private val layerItems: MutableList<LayerItem>) :
         
         holder.binding.txTraccia.text = item.nome
         holder.binding.swcVisibile.isChecked = item.abilitato
-        if (item.isPolygon) {
+        if (item.isPolygon || item.isWayPoint) {
             holder.binding.swcDirezione.isVisible = false
             holder.binding.swcQuota.isVisible = false
             holder.binding.btnSegui.isVisible = false
         } else {
+            holder.binding.swcDirezione.isVisible = true
+            holder.binding.swcQuota.isVisible = true
+            holder.binding.btnSegui.isVisible = true
             holder.binding.swcDirezione.isChecked = item.direzione
             holder.binding.swcQuota.isChecked = item.mostraPendenza
             holder.binding.btnSegui.isChecked = item.segui

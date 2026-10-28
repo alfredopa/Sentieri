@@ -57,3 +57,34 @@ enum class TurnType {
         }
     }
 }
+
+class GpxNavigationManager {
+    private var instructions: List<TurnInstruction> = emptyList()
+
+    fun setInstructions(newInstructions: List<TurnInstruction>) {
+        instructions = newInstructions
+    }
+
+    fun onLocationUpdate(
+        currentLocation: GeoPoint,
+        points: List<GeoPoint>,
+        closestIndex: Int
+    ): Pair<TurnInstruction?, Double> {
+        if (instructions.isEmpty() || closestIndex < 0 || points.isEmpty()) {
+            return Pair(null, 0.0)
+        }
+        val nextInstruction = instructions.firstOrNull { it.pointIndex > closestIndex }
+            ?: return Pair(null, 0.0)
+
+        val targetPoint = nextInstruction.geoPoint
+            ?: points.getOrNull(nextInstruction.pointIndex)
+            ?: return Pair(null, 0.0)
+
+        val distMeters = currentLocation.distanceToAsDouble(targetPoint)
+        return Pair(nextInstruction, distMeters)
+    }
+
+    fun clear() {
+        instructions = emptyList()
+    }
+}

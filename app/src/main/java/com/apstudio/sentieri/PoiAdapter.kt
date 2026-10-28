@@ -167,18 +167,33 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
         }
 
         fun bind(poi: WayPoint) {
-            binding.nomeText.text = poi.name ?: ""
+            val name = poi.name?.trim() ?: ""
+            binding.nomeText.text = name
 
-            val descriptionText = if (poi.description?.isNotEmpty() == true) {
-                poi.description
-            } else {
-                ""
+            val rawDesc = poi.description?.trim() ?: ""
+            val rawComment = poi.comment?.trim() ?: ""
+
+            // Costruiamo il testo della descrizione evitando duplicati rispetto al nome
+            val descParts = mutableListOf<String>()
+
+            if (rawDesc.isNotEmpty() && !rawDesc.equals(name, ignoreCase = true)) {
+                descParts.add(rawDesc)
             }
-            binding.tvDescriz.text = descriptionText
 
-            if (poi.comment?.isNotEmpty() == true) {
-                val currentTextInTextView = binding.tvDescriz.text?.toString() ?: ""
-                binding.tvDescriz.text = if (currentTextInTextView.isEmpty()) poi.comment else "$currentTextInTextView\n${poi.comment}"
+            if (rawComment.isNotEmpty() 
+                && !rawComment.equals(name, ignoreCase = true) 
+                && !rawComment.equals(rawDesc, ignoreCase = true)) {
+                descParts.add(rawComment)
+            }
+
+            val finalDesc = descParts.joinToString("\n")
+
+            if (finalDesc.isNotEmpty()) {
+                binding.tvDescriz.text = finalDesc
+                binding.tvDescriz.isVisible = true
+            } else {
+                binding.tvDescriz.text = ""
+                binding.tvDescriz.isVisible = false
             }
 
             binding.tvAlti.text = poi.elevation?.toInt()?.toString() ?: "N/A"
