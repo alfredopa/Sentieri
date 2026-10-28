@@ -40,16 +40,16 @@ class PoiAdapter(private val poiList: List<WayPoint>) : RecyclerView.Adapter<Poi
 
         val fileName = if (filePath.contains("/")) filePath.substringAfterLast("/") else filePath
 
-        // 1. Cerca nella nuova cartella Android/media/com.apstudio.sentieri/VoceWaypoints
+        // 1. Cerca nella nuova cartella Android/media/com.apstudio.sentieri/VoceWaypoint
         @Suppress("DEPRECATION")
-        val mediaDir = context.externalMediaDirs.firstOrNull()?.let { File(it, "VoceWaypoints") }
+        val mediaDir = context.externalMediaDirs.firstOrNull()?.let { File(it, "VoceWaypoint") }
         val fileInMedia = mediaDir?.let { File(it, fileName) }
         if (fileInMedia?.exists() == true) {
             return fileInMedia
         }
 
         // 2. Fallback alla vecchia cartella VoiceNotesWaypoints (per retrocompatibilità)
-        val legacyDir = context.getExternalFilesDir("VoiceNotesWaypoints")
+        val legacyDir = context.getExternalFilesDir("VoiceNotesWaypoint")
         val fileInLegacy = legacyDir?.let { File(it, fileName) }
         if (fileInLegacy?.exists() == true) {
             return fileInLegacy

@@ -168,7 +168,7 @@ data class PoiDto(
             uuid = e.uuid, trackUuid = e.trackUuid,
             lat = e.Latit, lon = e.Longit, ele = e.Ele,
             nome = e.NomePOI, descr = e.DescrPOI,
-            time = e.Time, uriPath = e.UriPath,
+            time = e.Time, uriPath = e.UriPath.substringAfterLast('/'),
             lastUpdate = e.lastUpdate
         )
     }
@@ -361,7 +361,7 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
 
     suspend fun caricaVoce(nome: String, inputStream: java.io.InputStream, length: Long, sha256: String) = withContext(Dispatchers.IO) {
         val url = "${cfg.base}/files".toHttpUrl().newBuilder()
-            .addPathSegment("VoceWaypoints").addPathSegment(nome).build()
+            .addPathSegment("VoceWaypoint").addPathSegment(nome).build()
 
         val requestBody = object : okhttp3.RequestBody() {
             override fun contentType() = "audio/m4a".toMediaType()
@@ -388,7 +388,7 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
     }
 
     suspend fun scaricaVoce(nomeFile: String, dest: File) = withContext(Dispatchers.IO) {
-        val url = "${cfg.base}/files/api/file".toHttpUrl().newBuilder().addQueryParameter("path", "VoceWaypoints/$nomeFile").build()
+        val url = "${cfg.base}/files/api/file".toHttpUrl().newBuilder().addQueryParameter("path", "VoceWaypoint/$nomeFile").build()
         val builder = Request.Builder().url(url).get()
         if (cfg.token.isNotEmpty()) {
             builder.header("Authorization", "Bearer ${cfg.token}")
@@ -448,7 +448,7 @@ class SyncManager(
         val mediaDir = context.externalMediaDirs.firstOrNull()
             ?: context.getExternalFilesDir(null)
             ?: context.cacheDir
-        val targetDir = File(mediaDir, "VoceWaypoints")
+        val targetDir = File(mediaDir, "VoceWaypoint")
         if (!targetDir.exists()) targetDir.mkdirs()
         return targetDir
     }
@@ -463,14 +463,14 @@ class SyncManager(
 
         val fileName = if (uriPath.contains("/")) uriPath.substringAfterLast("/") else uriPath
 
-        // 1. Cerca nella cartella VoceWaypoints
+        // 1. Cerca nella cartella VoceWaypoint
         val fileInMedia = File(getStandardVoceDir(), fileName)
         if (fileInMedia.exists() && fileInMedia.canRead()) {
             return fileInMedia
         }
 
         // 2. Fallback alla vecchia cartella VoiceNotesWaypoints
-        val legacyDir = context.getExternalFilesDir("VoiceNotesWaypoints")
+        val legacyDir = context.getExternalFilesDir("VoiceNotesWaypoint")
         val fileInLegacy = legacyDir?.let { File(it, fileName) }
         if (fileInLegacy?.exists() == true && fileInLegacy.canRead()) {
             return fileInLegacy

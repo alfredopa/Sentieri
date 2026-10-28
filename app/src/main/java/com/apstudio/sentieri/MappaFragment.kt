@@ -3969,12 +3969,12 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             val finalFileName = "AUD_${timeStamp}.m4a"
             this.audioFileName = finalFileName
             
-            // Cartella Android/media/com.apstudio.sentieri/VoceWaypoints
+            // Cartella Android/media/com.apstudio.sentieri/VoceWaypoint
             val mediaBase = requireContext().externalMediaDirs.firstOrNull() ?: requireContext().getExternalFilesDir(null)
-            val storageDir = File(mediaBase, "VoceWaypoints")
+            val storageDir = File(mediaBase, "VoceWaypoint")
             if (!storageDir.exists()) {
                 if (!storageDir.mkdirs()) {
-                    Log.e(TAG_AUDIO, "Impossibile creare la directory VoceWaypoints")
+                    Log.e(TAG_AUDIO, "Impossibile creare la directory VoceWaypoint")
                     return null
                 }
             }
