@@ -1,6 +1,7 @@
 package com.apstudio.sentieri
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
@@ -582,8 +583,10 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     }
 
     fun cancellaSentiero(id: Int) {
-        viewModelScope.launch {
-            repository.cancellaSentieroCompleto(id)
+        val context = getApplication<Application>()
+        // Aggiungiamo Dispatchers.IO per spostare l'operazione fuori dal Main Thread
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.cancellaSentieroCompleto(id, context)
         }
     }
 

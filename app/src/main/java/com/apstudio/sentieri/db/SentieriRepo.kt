@@ -1,5 +1,6 @@
 package com.apstudio.sentieri.db
 
+import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.asLiveData
 import kotlinx.coroutines.flow.Flow
@@ -69,14 +70,50 @@ import kotlinx.coroutines.flow.Flow
 
     // --- OPERAZIONI COMBINATE (TRANSAZIONI) ---
 
-    suspend fun cancellaSentieroCompleto(idSentiero: Int) {
-        // KSP e Room gestiscono le transazioni automaticamente se
-        // il metodo del DAO è annotato con @Transaction.
-        // Se non lo è, eseguire le operazioni in sequenza è comunque sicuro.
+    suspend fun cancellaSentieroCompleto(idSentiero: Int, context: android.content.Context) {
+        // 1. RECUPERO DATI PRIMA DELLA CANCELLAZIONE
+        // Recuperiamo le liste di foto e POI associate al sentiero prima di eliminarle dal DB
+        val fotos = fotoPoiDao.getFotoPoibyID(idSentiero)
+        val pois = poiDao.getPoibyID(idSentiero)
+
+        // 2. ELIMINAZIONE FOTO DAL FILESYSTEM
+        fotos.forEach { foto ->
+            try {
+                val file = java.io.File(foto.uriPath)
+                if (file.exists()) {
+                    file.delete()
+                }
+            } catch (e: Exception) {
+                Log.d("SentieriRepo", "Errore eliminazione foto: ${foto.uriPath}")
+            }
+        }
+
+        // 3. ELIMINAZIONE WAYPOINT VOCALI DAL FILESYSTEM
+        val voceDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS).parentFile?.let {
+            java.io.File(it, "Android/media/com.apstudio.sentieri/VoceWaypoint")
+        } ?: java.io.File(context.externalMediaDirs.firstOrNull() ?: context.getExternalFilesDir(null), "VoceWaypoint")
+
+        pois.forEach { poi ->
+            if (poi.UriPath.isNotBlank()) {
+                try {
+                    val fileName = poi.UriPath.substringAfterLast('/')
+                    val fileVoce = java.io.File(voceDir, fileName)
+                    if (fileVoce.exists()) {
+                        fileVoce.delete()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("SentieriRepo", "Errore eliminazione voce: ${poi.UriPath}", e)
+                }
+            }
+        }
+
+        // 4. CANCELLAZIONE DAL DATABASE
+        fotoPoiDao.deleteByTrackId(idSentiero)
+        poiDao.deleteByTrackId(idSentiero)
         trackDao.deleteTrack(idSentiero)
-        // Aggiungi qui la cancellazione dei POI e delle foto se necessario
         sentieriDao.deleteSentiero(idSentiero)
     }
+
 
     suspend fun cercaInArea(minLat: Double, maxLat: Double, minLon: Double, maxLon: Double): List<Sentieri> {
         val ids = trackDao.getTrackIdsInArea(minLat.toFloat(), maxLat.toFloat(), minLon.toFloat(), maxLon.toFloat())

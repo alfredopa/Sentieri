@@ -168,7 +168,7 @@ data class PoiDto(
             uuid = e.uuid, trackUuid = e.trackUuid,
             lat = e.Latit, lon = e.Longit, ele = e.Ele,
             nome = e.NomePOI, descr = e.DescrPOI,
-            time = e.Time, uriPath = e.UriPath.substringAfterLast('/'),
+            time = e.Time, uriPath = e.UriPath,
             lastUpdate = e.lastUpdate
         )
     }
