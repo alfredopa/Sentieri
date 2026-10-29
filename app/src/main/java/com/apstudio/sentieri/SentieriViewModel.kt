@@ -27,6 +27,7 @@ import com.apstudio.sentieri.sync.SyncManager
 import com.example.levo_sdk.domain.model.BtDevice
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
+import com.apstudio.sentieri.db.Track
 import com.apstudio.sentieri.db.TurnInstruction
 import com.apstudio.sentieri.sync.DownloadService
 import kotlinx.coroutines.Dispatchers
@@ -230,6 +231,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         get() = LocationRepository.oraInizio
         set(value) { LocationRepository.oraInizio = value }
 
+    var trackPuntiCompleti: MutableList<Track> = mutableListOf()
     val tempoTrascorso: LiveData<String> = LocationRepository.tempoTrascorso
     
     val elapsedTime: Long
@@ -539,6 +541,11 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             val percorso = Polyline()
             val nuoviPunti = mutableListOf<GeoPoint>()
 
+            withContext(Dispatchers.Main.immediate) {
+                trackPuntiCompleti.clear()
+                trackPuntiCompleti.addAll(puntiTracciaDalDb)
+            }
+
             puntiTracciaDalDb.forEach {
                 val punto = GeoPoint(it.Latit.toDouble(), it.Longit.toDouble(), it.Ele.toDouble())
                 percorso.addPoint(punto)
@@ -606,9 +613,40 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         }
     }
 
+    enum class ChartType { ALTITUDE, EBIKE, HEART_RATE }
+    enum class TelemetrySeries { BATTERY, ASSIST, POWER, CADENCE, HR, ALTITUDE }
+
     suspend fun preparaDatiGrafico(): List<com.github.mikephil.charting.data.Entry> {
         return withContext(Dispatchers.IO) {
             MapUtils.getPuntiInterpolati(geoPuntiPercorso)
+        }
+    }
+
+    suspend fun preparaDatiGraficoTelemetry(type: ChartType, series: List<TelemetrySeries> = emptyList()): Map<TelemetrySeries, List<com.github.mikephil.charting.data.Entry>> {
+        return withContext(Dispatchers.IO) {
+            val result = mutableMapOf<TelemetrySeries, List<com.github.mikephil.charting.data.Entry>>()
+
+            when (type) {
+                ChartType.ALTITUDE -> {
+                    result[TelemetrySeries.ALTITUDE] = MapUtils.getPuntiInterpolati(geoPuntiPercorso)
+                }
+                ChartType.EBIKE -> {
+                    series.forEach { s ->
+                        val selector: (com.apstudio.sentieri.db.Track) -> Float = when (s) {
+                            TelemetrySeries.BATTERY -> { { it.batteryPercent?.toFloat() ?: 0f } }
+                            TelemetrySeries.ASSIST -> { { it.assistLevel?.toFloat() ?: 0f } }
+                            TelemetrySeries.POWER -> { { it.power?.toFloat() ?: 0f } }
+                            TelemetrySeries.CADENCE -> { { it.cadence?.toFloat() ?: 0f } }
+                            else -> { { 0f } }
+                        }
+                        result[s] = MapUtils.getPuntiInterpolatiTrack(trackPuntiCompleti, selector)
+                    }
+                }
+                ChartType.HEART_RATE -> {
+                    result[TelemetrySeries.HR] = MapUtils.getPuntiInterpolatiTrack(trackPuntiCompleti) { it.heartRate?.toFloat() ?: 0f }
+                }
+            }
+            result
         }
     }
 

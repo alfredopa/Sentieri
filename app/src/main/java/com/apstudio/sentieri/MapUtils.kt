@@ -569,6 +569,58 @@ object MapUtils {
         return listPunti
     }
 
+    fun getPuntiInterpolatiTrack(
+        puntiOriginali: List<com.apstudio.sentieri.db.Track>,
+        selector: (com.apstudio.sentieri.db.Track) -> Float
+    ): List<Entry> {
+        val listPunti = mutableListOf<Entry>()
+        if (puntiOriginali.size < 2) {
+            return listPunti
+        }
+
+        var distanzaProgressivaMetri = 0.0
+        var puntoPrecedenteGeo = GeoPoint(
+            puntiOriginali.first().Latit.toDouble(),
+            puntiOriginali.first().Longit.toDouble(),
+            puntiOriginali.first().Ele.toDouble()
+        )
+        var valorePrecedente = selector(puntiOriginali.first())
+        var prossimoTraguardoKm = 1
+
+        // Punto di partenza
+        listPunti.add(Entry(0f, valorePrecedente))
+
+        for (i in 1 until puntiOriginali.size) {
+            val trackCorrente = puntiOriginali[i]
+            val puntoCorrenteGeo = GeoPoint(trackCorrente.Latit.toDouble(), trackCorrente.Longit.toDouble(), trackCorrente.Ele.toDouble())
+            val valoreCorrente = selector(trackCorrente)
+
+            val distanzaSegmento = puntoPrecedenteGeo.distanceToAsDouble(puntoCorrenteGeo)
+            val distanzaPrecedenteMetri = distanzaProgressivaMetri
+            distanzaProgressivaMetri += distanzaSegmento
+
+            while (distanzaProgressivaMetri >= prossimoTraguardoKm * 1000) {
+                val distanzaTraguardoMetri = (prossimoTraguardoKm * 1000).toDouble()
+                if (distanzaSegmento == 0.0) break
+
+                val frazioneSegmento = (distanzaTraguardoMetri - distanzaPrecedenteMetri) / distanzaSegmento
+                val valoreInterpolato = (valorePrecedente + ((valoreCorrente - valorePrecedente) * frazioneSegmento)).toFloat()
+
+                listPunti.add(Entry(prossimoTraguardoKm.toFloat(), valoreInterpolato))
+                prossimoTraguardoKm++
+            }
+            puntoPrecedenteGeo = puntoCorrenteGeo
+            valorePrecedente = valoreCorrente
+        }
+
+        // Ultimo punto
+        val distanzaFinaleKm = (distanzaProgressivaMetri / 1000.0).toFloat()
+        listPunti.add(Entry(distanzaFinaleKm, selector(puntiOriginali.last())))
+
+        return listPunti
+    }
+
+
     fun formatElapsedTime(elapsedTime: Long): String = formatSeconds(elapsedTime / 1000)
 
     fun prnDataFromUtc(dataOra: String): String {

@@ -28,6 +28,7 @@
 
     <!-- AlertDialog personalizzato per temi Chiaro e Scuro -->
     <style name="AlertDialogCustom" parent="Theme.Material3.DayNight.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/bg_dialog_rounded</item>
         <item name="android:windowTitleStyle">@style/AlertDialogTitleStyle</item>
         <item name="android:textColor">?attr/colorOnSurface</item>
         <item name="android:textColorPrimary">?attr/colorOnSurface</item>
@@ -40,7 +41,7 @@
     </style>
 
     <style name="AlertDialogButtonStyle" parent="Widget.Material3.Button.TextButton.Dialog">
-        <item name="android:textColor">?attr/colorPrimary</item>
+        <item name="android:textColor">@android:color/white</item>
         <item name="android:textStyle">bold</item> <!-- Testo in grassetto per visibilità -->
         <item name="android:textSize">16sp</item>
     </style>

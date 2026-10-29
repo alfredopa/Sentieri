@@ -360,8 +360,9 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintVertical_bias="1.0">
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSegui"
+                style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="8dp"
@@ -370,16 +371,21 @@
                 android:paddingStart="2dp"
                 android:paddingEnd="2dp"
                 android:text="Carica in Mappa"
+                android:textColor="@android:color/white"
+                app:strokeColor="@android:color/white"
                 android:textSize="14sp" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnAltimetria"
+                style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="8dp"
                 android:layout_weight="1"
                 android:maxLines="1"
                 android:text="Altimetria"
+                android:textColor="@android:color/white"
+                app:strokeColor="@android:color/white"
                 android:textSize="14sp" />
         </LinearLayout>
 
