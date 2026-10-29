@@ -50,6 +50,7 @@
         app:cardBackgroundColor="?attr/colorSurfaceVariant">
 
         <ScrollView
+            android:id="@+id/scrollSyncDetails"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:padding="12dp">

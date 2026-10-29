@@ -33,9 +33,11 @@
                 android:id="@+id/btnVoice"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:background="@drawable/bg_bordered_button"
                 android:contentDescription="Ascolta registrazione"
                 android:src="@android:drawable/ic_btn_speak_now"
+                app:tint="#ff0000"
+                android:padding="6dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
 

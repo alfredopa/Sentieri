@@ -73,6 +73,9 @@ class SincronizzaFragment : Fragment() {
 
         viewModel.syncDetails.observe(viewLifecycleOwner) { details ->
             binding.tvSyncDetails.text = details
+            binding.scrollSyncDetails.post {
+                binding.scrollSyncDetails.fullScroll(View.FOCUS_DOWN)
+            }
         }
 
         viewModel.isSyncing.observe(viewLifecycleOwner) { isSyncing ->

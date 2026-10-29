@@ -1,9 +1,14 @@
 package com.apstudio.sentieri.db
 
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.asLiveData
 import kotlinx.coroutines.flow.Flow
+import java.io.File
 
 /**
  * Repository che gestisce tutte le interazioni con il database.
@@ -68,46 +73,127 @@ import kotlinx.coroutines.flow.Flow
         return fotoPoiDao.getFotoPoibyID(idPoi)
     }
 
-    // --- OPERAZIONI COMBINATE (TRANSAZIONI) ---
+    // --- OPERAZIONI COMBINATE (TRANSAZIONI E PULIZIA) ---
 
-    suspend fun cancellaSentieroCompleto(idSentiero: Int, context: android.content.Context) {
-        // 1. RECUPERO DATI PRIMA DELLA CANCELLAZIONE
-        // Recuperiamo le liste di foto e POI associate al sentiero prima di eliminarle dal DB
+    suspend fun cancellaSentieroCompleto(idSentiero: Int, context: Context) {
+        // 1. RECUPERO DATI PRIMA DELLA CANCELLAZIONE DAL DATABASE
         val fotos = fotoPoiDao.getFotoPoibyID(idSentiero)
         val pois = poiDao.getPoibyID(idSentiero)
 
+        @Suppress("DEPRECATION")
+        val appMediaDir = try {
+            context.externalMediaDirs.firstOrNull() ?: context.getExternalFilesDir(null) ?: context.filesDir
+        } catch (_: Exception) {
+            context.filesDir
+        }
+
+        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).parentFile
+
         // 2. ELIMINAZIONE FOTO DAL FILESYSTEM
+        val cartelleFoto = listOfNotNull(
+            appMediaDir?.let { File(it, "Foto") },
+            downloadsDir?.let { File(it, "Android/media/com.apstudio.sentieri/Foto") },
+            context.getExternalFilesDir("Foto"),
+            context.getExternalFilesDir(null)
+        )
+
         fotos.forEach { foto ->
-            try {
-                val file = java.io.File(foto.uriPath)
-                if (file.exists()) {
-                    file.delete()
+            val rawPath = foto.uriPath.trim()
+            val fileName = if (foto.nomeFoto.isNotBlank()) foto.nomeFoto.trim() else rawPath.substringAfterLast('/')
+
+            // A. Se è un Content URI, tenta eliminazione tramite ContentResolver
+            if (rawPath.startsWith("content://")) {
+                try {
+                    context.contentResolver.delete(Uri.parse(rawPath), null, null)
+                } catch (e: Exception) {
+                    Log.w("SentieriRepo", "Impossibile eliminare content URI foto: $rawPath - ${e.message}")
                 }
-            } catch (e: Exception) {
-                Log.d("SentieriRepo", "Errore eliminazione foto: ${foto.uriPath}")
+            }
+
+            // B. Eliminazione da percorsi di file fisici
+            val fileDaCancellare = mutableListOf<File>()
+            if (rawPath.isNotBlank() && !rawPath.startsWith("content://")) {
+                fileDaCancellare.add(File(rawPath.removePrefix("file://")))
+            }
+            if (fileName.isNotBlank()) {
+                cartelleFoto.forEach { dir ->
+                    fileDaCancellare.add(File(dir, fileName))
+                }
+            }
+
+            fileDaCancellare.forEach { file ->
+                try {
+                    if (file.exists()) {
+                        val deleted = file.delete()
+                        Log.d("SentieriRepo", "Cancellazione foto '${file.absolutePath}': $deleted")
+                    }
+                } catch (e: Exception) {
+                    Log.w("SentieriRepo", "Errore cancellazione file foto '${file.absolutePath}': ${e.message}")
+                }
+            }
+
+            // C. Eliminazione da MediaStore (se registrata)
+            if (fileName.isNotBlank()) {
+                try {
+                    val selection = "${MediaStore.Images.Media.DISPLAY_NAME} = ?"
+                    val selectionArgs = arrayOf(fileName)
+                    context.contentResolver.delete(
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        selection,
+                        selectionArgs
+                    )
+                } catch (_: Exception) {}
             }
         }
 
         // 3. ELIMINAZIONE WAYPOINT VOCALI DAL FILESYSTEM
-        val voceDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS).parentFile?.let {
-            java.io.File(it, "Android/media/com.apstudio.sentieri/VoceWaypoint")
-        } ?: java.io.File(context.externalMediaDirs.firstOrNull() ?: context.getExternalFilesDir(null), "VoceWaypoint")
+        val cartelleVoce = listOfNotNull(
+            appMediaDir?.let { File(it, "VoceWaypoint") },
+            appMediaDir?.let { File(it, "VoceWaypoints") },
+            downloadsDir?.let { File(it, "Android/media/com.apstudio.sentieri/VoceWaypoint") },
+            context.getExternalFilesDir("VoiceNotesWaypoint"),
+            context.getExternalFilesDir("VoiceNotesWaypoints")
+        )
 
         pois.forEach { poi ->
-            if (poi.UriPath.isNotBlank()) {
-                try {
-                    val fileName = poi.UriPath.substringAfterLast('/')
-                    val fileVoce = java.io.File(voceDir, fileName)
-                    if (fileVoce.exists()) {
-                        fileVoce.delete()
+            val rawPath = poi.UriPath.trim()
+            if (rawPath.isNotBlank()) {
+                val fileName = rawPath.substringAfterLast('/')
+
+                // A. Se è un Content URI
+                if (rawPath.startsWith("content://")) {
+                    try {
+                        context.contentResolver.delete(Uri.parse(rawPath), null, null)
+                    } catch (e: Exception) {
+                        Log.w("SentieriRepo", "Impossibile eliminare content URI voce: $rawPath - ${e.message}")
                     }
-                } catch (e: Exception) {
-                    android.util.Log.e("SentieriRepo", "Errore eliminazione voce: ${poi.UriPath}", e)
+                }
+
+                // B. Eliminazione file fisici
+                val fileDaCancellare = mutableListOf<File>()
+                if (!rawPath.startsWith("content://")) {
+                    fileDaCancellare.add(File(rawPath.removePrefix("file://")))
+                }
+                if (fileName.isNotBlank()) {
+                    cartelleVoce.forEach { dir ->
+                        fileDaCancellare.add(File(dir, fileName))
+                    }
+                }
+
+                fileDaCancellare.forEach { file ->
+                    try {
+                        if (file.exists()) {
+                            val deleted = file.delete()
+                            Log.d("SentieriRepo", "Cancellazione file audio '${file.absolutePath}': $deleted")
+                        }
+                    } catch (e: Exception) {
+                        Log.w("SentieriRepo", "Errore cancellazione file audio '${file.absolutePath}': ${e.message}")
+                    }
                 }
             }
         }
 
-        // 4. CANCELLAZIONE DAL DATABASE
+        // 4. CANCELLAZIONE DAL DATABASE ROOM
         fotoPoiDao.deleteByTrackId(idSentiero)
         poiDao.deleteByTrackId(idSentiero)
         trackDao.deleteTrack(idSentiero)

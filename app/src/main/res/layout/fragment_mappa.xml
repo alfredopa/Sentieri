@@ -12,10 +12,9 @@
         android:id="@+id/Mapview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:focusable="true"
-        android:focusableInTouchMode="true"
         android:clickable="true"
-    />
+        android:focusable="true"
+        android:focusableInTouchMode="true" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/btnMenu"
@@ -23,10 +22,14 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
         android:layout_marginTop="50dp"
+        android:layout_marginRight="10dp"
         android:src="@drawable/hamburger"
         app:backgroundTint="@color/white"
+        app:elevation="8dp"
         app:fabCustomSize="45dp"
         app:maxImageSize="40dp"
+        app:strokeColor="#33000000"
+        app:strokeWidth="1.5dp"
         app:tint="@color/black" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -34,12 +37,15 @@
         android:layout_width="81dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
-        android:clickable="true"
-        app:fabCustomSize="45dp"
         android:layout_marginTop="50dp"
+        android:clickable="true"
         android:src="@drawable/gps_off"
         android:visibility="invisible"
-        app:backgroundTint="#EB0C0C" />
+        app:backgroundTint="#EB0C0C"
+        app:elevation="6dp"
+        app:fabCustomSize="45dp"
+        app:strokeColor="@color/white"
+        app:strokeWidth="2dp" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/camera"
@@ -48,9 +54,11 @@
         android:layout_gravity="end|top"
         android:layout_marginTop="140dp"
         android:layout_marginEnd="4dp"
-        android:outlineProvider="none"
         android:src="@drawable/camera"
-        app:fabCustomSize="36dp" />
+        app:elevation="6dp"
+        app:fabCustomSize="36dp"
+        app:strokeColor="@color/black"
+        app:strokeWidth="2dp" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabBlocMappa"
@@ -59,10 +67,12 @@
         android:layout_gravity="end|top"
         android:layout_marginTop="190dp"
         android:layout_marginEnd="4dp"
-        android:outlineProvider="none"
         android:src="@drawable/pin_rosso"
-        app:fabCustomSize="36dp"
         android:visibility="invisible"
+        app:elevation="6dp"
+        app:fabCustomSize="36dp"
+        app:strokeColor="@color/black"
+        app:strokeWidth="2dp"
         app:tint="@null" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -74,19 +84,25 @@
         android:layout_marginEnd="4dp"
         android:src="@drawable/ic_distance"
         android:visibility="invisible"
-        app:fabCustomSize="36dp" />
+        app:elevation="6dp"
+        app:fabCustomSize="36dp"
+        app:strokeColor="@color/black"
+        app:strokeWidth="2dp" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/btnOpenDrawer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"
-        android:layout_marginTop="70dp"
         android:layout_marginStart="12dp"
+        android:layout_marginTop="70dp"
         android:src="@drawable/hamburger"
         app:backgroundTint="@color/white"
+        app:elevation="6dp"
         app:fabCustomSize="40dp"
         app:maxImageSize="24dp"
+        app:strokeColor="#33000000"
+        app:strokeWidth="1.5dp"
         app:tint="@color/black" />
 
     <Button
@@ -177,10 +193,10 @@
         android:layout_width="match_parent"
         android:layout_height="400dp"
         android:layout_gravity="bottom"
+        android:visibility="gone"
         app:behavior_hideable="true"
         app:behavior_peekHeight="0dp"
-        app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
-        android:visibility="gone">
+        app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -205,23 +221,23 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginTop="8dp">
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
 
                 <Button
                     android:id="@+id/btnCloseSearch"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
                     android:layout_marginEnd="4dp"
+                    android:layout_weight="1"
                     android:text="Esci" />
 
                 <Button
                     android:id="@+id/btnLoadSearch"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
                     android:layout_marginStart="4dp"
+                    android:layout_weight="1"
                     android:text="Carica" />
             </LinearLayout>
         </LinearLayout>

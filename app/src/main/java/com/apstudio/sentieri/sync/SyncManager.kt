@@ -353,9 +353,21 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
             if (!r.isSuccessful) throw SyncHttpException(r.code, "download foto $nomeFile: HTTP ${r.code}")
             r.body!!.byteStream().use { input -> tmp.outputStream().use { out -> input.copyTo(out) } }
         }
+        if (dest.exists()) {
+            dest.delete()
+        }
         if (!tmp.renameTo(dest)) {
-            tmp.delete()
-            throw IOException("impossibile salvare ${dest.name}")
+            try {
+                tmp.inputStream().use { input ->
+                    dest.outputStream().use { out ->
+                        input.copyTo(out)
+                    }
+                }
+                tmp.delete()
+            } catch (e: Exception) {
+                tmp.delete()
+                throw IOException("impossibile salvare ${dest.name}: ${e.message}")
+            }
         }
     }
 
@@ -400,9 +412,21 @@ class SyncApi(private val cfg: SyncConfig, private val client: OkHttpClient = de
             if (!r.isSuccessful) throw SyncHttpException(r.code, "download voce $nomeFile: HTTP ${r.code}")
             r.body!!.byteStream().use { input -> tmp.outputStream().use { out -> input.copyTo(out) } }
         }
+        if (dest.exists()) {
+            dest.delete()
+        }
         if (!tmp.renameTo(dest)) {
-            tmp.delete()
-            throw IOException("impossibile salvare ${dest.name}")
+            try {
+                tmp.inputStream().use { input ->
+                    dest.outputStream().use { out ->
+                        input.copyTo(out)
+                    }
+                }
+                tmp.delete()
+            } catch (e: Exception) {
+                tmp.delete()
+                throw IOException("impossibile salvare ${dest.name}: ${e.message}")
+            }
         }
     }
 
@@ -435,12 +459,13 @@ class SyncManager(
     private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
 
     private fun getStandardPhotoDir(): File {
+        @Suppress("DEPRECATION")
         val appMediaDir = context.externalMediaDirs.firstOrNull()
             ?: context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
             ?: context.cacheDir
-        val sentieri = File(appMediaDir, "Sentieri")
-        if (!sentieri.exists()) sentieri.mkdirs()
-        return sentieri
+        val fotoDir = File(appMediaDir, "Foto")
+        if (!fotoDir.exists()) fotoDir.mkdirs()
+        return fotoDir
     }
 
     private fun getStandardVoceDir(): File {
@@ -505,6 +530,10 @@ class SyncManager(
             var inviatiCount = 0
             var scaricatiCount = 0
             var invariatiCount = 0
+            var fotoInviateCount = 0
+            var fotoScaricatiCount = 0
+            var audioInviatiCount = 0
+            var audioScaricatiCount = 0
 
             for (s in allSentieri) {
                 val idxItem = indexMap[s.uuid]
@@ -631,8 +660,10 @@ class SyncManager(
                         } ?: throw IOException("Impossibile leggere il file per calcolare SHA-256")
 
                         context.contentResolver.openInputStream(uri)?.use { uploadStream ->
+                            onProgress("⬆ [INVIO FOTO]\n${f.nomeFoto}")
                             api.caricaFoto(f.nomeFoto, uploadStream, length, sha256)
                             api.pushFoto(FotoDto.fromEntity(f))
+                            fotoInviateCount++
                             Log.w(TAG, "carica foto ${f.nomeFoto} completata")
                         } ?: Log.w(TAG, "Impossibile aprire stream per upload di ${f.nomeFoto}")
                     } catch (e: Exception) {
@@ -659,7 +690,9 @@ class SyncManager(
                                 }
 
                                 audioFile.inputStream().use { uploadStream ->
+                                    onProgress("⬆ [INVIO AUDIO]\n$fileName")
                                     api.caricaVoce(fileName, uploadStream, length, sha256)
+                                    audioInviatiCount++
                                     Log.w(TAG, "carica voce $fileName completata")
                                 }
                             } catch (e: Exception) {
@@ -764,7 +797,9 @@ class SyncManager(
                         val targetAudioFile = File(getStandardVoceDir(), audioFileName)
                         if (!targetAudioFile.exists() || targetAudioFile.length() == 0L) {
                             try {
+                                onProgress("⬇ [RICEZIONE AUDIO]\n$audioFileName")
                                 api.scaricaVoce(audioFileName, targetAudioFile)
+                                audioScaricatiCount++
                             } catch (e: Exception) {
                                 Log.w(TAG, "Download audio fallito $audioFileName: ${e.message}")
                             }
@@ -792,7 +827,9 @@ class SyncManager(
 
                     if (!targetFile.exists() || targetFile.length() == 0L) {
                         try {
+                            onProgress("⬇ [RICEZIONE FOTO]\n${fDto.nomeFoto}")
                             api.scaricaFoto(fDto.nomeFoto, targetFile)
+                            fotoScaricatiCount++
                         } catch (e: Exception) {
                             Log.w(TAG, "Download foto fallito ${fDto.nomeFoto}: ${e.message}")
                         }
@@ -801,11 +838,15 @@ class SyncManager(
             }
 
             val summary = StringBuilder("✓ Sincronizzazione completata\n\n")
-            if (inviatiCount > 0) summary.append(" Inviati sul NAS: $inviatiCount percorsi\n")
-            if (scaricatiCount > 0) summary.append(" Scaricati dal NAS: $scaricatiCount percorsi\n")
-            summary.append(" Invariati: $invariatiCount percorsi")
+            if (inviatiCount > 0) summary.append(" • Inviati sul NAS: $inviatiCount percorsi\n")
+            if (scaricatiCount > 0) summary.append(" • Scaricati dal NAS: $scaricatiCount percorsi\n")
+            if (fotoInviateCount > 0) summary.append(" • Foto inviate sul NAS: $fotoInviateCount\n")
+            if (fotoScaricatiCount > 0) summary.append(" • Foto scaricate dal NAS: $fotoScaricatiCount\n")
+            if (audioInviatiCount > 0) summary.append(" • Audio/Voce inviati sul NAS: $audioInviatiCount\n")
+            if (audioScaricatiCount > 0) summary.append(" • Audio/Voce scaricati dal NAS: $audioScaricatiCount\n")
+            if (invariatiCount > 0) summary.append(" • Già sincronizzati: $invariatiCount percorsi\n")
 
-            onProgress(summary.toString())
+            onProgress(summary.toString().trim())
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Errore durante la sincronizzazione", e)
@@ -858,6 +899,8 @@ class SyncManager(
 
     private suspend fun ricevi(api: SyncApi, catalog: ServerCatalog, onProgress: (String) -> Unit) {
         var scaricatiCount = 0
+        var audioScaricatiCount = 0
+        var fotoScaricatiCount = 0
 
         for (sDto in catalog.sentieri.values) {
             val existing = sentieriDao.getByUuid(sDto.uuid)
@@ -945,8 +988,9 @@ class SyncManager(
                     val targetAudioFile = File(getStandardVoceDir(), audioFileName)
                     if (!targetAudioFile.exists() || targetAudioFile.length() == 0L) {
                         try {
-                            onProgress("⬇ [RICEZIONE]\nDownload audio: $audioFileName")
+                            onProgress("⬇ [RICEZIONE AUDIO]\n$audioFileName")
                             api.scaricaVoce(audioFileName, targetAudioFile)
+                            audioScaricatiCount++
                         } catch (e: Exception) {
                             Log.w(TAG, "Download audio fallito $audioFileName: ${e.message}")
                         }
@@ -979,14 +1023,21 @@ class SyncManager(
 
                 if (!targetFile.exists() || targetFile.length() == 0L) {
                     try {
-                        onProgress("⬇ [RICEZIONE]\nDownload foto: ${fDto.nomeFoto}")
-                        api.scaricaFoto(fDto.uuid, targetFile)
+                        onProgress("⬇ [RICEZIONE FOTO]\n${fDto.nomeFoto}")
+                        api.scaricaFoto(fDto.nomeFoto, targetFile)
+                        fotoScaricatiCount++
                     } catch (e: Exception) {
                         Log.w(TAG, "Download foto fallito ${fDto.nomeFoto}: ${e.message}")
                     }
                 }
             }
         }
+
+        val summary = StringBuilder("✓ Download database completato\n\n")
+        if (scaricatiCount > 0) summary.append(" • Scaricati dal NAS: $scaricatiCount percorsi\n")
+        if (fotoScaricatiCount > 0) summary.append(" • Foto scaricate dal NAS: $fotoScaricatiCount\n")
+        if (audioScaricatiCount > 0) summary.append(" • Audio/Voce scaricati dal NAS: $audioScaricatiCount\n")
+        onProgress(summary.toString().trim())
 
         Log.i(TAG, "ricevi: Completato. Scaricati/aggiornati $scaricatiCount percorsi dal server.")
     }

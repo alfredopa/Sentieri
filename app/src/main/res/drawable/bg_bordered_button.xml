@@ -1,0 +1,13 @@
+<!-- res/drawable/bg_bordered_button.xml -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval"> <!-- Usa "rectangle" se preferisci bordi squadrati o con angoli arrotondati oppure oval-->
+
+    <!-- Colore di sfondo trasparente o pieno, se necessario -->
+    <solid android:color="@android:color/transparent" />
+
+    <!-- Spessore e colore del bordo -->
+    <stroke
+        android:width="2dp"
+        android:color="#FF0000" /> <!-- Sostituisci con il colore desiderato -->
+
+</shape>
