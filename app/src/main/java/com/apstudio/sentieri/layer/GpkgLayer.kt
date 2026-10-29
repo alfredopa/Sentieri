@@ -42,13 +42,10 @@ class GpkgLayer : DialogFragment(), FeatureAdapter.OnItemClickListener {
     override fun onStart() {
         super.onStart()
         dialog?.window?.apply {
-            val width = (resources.displayMetrics.widthPixels * 0.95).toInt() // 90% della larghezza schermo
-            val height = (resources.displayMetrics.heightPixels * 0.60).toInt() // 75% dell'altezza schermo
-            // Oppure usa ViewGroup.LayoutParams.MATCH_PARENT o WRAP_CONTENT
-            // val height = ViewGroup.LayoutParams.WRAP_CONTENT
+            val width = (resources.displayMetrics.widthPixels * 0.92).toInt()
+            val height = (resources.displayMetrics.heightPixels * 0.65).toInt()
             setLayout(width, height)
-            // Puoi anche impostare la gravità, se necessario
-            // attributes.gravity = Gravity.CENTER
+            setBackgroundDrawableResource(android.R.color.transparent)
         }
     }
 

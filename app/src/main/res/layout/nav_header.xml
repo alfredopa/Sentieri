@@ -10,7 +10,7 @@
     <ImageView
         android:layout_width="60dp"
         android:layout_height="60dp"
-        android:src="@drawable/quattromori_background" />
+        android:src="@drawable/quattromori" />
 
     <TextView
         android:id="@+id/textView1"

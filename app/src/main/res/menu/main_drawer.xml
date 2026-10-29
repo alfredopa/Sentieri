@@ -6,7 +6,7 @@
     <group android:checkableBehavior="single">
     <item
         android:id="@+id/mappaFragment"
-        android:icon="@drawable/quattromori_background"
+        android:icon="@drawable/ic_baseline_photo_24"
         android:title="Vista Mappa" />
     <item
         android:id="@+id/sentieriFragment"
