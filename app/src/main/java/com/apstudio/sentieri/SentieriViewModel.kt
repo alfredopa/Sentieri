@@ -628,7 +628,10 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
 
             when (type) {
                 ChartType.ALTITUDE -> {
-                    result[TelemetrySeries.ALTITUDE] = MapUtils.getPuntiInterpolati(geoPuntiPercorso)
+                    val data = MapUtils.getPuntiInterpolati(geoPuntiPercorso)
+                    if (data.isNotEmpty()) {
+                        result[TelemetrySeries.ALTITUDE] = data
+                    }
                 }
                 ChartType.EBIKE -> {
                     series.forEach { s ->
@@ -639,11 +642,19 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                             TelemetrySeries.CADENCE -> { { it.cadence?.toFloat() ?: 0f } }
                             else -> { { 0f } }
                         }
-                        result[s] = MapUtils.getPuntiInterpolatiTrack(trackPuntiCompleti, selector)
+                        val data = MapUtils.getPuntiInterpolatiTrack(trackPuntiCompleti, selector)
+                        // Aggiungiamo la serie solo se contiene almeno un valore diverso da 0
+                        if (data.any { it.y != 0f }) {
+                            result[s] = data
+                        }
                     }
                 }
                 ChartType.HEART_RATE -> {
-                    result[TelemetrySeries.HR] = MapUtils.getPuntiInterpolatiTrack(trackPuntiCompleti) { it.heartRate?.toFloat() ?: 0f }
+                    val data = MapUtils.getPuntiInterpolatiTrack(trackPuntiCompleti) { it.heartRate?.toFloat() ?: 0f }
+                    // Aggiungiamo la serie solo se contiene almeno un valore diverso da 0
+                    if (data.any { it.y != 0f }) {
+                        result[TelemetrySeries.HR] = data
+                    }
                 }
             }
             result

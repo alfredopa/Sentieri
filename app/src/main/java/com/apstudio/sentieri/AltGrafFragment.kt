@@ -120,6 +120,19 @@ class AltGrafFragment : Fragment() {
 
     private fun updateChart() {
         viewLifecycleOwner.lifecycleScope.launch {
+            // Per decidere la visibilità dei pulsanti, dobbiamo sapere quali dati sono DISPONIBILI in generale,
+            // non solo per il tipo di grafico corrente.
+            // Chiediamo al ViewModel tutti i dati possibili per ogni categoria.
+            val allAltData = viewModel.preparaDatiGraficoTelemetry(SentieriViewModel.ChartType.ALTITUDE)
+            val allEbikeData = viewModel.preparaDatiGraficoTelemetry(SentieriViewModel.ChartType.EBIKE,
+                SentieriViewModel.TelemetrySeries.values().filter { it != SentieriViewModel.TelemetrySeries.ALTITUDE && it != SentieriViewModel.TelemetrySeries.HR })
+            val allHrData = viewModel.preparaDatiGraficoTelemetry(SentieriViewModel.ChartType.HEART_RATE)
+
+            binding.btnAltitudine.visibility = if (allAltData.isNotEmpty()) View.VISIBLE else View.GONE
+            binding.btnEbike.visibility = if (allEbikeData.isNotEmpty()) View.VISIBLE else View.GONE
+            binding.btnCuore.visibility = if (allHrData.isNotEmpty()) View.VISIBLE else View.GONE
+
+            // Ora recuperiamo i dati specifici per il grafico che l'utente vuole vedere
             val dataMap = viewModel.preparaDatiGraficoTelemetry(currentChartType, activeEbikeSeries.toList())
 
             if (dataMap.isEmpty()) {
