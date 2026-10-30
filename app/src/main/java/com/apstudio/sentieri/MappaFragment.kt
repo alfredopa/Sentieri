@@ -1778,7 +1778,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
 
         if (mapFiles.isEmpty()) {
-            AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext(), R.style.AlertDialogCustom)
                 .setTitle("Nessuna mappa trovata")
                 .setMessage("Non sono state trovate mappe scaricate nella cartella Mappe (${mappeDir.absolutePath}).\n\nPuoi scaricarle dal server in Impostazioni oppure selezionare un file tramite il file picker di sistema.")
                 .setPositiveButton("Cerca nel dispositivo") { _, _ ->
@@ -1794,7 +1794,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             "${file.name} (${sizeMb} MB)"
         }.toTypedArray()
 
-        AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext(), R.style.AlertDialogCustom)
             .setTitle("Seleziona mappa locale")
             .setItems(fileNames) { dialog, which ->
                 val selectedFile = mapFiles[which]
@@ -1829,7 +1829,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         }
 
         if (trackFiles.isEmpty()) {
-            AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext(), R.style.AlertDialogCustom)
                 .setTitle("Nessuna traccia trovata")
                 .setMessage("Non sono stati trovati file GPX/KML nella cartella Tracce (${tracceDir.absolutePath}).\n\nPuoi caricarli aprendo la cartella Download o un'altra cartella del dispositivo.")
                 .setPositiveButton("Sfoglia dispositivo (Download)") { _, _ ->
@@ -1845,7 +1845,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             "${file.name} (${sizeKb} KB)"
         }.toTypedArray()
 
-        AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext(), R.style.AlertDialogCustom)
             .setTitle("Tracce (Cartella Tracce)")
             .setItems(fileNames) { dialog, which ->
                 val selectedFile = trackFiles[which]

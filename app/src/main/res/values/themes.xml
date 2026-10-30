@@ -6,7 +6,7 @@
         <item name="colorPrimaryVariant">@color/purple_700</item>
         <item name="colorOnPrimary">@color/white</item>
         <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_700</item> <!-- Cambiato da teal_200 per più contrasto in chiaro -->
+        <item name="colorSecondary">@color/teal_700</item>
         <item name="colorSecondaryVariant">@color/teal_700</item>
         <item name="colorOnSecondary">@color/white</item>
 
@@ -14,8 +14,14 @@
         <item name="android:alertDialogTheme">@style/AlertDialogCustom</item>
         <item name="alertDialogTheme">@style/AlertDialogCustom</item>
 
-        <!-- Colore hamburger menu e contestuale. -->
-        <item name="colorControlNormal">@color/white</item>
+        <!-- Colore hamburger menu, icone e menu contestuali -->
+        <item name="colorControlNormal">?attr/colorOnSurface</item>
+
+        <!-- Correzione specifica per i menu: usiamo gli attributi di Material 3 -->
+        <item name="android:actionMenuTextColor">?attr/colorOnSurface</item>
+        <item name="android:itemBackground">?attr/colorSurface</item>
+        <item name="android:itemTextAppearance">@style/MenuTextAppearance</item>
+
         <item name="android:windowTranslucentStatus">false</item>
         <item name="android:windowTranslucentNavigation">false</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
@@ -26,12 +32,20 @@
         <item name="android:windowSplashScreenIconBackgroundColor" tools:targetApi="31">@color/white</item>
     </style>
 
+    <!-- Stile specifico per il testo dei menu per forzare il contrasto -->
+    <style name="MenuTextAppearance" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textColorPrimary">?attr/colorOnSurface</item>
+    </style>
+
     <!-- AlertDialog personalizzato per temi Chiaro e Scuro -->
     <style name="AlertDialogCustom" parent="Theme.Material3.DayNight.Dialog.Alert">
         <item name="android:windowBackground">@drawable/bg_dialog_rounded</item>
         <item name="android:windowTitleStyle">@style/AlertDialogTitleStyle</item>
         <item name="android:textColor">?attr/colorOnSurface</item>
         <item name="android:textColorPrimary">?attr/colorOnSurface</item>
+        <!-- Aggiunta elevazione per profondità -->
+        <item name="android:windowElevation">8dp</item>
         <!-- Forza il colore dei testi della lista -->
         <item name="android:textColorSecondary">?attr/colorOnSurfaceVariant</item>
         <!-- Stile pulsanti -->
@@ -40,15 +54,17 @@
         <item name="buttonBarNeutralButtonStyle">@style/AlertDialogButtonStyle</item>
     </style>
 
-    <style name="AlertDialogButtonStyle" parent="Widget.Material3.Button.TextButton.Dialog">
-        <item name="android:textColor">@android:color/white</item>
-        <item name="android:textStyle">bold</item> <!-- Testo in grassetto per visibilità -->
+    <style name="AlertDialogButtonStyle" parent="Widget.Material3.Button.OutlinedButton">
+        <!-- Usiamo colorPrimary per i pulsanti dei dialoghi: visibile in entrambi i temi -->
+        <item name="android:textColor">?attr/colorPrimary</item>
+        <item name="android:textStyle">bold</item>
         <item name="android:textSize">16sp</item>
+        <item name="strokeColor">?attr/colorPrimary</item>
     </style>
 
-    <!-- Opzionale: per il pulsante di conferma/eliminazione usiamo un colore di contrasto (es. Rosso/Error) -->
+    <!-- Opzionale: per il pulsante di conferma/eliminazione usiamo un colore di contrasto -->
     <style name="AlertDialogButtonStyle.Positive" parent="AlertDialogButtonStyle">
-        <item name="android:textColor">?attr/colorError</item> <!-- Rosso per l'azione di eliminazione -->
+        <item name="android:textColor">?attr/colorError</item>
     </style>
 
     <!-- Stile per il titolo del dialogo (opzionale, per coerenza) -->
