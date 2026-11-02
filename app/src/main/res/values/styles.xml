@@ -9,8 +9,8 @@
         <!-- Rendi la status bar trasparente -->
         <item name="android:statusBarColor">@android:color/transparent</item>
         <!-- Rendi la navigation bar trasparente (opzionale) -->
-        <item name="android:navigationBarColor">@android:color/transparent</item>
-        <!-- Permetti al layout di estendersi sotto le system bars -->
+        <!--<item name="android:navigationBarColor">@android:color/transparent</item> -->
+       <!-- Permetti al layout di estendersi sotto le system bars -->
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <!-- Per API 27+ per gestire meglio i cutout e il colore della navigation bar -->
         <item name="android:windowLayoutInDisplayCutoutMode" >shortEdges</item>

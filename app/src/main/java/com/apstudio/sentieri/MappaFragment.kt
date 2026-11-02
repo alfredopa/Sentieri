@@ -33,6 +33,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.provider.MediaStore
 import android.telephony.TelephonyManager
+import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.util.TypedValue
 import android.view.KeyEvent
@@ -45,6 +46,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -58,6 +60,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
 import androidx.core.view.WindowInsetsControllerCompat
@@ -4366,52 +4369,59 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         val bottomSheetDialog = BottomSheetDialog(requireContext())
         val view = layoutInflater.inflate(R.layout.menu_bottom_sheet, null)
         bottomSheetDialog.setContentView(view)
+
         bottomSheetDialog.setOnShowListener { dialogInterface ->
             val bottomSheet = (dialogInterface as BottomSheetDialog)
-                .findViewById<android.widget.FrameLayout>(com.google.android.material.R.id.design_bottom_sheet)
-            bottomSheet?.background = null // Rimuove lo sfondo rettangolare di default
+                .findViewById<FrameLayout>(com.google.android.material.R.id.design_bottom_sheet)
+
+            bottomSheet?.let {
+                // Rimuove lo sfondo rettangolare di default
+                it.background = null
+
+                // Forza l'espansione e rimuove il comportamento "collapsed"
+                val behavior = BottomSheetBehavior.from(it)
+                behavior.state = BottomSheetBehavior.STATE_EXPANDED
+                behavior.skipCollapsed = true
+
+                // Rimuove margini laterali e inferiori per ancorare al bordo inferiore
+                val layoutParams = it.layoutParams as ViewGroup.MarginLayoutParams
+                layoutParams.setMargins(0, 0, 0, 0)
+                it.layoutParams = layoutParams
+            }
         }
+
         val navigationView = view.findViewById<NavigationView>(R.id.navigation_view)
         navigationView.itemIconTintList = null
         val menu = navigationView.menu
         val sosItem = menu.findItem(R.id.menu_sos)
 
-        // 1. Colora il Testo di Rosso usando SpannableString
+        // Colora il testo del menuItem SOS in rosso
         val spanString = android.text.SpannableString(sosItem.title.toString())
-        spanString.setSpan(
-            android.text.style.ForegroundColorSpan(Color.RED),
-            0,
-            spanString.length,
-            0
-        )
+        spanString.setSpan(ForegroundColorSpan(Color.RED), 0, spanString.length, 0)
         sosItem.title = spanString
 
-        // 2. Colora l'Icona di Rosso tramite Tint
+        // Colora l'icona del menuItem SOS in rosso
         sosItem.icon?.let { icon ->
-            val wrappedDrawable = androidx.core.graphics.drawable.DrawableCompat.wrap(icon)
-            androidx.core.graphics.drawable.DrawableCompat.setTint(wrappedDrawable, Color.RED)
+            val wrappedDrawable = DrawableCompat.wrap(icon)
+            DrawableCompat.setTint(wrappedDrawable, Color.RED)
             sosItem.icon = wrappedDrawable
         }
 
         navigationView.setNavigationItemSelectedListener { menuItem ->
-
             when (menuItem.itemId) {
                 R.id.menu_lista -> {
                     val directions = MappaFragmentDirections.actionMappaFragmentToSentieriFragment()
                     findNavController().navigate(directions)
                     bottomSheetDialog.dismiss()
                 }
-
                 R.id.menu_gps -> {
                     if (viewModel.isRecording) stopGPS() else avviaLogicaRegistrazione()
                     bottomSheetDialog.dismiss()
                 }
-
                 R.id.menu_gpx -> {
                     bottomSheetDialog.dismiss()
                     mostraTracceLocaliDialog()
                 }
-
                 R.id.menu_poi -> {
                     if (viewModel.isRecording && viewModel.puntiGPS.isNotEmpty()) creaWayPoint()
                     else Toast.makeText(
@@ -4421,18 +4431,14 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     ).show()
                     bottomSheetDialog.dismiss()
                 }
-
                 R.id.menu_mappa -> {
-                    // Chiudiamo prima il BottomSheet per liberare l'interfaccia
                     bottomSheetDialog.dismiss()
                     selezionaMappa()
                 }
-
                 R.id.menu_sos -> {
                     handleSosClick()
                     bottomSheetDialog.dismiss()
                 }
-
                 R.id.menu_cerca_area -> {
                     bottomSheetDialog.dismiss()
                     toggleAreaSearchMode(true)
@@ -4441,6 +4447,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             }
             true
         }
+
         bottomSheetDialog.show()
     }
 
