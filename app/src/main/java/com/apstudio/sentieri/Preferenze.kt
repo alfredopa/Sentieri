@@ -301,7 +301,7 @@ class Preferenze : PreferenceFragmentCompat() {
             if (ebikeScanDialog?.isShowing == true) {
                 val listView = ebikeScanDialog?.listView
                 if (listView != null) {
-                    val adapter = android.widget.ArrayAdapter(
+                    val adapter = ArrayAdapter(
                         requireContext(),
                         android.R.layout.simple_list_item_1,
                         devices.map { "${it.name ?: "Unknown"} (${it.address})" }.toTypedArray()

@@ -17,7 +17,7 @@ data class TurnInstruction(
             TurnType.RIGHT, TurnType.TSHR -> "Gira a destra"
             TurnType.TSLL -> "Tieni la sinistra"
             TurnType.TSLR -> "Tieni la destra"
-            TurnType.U_TURN -> "Fai inversione"
+            else -> ""
         }
 
     @get:DrawableRes
@@ -27,7 +27,7 @@ data class TurnInstruction(
             TurnType.RIGHT, TurnType.TSHR -> R.drawable.ic_turn_right
             TurnType.TSLL -> R.drawable.ic_turn_slight_left
             TurnType.TSLR -> R.drawable.ic_turn_slight_right
-            TurnType.U_TURN -> R.drawable.ic_turn_u_turn
+            else -> R.drawable.ic_turn_slight_right // Fallback
         }
 }
 
@@ -51,7 +51,7 @@ enum class TurnType {
                 clean == "TSHR" || clean == "SHARPRIGHT" -> TSHR
                 clean == "TSLL" || clean == "SLIGHTLEFT" || clean == "KEEPLEFT" || clean == "KL" -> TSLL
                 clean == "TSLR" || clean == "SLIGHTRIGHT" || clean == "KEEPRIGHT" || clean == "KR" -> TSLR
-                clean == "TU" || clean == "TRU" || clean == "UTURN" -> U_TURN
+                // U-Turns are explicitly ignored by returning null
                 else -> null
             }
         }

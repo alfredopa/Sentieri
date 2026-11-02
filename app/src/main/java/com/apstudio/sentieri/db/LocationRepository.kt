@@ -79,8 +79,11 @@ object LocationRepository {
     private val _quota = MutableLiveData(0)
     val quota: LiveData<Int> = _quota
 
+    //variabili calcolo pendenza
     private val _pendenza = MutableLiveData(0)
     val pendenza: LiveData<Int> = _pendenza
+    private const val SLOPE_WINDOW_SIZE = 5 // Numero di campioni per la media della pendenza
+    private val slopeHistory = ArrayDeque<Int>(SLOPE_WINDOW_SIZE)
 
     private val _velocitaKmh = MutableLiveData(0)
     val velocitaKmh: LiveData<Int> = _velocitaKmh
@@ -292,11 +295,30 @@ object LocationRepository {
             referencePointForSlope?.let { ref ->
                 val dist = ref.distanceToAsDouble(currentPoint)
                 if (dist >= SLOPE_CALCULATION_DISTANCE_THRESHOLD) {
-                    _pendenza.postValue(((currentPoint.altitude - ref.altitude) / dist * 100).toInt())
+                    // 1. Calcolo pendenza istantanea
+                    var instantSlope = ((currentPoint.altitude - ref.altitude) / dist * 100).toInt()
+
+                    // 2. Deadband: se è quasi piatta, forziamo a 0
+                    if (instantSlope in -1..1) {
+                        instantSlope = 0
+                    }
+
+                    // 3. Media mobile per stabilizzare il valore
+                    slopeHistory.addLast(instantSlope)
+                    if (slopeHistory.size > SLOPE_WINDOW_SIZE) {
+                        slopeHistory.removeFirst()
+                    }
+
+                    val averagedSlope = slopeHistory.average().toInt()
+                    _pendenza.postValue(averagedSlope)
+
                     referencePointForSlope = currentPoint
                 }
             }
-        } else _pendenza.postValue(0)
+        } else {
+            _pendenza.postValue(0)
+            slopeHistory.clear() // Reset della memoria quando ci si ferma
+        }
 
         oldPunto = currentPoint
     }

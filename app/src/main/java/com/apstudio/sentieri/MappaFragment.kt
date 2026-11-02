@@ -161,7 +161,7 @@ import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
-import org.osmdroid.bonuspack.clustering.MarkerClusterer
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val TAG = "MappaFragment"
 
@@ -241,6 +241,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     private lateinit var currentTrackPolyline: Polyline // La traccia che disegna sulla mappa
     private lateinit var tracksFolder: FolderOverlay
     private var alertDialog: AlertDialog? = null
+    private var allarmePendingJob: kotlinx.coroutines.Job? = null
+
 
     //gestione preferenze e listener
     private lateinit var preferenze: SharedPreferences
@@ -278,7 +280,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     private var startPointForRouting: GeoPoint? = null
     private var endPointForRouting: GeoPoint? = null
     private var pendingRoadmapPoints: List<GeoPoint>? = null
-    private lateinit var radius : MarkerClusterer
+
     // 1. Registra il launcher per ricevere il risultato dell'attività
     private val mapFileSelectorLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -743,10 +745,10 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 // niente più controlli manuali su _binding: se la view viene distrutta,
                 // viewLifecycleOwner.lifecycleScope cancella automaticamente la coroutine.
                 viewLifecycleOwner.lifecycleScope.launch {
-                    delay(animationDuration + 200)
+                    delay((animationDuration + 200).milliseconds)
                     mapView.invalidate()
 
-                    delay(6000 - (animationDuration + 200)) // completa il totale di 6s dall'inizio
+                    delay((6000 - (animationDuration + 200)).milliseconds) // completa il totale di 6s dall'inizio
                     mapView.overlays.remove(highlightMarker)
                     mapView.invalidate()
                 }
@@ -1176,9 +1178,21 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         // Gestione unificata dell'allarme fuori traccia: osserva la distanza calcolata nel ViewModel
         viewModel.distanceFromTrack.observe(viewLifecycleOwner) { dist ->
-            if (viewModel.alertFuoriTraccia && viewModel.tracciaDaSeguire.isNotEmpty() && dist > 50.0) {
-                if (!isAlertDialogShowing() && isAdded && _binding != null) {
-                    mostraAllarmeFuoriTraccia()
+            if (viewModel.alertFuoriTraccia && viewModel.tracciaDaSeguire.isNotEmpty()) {
+                if (dist > 80.0) {
+                    // Se siamo fuori traccia, pianifichiamo l'allarme tra 3 secondi
+                    if (allarmePendingJob == null) {
+                        allarmePendingJob = viewLifecycleOwner.lifecycleScope.launch {
+                            delay(3000)
+                            if (!isAlertDialogShowing() && isAdded && _binding != null) {
+                                mostraAllarmeFuoriTraccia()
+                            }
+                        }
+                    }
+                } else {
+                    // Se rientriamo nella soglia, cancelliamo l'allarme pianificato
+                    allarmePendingJob?.cancel()
+                    allarmePendingJob = null
                 }
             }
         }
@@ -1630,7 +1644,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             if (existingItem != null) {
                 val updatedItem = existingItem.copy(
                     punti = viewModel.puntiDaSeguire.toList(),
-                    waypoints = if (existingItem.waypoints.isNotEmpty()) existingItem.waypoints else viewModel.wayPoint.toList(),
+                    waypoints = existingItem.waypoints.ifEmpty { viewModel.wayPoint.toList() },
                     fotos = viewModel.fotoList.toList(),
                     distanzeCumulative = cache.first,
                     asceseCumulative = cache.second,
@@ -1678,7 +1692,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             mapView.controller.animateTo(viewModel.poi, viewModel.ultZoom.toDouble(), 0)
         }
 
-        // 1. Sincronizzazione Toponimi (Ottimizzata)
+    // ... (rest of the code)
         // Se la vista è stata ricreata, dobbiamo rinfrescare i marker anche se la lista non è cambiata,
         // perché quelli vecchi sono legati alla mapView precedente.
         if (viewModel.toponimiSelezionati != lastSyncedToponimi || isViewRecreated) {
@@ -1832,7 +1846,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext(), R.style.AlertDialogCustom)
                 .setTitle("Nessuna traccia trovata")
                 .setMessage("Non sono stati trovati file GPX/KML nella cartella Tracce (${tracceDir.absolutePath}).\n\nPuoi caricarli aprendo la cartella Download o un'altra cartella del dispositivo.")
-                .setPositiveButton("Sfoglia dispositivo (Download)") { _, _ ->
+                .setPositiveButton("Sfoglia (Download)") { _, _ ->
                     apriSelettoreFileGpx()
                 }
                 .setNegativeButton("Chiudi", null)
@@ -2387,7 +2401,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     val nomeFile = getFileNameFromUri(requireContext(), uri)
                     
                     val tracksFound = mutableListOf<Pair<String, Pair<List<GeoPoint>, Boolean>>>()
-                    val allWaypoints = mutableListOf<net.federicomatera.agpxp.models.WayPoint>()
+                    val allWaypoints = mutableListOf<WayPoint>()
 
                     fun processGeometry(geometry: KmlGeometry?, featureName: String) {
                         when (geometry) {
@@ -2415,7 +2429,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                                 if (geometry.mCoordinates.isNotEmpty()) {
                                     val gp = geometry.mCoordinates[0]
                                     allWaypoints.add(
-                                        net.federicomatera.agpxp.models.WayPoint(
+                                        WayPoint(
                                             latitude = gp.latitude,
                                             longitude = gp.longitude,
                                             elevation = gp.altitude,
@@ -2968,11 +2982,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 stopAudioRecording(btnRegistraAudio, true) // Forza lo stop e il rilascio
             }
         }
-    }
-
-    private fun addMarker() {
-        // I marker ora sono rigenerati da syncLayerVisuals basandosi sui dati in layerItems
-        syncLayerVisuals()
     }
 
 

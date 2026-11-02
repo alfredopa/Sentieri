@@ -59,6 +59,7 @@
         android:background="@drawable/bg_drawer_rounded"
         android:backgroundTint="#09155A"
         app:itemTextColor="@color/white"
+        app:itemBackground="@drawable/drawer_item_selector"
         app:itemIconTint="@color/blurred_white"
         app:headerLayout="@layout/nav_header"
         app:menu="@menu/main_drawer" />

@@ -1,10 +1,10 @@
 package com.apstudio.sentieri
 
 import android.app.Application
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -12,6 +12,7 @@ import androidx.lifecycle.asLiveData
 import androidx.lifecycle.liveData
 import androidx.lifecycle.map
 import androidx.lifecycle.viewModelScope
+import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.GpxNavigationManager
 import com.apstudio.sentieri.db.LayerItem
@@ -21,15 +22,14 @@ import com.apstudio.sentieri.db.PoiDB
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriRepo
 import com.apstudio.sentieri.db.TopoMarkerData
-import com.apstudio.sentieri.layer.Event
-import com.apstudio.sentieri.layer.placeholder.PlaceholderContent
-import com.apstudio.sentieri.sync.SyncManager
-import com.example.levo_sdk.domain.model.BtDevice
-import androidx.core.content.edit
-import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.db.Track
 import com.apstudio.sentieri.db.TurnInstruction
+import com.apstudio.sentieri.layer.Event
+import com.apstudio.sentieri.layer.placeholder.PlaceholderContent
 import com.apstudio.sentieri.sync.DownloadService
+import com.apstudio.sentieri.sync.DownloadService.ServerConfig
+import com.apstudio.sentieri.sync.SyncManager
+import com.example.levo_sdk.domain.model.BtDevice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -39,8 +39,6 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.Polyline
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
-import com.apstudio.sentieri.sync.DownloadService.ServerConfig
 
 class SentieriViewModel(private val repository: SentieriRepo, application: Application) :
     AndroidViewModel(application) {
@@ -161,7 +159,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         
         // Salva l'indirizzo per riconnessione automatica
         PreferenceManager.getDefaultSharedPreferences(getApplication()).edit {
-            putString("last_ebike_address", device.address)
+            putString("connessione_ebike", device.address)
         }
     }
 
@@ -172,8 +170,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
         getApplication<Application>().startService(intent)
     }
 
-    // Bluetooth Heart Rate Methods (Fascia Cardio tramite Service)
-    val hrIsConnected: LiveData<Boolean> = LocationRepository.hrIsConnected
     val heartRate: LiveData<Int> = LocationRepository.heartRate
     val hrStatus: LiveData<String> = LocationRepository.hrStatus
     val hrDevices: LiveData<List<BtDevice>> = LocationRepository.hrDevices
@@ -616,12 +612,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     enum class ChartType { ALTITUDE, EBIKE, HEART_RATE }
     enum class TelemetrySeries { BATTERY, ASSIST, POWER, CADENCE, HR, ALTITUDE }
 
-    suspend fun preparaDatiGrafico(): List<com.github.mikephil.charting.data.Entry> {
-        return withContext(Dispatchers.IO) {
-            MapUtils.getPuntiInterpolati(geoPuntiPercorso)
-        }
-    }
-
     suspend fun preparaDatiGraficoTelemetry(type: ChartType, series: List<TelemetrySeries> = emptyList()): Map<TelemetrySeries, List<com.github.mikephil.charting.data.Entry>> {
         return withContext(Dispatchers.IO) {
             val result = mutableMapOf<TelemetrySeries, List<com.github.mikephil.charting.data.Entry>>()
@@ -635,7 +625,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                 }
                 ChartType.EBIKE -> {
                     series.forEach { s ->
-                        val selector: (com.apstudio.sentieri.db.Track) -> Float = when (s) {
+                        val selector: (Track) -> Float = when (s) {
                             TelemetrySeries.BATTERY -> { { it.batteryPercent?.toFloat() ?: 0f } }
                             TelemetrySeries.ASSIST -> { { it.assistLevel?.toFloat() ?: 0f } }
                             TelemetrySeries.POWER -> { { it.power?.toFloat() ?: 0f } }
@@ -681,7 +671,6 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             }
 
             try {
-                val encodedPath = URLEncoder.encode(remotePath, "UTF-8")
                 //val url = URL("$serverUrl/api/list?path=Cloud")
                 val url = URL(ServerConfig.filesUrl(prefs) + "/api/list?path=Cloud")
                 val connection = (url.openConnection() as HttpURLConnection).apply {
@@ -692,31 +681,35 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
                     setRequestProperty("Accept", "application/json")
                 }
 
-                val responseCode = connection.responseCode
-                if (responseCode == 200) {
-                    val responseText = connection.inputStream.bufferedReader().use { it.readText() }
-                    val jsonObject = JSONObject(responseText)
-                    val entriesArray = jsonObject.optJSONArray("entries")
-                    val fileList = mutableListOf<String>()
+                when (val responseCode = connection.responseCode) {
+                    200 -> {
+                        val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+                        val jsonObject = JSONObject(responseText)
+                        val entriesArray = jsonObject.optJSONArray("entries")
+                        val fileList = mutableListOf<String>()
 
-                    if (entriesArray != null) {
-                        for (i in 0 until entriesArray.length()) {
-                            val item = entriesArray.getJSONObject(i)
-                            val isDir = item.optBoolean("isDir", false)
-                            val name = item.optString("name", "")
-                            // Filtriamo solo file (es. mappe .map, .zip, ecc.)
-                            if (!isDir && name.isNotEmpty()) {
-                                fileList.add(name)
+                        if (entriesArray != null) {
+                            for (i in 0 until entriesArray.length()) {
+                                val item = entriesArray.getJSONObject(i)
+                                val isDir = item.optBoolean("isDir", false)
+                                val name = item.optString("name", "")
+                                // Filtriamo solo file (es. mappe .map, .zip, ecc.)
+                                if (!isDir && name.isNotEmpty()) {
+                                    fileList.add(name)
+                                }
                             }
                         }
+                        _ftpFileList.postValue(Event(fileList))
                     }
-                    _ftpFileList.postValue(Event(fileList))
-                } else if (responseCode == 401) {
-                    _ftpDownloadStatus.postValue(Event("Autenticazione fallita (401): Token non autorizzato dal server"))
-                } else if (responseCode == 429) {
-                    _ftpDownloadStatus.postValue(Event("Troppe richieste (429): IP temporaneamente bloccato"))
-                } else {
-                    _ftpDownloadStatus.postValue(Event("Errore server ($responseCode): ${connection.responseMessage}"))
+                    401 -> {
+                        _ftpDownloadStatus.postValue(Event("Autenticazione fallita (401): Token non autorizzato dal server"))
+                    }
+                    429 -> {
+                        _ftpDownloadStatus.postValue(Event("Troppe richieste (429): IP temporaneamente bloccato"))
+                    }
+                    else -> {
+                        _ftpDownloadStatus.postValue(Event("Errore server ($responseCode): ${connection.responseMessage}"))
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("NAS_LIST", "Errore connessione HTTP backend", e)
