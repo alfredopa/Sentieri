@@ -118,6 +118,10 @@
             android:name="uriFoto"
             app:argType="string"
             android:defaultValue="" />
+        <argument
+            android:name="initialPosition"
+            app:argType="integer"
+            android:defaultValue="0" />
     </fragment>
 
     <fragment

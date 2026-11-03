@@ -59,6 +59,7 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
     var poiDBList: MutableList<PoiDB> = mutableListOf()
     var fotoInPoiDB: MutableList<Uri> = mutableListOf()
     var fotoList: MutableList<Uri> = mutableListOf()
+    var currentPhotosList: List<Uri> = emptyList()
     var layerItems: MutableList<LayerItem> = mutableListOf()
     var geoPuntiPercorso: MutableList<GeoPoint> = mutableListOf()
     var toponimiSelezionati: MutableList<TopoMarkerData> = mutableListOf()

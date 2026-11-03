@@ -81,6 +81,7 @@ class PoiFragment : Fragment() {
             }
             
             if (uniquePhotos.isNotEmpty()) {
+                viewModel.currentPhotosList = uniquePhotos
                 // Create a recyclerPhoto  object and set the adapter
                 val recyclerPhoto = view.findViewById<RecyclerView>(R.id.rv_photo)
                 recyclerPhoto.layoutManager =
@@ -90,7 +91,10 @@ class PoiFragment : Fragment() {
                 fotoAdapter.setOnItemClickListener(object : OnItemClickListener {
                         override fun onItemClick(position: Int) {
                             val uri = uniquePhotos[position]
-                            val directions = PoiFragmentDirections.actionPoiFragmentToCameraFragment(uri.toString())
+                            val directions = PoiFragmentDirections.actionPoiFragmentToCameraFragment(
+                                uriFoto = uri.toString(),
+                                initialPosition = position
+                            )
                             findNavController().navigate(directions)
                         }
                 })

@@ -11,8 +11,7 @@
     app:itemTextColor="@color/mappa_menu_color_selector"
     app:itemIconTint="@color/mappa_menu_color_selector"
     app:itemShapeFillColor="@color/mappa_menu_background_selector"
-    app:itemShapeInsetStart="12dp"
-    app:itemShapeInsetEnd="12dp"
-    app:itemShapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium"
+    app:paddingBottomSystemWindowInsets="false"
+    app:paddingTopSystemWindowInsets="false"
     app:menu="@menu/mappa_bottom_menu"
     />

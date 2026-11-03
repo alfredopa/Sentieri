@@ -4376,7 +4376,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
             bottomSheet?.let {
                 // Rimuove lo sfondo rettangolare di default
-                it.background = null
+                it.setBackgroundResource(R.drawable.bg_bottom_sheet)   // al posto di it.background = null
 
                 // Forza l'espansione e rimuove il comportamento "collapsed"
                 val behavior = BottomSheetBehavior.from(it)
@@ -4392,6 +4392,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         val navigationView = view.findViewById<NavigationView>(R.id.navigation_view)
         navigationView.itemIconTintList = null
+        navigationView.background = null                        // lo sfondo ora lo disegna il contenitore
         val menu = navigationView.menu
         val sosItem = menu.findItem(R.id.menu_sos)
 
