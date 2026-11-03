@@ -540,7 +540,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         TooltipCompat.setTooltipText(binding.btnMenu, "Apre il menu")
         TooltipCompat.setTooltipText(binding.camera, "Scatta una foto")
         TooltipCompat.setTooltipText(binding.fabBlocMappa,"Abilita riposizionamento della mappa automatico")
-        TooltipCompat.setTooltipText(binding.fabSelectDestination, "Calcola percorso")
 
         // 1. Pulisci la mappa
         mapView.overlayManager.clear()
@@ -998,22 +997,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         binding.cruscotto.btnBikeDetails.setOnClickListener {
             findNavController().navigate(R.id.action_mappaFragment_to_bikeFragment)
-        }
-
-        binding.fabSelectDestination.setOnClickListener {
-            if (viewModel.isRecording && viewModel.puntiGPS.isNotEmpty()) {
-                if (!isSelectingDestination) {
-                    enterDestinationSelectionMode()
-                } else {
-                    exitDestinationSelectionMode()
-                }
-            } else {
-                Toast.makeText(
-                    requireContext(),
-                    "Calcolo percorso solo con registrazione avviata",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
         }
 
         binding.buttonConfirmDestination.setOnClickListener {
@@ -1573,7 +1556,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             viewModel.locationData.value?.geoPoint?.let { gpsMarker.position = it }
             gpsMarker.setVisible(true)
             binding.fabBlocMappa.isVisible = true
-            binding.fabSelectDestination.isVisible = isBRouterInstalled(requireContext())
 
             bottomSheetBehavior.isHideable = false
             bottomSheetBehavior.peekHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 40f, resources.displayMetrics).toInt()
@@ -2061,7 +2043,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         binding.cruscotto.panelNextTurn.visibility = View.GONE
         binding.fabBlocMappa.isVisible = false
         gpsMarker.setVisible(false)
-        binding.fabSelectDestination.isVisible = false
         binding.fabStopRec.isVisible = false
         LocationRepository.updateGpsStatus("stopped")
         // rimuove impostazione schermo sempre acceso
@@ -2190,8 +2171,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         gpsMarker.setVisible(true)
         mapView.overlays.add(gpsMarker)
         binding.fabBlocMappa.isVisible = true
-        // Mostra o nascondi il bottone del menu BRouter in base all'installazione
-        binding.fabSelectDestination.isVisible = isBRouterInstalled(requireContext())
 
         // 4. Invalida la mappa per forzare un ridisegno immediato.
         mapView.invalidate()
@@ -4327,7 +4306,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
         // Mostra il pulsante di conferma e cambia l'icona del FAB (opzionale)
         binding.buttonConfirmDestination.visibility = View.VISIBLE
-        binding.fabSelectDestination.setImageResource(android.R.drawable.ic_menu_close_clear_cancel) // Icona di annullamento
 
         // Se il marker non esiste, crealo al centro della mappa
         if (destinationMarker == null) {
@@ -4394,6 +4372,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         navigationView.itemIconTintList = null
         navigationView.background = null                        // lo sfondo ora lo disegna il contenitore
         val menu = navigationView.menu
+        navigationView.menu.findItem(R.id.VaiADestinazione)?.isVisible = isBRouterInstalled(requireContext())
         val sosItem = menu.findItem(R.id.menu_sos)
 
         // Colora il testo del menuItem SOS in rosso
@@ -4444,6 +4423,22 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     bottomSheetDialog.dismiss()
                     toggleAreaSearchMode(true)
                     Toast.makeText(requireContext(), "Disegna un rettangolo sulla mappa", Toast.LENGTH_SHORT).show()
+                }
+                R.id.VaiADestinazione -> {
+                    bottomSheetDialog.dismiss()
+                    if (viewModel.isRecording && viewModel.puntiGPS.isNotEmpty()) {
+                        if (!isSelectingDestination) {
+                            enterDestinationSelectionMode()
+                        } else {
+                            exitDestinationSelectionMode()
+                        }
+                    } else {
+                        Toast.makeText(
+                            requireContext(),
+                            "Calcolo percorso solo con registrazione avviata",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             }
             true
@@ -4575,7 +4570,6 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         isSelectingDestination = false
         // Nascondi il pulsante di conferma e ripristina l'icona del FAB
         binding.buttonConfirmDestination.visibility = View.GONE
-        binding.fabSelectDestination.setImageResource(R.drawable.ic_distance) // Icona originale
         // Nascondi il marker (non rimuoverlo, così lo possiamo riutilizzare)
         destinationMarker?.isEnabled = false
         mapView.invalidate()

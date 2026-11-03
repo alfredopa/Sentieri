@@ -19,5 +19,4 @@
             android:title="Apre Geopackage"
             android:visible="false"/>
     </group>
-
 </menu>

@@ -25,6 +25,11 @@
             android:id="@+id/menu_cerca_area"
             android:icon="@android:drawable/ic_menu_search"
             android:title="Cerca in area" />
+        <item
+            android:id="@+id/VaiADestinazione"
+            android:icon="@drawable/ic_start"
+            android:title="@string/vai_a_destinazione"
+            android:visible="false"/>
     </group>
     <group android:id="@+id/group_settings" android:checkableBehavior="single">
         <item
