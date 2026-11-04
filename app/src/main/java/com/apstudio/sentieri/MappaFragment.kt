@@ -4567,6 +4567,13 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
 
     private fun exitDestinationSelectionMode() {
+        // 1. Pulizia dello stato del marcatore
+        destinationMarker?.let { marker ->
+            // Rimuovi il marcatore dalla mappa, se necessario
+            mapView.overlays.remove(marker)
+            // Resetta il riferimento alla variabile
+            destinationMarker = null
+        }
         isSelectingDestination = false
         // Nascondi il pulsante di conferma e ripristina l'icona del FAB
         binding.buttonConfirmDestination.visibility = View.GONE
