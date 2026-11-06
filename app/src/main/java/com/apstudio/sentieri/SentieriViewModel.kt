@@ -28,6 +28,7 @@ import com.apstudio.sentieri.layer.Event
 import com.apstudio.sentieri.layer.placeholder.PlaceholderContent
 import com.apstudio.sentieri.sync.DownloadService
 import com.apstudio.sentieri.sync.DownloadService.ServerConfig
+import com.apstudio.sentieri.sync.SecureTokenManager
 import com.apstudio.sentieri.sync.SyncManager
 import com.example.levo_sdk.domain.model.BtDevice
 import kotlinx.coroutines.Dispatchers
@@ -657,10 +658,8 @@ class SentieriViewModel(private val repository: SentieriRepo, application: Appli
             _ftpDownloadStatus.postValue(Event("Richiesta lista mappe dal server..."))
 
             val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
-            //val serverUrl = prefs.getString("nas_server_url", "https://sentieriap.duckdns.org")?.trimEnd('/') ?: ""
             val serverUrl = ServerConfig.filesUrl(prefs)
-            var token = prefs.getString("NAS_AUTH_TOKEN", "")?.trim() ?: ""
-            if (token.isEmpty()) token = BuildConfig.NAS_AUTH_TOKEN
+            val token = SecureTokenManager.getToken(getApplication())
 
             if (serverUrl.isEmpty()) {
                 _ftpDownloadStatus.postValue(Event("Errore: URL Server NAS non configurato nelle impostazioni"))

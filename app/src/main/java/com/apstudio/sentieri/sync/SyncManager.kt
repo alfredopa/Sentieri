@@ -6,7 +6,6 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import androidx.preference.PreferenceManager
-import com.apstudio.sentieri.BuildConfig
 import com.apstudio.sentieri.db.FotoPoi
 import com.apstudio.sentieri.db.FotoPoiDao
 import com.apstudio.sentieri.db.PoiDB
@@ -506,8 +505,7 @@ class SyncManager(
 
     private fun getApi(): SyncApi {
         val serverUrl = ServerConfig.filesUrl(prefs)
-        var token = prefs.getString("nas_auth_token", "")?.trim() ?: ""
-        if (token.isEmpty()) token = BuildConfig.NAS_AUTH_TOKEN
+        val token = SecureTokenManager.getToken(context)
         if (serverUrl.isEmpty()) {
             throw IOException("URL Server NAS non configurato nelle impostazioni")
         }

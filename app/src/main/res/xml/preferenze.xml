@@ -43,18 +43,19 @@
         <Preference
             app:key="connessione_ebike"
             app:title="Connessione e-bike"
+            app:defaultValue="false"
             app:summary="Seleziona e connetti la tua e-bike Specialized" />
         <SwitchPreferenceCompat
             app:key="mostra_dati_ebike"
             app:title="Mostra dati e-bike"
             app:summary="Visualizza i dati della bici sul cruscotto"
-            app:defaultValue="true" />
+            app:defaultValue="false" />
         <SwitchPreferenceCompat
             app:dependency="mostra_dati_ebike"
             app:key="auto_reconnect_ebike"
             app:title="Riconnessione automatica"
             app:summary="Tenta di riconnettersi automaticamente all'e-bike"
-            app:defaultValue="true" />
+            app:defaultValue="false" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="Fascia Cardio (BLE)">

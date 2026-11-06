@@ -18,10 +18,12 @@ import androidx.fragment.app.activityViewModels
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
+import androidx.preference.PreferenceDataStore
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceManager
 import com.apstudio.sentieri.db.SentieriDB
 import com.apstudio.sentieri.db.SentieriRepo
+import com.apstudio.sentieri.sync.SecureTokenManager
 import java.io.File
 
 class Preferenze : PreferenceFragmentCompat() {
@@ -82,6 +84,15 @@ class Preferenze : PreferenceFragmentCompat() {
         urlPref?.summaryProvider = EditTextPreference.SimpleSummaryProvider.getInstance()
 
         val tokenPref = findPreference<EditTextPreference>("nas_auth_token")
+        tokenPref?.preferenceDataStore = object : PreferenceDataStore() {
+            override fun putString(key: String, value: String?) {
+                SecureTokenManager.saveToken(requireContext(), value)
+            }
+
+            override fun getString(key: String, defValue: String?): String? {
+                return SecureTokenManager.getToken(requireContext())
+            }
+        }
         tokenPref?.summaryProvider = Preference.SummaryProvider<EditTextPreference> { pref ->
             val text = pref.text
             if (text.isNullOrEmpty()) "Nessun token impostato" else "Token configurato (lunghezza ${text.length})"

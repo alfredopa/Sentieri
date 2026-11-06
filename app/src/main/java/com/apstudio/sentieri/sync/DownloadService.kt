@@ -13,7 +13,6 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.preference.PreferenceManager
-import com.apstudio.sentieri.BuildConfig
 import com.apstudio.sentieri.MainActivity
 import com.apstudio.sentieri.MapUtils
 import kotlinx.coroutines.CoroutineScope
@@ -93,9 +92,8 @@ class DownloadService : Service() {
 
             try {
                 val prefs = PreferenceManager.getDefaultSharedPreferences(this@DownloadService)
-                //val serverUrl = prefs.getString("nas_server_url", "https://sentieriapduckdns.org:443")?.trimEnd('/') ?: ""
                 val serverUrl = ServerConfig.filesUrl(prefs)
-                val token = BuildConfig.NAS_AUTH_TOKEN
+                val token = SecureTokenManager.getToken(this@DownloadService)
 
                 if (serverUrl.isEmpty() || token.isEmpty()) {
                     throw Exception("Configurazione NAS incompleta nelle impostazioni (URL o Token mancante)")
