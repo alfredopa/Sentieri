@@ -4460,11 +4460,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                     mostraMappeLocaliDialog()
                 }
 
-                R.id.Offline -> {
+                /*R.id.Offline -> {
                     menuItem.isChecked = true
                     bottomSheetDialog.dismiss()
                     offline()
-                }
+                }*/
 
                 R.id.Online, R.id.Mapquest, R.id.MapBox -> {
                     menuItem.isChecked = !menuItem.isChecked
