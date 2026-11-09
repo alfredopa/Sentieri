@@ -731,9 +731,11 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // 2. Osserva le richieste di navigazione (da FeatureList).
         layerModel.navigateToPointRequest.observe(viewLifecycleOwner, Observer { event ->
             event.getContentIfNotHandled()?.let { clickedPoint ->
-                val animationDuration = 1000L
-                //mapView.controller.animateTo(clickedPoint, 12.5, animationDuration)
-                mapView.controller.setCenter(clickedPoint)
+                viewModel.ultPosizione = clickedPoint
+                viewModel.ultZoom = 16
+
+                mapView.controller.setZoom(16.0)
+                mapView.controller.animateTo(clickedPoint)
 
                 val highlightMarker = Marker(mapView).apply {
                     position = clickedPoint
@@ -743,14 +745,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 mapView.overlays.add(highlightMarker)
                 mapView.invalidate()
 
-                // Una sola coroutine gestisce entrambi i "delayed" in sequenza,
-                // niente più controlli manuali su _binding: se la view viene distrutta,
-                // viewLifecycleOwner.lifecycleScope cancella automaticamente la coroutine.
                 viewLifecycleOwner.lifecycleScope.launch {
-                    delay((animationDuration + 200).milliseconds)
-                    mapView.invalidate()
-
-                    delay((6000 - (animationDuration + 200)).milliseconds) // completa il totale di 6s dall'inizio
+                    delay(5000.milliseconds)
                     mapView.overlays.remove(highlightMarker)
                     mapView.invalidate()
                 }

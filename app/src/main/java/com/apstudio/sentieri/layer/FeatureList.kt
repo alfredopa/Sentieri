@@ -112,10 +112,13 @@ class FeatureList : Fragment(), MenuProvider {
 
                     val geometry = row.geometry?.geometry
                     if (geometry != null) {
-                        val centroid = geometry.centroid
-                        if (centroid is Point) {
-                            currentFeatureMap[DynamicFeatureAdapter.KEY_INTERNAL_LATITUDE] = centroid.y
-                            currentFeatureMap[DynamicFeatureAdapter.KEY_INTERNAL_LONGITUDE] = centroid.x
+                        val point = when (geometry) {
+                            is Point -> geometry
+                            else -> geometry.centroid
+                        }
+                        if (point is Point) {
+                            currentFeatureMap[DynamicFeatureAdapter.KEY_INTERNAL_LATITUDE] = point.y
+                            currentFeatureMap[DynamicFeatureAdapter.KEY_INTERNAL_LONGITUDE] = point.x
                         }
                     }
                     featuresDataForAdapter.add(currentFeatureMap)
