@@ -28,6 +28,10 @@
         android:id="@+id/toponimiFragment"
         android:icon="@drawable/ic_search"
         android:title="Ricerca toponimi" />
+    <item
+        android:id="@+id/stradarioFragment"
+        android:icon="@drawable/ic_search"
+        android:title="@string/ricerca_strade" />
     </group>
     <group android:id="@+id/group_settings">
     <item

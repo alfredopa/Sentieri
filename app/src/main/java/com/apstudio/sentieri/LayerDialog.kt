@@ -107,6 +107,10 @@ class LayerDialog : Fragment() {
 
             override fun onItemLongClick(position: Int) {
                 val item = viewModel.layerItems[position]
+                if (item.isPolygon || item.isWayPoint || item.isStreet) {
+                    // Non mostrare il grafico o dettagli per poligoni, waypoint o strade
+                    return
+                }
                 val builder = AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
                 with(builder) {
                     setTitle("Dati traccia\n${item.nome}")

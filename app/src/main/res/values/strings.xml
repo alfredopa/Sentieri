@@ -30,4 +30,6 @@
     <string name="scarica_db_conferma">Vuoi scaricare tutti i percorsi dal NAS? I percorsi non presenti verranno scaricati con tutti i punti traccia.</string>
     <string name="photo_counter_format">%1$d / %2$d</string>
     <string name="vai_a_destinazione">Vai a destinazione</string>
+    <string name="strade_risultati_count">Trovati %1$d risultati</string>
+    <string name="ricerca_strade">Ricerca strade (Stradario)</string>
 </resources>

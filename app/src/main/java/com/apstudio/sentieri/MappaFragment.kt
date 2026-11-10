@@ -1337,7 +1337,9 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                 layers.forEach { item ->
                     if (!item.abilitato) return@forEach
                     
-                    if (item.punti.isNotEmpty()) {
+                    val segmentsToDraw = if (item.multiSegments.isNotEmpty()) item.multiSegments else if (item.punti.isNotEmpty()) listOf(item.punti) else emptyList()
+
+                    if (segmentsToDraw.isNotEmpty()) {
                         if (item.isPolygon) {
                             val polygon = Polygon(mv).apply {
                                 points = item.punti
@@ -1349,52 +1351,58 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
                             }
                             list.add(polygon)
                         } else {
-                            // Crea linea di sfondo (operazione grafica veloce)
-                            val lineSfondo = Polyline(mv).apply {
-                                id = "sfondo"
-                                title = item.nome
-                                setPoints(item.punti)
-                                disegnaLineaSfondo(this)
+                            segmentsToDraw.forEach { segmentPoints ->
+                                if (segmentPoints.isNotEmpty()) {
+                                    // Crea linea di sfondo (operazione grafica veloce)
+                                    val lineSfondo = Polyline(mv).apply {
+                                        id = "sfondo"
+                                        title = item.nome
+                                        setPoints(segmentPoints)
+                                        disegnaLineaSfondo(this)
+                                    }
+                                    list.add(lineSfondo)
+                                    
+                                    // Crea linea di percorso
+                                    val linePercorso = Polyline(mv).apply {
+                                        id = "percorso"
+                                        title = item.nome
+                                        setPoints(segmentPoints)
+                                    }
+                                    
+                                    // Applica stili (operazioni pesanti: calcoli matematici e paint lists)
+                                    if (item.direzione) {
+                                        MapUtils.applicaFrecceDirezione(linePercorso)
+                                    }
+                                    if (item.mostraPendenza) {
+                                        val pendenze = MapUtils.calcolaPendenzeSmussate(linePercorso, 8)
+                                        disegnaPercorsoColorato(linePercorso, pendenze)
+                                    } else {
+                                        disegnaPercorsoColorato(linePercorso)
+                                    }
+                                    
+                                    // Aggiungiamo i listener nel thread principale dopo
+                                    lineSfondo.relatedObject = item // Salviamo il riferimento per il listener
+                                    list.add(linePercorso)
+                                }
                             }
-                            list.add(lineSfondo)
                             
-                            // Crea linea di percorso
-                            val linePercorso = Polyline(mv).apply {
-                                id = "percorso"
-                                title = item.nome
-                                setPoints(item.punti)
+                            // Prepariamo i marker di inizio/fine solo se non è una strada
+                            if (!item.isStreet && item.punti.isNotEmpty()) {
+                                val startMarker = Marker(mv).apply {
+                                    position = item.punti.first()
+                                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                    icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_start)
+                                    title = "Partenza"
+                                }
+                                val endMarker = Marker(mv).apply {
+                                    position = item.punti.last()
+                                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                    icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_finish)
+                                    title = "Arrivo"
+                                }
+                                list.add(startMarker)
+                                list.add(endMarker)
                             }
-                            
-                            // Applica stili (operazioni pesanti: calcoli matematici e paint lists)
-                            if (item.direzione) {
-                                MapUtils.applicaFrecceDirezione(linePercorso)
-                            }
-                            if (item.mostraPendenza) {
-                                val pendenze = MapUtils.calcolaPendenzeSmussate(linePercorso, 8)
-                                disegnaPercorsoColorato(linePercorso, pendenze)
-                            } else {
-                                disegnaPercorsoColorato(linePercorso)
-                            }
-                            
-                            // Aggiungiamo i listener nel thread principale dopo
-                            lineSfondo.relatedObject = item // Salviamo il riferimento per il listener
-                            list.add(linePercorso)
-                            
-                            // Prepariamo i marker di inizio/fine
-                            val startMarker = Marker(mv).apply {
-                                position = item.punti.first()
-                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_start)
-                                title = "Partenza"
-                            }
-                            val endMarker = Marker(mv).apply {
-                                position = item.punti.last()
-                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                icon = AppCompatResources.getDrawable(requireContext(), R.drawable.ic_finish)
-                                title = "Arrivo"
-                            }
-                            list.add(startMarker)
-                            list.add(endMarker)
                         }
                     }
 
@@ -4268,15 +4276,16 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
      * Disegna sulla mappa la traccia calcolata e ricevuta da BRouter.
      */
     private fun disegnaTracciaBrouter(points: List<GeoPoint>) {
+        val (dist, asc, disc) = MapUtils.calcolaStatisticheTraccia(points)
         // Aggiungi il percorso BRouter come un LayerItem per permetterne la gestione e persistenza
         val brouterItem = LayerItem(
-            nome = "Percorso BRouter",
+            nome = "Percorso a destinazione",
             abilitato = true,
             direzione = false,
             segui = false,
-            distanza = 0f, // TODO: Calcolare se necessario
-            ascesa = 0,
-            discesa = 0,
+            distanza = dist,
+            ascesa = asc,
+            discesa = disc,
             punti = points
         )
         

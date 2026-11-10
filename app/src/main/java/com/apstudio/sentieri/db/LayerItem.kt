@@ -18,6 +18,8 @@ data class LayerItem(
     var fotos: List<Uri> = emptyList(),
     var isPolygon: Boolean = false,
     var isWayPoint: Boolean = false,
+    var isStreet: Boolean = false,
+    var multiSegments: List<List<org.osmdroid.util.GeoPoint>> = emptyList(),
     // Campi di cache precalcolati per velocizzare calculateRemainingStats
     var distanzeCumulative: List<Double> = emptyList(),
     var asceseCumulative: List<Double> = emptyList(),
