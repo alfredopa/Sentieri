@@ -98,11 +98,11 @@ class StradarioFragment : Fragment(), StradarioRecyclerViewAdapter.OnItemClickLi
         }
 
         if (!stradarioFile.exists()) {
-            Toast.makeText(
-                requireContext(),
-                "File Stradario.gpkg non trovato nella cartella Mappe.",
-                Toast.LENGTH_LONG
-            ).show()
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("Stradario non trovato")
+                .setMessage("File Stradario.gpkg non trovato nella cartella Mappe.\n\nScaricare Stradario dal server.")
+                .setPositiveButton("OK", null)
+                .show()
             Log.e("StradarioFragment", "File non trovato: ${stradarioFile.absolutePath}")
             return
         }
