@@ -353,12 +353,13 @@
             android:id="@+id/linearLayout2"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
             android:layout_marginTop="8dp"
+            android:layout_marginBottom="16dp"
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/swtchSegui"
-            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintVertical_bias="1.0">
 
             <Button
@@ -367,12 +368,12 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="8dp"
                 android:layout_weight="1"
+                android:background="@drawable/bg_button_outlined"
                 android:maxLines="1"
                 android:paddingStart="2dp"
                 android:paddingEnd="2dp"
                 android:text="Carica in Mappa"
                 android:textColor="@color/purple_200"
-                android:background="@drawable/bg_button_outlined"
                 android:textSize="14sp" />
 
             <Button
@@ -381,10 +382,10 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="8dp"
                 android:layout_weight="1"
+                android:background="@drawable/bg_button_outlined"
                 android:maxLines="1"
                 android:text="Altimetria"
                 android:textColor="@color/purple_200"
-                android:background="@drawable/bg_button_outlined"
                 android:textSize="14sp" />
         </LinearLayout>
 

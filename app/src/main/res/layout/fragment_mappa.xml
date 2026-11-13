@@ -179,9 +179,11 @@
         android:layout_width="match_parent"
         android:layout_height="400dp"
         android:layout_gravity="bottom"
+        android:elevation="16dp"
         android:visibility="gone"
         app:behavior_hideable="true"
         app:behavior_peekHeight="0dp"
+        app:cardElevation="16dp"
         app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
         <LinearLayout

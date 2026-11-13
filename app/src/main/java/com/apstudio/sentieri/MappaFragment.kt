@@ -648,6 +648,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
 
             if (results.isNotEmpty()) {
                 searchAdapter.submitList(results)
+                binding.panelSearchResults.bringToFront()
                 binding.panelSearchResults.visibility = View.VISIBLE
                 binding.panelSearchResults.post {
                     if (_binding != null) {
