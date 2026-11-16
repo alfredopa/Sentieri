@@ -63,8 +63,12 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Observer
@@ -238,6 +242,16 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
     private val searchPathsOverlays = mutableMapOf<Int, Polyline>()
 
     private lateinit var bottomSheetBehavior: BottomSheetBehavior<ConstraintLayout>
+    private var navBarInsetBottom = 0
+
+    private fun getCruscottoPeekHeight(baseDp: Float): Int {
+        val basePx = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            baseDp,
+            resources.displayMetrics
+        ).toInt()
+        return basePx + navBarInsetBottom
+    }
 
     private lateinit var gpsMarker: Marker
     private val displayedTopoMarkers = mutableListOf<Marker>()
@@ -541,6 +555,34 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         TooltipCompat.setTooltipText(binding.camera, "Scatta una foto")
         TooltipCompat.setTooltipText(binding.fabBlocMappa,"Abilita riposizionamento della mappa automatico")
 
+        val initialCruscottoBottomPadding = binding.cruscotto.root.paddingBottom
+        val initialSearchBottomPadding = binding.panelSearchResults.paddingBottom
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
+            val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            navBarInsetBottom = navBars.bottom
+
+            binding.cruscotto.root.setPadding(
+                binding.cruscotto.root.paddingLeft,
+                binding.cruscotto.root.paddingTop,
+                binding.cruscotto.root.paddingRight,
+                initialCruscottoBottomPadding + navBarInsetBottom
+            )
+            binding.panelSearchResults.setPadding(
+                binding.panelSearchResults.paddingLeft,
+                binding.panelSearchResults.paddingTop,
+                binding.panelSearchResults.paddingRight,
+                initialSearchBottomPadding + navBarInsetBottom
+            )
+
+            if (viewModel.isRecording && ::bottomSheetBehavior.isInitialized && bottomSheetBehavior.state != BottomSheetBehavior.STATE_HIDDEN) {
+                val baseDp = if (bottomSheetBehavior.state == BottomSheetBehavior.STATE_COLLAPSED) 120f else 40f
+                bottomSheetBehavior.peekHeight = getCruscottoPeekHeight(baseDp)
+            }
+
+            insets
+        }
+
         // 1. Pulisci la mappa
         mapView.overlayManager.clear()
 
@@ -804,12 +846,8 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
         // Usa FitToContents per ancorare il cruscotto al contenuto ed evitare lo scorrimento a tutto schermo
         bottomSheetBehavior.isFitToContents = true
 
-        // Imposta il peekHeight per vedere le prime 2 righe (Distanza, Velocità, Quota, Dislivelli)
-        val peekHeightDp = 40
-        val peekHeightPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, peekHeightDp.toFloat(), resources.displayMetrics).toInt()
-
         if (viewModel.isRecording) {
-            bottomSheetBehavior.peekHeight = peekHeightPx
+            bottomSheetBehavior.peekHeight = getCruscottoPeekHeight(120f)
             bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
         } else {
             bottomSheetBehavior.peekHeight = 0
@@ -1563,7 +1601,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             binding.fabBlocMappa.isVisible = true
 
             bottomSheetBehavior.isHideable = false
-            bottomSheetBehavior.peekHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 40f, resources.displayMetrics).toInt()
+            bottomSheetBehavior.peekHeight = getCruscottoPeekHeight(120f)
 
             val stateToRestore = viewModel.bottomState
             if (stateToRestore == BottomSheetBehavior.STATE_COLLAPSED ||
@@ -2200,7 +2238,7 @@ class MappaFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeList
             binding.cruscotto.tvPendenza.visibility = View.VISIBLE
         }
         bottomSheetBehavior.isHideable = false
-        bottomSheetBehavior.peekHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 110f, resources.displayMetrics).toInt()
+        bottomSheetBehavior.peekHeight = getCruscottoPeekHeight(120f)
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
         LocationRepository.updateGpsStatus("started")
         binding.fabStopRec.isVisible = true
