@@ -47,6 +47,10 @@
         android:icon="@android:drawable/ic_popup_sync"
         android:title="Sincronizza con Nas"/>
     <item
+        android:id="@+id/sincronizzaPCFragment"
+        android:icon="@android:drawable/ic_menu_rotate"
+        android:title="Sincronizza con PC"/>
+    <item
         android:id="@+id/aboutFragment"
         android:icon="@android:drawable/ic_dialog_info"
         android:title="Informazioni" />

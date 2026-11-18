@@ -217,4 +217,10 @@
         android:name="com.apstudio.sentieri.SincronizzaFragment"
         android:label="Sincronizzazione NAS"
         tools:layout="@layout/fragment_sincronizza" />
+
+    <fragment
+        android:id="@+id/sincronizzaPCFragment"
+        android:name="com.apstudio.sentieri.sync.SincronizzaPCFragment"
+        android:label="Sincronizzazione PC"
+        tools:layout="@layout/fragment_sincronizza_pc" />
 </navigation>
