@@ -1,6 +1,7 @@
 package com.apstudio.sentieri.sync
 
 import android.content.Context
+import android.os.Environment
 import android.util.Log
 import com.apstudio.sentieri.db.Sentieri
 import com.apstudio.sentieri.db.SentieriRepo
@@ -12,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.ServerSocket
@@ -69,6 +71,61 @@ class PcSyncServer(
             Log.e(TAG, "Errore durante arresto server HTTP", e)
         }
         serverSocket = null
+    }
+
+    private fun findPhotoFile(fileName: String): File? {
+        var name = fileName.trim()
+        try { name = java.net.URLDecoder.decode(name, "UTF-8") } catch (_: Exception) {}
+        name = name.substringBefore("?").substringBefore("#").substringAfterLast("/")
+        if (name.isBlank()) return null
+
+        @Suppress("DEPRECATION")
+        val appMediaDir = context.externalMediaDirs.firstOrNull()
+            ?: context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+            ?: context.cacheDir
+        val dirs = listOfNotNull(
+            File(appMediaDir, "Foto"),
+            context.getExternalFilesDir("Foto"),
+            context.getExternalFilesDir(null),
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Android/media/com.apstudio.sentieri/Foto")
+        )
+
+        for (dir in dirs) {
+            val file = File(dir, name)
+            if (file.exists() && file.length() > 0 && file.canRead()) return file
+        }
+        val direct = File(fileName)
+        if (direct.exists() && direct.length() > 0 && direct.canRead()) return direct
+        return null
+    }
+
+    private fun findVoiceFile(fileName: String): File? {
+        var name = fileName.trim()
+        try { name = java.net.URLDecoder.decode(name, "UTF-8") } catch (_: Exception) {}
+        name = name.substringBefore("?").substringBefore("#").substringAfterLast("/")
+        if (name.isBlank()) return null
+
+        @Suppress("DEPRECATION")
+        val appMediaDir = context.externalMediaDirs.firstOrNull()
+            ?: context.getExternalFilesDir(null)
+            ?: context.cacheDir
+        val dirs = listOfNotNull(
+            File(appMediaDir, "VoceWaypoint"),
+            File(appMediaDir, "VoceWaypoints"),
+            context.getExternalFilesDir("VoiceNotesWaypoint"),
+            context.getExternalFilesDir("VoiceNotesWaypoints"),
+            context.getExternalFilesDir("VoceWaypoint"),
+            context.getExternalFilesDir(null),
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Android/media/com.apstudio.sentieri/VoceWaypoint")
+        )
+
+        for (dir in dirs) {
+            val file = File(dir, name)
+            if (file.exists() && file.length() > 0 && file.canRead()) return file
+        }
+        val direct = File(fileName)
+        if (direct.exists() && direct.length() > 0 && direct.canRead()) return direct
+        return null
     }
 
     private fun handleClientSocket(socket: Socket) {
@@ -155,7 +212,6 @@ class PcSyncServer(
                     // 4. GET /api/v1/punti?uuid=... (Punti GPS per uno specifico sentiero UUID)
                     uri.startsWith("/api/v1/punti") || uri.startsWith("/punti") -> {
                         val uuid = extractQueryParam(uri, "uuid")
-                        val nome = extractQueryParam(uri,"")
                         if (uuid.isBlank()) {
                             Log.w(TAG, "Richiesta punti fallita: 'uuid' mancante")
                             sendResponse(output, 400, "Bad Request", JSONObject().put("error", "Parametro 'uuid' mancante").toString())
@@ -188,11 +244,44 @@ class PcSyncServer(
                         val jsonArray = JSONArray()
                         fotos.forEach { f -> jsonArray.put(FotoDto.fromEntity(f).toJson()) }
                         Log.d(TAG, "Inviate info per ${fotos.size} foto a $clientIp")
-                        onLogActivity("Inviati info per ${fotos.size} foto")
+                        onLogActivity("Inviate info per ${fotos.size} foto")
                         sendResponse(output, 200, "OK", jsonArray.toString())
                     }
 
-                    // 7. POST /api/v1/sync (Riceve e salva dati inviati dal PC)
+                    // 7. GET /api/v1/files/foto?name=... (Download file fisico immagine foto)
+                    uri.startsWith("/api/v1/files/foto") || uri.startsWith("/files/foto") -> {
+                        val name = extractQueryParam(uri, "name").ifBlank { extractQueryParam(uri, "path") }
+                        val file = findPhotoFile(name)
+                        if (file != null) {
+                            val mime = when {
+                                name.endsWith(".png", true) -> "image/png"
+                                name.endsWith(".webp", true) -> "image/webp"
+                                else -> "image/jpeg"
+                            }
+                            Log.d(TAG, "Invio file foto: ${file.name} (${file.length()} byte)")
+                            onLogActivity("Invio file foto: ${file.name}")
+                            sendFileResponse(output, file, mime)
+                        } else {
+                            Log.w(TAG, "File foto non trovato: $name")
+                            sendResponse(output, 404, "Not Found", JSONObject().put("error", "File foto non trovato: $name").toString())
+                        }
+                    }
+
+                    // 8. GET /api/v1/files/voce?name=... (Download file fisico audio nota vocale)
+                    uri.startsWith("/api/v1/files/voce") || uri.startsWith("/files/voce") -> {
+                        val name = extractQueryParam(uri, "name").ifBlank { extractQueryParam(uri, "path") }
+                        val file = findVoiceFile(name)
+                        if (file != null) {
+                            Log.d(TAG, "Invio file audio voce: ${file.name} (${file.length()} byte)")
+                            onLogActivity("Invio file audio: ${file.name}")
+                            sendFileResponse(output, file, "audio/m4a")
+                        } else {
+                            Log.w(TAG, "File audio non trovato: $name")
+                            sendResponse(output, 404, "Not Found", JSONObject().put("error", "File audio non trovato: $name").toString())
+                        }
+                    }
+
+                    // 9. POST /api/v1/sync (Riceve e salva dati inviati dal PC)
                     (uri.startsWith("/api/v1/sync") || uri == "/sync") && method == "POST" -> {
                         onLogActivity("Ricevuto payload SYNC POST dal PC")
                         val charBuffer = CharArray(contentLength)
@@ -300,6 +389,24 @@ class PcSyncServer(
         return query.split("&")
             .firstOrNull { it.startsWith("$paramName=") }
             ?.substringAfter("=") ?: ""
+    }
+
+    private fun sendFileResponse(out: OutputStream, file: File, contentType: String) {
+        val length = file.length()
+        val header = "HTTP/1.1 200 OK\r\n" +
+                "Content-Type: $contentType\r\n" +
+                "Content-Length: $length\r\n" +
+                "Access-Control-Allow-Origin: *\r\n" +
+                "Connection: close\r\n\r\n"
+        out.write(header.toByteArray(Charsets.UTF_8))
+        file.inputStream().use { input ->
+            val buffer = ByteArray(16384)
+            var read: Int
+            while (input.read(buffer).also { read = it } != -1) {
+                out.write(buffer, 0, read)
+            }
+        }
+        out.flush()
     }
 
     private fun sendResponse(out: OutputStream, statusCode: Int, statusText: String, body: String) {
