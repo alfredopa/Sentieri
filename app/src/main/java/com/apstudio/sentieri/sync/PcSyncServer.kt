@@ -216,12 +216,14 @@ class PcSyncServer(
                             Log.w(TAG, "Richiesta punti fallita: 'uuid' mancante")
                             sendResponse(output, 400, "Bad Request", JSONObject().put("error", "Parametro 'uuid' mancante").toString())
                         } else {
+                            val sentiero = repository.sentieriDao.getByUuid(uuid)
+                            val nomeSentiero = sentiero?.nome?.ifBlank { null } ?: uuid
                             val punti = repository.trackDao.getPointsByTrackUuid(uuid)
                             val jsonArray = JSONArray()
                             punti.forEach { p -> jsonArray.put(PuntoDto.fromEntity(p).toJson()) }
                             val elapsed = System.currentTimeMillis() - startTime
-                            Log.d(TAG, "Inviati ${punti.size} punti per sentiero [$uuid] a $clientIp in ${elapsed}ms")
-                            onLogActivity("Inviati ${punti.size} punti per sentiero [$uuid]")
+                            Log.d(TAG, "Inviati ${punti.size} punti per: '$nomeSentiero' a $clientIp in ${elapsed}ms")
+                            onLogActivity("Inviati ${punti.size} punti per: $nomeSentiero")
                             sendResponse(output, 200, "OK", jsonArray.toString())
                         }
                     }
@@ -351,6 +353,28 @@ class PcSyncServer(
                                     if (trackList.isNotEmpty()) {
                                         repository.trackDao.upsertPoints(trackList)
                                         puntiImportati += trackList.size
+                                    }
+                                }
+
+                                if (sObj.has("pois")) {
+                                    val poisArray = sObj.getJSONArray("pois")
+                                    for (j in 0 until poisArray.length()) {
+                                        val pObj = poisArray.getJSONObject(j)
+                                        val pDto = PoiDto.fromJson(pObj)
+                                        val poiEntity = com.apstudio.sentieri.db.PoiDB(
+                                            Trackid = idLoc,
+                                            trackUuid = dto.uuid,
+                                            Latit = pDto.lat,
+                                            Longit = pDto.lon,
+                                            Ele = pDto.ele,
+                                            NomePOI = pDto.nome,
+                                            DescrPOI = pDto.descr,
+                                            Time = pDto.time,
+                                            UriPath = pDto.uriPath,
+                                            uuid = if (pDto.uuid.isNotBlank()) pDto.uuid else UUID.randomUUID().toString(),
+                                            lastUpdate = if (pDto.lastUpdate > 0) pDto.lastUpdate else System.currentTimeMillis()
+                                        )
+                                        repository.poiDao.upsert(poiEntity)
                                     }
                                 }
                             }
